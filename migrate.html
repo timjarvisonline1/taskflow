@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskFlow — Data Migration</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0d0b14;color:#e0dce8;font-family:'DM Sans',system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto}
+  h1{font-size:24px;margin-bottom:8px;background:linear-gradient(135deg,#ff0099,#7928ca);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  p.sub{color:#8a7ca8;margin-bottom:24px;font-size:14px}
+  .step{background:#16131e;border:1px solid rgba(130,55,245,0.15);border-radius:12px;padding:20px;margin-bottom:16px}
+  .step h2{font-size:16px;margin-bottom:8px}
+  .step p{font-size:13px;color:#a89cc4;margin-bottom:12px}
+  label{display:block;font-size:12px;font-weight:600;color:#c4b8dc;margin-bottom:4px}
+  input[type="text"],input[type="password"]{width:100%;background:#1c1828;border:1px solid rgba(130,55,245,0.2);border-radius:8px;padding:10px 12px;color:#e0dce8;font-size:13px;margin-bottom:8px}
+  input:focus{outline:none;border-color:#7928ca}
+  .file-row{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .file-row label{min-width:160px;margin-bottom:0}
+  .file-row input[type="file"]{flex:1}
+  button{background:linear-gradient(135deg,#ff0099,#7928ca);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
+  button:hover{opacity:.9}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .log{background:#0d0b14;border:1px solid rgba(130,55,245,0.1);border-radius:8px;padding:12px;margin-top:12px;max-height:300px;overflow-y:auto;font-family:monospace;font-size:12px;white-space:pre-wrap}
+  .log .ok{color:#3ddc84}
+  .log .warn{color:#ff9800}
+  .log .err{color:#ff3358}
+  .log .info{color:#4da6ff}
+  .done-banner{background:rgba(61,220,132,0.1);border:1px solid rgba(61,220,132,0.3);border-radius:8px;padding:16px;margin-top:16px;text-align:center;color:#3ddc84;font-weight:600}
+</style>
+</head>
+<body>
+<h1>TaskFlow — Data Migration</h1>
+<p class="sub">Import your existing Google Sheets data into Supabase. One-time use only.</p>
+
+<!-- Step 1: Supabase credentials -->
+<div class="step">
+  <h2>1. Supabase Connection</h2>
+  <p>Enter your Supabase project URL and <strong>service_role</strong> key (NOT anon key — service_role bypasses RLS for migration).</p>
+  <label>Project URL</label>
+  <input type="text" id="sb-url" placeholder="https://xxxx.supabase.co">
+  <label>Service Role Key</label>
+  <input type="password" id="sb-key" placeholder="eyJhbGciOi...">
+  <label>User ID (from Supabase Auth → Users → copy UUID)</label>
+  <input type="text" id="sb-uid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+</div>
+
+<!-- Step 2: CSV files -->
+<div class="step">
+  <h2>2. Upload CSV Files</h2>
+  <p>In each Google Sheet tab, go to <strong>File → Download → CSV</strong>. Then select each file below.</p>
+  <div class="file-row"><label>Tasks</label><input type="file" id="csv-tasks" accept=".csv"></div>
+  <div class="file-row"><label>Done (Completed)</label><input type="file" id="csv-done" accept=".csv"></div>
+  <div class="file-row"><label>Clients</label><input type="file" id="csv-clients" accept=".csv"></div>
+  <div class="file-row"><label>Review</label><input type="file" id="csv-review" accept=".csv"></div>
+  <div class="file-row"><label>Campaigns</label><input type="file" id="csv-campaigns" accept=".csv"></div>
+  <div class="file-row"><label>Payments</label><input type="file" id="csv-payments" accept=".csv"></div>
+  <div class="file-row"><label>Campaign Meetings</label><input type="file" id="csv-meetings" accept=".csv"></div>
+</div>
+
+<!-- Step 3: Run -->
+<div class="step">
+  <h2>3. Run Migration</h2>
+  <p>This will insert all data into your Supabase tables. Existing data won't be affected (inserts only, no deletes).</p>
+  <button id="run-btn" onclick="runMigration()">🚀 Start Migration</button>
+  <div class="log" id="log" style="display:none"></div>
+</div>
+
+<script>
+var _sb=null;
+
+function log(msg,cls){
+  var el=document.getElementById('log');
+  el.style.display='block';
+  el.innerHTML+='<span class="'+(cls||'')+'">'+msg+'</span>\n';
+  el.scrollTop=el.scrollHeight}
+
+function parseCSVFile(inputId){
+  return new Promise(function(resolve){
+    var f=document.getElementById(inputId).files[0];
+    if(!f){resolve([]);return}
+    Papa.parse(f,{header:true,skipEmptyLines:true,complete:function(r){resolve(r.data)}})
+  })}
+
+function pDate(s){if(!s)return null;var d=new Date(s);return isNaN(d)?null:d}
+function fmtDate(d){if(!d)return null;return d.toISOString().slice(0,10)}
+function fmtTs(d){if(!d)return null;return d.toISOString()}
+
+async function runMigration(){
+  var url=document.getElementById('sb-url').value.trim();
+  var key=document.getElementById('sb-key').value.trim();
+  var uid=document.getElementById('sb-uid').value.trim();
+
+  if(!url||!key||!uid){log('❌ Please fill in all Supabase fields','err');return}
+
+  document.getElementById('run-btn').disabled=true;
+  log('🔌 Connecting to Supabase...','info');
+  _sb=window.supabase.createClient(url,key);
+
+  /* ── CLIENTS ── */
+  log('\n📋 Processing Clients...','info');
+  var clientRows=await parseCSVFile('csv-clients');
+  var clientNames=[];
+  clientRows.forEach(function(r){
+    var nm=(r['Company Name']||r[Object.keys(r)[0]]||'').trim();
+    if(nm&&clientNames.indexOf(nm)===-1)clientNames.push(nm)});
+  if(clientNames.length){
+    var clientInserts=clientNames.map(function(n){return{user_id:uid,name:n}});
+    var res=await _sb.from('clients').insert(clientInserts);
+    if(res.error)log('  ⚠ Clients: '+res.error.message,'warn');
+    else log('  ✅ '+clientNames.length+' clients inserted','ok')}
+  else log('  ⏭ No clients to import','warn');
+
+  /* ── CAMPAIGNS ── */
+  log('\n🎯 Processing Campaigns...','info');
+  var cpRows=await parseCSVFile('csv-campaigns');
+  var cpMap={};/* old ID → new UUID */
+  var cpFiltered=cpRows.filter(function(r){return r.Name&&r.Name.trim()});
+  if(cpFiltered.length){
+    for(var ci=0;ci<cpFiltered.length;ci++){
+      var r=cpFiltered[ci];
+      var cpData={user_id:uid,name:(r.Name||'').trim(),partner:(r.Partner||'').trim(),
+        end_client:(r['End Client']||r.EndClient||'').trim(),status:(r.Status||'Setup').trim(),
+        platform:(r.Platform||'').trim(),strategy_fee:parseFloat(r['Strategy Fee'])||0,
+        setup_fee:parseFloat(r['Set-Up Fee']||r['SetUp Fee'])||0,monthly_fee:parseFloat(r['Monthly Fee'])||0,
+        monthly_ad_spend:parseFloat(r['Monthly Ad Spend'])||0,campaign_term:(r['Campaign Term']||'').trim(),
+        planned_launch:fmtDate(pDate(r['Planned Launch Date'])),actual_launch:fmtDate(pDate(r['Actual Launch Date'])),
+        renewal_date:fmtDate(pDate(r['Renewal Date'])),goal:(r.Goal||'').trim(),
+        proposal_link:(r['Proposal Link']||'').trim(),reports_link:(r['Monthly Reports Link']||'').trim(),
+        video_assets_link:(r['Video Assets Link']||'').trim(),transcripts_link:(r['Transcripts Link']||'').trim(),
+        awareness_lp:(r['Awareness LP']||'').trim(),consideration_lp:(r['Consideration LP']||'').trim(),
+        decision_lp:(r['Decision LP']||'').trim(),contract_link:(r['Contract Link']||'').trim(),
+        notes:(r.Notes||'').trim()};
+      var res=await _sb.from('campaigns').insert(cpData).select('id').single();
+      if(res.error){log('  ⚠ Campaign "'+cpData.name+'": '+res.error.message,'warn')}
+      else{var oldId=(r.ID||'').trim();if(oldId)cpMap[oldId]=res.id||res.data.id;
+        log('  ✅ Campaign: '+cpData.name+(oldId?' ('+oldId+' → '+(res.data?res.data.id:'?')+')':''),'ok')}}
+  }else log('  ⏭ No campaigns to import','warn');
+
+  /* ── TASKS ── */
+  log('\n📋 Processing Tasks...','info');
+  var taskRows=await parseCSVFile('csv-tasks');
+  var taskFiltered=taskRows.filter(function(r){return r.Item&&r.Item.trim()});
+  if(taskFiltered.length){
+    var taskInserts=taskFiltered.map(function(r,i){
+      var cpOld=(r.Campaign||'').trim();
+      return{user_id:uid,item:(r.Item||'').trim(),due:fmtDate(pDate(r.Due||r['Due Date'])),
+        importance:r.Importance||'When Time Allows',est:parseInt(r.Est||r['Est.'])||0,
+        category:(r.Category||'').trim(),client:(r.Client||r['Client / Project']||'').trim(),
+        end_client:(r['End Client']||r.EndClient||'').trim(),type:r.Type||'Business',
+        duration:parseInt(r.Duration)||0,notes:(r.Notes||'').trim(),status:r.Status||'Planned',
+        flag:r.Flag==='TRUE'||r.Flag===true,campaign:cpMap[cpOld]||'',sort_order:i}});
+    /* Insert in batches of 50 */
+    for(var b=0;b<taskInserts.length;b+=50){
+      var batch=taskInserts.slice(b,b+50);
+      var res=await _sb.from('tasks').insert(batch);
+      if(res.error)log('  ⚠ Tasks batch '+(b/50+1)+': '+res.error.message,'warn');
+      else log('  ✅ Tasks batch '+(b/50+1)+': '+batch.length+' inserted','ok')}
+  }else log('  ⏭ No tasks to import','warn');
+
+  /* ── DONE ── */
+  log('\n✅ Processing Completed Tasks...','info');
+  var doneRows=await parseCSVFile('csv-done');
+  var doneFiltered=doneRows.filter(function(r){return r.Item&&r.Item.trim()});
+  if(doneFiltered.length){
+    var doneInserts=doneFiltered.map(function(r){
+      var cpOld=(r.Campaign||'').trim();
+      return{user_id:uid,item:(r.Item||'').trim(),completed:fmtTs(pDate(r.Completed))||new Date().toISOString(),
+        due:fmtDate(pDate(r.Due||r['Due Date'])),importance:r.Importance||'',
+        category:(r.Category||'').trim(),client:(r.Client||r['Client / Project']||'').trim(),
+        end_client:(r['End Client']||r.EndClient||'').trim(),type:r.Type||'Business',
+        duration:parseInt(r.Duration)||0,est:parseInt(r.Est||r['Est.'])||0,
+        notes:(r.Notes||'').trim(),campaign:cpMap[cpOld]||''}});
+    for(var b=0;b<doneInserts.length;b+=50){
+      var batch=doneInserts.slice(b,b+50);
+      var res=await _sb.from('done').insert(batch);
+      if(res.error)log('  ⚠ Done batch '+(b/50+1)+': '+res.error.message,'warn');
+      else log('  ✅ Done batch '+(b/50+1)+': '+batch.length+' inserted','ok')}
+  }else log('  ⏭ No completed tasks to import','warn');
+
+  /* ── REVIEW ── */
+  log('\n📥 Processing Review Items...','info');
+  var revRows=await parseCSVFile('csv-review');
+  var revFiltered=revRows.filter(function(r){return r.Item&&r.Item.trim()});
+  if(revFiltered.length){
+    var revInserts=revFiltered.map(function(r){
+      var cpOld=(r.Campaign||'').trim();
+      return{user_id:uid,item:(r.Item||'').trim(),notes:(r.Notes||'').trim(),
+        importance:r.Importance||'Important',category:(r.Category||'').trim(),
+        client:r.Client||'Internal / N/A',end_client:(r['End Client']||r.EndClient||'').trim(),
+        type:r.Type||'Business',est:parseInt(r.Est)||0,due:fmtDate(pDate(r.Due)),
+        source:(r.Source||'').trim(),created:fmtTs(pDate(r.Created))||new Date().toISOString(),
+        campaign:cpMap[cpOld]||''}});
+    var res=await _sb.from('review').insert(revInserts);
+    if(res.error)log('  ⚠ Review: '+res.error.message,'warn');
+    else log('  ✅ '+revInserts.length+' review items inserted','ok')
+  }else log('  ⏭ No review items to import','warn');
+
+  /* ── PAYMENTS ── */
+  log('\n💳 Processing Payments...','info');
+  var payRows=await parseCSVFile('csv-payments');
+  var payFiltered=payRows.filter(function(r){return r['Campaign ID']&&r.Amount});
+  if(payFiltered.length){
+    var payInserts=payFiltered.map(function(r){
+      var cpOld=(r['Campaign ID']||'').trim();
+      return{user_id:uid,campaign_id:cpMap[cpOld]||null,
+        date:fmtDate(pDate(r.Date)),amount:parseFloat(r.Amount)||0,
+        type:(r.Type||'').trim(),notes:(r.Notes||'').trim()}});
+    /* Filter out any with null campaign_id */
+    var validPay=payInserts.filter(function(p){return p.campaign_id});
+    if(validPay.length){
+      var res=await _sb.from('payments').insert(validPay);
+      if(res.error)log('  ⚠ Payments: '+res.error.message,'warn');
+      else log('  ✅ '+validPay.length+' payments inserted','ok')}
+    if(payInserts.length-validPay.length>0)log('  ⚠ Skipped '+(payInserts.length-validPay.length)+' payments with unknown campaign ID','warn')
+  }else log('  ⏭ No payments to import','warn');
+
+  /* ── CAMPAIGN MEETINGS ── */
+  log('\n🤝 Processing Campaign Meetings...','info');
+  var mtgRows=await parseCSVFile('csv-meetings');
+  var mtgFiltered=mtgRows.filter(function(r){return r['Campaign ID']&&r.Title});
+  if(mtgFiltered.length){
+    var mtgInserts=mtgFiltered.map(function(r){
+      var cpOld=(r['Campaign ID']||'').trim();
+      return{user_id:uid,campaign_id:cpMap[cpOld]||null,
+        date:fmtTs(pDate(r.Date)),title:(r.Title||'').trim(),
+        recording_link:(r['Recording Link']||'').trim(),notes:(r.Notes||'').trim()}});
+    var validMtg=mtgInserts.filter(function(m){return m.campaign_id});
+    if(validMtg.length){
+      var res=await _sb.from('campaign_meetings').insert(validMtg);
+      if(res.error)log('  ⚠ Meetings: '+res.error.message,'warn');
+      else log('  ✅ '+validMtg.length+' campaign meetings inserted','ok')}
+    if(mtgInserts.length-validMtg.length>0)log('  ⚠ Skipped '+(mtgInserts.length-validMtg.length)+' meetings with unknown campaign ID','warn')
+  }else log('  ⏭ No campaign meetings to import','warn');
+
+  log('\n🎉 Migration complete!','ok');
+  document.getElementById('run-btn').insertAdjacentHTML('afterend','<div class="done-banner">✅ Migration complete! You can now close this page and use TaskFlow.</div>');
+}
+</script>
+</body>
+</html>

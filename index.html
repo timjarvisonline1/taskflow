@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow</title>
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+  <!-- CSS -->
+  <link rel="stylesheet" href="/css/core.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/features.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="app" id="app">
+    <div class="toast-wrap" id="toasts"></div>
+    <div class="mob-overlay" id="mob-overlay" onclick="TF.closeMenu()"></div>
+    <!-- Detail/Edit Modal -->
+    <div class="tf-modal-overlay" id="detail-modal" onclick="TF.closeModal()">
+      <div class="tf-modal" onclick="event.stopPropagation()">
+        <div id="detail-body"></div>
+      </div>
+    </div>
+    <!-- Generic Modal (templates etc) -->
+    <div class="tf-modal-overlay" id="modal" onclick="this.classList.remove('on')">
+      <div class="tf-modal" onclick="event.stopPropagation()">
+        <div id="m-body"></div>
+      </div>
+    </div>
+    <!-- Sidebar -->
+    <nav class="side" id="sidebar">
+      <div class="s-logo">
+        <div class="s-logo-icon">⚡</div>
+        <span class="s-logo-text">TaskFlow</span>
+      </div>
+      <!-- Add Task Button -->
+      <div class="s-add-wrap">
+        <button class="s-add-btn" onclick="TF.openAddModal()"><span>➕ Add Task</span></button>
+      </div>
+      <div class="s-nav" id="s-nav"></div>
+      <div class="s-active" id="s-active"></div>
+      <div class="s-foot">
+        <button class="s-btn" onclick="TF.load()">🔄 Refresh Data</button>
+        <div style="font-size:10px;color:var(--t4);margin-top:8px;text-align:center;letter-spacing:0.02em" id="last-refresh"></div>
+        <button class="s-btn" style="margin-top:8px;color:var(--red);border-color:rgba(255,51,88,0.15)" onclick="TF.signOut()">🚪 Sign Out</button>
+      </div>
+    </nav>
+    <!-- Mobile Header -->
+    <div class="mob">
+      <button class="mob-btn" onclick="TF.openMenu()">☰</button>
+      <span style="font-family:var(--fd);font-weight:700;font-size:16px;letter-spacing:-0.01em;background:linear-gradient(135deg,#fff,var(--pink50));-webkit-background-clip:text;-webkit-text-fill-color:transparent">⚡ TaskFlow</span>
+      <button class="mob-btn" onclick="TF.load()">🔄</button>
+    </div>
+    <!-- Main Content -->
+    <main class="main" id="main"></main>
+  </div>
+
+  <!-- JavaScript -->
+  <script src="/js/config.js"></script>
+  <script src="/js/core.js"></script>
+  <script src="/js/engine.js"></script>
+  <script src="/js/views.js"></script>
+  <script src="/js/modals.js"></script>
+  <script src="/js/features-init.js"></script>
+</body>
+</html>
