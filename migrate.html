@@ -58,6 +58,7 @@
   <div class="file-row"><label>Campaigns</label><input type="file" id="csv-campaigns" accept=".csv"></div>
   <div class="file-row"><label>Payments</label><input type="file" id="csv-payments" accept=".csv"></div>
   <div class="file-row"><label>Campaign Meetings</label><input type="file" id="csv-meetings" accept=".csv"></div>
+  <div class="file-row"><label>Activity Log</label><input type="file" id="csv-actlog" accept=".csv"></div>
 </div>
 
 <!-- Step 3: Run -->
@@ -234,6 +235,28 @@ async function runMigration(){
       else log('  ✅ '+validMtg.length+' campaign meetings inserted','ok')}
     if(mtgInserts.length-validMtg.length>0)log('  ⚠ Skipped '+(mtgInserts.length-validMtg.length)+' meetings with unknown campaign ID','warn')
   }else log('  ⏭ No campaign meetings to import','warn');
+
+  /* ── ACTIVITY LOGS ── */
+  log('\n📝 Processing Activity Logs...','info');
+  var logRows=await parseCSVFile('csv-actlog');
+  var logFiltered=logRows.filter(function(r){return r.ID&&r.Action});
+  if(logFiltered.length){
+    var logInserts=logFiltered.map(function(r){
+      var action=(r.Action||'').trim();
+      var item=(r.Item||'').trim();
+      var dur='';
+      if(r.Duration){dur=' ('+r.Duration+' mins)'}
+      var text=action;
+      if(item){text+=' \u2014 '+item}
+      text+=dur;
+      return{user_id:uid,task_id:(r.ID||'').trim(),
+        text:text,ts:fmtTs(pDate(r.Timestamp))||new Date().toISOString()}});
+    for(var b=0;b<logInserts.length;b+=50){
+      var batch=logInserts.slice(b,b+50);
+      var res=await _sb.from('activity_logs').insert(batch);
+      if(res.error)log('  ⚠ Activity logs batch '+(b/50+1)+': '+res.error.message,'warn');
+      else log('  ✅ Activity logs batch '+(b/50+1)+': '+batch.length+' inserted','ok')}
+  }else log('  ⏭ No activity logs to import','warn');
 
   log('\n🎉 Migration complete!','ok');
   document.getElementById('run-btn').insertAdjacentHTML('afterend','<div class="done-banner">✅ Migration complete! You can now close this page and use TaskFlow.</div>');

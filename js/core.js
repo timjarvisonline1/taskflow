@@ -160,14 +160,13 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_logs',JSON.stringify(S.actLogs));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort)}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort)}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
   var gb=localStorage.getItem('tf_gb');if(gb)S.groupBy=gb;
   var tpl=localStorage.getItem('tf_tpl');if(tpl)S.templates=JSON.parse(tpl);
   var pins=localStorage.getItem('tf_pins');if(pins)S.pins=JSON.parse(pins);
-  var logs=localStorage.getItem('tf_logs');if(logs)S.actLogs=JSON.parse(logs);
   var ord=localStorage.getItem('tf_ord');if(ord)S.customOrder=JSON.parse(ord);
   var so=localStorage.getItem('tf_so');if(so)S.schedOrder=JSON.parse(so);
   var rl=localStorage.getItem('tf_rl');if(rl)S.recurrLast=JSON.parse(rl);
@@ -253,14 +252,22 @@ async function loadCampaignMeetings(){
       date:r.date?new Date(r.date):null,title:r.title||'',
       recordingLink:r.recording_link||'',notes:r.notes||''}})}
 
+async function loadActivityLogs(){
+  var res=await _sb.from('activity_logs').select('*').order('ts',{ascending:true});
+  if(res.error){console.error('loadActivityLogs:',res.error);return}
+  S.actLogs={};
+  (res.data||[]).forEach(function(r){
+    if(!S.actLogs[r.task_id])S.actLogs[r.task_id]=[];
+    S.actLogs[r.task_id].push({text:r.text||'',ts:r.ts||''})})}
+
 function fmtUSD(n){return'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
 
 async function loadData(){toast('Loading data...','info');
   try{
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClients(),loadReview(),loadCampaigns()]);
-    /* Now load payments & campaign meetings (they need campaigns loaded) */
-    await Promise.all([loadPayments(),loadCampaignMeetings()]);
+    /* Now load payments, campaign meetings & activity logs (payments/meetings need campaigns loaded) */
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -419,6 +426,13 @@ function updateCalSection(){
   var el=document.getElementById('cal-section');
   if(!el||S.view!=='overview')return;
   try{el.innerHTML=renderCalSection()}catch(e){el.innerHTML='<div style="padding:12px;color:var(--t4);font-size:12px">Calendar error. <span style="cursor:pointer;color:var(--pink)" onclick="TF.syncCal()">Retry</span></div>';console.warn('Cal render error:',e)}}
+
+async function dbAddLog(taskId,text){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,task_id:taskId,text:text,ts:new Date().toISOString()};
+  var res=await _sb.from('activity_logs').insert(row).select().single();
+  if(res.error){toast('❌ Log save failed: '+res.error.message,'warn');return null}
+  return res.data}
 
 /* ═══════════ WEBHOOK — kept as no-op for backward compat ═══════════ */
 async function hook(action,data){/* No-op — all writes now go directly to Supabase */}

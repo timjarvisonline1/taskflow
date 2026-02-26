@@ -88,9 +88,11 @@ function togglePin(id){if(S.pins[id])delete S.pins[id];else S.pins[id]=true;save
   var modal=gel('detail-modal');if(modal&&modal.classList.contains('on'))openDetail(id)}
 
 /* ═══════════ FEATURE: ACTIVITY LOG ═══════════ */
-function addLog(id){var input=gel('d-log-input');if(!input)return;var text=input.value.trim();if(!text)return;
+async function addLog(id){var input=gel('d-log-input');if(!input)return;var text=input.value.trim();if(!text)return;
+  var ts=new Date().toISOString();
+  await dbAddLog(id,text);
   if(!S.actLogs[id])S.actLogs[id]=[];
-  S.actLogs[id].push({text:text,ts:new Date().toISOString()});
+  S.actLogs[id].push({text:text,ts:ts});
   save();input.value='';openDetail(id)}
 
 /* ═══════════ FEATURE: TASK MODE TOGGLE ═══════════ */

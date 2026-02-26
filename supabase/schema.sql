@@ -120,6 +120,15 @@ CREATE TABLE campaign_meetings (
   notes          text NOT NULL DEFAULT ''
 );
 
+-- 8. ACTIVITY LOGS (per-task notes/updates)
+CREATE TABLE activity_logs (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  task_id    text NOT NULL,
+  text       text NOT NULL DEFAULT '',
+  ts         timestamptz NOT NULL DEFAULT now()
+);
+
 -- =====================================================
 -- ROW LEVEL SECURITY — Only you can see/modify your data
 -- =====================================================
@@ -159,6 +168,11 @@ CREATE POLICY "Users CRUD own campaign_meetings" ON campaign_meetings
   FOR ALL USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users CRUD own activity_logs" ON activity_logs
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
 -- =====================================================
 -- INDEXES for performance
 -- =====================================================
@@ -173,3 +187,5 @@ CREATE INDEX idx_payments_user ON payments(user_id);
 CREATE INDEX idx_payments_campaign ON payments(campaign_id);
 CREATE INDEX idx_campaign_meetings_user ON campaign_meetings(user_id);
 CREATE INDEX idx_campaign_meetings_campaign ON campaign_meetings(campaign_id);
+CREATE INDEX idx_activity_logs_user ON activity_logs(user_id);
+CREATE INDEX idx_activity_logs_task ON activity_logs(task_id);
