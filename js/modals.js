@@ -498,7 +498,11 @@ function openReviewDetail(id){
 
   h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;margin-bottom:8px">';
   h+='<div class="tf-modal-badges" style="border:none;margin:0;padding:0">';
-  h+='<span class="bg" style="background:rgba(255,0,153,0.1);color:var(--pink)">📥 Review</span>';
+  var srcIcon=r.source==='Email'?'📧':r.source==='Read.ai'?'🎙':'📥';
+  var srcLabel=r.source==='Email'?'Email':r.source==='Read.ai'?'Read.ai':'Review';
+  var srcBg=r.source==='Email'?'rgba(59,130,246,0.1)':r.source==='Read.ai'?'rgba(16,185,129,0.1)':'rgba(255,0,153,0.1)';
+  var srcClr=r.source==='Email'?'#3b82f6':r.source==='Read.ai'?'#10b981':'var(--pink)';
+  h+='<span class="bg" style="background:'+srcBg+';color:'+srcClr+'">'+srcIcon+' '+srcLabel+'</span>';
   h+='<span class="bg '+impCls(r.importance)+'">'+esc(r.importance)+'</span>';
   if(r.created)h+='<span class="bg-du" style="color:var(--t4)">Received '+fmtDShort(r.created)+'</span>';
   h+='</div>';
@@ -510,7 +514,8 @@ function openReviewDetail(id){
     h+='</div>'}
   h+='</div>';
 
-  if(r.source){h+='<div style="padding:12px 16px;margin:10px 0;background:var(--bg1);border:1px solid var(--gborder);border-radius:var(--r);font-size:12px;color:var(--t3);line-height:1.65"><span style="font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">📧 Original Email</span>'+esc(r.source)+'</div>'}
+  if(r.source==='Email'&&r.notes){h+='<div style="padding:12px 16px;margin:10px 0;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:var(--r);font-size:12px;color:var(--t3);line-height:1.65"><span style="font-size:9px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">📧 Original Email</span>'+esc(r.notes)+'</div>'}
+  if(r.source==='Read.ai'&&r.notes){h+='<div style="padding:12px 16px;margin:10px 0;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:var(--r);font-size:12px;color:var(--t3);line-height:1.65"><span style="font-size:9px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">🎙 Meeting Transcript Notes</span>'+esc(r.notes)+'</div>'}
 
   /* ── Scheduling ── */
   h+='<div class="ed-grid ed-grid-3">';

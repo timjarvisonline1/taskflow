@@ -1513,12 +1513,14 @@ function rReview(){
   var h='<div class="pg-head"><h1>📥 Review</h1>';
   if(S.review.length)h+='<div class="stats"><div class="st"><b style="color:var(--pink)">'+S.review.length+'</b> pending</div></div>';
   h+='</div>';
-  if(!S.review.length)return h+'<div class="no-data" style="padding:64px 20px"><div style="font-size:40px;margin-bottom:18px">📭</div><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">No tasks to review</div><div style="font-size:13px;color:var(--t4)">Email yourself with subject "Task" to capture ideas on the go.</div></div>';
+  if(!S.review.length)return h+'<div class="no-data" style="padding:64px 20px"><div style="font-size:40px;margin-bottom:18px">📭</div><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">No tasks to review</div><div style="font-size:13px;color:var(--t4)">Items from email and Read.ai will appear here automatically.</div></div>';
   var items=reviewSorted();
   h+='<div class="rv-list">';
   items.forEach(function(r,i){
     h+='<div class="rv-card" onclick="TF.openReviewAt('+i+')">';
     h+='<div class="rv-card-left">';
+    if(r.source==='Email'){h+='<span class="bg" style="background:rgba(59,130,246,0.1);color:#3b82f6;font-size:10px">📧</span>'}
+    else if(r.source==='Read.ai'){h+='<span class="bg" style="background:rgba(16,185,129,0.1);color:#10b981;font-size:10px">🎙</span>'}
     h+='<span class="bg '+impCls(r.importance)+'">'+esc(r.importance)+'</span>';
     h+='<span class="rv-name">'+esc(r.item)+'</span>';
     h+='</div>';
