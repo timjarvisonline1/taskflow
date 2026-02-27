@@ -14,10 +14,10 @@ var CK='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="curr
 var CK_S='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
 var CK_XS='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
 
-var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],payments:[],campaignMeetings:[],timers:{},view:'overview',layout:'grid',groupBy:'importance',
+var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],timers:{},view:'overview',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false};
+  filters:{client:'',endClient:'',campaign:'',project:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false};
 
 var VIEWS=[
   {id:'schedule',icon:'📅',label:'Schedule',kbd:'1'},
@@ -28,7 +28,8 @@ var VIEWS=[
   {id:'meetings',icon:'🤝',label:'Meetings',kbd:'6'},
   {id:'weekly',icon:'📅',label:'Weekly',kbd:'7'},
   {id:'templates',icon:'📎',label:'Templates',kbd:'8'},
-  {id:'campaigns',icon:'🎯',label:'Campaigns',kbd:'9'}
+  {id:'campaigns',icon:'🎯',label:'Campaigns',kbd:'9'},
+  {id:'projects',icon:'📁',label:'Projects',kbd:'0'}
 ];
 
 /* ═══════════ MOBILE ═══════════ */
@@ -178,13 +179,13 @@ function tmrDone(id){var task=S.tasks.find(function(t){return t.id===id});if(!ta
   setTimeout(async function(){
     var doneData={item:task.item,due:task.due||null,importance:task.importance,category:task.category,
       client:task.client,endClient:task.endClient||'',type:task.type,duration:mins,est:task.est,
-      notes:task.notes,campaign:task.campaign||''};
+      notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||''};
     var result=await dbCompleteTask(doneData);
     if(result){
       await dbDeleteTask(id);
       S.done.unshift({id:result.id,item:task.item,completed:new Date(),due:task.due||null,importance:task.importance,
         category:task.category,client:task.client,endClient:task.endClient||'',type:task.type,
-        duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||''});
+        duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||''});
       S.tasks=S.tasks.filter(function(tk){return tk.id!==id});delete S.timers[id];save();
       toast('Done: '+task.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
     closeModal();render();renderSidebar()},500)}
@@ -244,7 +245,7 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'')}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_pv',S.projView)}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
@@ -257,7 +258,8 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var tm=localStorage.getItem('tf_tm');if(tm)S.taskMode=tm;
   var ds=localStorage.getItem('tf_ds');if(ds)S.doneSort=ds;
   var cpsp=localStorage.getItem('tf_cpsp');if(cpsp)S.cpShowPaused=true;
-  var cpsc=localStorage.getItem('tf_cpsc');if(cpsc)S.cpShowCompleted=true}catch(e){}}
+  var cpsc=localStorage.getItem('tf_cpsc');if(cpsc)S.cpShowCompleted=true;
+  var pv=localStorage.getItem('tf_pv');if(pv)S.projView=pv}catch(e){}}
 function toast(msg,type){var t=cel('div','toast toast-'+(type||'ok'),msg);gel('toasts').appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t)},3200)}
 
 /* ═══════════ DATA — Supabase queries ═══════════ */
@@ -272,7 +274,7 @@ async function loadTasks(){
   S.tasks=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,due:r.due?new Date(r.due+'T00:00:00'):null,importance:r.importance||'When Time Allows',est:r.est||0,
       category:r.category||'',client:r.client||'',endClient:r.end_client||'',type:r.type||'Business',
-      duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||'',meetingKey:r.meeting_key||''}})}
+      duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||'',meetingKey:r.meeting_key||'',project:r.project||'',phase:r.phase||''}})}
 
 async function loadDone(){
   var res=await _sb.from('done').select('*').order('completed',{ascending:false});
@@ -280,7 +282,7 @@ async function loadDone(){
   S.done=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,completed:r.completed?new Date(r.completed):new Date(),due:r.due?new Date(r.due+'T00:00:00'):null,
       importance:r.importance||'',category:r.category||'',client:r.client||'',endClient:r.end_client||'',
-      type:r.type||'Business',duration:r.duration||0,est:r.est||0,notes:r.notes||'',campaign:r.campaign||''}})}
+      type:r.type||'Business',duration:r.duration||0,est:r.est||0,notes:r.notes||'',campaign:r.campaign||'',project:r.project||'',phase:r.phase||''}})}
 
 async function loadClients(){
   var res=await _sb.from('clients').select('name').order('name');
@@ -346,14 +348,32 @@ async function loadActivityLogs(){
     if(!S.actLogs[r.task_id])S.actLogs[r.task_id]=[];
     S.actLogs[r.task_id].push({text:r.text||'',ts:r.ts||''})})}
 
+async function loadProjects(){
+  var res=await _sb.from('projects').select('*').order('created_at',{ascending:false});
+  if(res.error){console.error('loadProjects:',res.error);return}
+  S.projects=(res.data||[]).map(function(r){
+    return{id:r.id,name:r.name||'',description:r.description||'',status:r.status||'Planning',
+      color:r.color||'#ff0099',startDate:r.start_date?new Date(r.start_date+'T00:00:00'):null,
+      targetDate:r.target_date?new Date(r.target_date+'T00:00:00'):null,
+      notes:r.notes||'',created:r.created_at?new Date(r.created_at):new Date()}})}
+
+async function loadPhases(){
+  var res=await _sb.from('project_phases').select('*').order('sort_order',{ascending:true});
+  if(res.error){console.error('loadPhases:',res.error);return}
+  S.phases=(res.data||[]).map(function(r){
+    return{id:r.id,projectId:r.project_id,name:r.name||'',description:r.description||'',
+      sortOrder:r.sort_order||0,startDate:r.start_date?new Date(r.start_date+'T00:00:00'):null,
+      endDate:r.end_date?new Date(r.end_date+'T00:00:00'):null,
+      status:r.status||'Not Started',created:r.created_at?new Date(r.created_at):new Date()}})}
+
 function fmtUSD(n){return'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
 
 async function loadData(){toast('Loading data...','info');
   try{
     /* Load campaigns first (payments/meetings reference them) */
-    await Promise.all([loadTasks(),loadDone(),loadClients(),loadReview(),loadCampaigns()]);
-    /* Now load payments, campaign meetings & activity logs (payments/meetings need campaigns loaded) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs()]);
+    await Promise.all([loadTasks(),loadDone(),loadClients(),loadReview(),loadCampaigns(),loadProjects()]);
+    /* Now load payments, campaign meetings, activity logs & phases (payments/meetings need campaigns, phases need projects) */
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs(),loadPhases()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -378,7 +398,8 @@ async function dbAddTask(taskData){
   var row={user_id:uid,item:taskData.item,due:taskData.due||null,importance:taskData.importance||'When Time Allows',
     est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:taskData.endClient||'',
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
-    flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||''};
+    flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||'',
+    project:taskData.project||'',phase:taskData.phase||''};
   var res=await _sb.from('tasks').insert(row).select().single();
   if(res.error){toast('❌ Save failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -387,7 +408,8 @@ async function dbEditTask(id,taskData){
   var row={item:taskData.item,due:taskData.due||null,importance:taskData.importance||'When Time Allows',
     est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:taskData.endClient||'',
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
-    flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||''};
+    flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||'',
+    project:taskData.project||'',phase:taskData.phase||''};
   var res=await _sb.from('tasks').update(row).eq('id',id);
   if(res.error){toast('❌ Update failed: '+res.error.message,'warn');return false}
   return true}
@@ -403,7 +425,8 @@ async function dbCompleteTask(taskData){
     due:taskData.due?taskData.due.toISOString().split('T')[0]:null,
     importance:taskData.importance||'',category:taskData.category||'',
     client:taskData.client||'',end_client:taskData.endClient||'',type:taskData.type||'Business',
-    duration:taskData.duration||0,est:taskData.est||0,notes:taskData.notes||'',campaign:taskData.campaign||''};
+    duration:taskData.duration||0,est:taskData.est||0,notes:taskData.notes||'',campaign:taskData.campaign||'',
+    project:taskData.project||'',phase:taskData.phase||''};
   var res=await _sb.from('done').insert(row).select().single();
   if(res.error){toast('❌ Complete failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -477,6 +500,47 @@ async function dbAddCampaignMeeting(data){
   if(res.error){toast('❌ Meeting save failed: '+res.error.message,'warn');return null}
   return res.data}
 
+/* ═══════════ PROJECT CRUD ═══════════ */
+async function dbAddProject(data){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,name:data.name,description:data.description||'',status:data.status||'Planning',
+    color:data.color||'#ff0099',start_date:data.startDate||null,target_date:data.targetDate||null,notes:data.notes||''};
+  var res=await _sb.from('projects').insert(row).select().single();
+  if(res.error){toast('❌ Project save failed: '+res.error.message,'warn');return null}
+  return res.data}
+
+async function dbEditProject(id,data){
+  var row={name:data.name,description:data.description||'',status:data.status||'Planning',
+    color:data.color||'#ff0099',start_date:data.startDate||null,target_date:data.targetDate||null,notes:data.notes||''};
+  var res=await _sb.from('projects').update(row).eq('id',id);
+  if(res.error){toast('❌ Project update failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbDeleteProject(id){
+  var res=await _sb.from('projects').delete().eq('id',id);
+  if(res.error){toast('❌ Project delete failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbAddPhase(data){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,project_id:data.projectId,name:data.name,description:data.description||'',
+    sort_order:data.sortOrder||0,start_date:data.startDate||null,end_date:data.endDate||null,status:data.status||'Not Started'};
+  var res=await _sb.from('project_phases').insert(row).select().single();
+  if(res.error){toast('❌ Phase save failed: '+res.error.message,'warn');return null}
+  return res.data}
+
+async function dbEditPhase(id,data){
+  var row={name:data.name,description:data.description||'',sort_order:data.sortOrder||0,
+    start_date:data.startDate||null,end_date:data.endDate||null,status:data.status||'Not Started'};
+  var res=await _sb.from('project_phases').update(row).eq('id',id);
+  if(res.error){toast('❌ Phase update failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbDeletePhase(id){
+  var res=await _sb.from('project_phases').delete().eq('id',id);
+  if(res.error){toast('❌ Phase delete failed: '+res.error.message,'warn');return false}
+  return true}
+
 async function dbAddClient(name){
   var uid=await getUserId();if(!uid)return false;
   var res=await _sb.from('clients').insert({user_id:uid,name:name}).select().single();
@@ -536,10 +600,11 @@ function filterBar(items,showDate){
   /* Build campaign names list */
   var cps=S.campaigns.map(function(c){return c.name});
   var h='<div class="flts">';h+='<input class="fl fl-s" placeholder="🔍 Search... ( / )" value="'+esc(S.filters.search||'')+'" oninput="TF.filtSearch(this.value)">';
-  h+=fSel('client',cls,'All Clients');if(ecs.length)h+=fSel('endClient',ecs,'All End Clients');if(cps.length)h+=fSel('campaign',cps,'All Campaigns');h+=fSel('cat',cas,'All Categories');h+=fSel('imp',ims,'All Importance');h+=fSel('type',TYPES,'All Types');
+  var pjs=S.projects.filter(function(p){return p.status!=='Archived'}).map(function(p){return p.name});
+  h+=fSel('client',cls,'All Clients');if(ecs.length)h+=fSel('endClient',ecs,'All End Clients');if(cps.length)h+=fSel('campaign',cps,'All Campaigns');if(pjs.length)h+=fSel('project',pjs,'All Projects');h+=fSel('cat',cas,'All Categories');h+=fSel('imp',ims,'All Importance');h+=fSel('type',TYPES,'All Types');
   if(showDate){h+='<input type="date" class="fl" value="'+(S.filters.dateFrom||'')+'" onchange="TF.filt(\'dateFrom\',this.value)" title="From">';
     h+='<input type="date" class="fl" value="'+(S.filters.dateTo||'')+'" onchange="TF.filt(\'dateTo\',this.value)" title="To">'}
-  if(S.filters.client||S.filters.endClient||S.filters.campaign||S.filters.cat||S.filters.imp||S.filters.type||S.filters.search||S.filters.dateFrom||S.filters.dateTo)h+='<button class="fl-clr" onclick="TF.clearF()">✕ Clear</button>';
+  if(S.filters.client||S.filters.endClient||S.filters.campaign||S.filters.project||S.filters.cat||S.filters.imp||S.filters.type||S.filters.search||S.filters.dateFrom||S.filters.dateTo)h+='<button class="fl-clr" onclick="TF.clearF()">✕ Clear</button>';
   return h+'</div>'}
 function fSel(key,opts,all){var cur=S.filters[key]||'';
   var h='<select class="fl'+(cur?' fl-active':'')+'" onchange="TF.filt(\''+key+'\',this.value)"><option value="">'+all+'</option>';
@@ -548,6 +613,7 @@ function applyFilters(items,useDate){var f=S.filters;return items.filter(functio
   if(f.client&&t.client!==f.client)return false;if(f.endClient&&t.endClient!==f.endClient)return false;if(f.cat&&t.category!==f.cat)return false;
   if(f.imp&&t.importance!==f.imp)return false;if(f.type&&t.type!==f.type)return false;
   if(f.campaign){var matchCp=S.campaigns.find(function(c){return c.name===f.campaign});if(matchCp&&t.campaign!==matchCp.id)return false}
+  if(f.project){var matchPj=S.projects.find(function(p){return p.name===f.project});if(matchPj&&t.project!==matchPj.id)return false}
   if(f.search){var q=f.search.toLowerCase();if(t.item.toLowerCase().indexOf(q)===-1&&(t.notes||'').toLowerCase().indexOf(q)===-1&&(t.client||'').toLowerCase().indexOf(q)===-1&&(t.endClient||'').toLowerCase().indexOf(q)===-1)return false}
   if(useDate&&f.dateFrom){var d=t.completed||t.due;if(!d||d<new Date(f.dateFrom))return false}
   if(useDate&&f.dateTo){var d2=t.completed||t.due;var to=new Date(f.dateTo);to.setHours(23,59,59);if(!d2||d2>to)return false}

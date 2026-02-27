@@ -190,3 +190,56 @@ CREATE INDEX idx_campaign_meetings_user ON campaign_meetings(user_id);
 CREATE INDEX idx_campaign_meetings_campaign ON campaign_meetings(campaign_id);
 CREATE INDEX idx_activity_logs_user ON activity_logs(user_id);
 CREATE INDEX idx_activity_logs_task ON activity_logs(task_id);
+
+-- =====================================================
+-- 9. PROJECTS
+-- =====================================================
+CREATE TABLE projects (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  status      text NOT NULL DEFAULT 'Planning',
+  color       text NOT NULL DEFAULT '#ff0099',
+  start_date  date,
+  target_date date,
+  notes       text NOT NULL DEFAULT '',
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- 10. PROJECT PHASES
+CREATE TABLE project_phases (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  sort_order  integer NOT NULL DEFAULT 0,
+  start_date  date,
+  end_date    date,
+  status      text NOT NULL DEFAULT 'Not Started',
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- Add project/phase columns to tasks and done
+ALTER TABLE tasks ADD COLUMN project text NOT NULL DEFAULT '';
+ALTER TABLE tasks ADD COLUMN phase text NOT NULL DEFAULT '';
+ALTER TABLE done ADD COLUMN project text NOT NULL DEFAULT '';
+ALTER TABLE done ADD COLUMN phase text NOT NULL DEFAULT '';
+
+-- RLS for projects
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users CRUD own projects" ON projects
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- RLS for project_phases
+ALTER TABLE project_phases ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users CRUD own project_phases" ON project_phases
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Indexes for projects
+CREATE INDEX idx_projects_user ON projects(user_id);
+CREATE INDEX idx_project_phases_user ON project_phases(user_id);
+CREATE INDEX idx_project_phases_project ON project_phases(project_id);

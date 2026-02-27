@@ -12,11 +12,11 @@ function render(){
   /* Desktop: full experience */
   if(S.view==='completed'){S.view='tasks';S.taskMode='done'}
   switch(S.view){case'schedule':html=rSchedule();break;case'overview':html=rOverview();break;case'tasks':html=rTasks();break;case'review':html=rReview();break;
-    case'analytics':html=rAnalytics();break;case'meetings':html=rMeetings();break;case'weekly':html=rWeekly();break;case'templates':html=rTemplates();break;case'campaigns':html=rCampaigns();break}
+    case'analytics':html=rAnalytics();break;case'meetings':html=rMeetings();break;case'weekly':html=rWeekly();break;case'templates':html=rTemplates();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='schedule')initScheduleCharts();
   if(S.view==='overview')initTodayCharts();
-  if(S.view==='analytics')initAnalyticsCharts();renderSidebar()}
+  if(S.view==='analytics')initAnalyticsCharts();if(S.view==='projects')initProjectCharts();renderSidebar()}
 
 /* ═══════════ TASK CARD ═══════════ */
 function taskCard(t,td,idx){
@@ -65,6 +65,7 @@ function taskCard(t,td,idx){
   if(t.client&&t.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(t.client)+'</span>';
   if(t.endClient)h+='<span class="bg bg-ec">'+esc(t.endClient)+'</span>';
   if(t.campaign){var _cp=S.campaigns.find(function(c){return c.id===t.campaign});if(_cp)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cp.name)+'</span>'}
+  if(t.project){var _pj=S.projects.find(function(p){return p.id===t.project});if(_pj)h+='<span class="bg bg-proj" onclick="event.stopPropagation();TF.openProjectDetail(\''+escAttr(_pj.id)+'\')">📁 '+esc(_pj.name)+'</span>'}
   if(t.meetingKey){var _me=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===t.meetingKey});if(_me)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 '+esc(_me.title)+' '+fmtTime(_me.start)+'</span>';else h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 Linked meeting</span>'}
   if(t.category)h+='<span class="bg bg-ca">'+esc(t.category)+'</span>';
   if(t.est)h+='<span class="bg-es">⏱ '+fmtM(t.est)+'</span>';
@@ -2071,7 +2072,9 @@ function rMobAdd(){
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Estimate (mins)</span><input type="number" class="edf" id="f-est" placeholder="30" min="0"></div>';
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Client</span><select class="edf" id="f-cli" onchange="TF.refreshAddEndClients()"><option value="">Select...</option>'+cliOpts+'</select></div>';
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">End Client</span><select class="edf" id="f-ec" onchange="TF.refreshAddCampaigns();TF.ecAddNew(\'f-ec\')">'+buildEndClientOptions('')+'</select></div>';
-  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Campaign</span><select class="edf" id="f-campaign" onchange="TF.fillFromCampaign()">'+buildCampaignOptions('','','')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Campaign</span><select class="edf" id="f-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'f\',\'campaign\')">'+buildCampaignOptions('','','')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Project</span><select class="edf" id="f-project" onchange="TF.onProjectChange(\'f\',\'project\');TF.refreshAddPhases()">'+buildProjectOptions('')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Phase</span><select class="edf" id="f-phase">'+buildPhaseOptions('','')+'</select></div>';
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Meeting</span><select class="edf" id="f-mtg">'+buildMeetingOptions('')+'</select></div>';
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Notes</span><textarea class="edf mob-add-notes" id="f-notes" placeholder="Additional context..." rows="2"></textarea></div>';
   /* Flags */
@@ -2110,6 +2113,133 @@ async function mobAddTask(){
 async function mobAddAndStart(){
   var impSel=gel('f-imp');if(impSel)impSel.value=mobAddImp;
   await addAndStart()}
+
+/* ═══════════ PROJECTS VIEW ═══════════ */
+
+function getProjectStats(proj){
+  var openTasks=S.tasks.filter(function(t){return t.project===proj.id});
+  var doneTasks=S.done.filter(function(d){return d.project===proj.id});
+  var phases=S.phases.filter(function(p){return p.projectId===proj.id}).sort(function(a,b){return a.sortOrder-b.sortOrder});
+  var openCount=openTasks.length,doneCount=doneTasks.length,total=openCount+doneCount;
+  var progress=total>0?Math.round(doneCount/total*100):0;
+  var totalTime=doneTasks.reduce(function(s,d){return s+(d.duration||0)},0)+openTasks.reduce(function(s,t){return s+(t.duration||0)},0);
+  var totalEst=openTasks.reduce(function(s,t){return s+(t.est||0)},0)+doneTasks.reduce(function(s,d){return s+(d.est||0)},0);
+  var td_=today();
+  var nextDue=null,overdue=0;
+  openTasks.forEach(function(t){if(t.due){if(t.due<td_)overdue++;if(!nextDue||t.due<nextDue)nextDue=t.due}});
+  return{openTasks:openTasks,doneTasks:doneTasks,phases:phases,totalTime:totalTime,totalEst:totalEst,
+    openCount:openCount,doneCount:doneCount,progress:progress,nextDue:nextDue,overdue:overdue}}
+
+function getPhaseStats(phase,projStats){
+  var open=projStats.openTasks.filter(function(t){return t.phase===phase.id});
+  var done=projStats.doneTasks.filter(function(d){return d.phase===phase.id});
+  var oc=open.length,dc=done.length,total=oc+dc;
+  return{openTasks:open,doneTasks:done,openCount:oc,doneCount:dc,progress:total>0?Math.round(dc/total*100):0}}
+
+function projStatusClass(s){
+  if(s==='Planning')return'proj-st-planning';if(s==='Active')return'proj-st-active';
+  if(s==='On Hold')return'proj-st-hold';if(s==='Completed')return'proj-st-completed';return'proj-st-archived'}
+
+function rProjects(){
+  var activeProjects=S.projects.filter(function(p){return p.status!=='Archived'});
+  var totalOpen=0,totalTime=0,totalOverdue=0,activeCount=0;
+  activeProjects.forEach(function(p){var st=getProjectStats(p);totalOpen+=st.openCount;totalTime+=st.totalTime;totalOverdue+=st.overdue;if(p.status==='Active')activeCount++});
+
+  var h='<div class="vw-head"><h1>Projects</h1><div style="display:flex;gap:8px;align-items:center">';
+  h+='<div class="task-mode-toggle">';
+  h+='<button class="tm-btn'+(S.projView==='board'?' on':'')+'" onclick="TF.setProjView(\'board\')">Board</button>';
+  h+='<button class="tm-btn'+(S.projView==='list'?' on':'')+'" onclick="TF.setProjView(\'list\')">List</button>';
+  h+='</div>';
+  h+='<button class="btn btn-p" onclick="TF.openAddProject()">+ New Project</button></div></div>';
+
+  /* Metrics */
+  h+='<div class="proj-mets">';
+  h+='<div class="met"><div class="met-l">Active</div><div class="met-v" style="color:var(--green)">'+activeCount+'</div></div>';
+  h+='<div class="met"><div class="met-l">Open Tasks</div><div class="met-v">'+totalOpen+'</div></div>';
+  h+='<div class="met"><div class="met-l">Time Tracked</div><div class="met-v" style="color:var(--pink)">'+fmtM(totalTime)+'</div></div>';
+  h+='<div class="met"><div class="met-l">Overdue</div><div class="met-v" style="color:'+(totalOverdue?'var(--red)':'var(--t4)')+'">'+totalOverdue+'</div></div>';
+  h+='</div>';
+
+  if(!activeProjects.length){h+='<div class="no-data">No projects yet. Create one to start organizing your big ideas into actionable phases.</div>';return h}
+
+  if(S.projView==='board')h+=rProjectBoard(activeProjects);
+  else h+=rProjectList(activeProjects);
+
+  /* Charts */
+  h+='<div class="proj-chart-grid">';
+  h+='<div class="ch-card"><h3 style="margin-top:0;font-size:14px;color:var(--t2)">Project Progress</h3><div class="ch-w" id="proj-progress-chart"></div></div>';
+  h+='<div class="ch-card"><h3 style="margin-top:0;font-size:14px;color:var(--t2)">Time by Project</h3><div class="ch-w" id="proj-time-chart"></div></div>';
+  h+='</div>';
+
+  return h}
+
+function rProjectBoard(projects){
+  var statuses=['Planning','Active','On Hold','Completed'];
+  var h='<div class="proj-board">';
+  statuses.forEach(function(status){
+    var items=projects.filter(function(p){return p.status===status});
+    h+='<div class="proj-col">';
+    h+='<div class="proj-col-header">'+status+'<span class="proj-col-count">'+items.length+'</span></div>';
+    items.forEach(function(p){h+=projCardCompact(p)});
+    h+='</div>'});
+  h+='</div>';return h}
+
+function rProjectList(projects){
+  var h='<div style="display:flex;flex-direction:column;gap:6px">';
+  projects.forEach(function(p){
+    var st=getProjectStats(p),eid=escAttr(p.id);
+    h+='<div class="proj-list-row" onclick="TF.openProjectDetail(\''+eid+'\')" style="border-left-color:'+p.color+'">';
+    h+='<div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:'+p.color+'"></div>';
+    h+='<span class="proj-list-name">'+esc(p.name)+'</span>';
+    h+='<span class="proj-list-status '+projStatusClass(p.status)+'">'+esc(p.status)+'</span>';
+    h+='<span class="proj-list-stat">'+st.phases.length+' phases</span>';
+    h+='<span class="proj-list-stat">'+st.openCount+' open</span>';
+    h+='<span class="proj-list-stat" style="color:var(--green)">'+st.doneCount+' done</span>';
+    h+='<span class="proj-list-stat" style="color:var(--pink)">'+fmtM(st.totalTime)+'</span>';
+    h+='<div style="width:80px"><div class="proj-progress"><div class="proj-progress-fill" style="width:'+st.progress+'%;background:'+p.color+'"></div></div></div>';
+    h+='<span class="proj-card-pct" style="color:'+p.color+'">'+st.progress+'%</span>';
+    if(p.targetDate)h+='<span class="proj-list-stat">📅 '+fmtDShort(p.targetDate)+'</span>';
+    h+='</div>'});
+  h+='</div>';return h}
+
+function projCardCompact(p){
+  var st=getProjectStats(p),eid=escAttr(p.id);
+  var h='<div class="proj-card" onclick="TF.openProjectDetail(\''+eid+'\')">';
+  h+='<div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:'+p.color+';border-radius:4px 0 0 4px"></div>';
+  h+='<div class="proj-card-name">'+esc(p.name)+'</div>';
+  if(p.description)h+='<div class="proj-card-desc">'+esc(p.description)+'</div>';
+  h+='<div class="proj-progress"><div class="proj-progress-fill" style="width:'+st.progress+'%;background:'+p.color+'"></div></div>';
+  h+='<div class="proj-card-meta">';
+  h+='<span class="proj-card-pct" style="color:'+p.color+'">'+st.progress+'%</span>';
+  h+='<span class="proj-card-stat">'+st.openCount+' open</span>';
+  h+='<span class="proj-card-stat">'+st.doneCount+' done</span>';
+  if(st.totalTime)h+='<span class="proj-card-stat" style="color:var(--pink)">'+fmtM(st.totalTime)+'</span>';
+  h+='</div>';
+  if(st.phases.length){
+    h+='<div class="proj-card-phases">';
+    st.phases.forEach(function(ph){
+      var cls=ph.status==='Not Started'?'ns':ph.status==='In Progress'?'ip':'cp';
+      h+='<span class="proj-phase-badge '+cls+'">'+esc(ph.name)+'</span>'});
+    h+='</div>'}
+  if(p.targetDate)h+='<div style="font-size:10px;color:var(--t4);margin-top:6px">📅 '+fmtDShort(p.targetDate)+'</div>';
+  h+='</div>';return h}
+
+function initProjectCharts(){
+  var activeProjects=S.projects.filter(function(p){return p.status!=='Archived'&&p.status!=='Completed'});
+  /* Progress donut */
+  var progData={};
+  activeProjects.forEach(function(p){var st=getProjectStats(p);if(st.openCount+st.doneCount>0)progData[p.name]=st.progress});
+  if(Object.keys(progData).length){
+    var el=gel('proj-progress-chart');if(el){killChart('proj-progress-chart');
+      var labels=Object.keys(progData),vals=labels.map(function(k){return progData[k]});
+      var cols=activeProjects.filter(function(p){return progData[p.name]!==undefined}).map(function(p){return p.color});
+      charts['proj-progress-chart']=new Chart(el,{type:'bar',data:{labels:labels,datasets:[{data:vals,backgroundColor:cols.map(function(c){return c+'88'}),hoverBackgroundColor:cols,borderRadius:6,barThickness:22}]},
+        options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.parsed.x+'% complete'}}}},
+          scales:{x:{max:100,grid:{color:'rgba(130,55,245,0.06)'},ticks:{color:'#8a7ca8',font:{size:10},callback:function(v){return v+'%'}}},y:{grid:{display:false},ticks:{color:'#c4b8dc',font:{size:10}}}}}})}}
+  /* Time bar chart */
+  var timeData={};
+  activeProjects.forEach(function(p){var st=getProjectStats(p);if(st.totalTime>0)timeData[p.name]=st.totalTime});
+  if(Object.keys(timeData).length)mkHBar('proj-time-chart',timeData)}
 
 /* ── Mobile Today ── */
 function rMobToday(){
