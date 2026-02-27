@@ -11,99 +11,178 @@ function openDetail(id){
   var impOpts=IMPS.map(function(i){return'<option'+(i===task.importance?' selected':'')+'>'+i+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t===task.type?' selected':'')+'>'+t+'</option>'}).join('');
   var isPinned=!!S.pins[id];
-
-  /* ── Full-screen header ── */
-  var h='<div class="detail-full-header">';
-  h+='<div class="tf-modal-top">';
-  h+='<input type="text" class="edf edf-name" id="d-item" value="'+esc(task.item)+'">';
-  h+='<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">';
-  h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="font-size:11px;padding:5px 12px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">📌 '+(isPinned?'Unpin':'Pin')+'</button>';
-  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div></div>';
-  h+='<input type="hidden" id="d-id" value="'+esc(task.id)+'">';
-
-  h+='<div class="tf-modal-badges">';
-  h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
-  if(task.due){var diff=dayDiff(td,task.due);h+='<span class="bg-du'+(diff<0?' od':(diff===0?' td':''))+'">'+dueLabel(task.due,td)+'</span>'}
-  if(task.flag)h+='<span class="bg bg-fl">🚩 Needs Client Input</span>';
-  if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
-  if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
-  if(task.campaign){var _cpdet=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpdet)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpdet.name)+'</span>'}
-  if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
-  if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
-  if(isPinned)h+='<span class="bg" style="background:rgba(255,176,48,0.1);color:var(--amber)">📌 Pinned</span>';
-  if(hasT){h+='<span class="ed-timer-badge"><span class="dot '+(running?'pulse':'pau')+'"></span><span class="'+(running?'go':'')+'" data-tmr="'+esc(id)+'">'+fmtT(elapsed)+'</span></span>'}
-  h+='</div></div>';
-
-  /* ── Split pane ── */
-  h+='<div class="detail-split">';
-
-  /* LEFT: Fields + Actions */
-  h+='<div class="detail-split-left">';
-
-  /* Scheduling */
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Due Date</span><input type="datetime-local" class="edf" id="d-due" value="'+(task.due?fmtISO(task.due):'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="d-cat">'+catOpts+'</select></div>';
-  h+='</div>';
-  /* Details */
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="d-est" value="'+(task.est||'')+'" min="0" placeholder="30"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-cli" onchange="TF.refreshDetailEndClients()">'+cliOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(task.endClient||'',task.client)+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign()">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
-  h+='</div>';
-
-  /* Options (single row) */
-  h+='<div class="flag-row ed-flags-inline">';
-  h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
-  h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
-  h+='<div id="d-already-dur-wrap" style="display:none;align-items:center;gap:8px;margin-left:auto"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-already-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(task.est||30)+'" min="0"></div>';
-  h+='</div>';
-
-  /* Actions */
-  h+='<div class="ed-actions">';
-  h+='<button class="btn btn-p" onclick="TF.saveDetail()">💾 Save</button>';
-  if(running){
-    h+='<button class="btn" onclick="TF.pause(\''+eid+'\')">⏸ Pause</button>';
-  }else{
-    h+='<button class="btn btn-go" onclick="TF.start(\''+eid+'\')">▶ Start</button>';
-  }
-  h+='<button class="btn btn-p" onclick="TF.markAlreadyCompleted(\''+eid+'\')">'+CK_S+' Complete</button>';
-  h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">🎯 Focus</button>';
-  h+='<span class="spacer"></span>';
-  h+='<button class="btn btn-d" onclick="TF.confirmDelete()">🗑️</button>';
-  h+='</div><div id="del-zone"></div>';
-  h+='</div>';/* end detail-split-left */
-
-  /* RIGHT: Notes + Activity Log */
-  h+='<div class="detail-split-right">';
-
-  /* Notes (large) */
-  h+='<div class="detail-notes-large"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">📝 Notes</span>';
-  h+='<textarea class="edf edf-notes" id="d-notes" placeholder="Add notes about your progress, where you left off, what to do next...">'+esc(task.notes)+'</textarea></div>';
-
-  /* Activity Log */
+  var isMob=window.innerWidth<=600;
   var logs=S.actLogs[id]||[];
-  h+='<div class="detail-activity">';
-  h+='<span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">📋 Activity Log</span>';
-  h+='<div class="act-log-input"><input type="text" class="edf" id="d-log-input" placeholder="Add a log entry..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.addLog(\''+eid+'\')}">';
-  h+='<button class="act-log-add" onclick="TF.addLog(\''+eid+'\')">+</button></div>';
-  if(logs.length){
-    h+='<div class="act-log-list">';
-    var rlogs=logs.slice().reverse();
-    rlogs.forEach(function(entry){
-      h+='<div class="act-log-entry"><span class="act-log-time">'+fmtLogTs(entry.ts)+'</span><span class="act-log-text">'+esc(entry.text)+'</span></div>'});
-    h+='</div>';
-  }else{
-    h+='<div style="text-align:center;padding:20px;color:var(--t4);font-size:12px">No activity log entries yet</div>';
-  }
-  h+='</div>';
 
-  h+='</div>';/* end detail-split-right */
-  h+='</div>';/* end detail-split */
+  var h='';
+
+  if(isMob){
+    /* ═══ MOBILE: Single-column sheet ═══ */
+    h+='<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">';
+
+    /* Header: name + close */
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--gborder);flex-shrink:0">';
+    h+='<input type="text" class="edf edf-name" id="d-item" value="'+esc(task.item)+'" style="font-size:16px;padding:4px 6px">';
+    h+='<input type="hidden" id="d-id" value="'+esc(task.id)+'">';
+    h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+
+    /* Quick actions bar */
+    h+='<div style="display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--gborder);flex-shrink:0;background:var(--bg1)">';
+    if(running){
+      h+='<button class="btn" onclick="TF.pause(\''+eid+'\')" style="flex:1;padding:12px;font-size:13px">⏸ Pause</button>';
+    }else{
+      h+='<button class="btn btn-go" onclick="TF.start(\''+eid+'\')" style="flex:1;padding:12px;font-size:13px">▶ Start</button>';
+    }
+    h+='<button class="btn btn-p" onclick="TF.markAlreadyCompleted(\''+eid+'\')" style="flex:1;padding:12px;font-size:13px">'+CK_S+' Done</button>';
+    h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="padding:12px;background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">🎯</button>';
+    h+='</div>';
+
+    /* Scrollable content */
+    h+='<div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch">';
+
+    /* Timer if active */
+    if(hasT){
+      h+='<div style="text-align:center;padding:10px 16px;border-bottom:1px solid var(--gborder)">';
+      h+='<span class="tmr '+(running?'go':'')+'" style="font-size:22px"><span class="dot '+(running?'pulse':'pau')+'"></span>';
+      h+='<span data-tmr="'+esc(id)+'">'+fmtT(elapsed)+'</span></span></div>';
+    }
+
+    /* Badges */
+    h+='<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px">';
+    h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
+    if(task.due){var diff=dayDiff(td,task.due);h+='<span class="bg-du'+(diff<0?' od':(diff===0?' td':''))+'">'+dueLabel(task.due,td)+'</span>'}
+    if(task.flag)h+='<span class="bg bg-fl">🚩</span>';
+    if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
+    if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
+    if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
+    h+='</div>';
+
+    /* Notes (prominent) */
+    h+='<div style="padding:0 16px 12px">';
+    h+='<textarea class="edf edf-notes" id="d-notes" placeholder="Notes..." style="min-height:80px;font-size:14px">'+esc(task.notes)+'</textarea></div>';
+
+    /* Details accordion */
+    h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">📋 Details <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<div class="ed-grid" style="grid-template-columns:1fr">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Due Date</span><input type="datetime-local" class="edf" id="d-due" value="'+(task.due?fmtISO(task.due):'')+'"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="d-cat">'+catOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="d-est" value="'+(task.est||'')+'" min="0" placeholder="30"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-cli" onchange="TF.refreshDetailEndClients()">'+cliOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(task.endClient||'',task.client)+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign()">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
+    h+='</div>';
+    h+='<div class="flag-row" style="margin:8px 0 12px;flex-direction:column;gap:12px;padding:12px">';
+    h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
+    h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
+    h+='<div id="d-already-dur-wrap" style="display:none;align-items:center;gap:8px"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-already-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(task.est||30)+'" min="0"></div>';
+    h+='</div>';
+    h+='</details>';
+
+    /* Activity Log accordion */
+    h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">📋 Activity Log ('+logs.length+') <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<div class="act-log-input"><input type="text" class="edf" id="d-log-input" placeholder="Add a log entry..." style="font-size:14px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.addLog(\''+eid+'\')}">';
+    h+='<button class="act-log-add" onclick="TF.addLog(\''+eid+'\')">+</button></div>';
+    if(logs.length){
+      h+='<div class="act-log-list">';
+      logs.slice().reverse().forEach(function(entry){
+        h+='<div class="act-log-entry"><span class="act-log-time">'+fmtLogTs(entry.ts)+'</span><span class="act-log-text">'+esc(entry.text)+'</span></div>'});
+      h+='</div>';
+    }else{
+      h+='<div style="text-align:center;padding:16px;color:var(--t4);font-size:12px">No entries yet</div>';
+    }
+    h+='</details>';
+
+    h+='</div>';/* end scrollable */
+
+    /* Bottom bar: Save + Pin + Delete */
+    h+='<div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--gborder);flex-shrink:0;background:var(--bg1)">';
+    h+='<button class="btn btn-p" onclick="TF.saveDetail()" style="flex:1;padding:14px;font-size:14px">💾 Save</button>';
+    h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="padding:14px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">📌</button>';
+    h+='<button class="btn btn-d" onclick="TF.confirmDelete()" style="padding:14px">🗑️</button>';
+    h+='</div><div id="del-zone" style="padding:0 16px"></div>';
+
+    h+='</div>';/* end mobile wrapper */
+  }else{
+    /* ═══ DESKTOP: Split-pane layout ═══ */
+    h+='<div class="detail-full-header">';
+    h+='<div class="tf-modal-top">';
+    h+='<input type="text" class="edf edf-name" id="d-item" value="'+esc(task.item)+'">';
+    h+='<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">';
+    h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="font-size:11px;padding:5px 12px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">📌 '+(isPinned?'Unpin':'Pin')+'</button>';
+    h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div></div>';
+    h+='<input type="hidden" id="d-id" value="'+esc(task.id)+'">';
+
+    h+='<div class="tf-modal-badges">';
+    h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
+    if(task.due){var diff=dayDiff(td,task.due);h+='<span class="bg-du'+(diff<0?' od':(diff===0?' td':''))+'">'+dueLabel(task.due,td)+'</span>'}
+    if(task.flag)h+='<span class="bg bg-fl">🚩 Needs Client Input</span>';
+    if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
+    if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
+    if(task.campaign){var _cpdet=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpdet)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpdet.name)+'</span>'}
+    if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
+    if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
+    if(isPinned)h+='<span class="bg" style="background:rgba(255,176,48,0.1);color:var(--amber)">📌 Pinned</span>';
+    if(hasT){h+='<span class="ed-timer-badge"><span class="dot '+(running?'pulse':'pau')+'"></span><span class="'+(running?'go':'')+'" data-tmr="'+esc(id)+'">'+fmtT(elapsed)+'</span></span>'}
+    h+='</div></div>';
+
+    h+='<div class="detail-split">';
+    h+='<div class="detail-split-left">';
+    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Due Date</span><input type="datetime-local" class="edf" id="d-due" value="'+(task.due?fmtISO(task.due):'')+'"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="d-cat">'+catOpts+'</select></div>';
+    h+='</div>';
+    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="d-est" value="'+(task.est||'')+'" min="0" placeholder="30"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-cli" onchange="TF.refreshDetailEndClients()">'+cliOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(task.endClient||'',task.client)+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign()">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
+    h+='</div>';
+    h+='<div class="flag-row ed-flags-inline">';
+    h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
+    h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
+    h+='<div id="d-already-dur-wrap" style="display:none;align-items:center;gap:8px;margin-left:auto"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-already-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(task.est||30)+'" min="0"></div>';
+    h+='</div>';
+    h+='<div class="ed-actions">';
+    h+='<button class="btn btn-p" onclick="TF.saveDetail()">💾 Save</button>';
+    if(running){
+      h+='<button class="btn" onclick="TF.pause(\''+eid+'\')">⏸ Pause</button>';
+    }else{
+      h+='<button class="btn btn-go" onclick="TF.start(\''+eid+'\')">▶ Start</button>';
+    }
+    h+='<button class="btn btn-p" onclick="TF.markAlreadyCompleted(\''+eid+'\')">'+CK_S+' Complete</button>';
+    h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">🎯 Focus</button>';
+    h+='<span class="spacer"></span>';
+    h+='<button class="btn btn-d" onclick="TF.confirmDelete()">🗑️</button>';
+    h+='</div><div id="del-zone"></div>';
+    h+='</div>';
+
+    h+='<div class="detail-split-right">';
+    h+='<div class="detail-notes-large"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">📝 Notes</span>';
+    h+='<textarea class="edf edf-notes" id="d-notes" placeholder="Add notes about your progress, where you left off, what to do next...">'+esc(task.notes)+'</textarea></div>';
+    h+='<div class="detail-activity">';
+    h+='<span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">📋 Activity Log</span>';
+    h+='<div class="act-log-input"><input type="text" class="edf" id="d-log-input" placeholder="Add a log entry..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.addLog(\''+eid+'\')}">';
+    h+='<button class="act-log-add" onclick="TF.addLog(\''+eid+'\')">+</button></div>';
+    if(logs.length){
+      h+='<div class="act-log-list">';
+      logs.slice().reverse().forEach(function(entry){
+        h+='<div class="act-log-entry"><span class="act-log-time">'+fmtLogTs(entry.ts)+'</span><span class="act-log-text">'+esc(entry.text)+'</span></div>'});
+      h+='</div>';
+    }else{
+      h+='<div style="text-align:center;padding:20px;color:var(--t4);font-size:12px">No activity log entries yet</div>';
+    }
+    h+='</div>';
+    h+='</div>';
+    h+='</div>';
+  }
 
   gel('detail-body').innerHTML=h;
   gel('detail-modal').classList.add('on','full-detail')}
@@ -942,24 +1021,136 @@ function openCampaignDetail(id){
   var PLATFORMS=['Meta','Google Ads','YouTube','LinkedIn','TikTok','Microsoft Ads','Programmatic','Multiple','Other'];
   var STATUSES=['Setup','Active','Paused','Completed','Archived'];
   var TERMS=['1 month','2 months','3 months','4 months','5 months','6 months','7 months','8 months','9 months','10 months','11 months','12 months','18 months','24 months','Ongoing'];
-
-  /* ── Full-screen header ── */
-  var h='<div class="detail-full-header">';
-  h+='<div class="tf-modal-top">';
-  h+='<input type="text" class="edf edf-name" id="cp-name" value="'+esc(cp.name)+'">';
-  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  h+='<input type="hidden" id="cp-id" value="'+esc(cp.id)+'">';
-
-  h+='<div class="tf-modal-badges">';
-  h+='<span class="bg bg-'+(cp.status==='Active'?'im':cp.status==='Setup'?'mt':cp.status==='Paused'?'wt':'cr')+'">'+esc(cp.status)+'</span>';
-  if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
-  h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
-  if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
+  var isMob=window.innerWidth<=600;
   var oneOff=cp.strategyFee+cp.setupFee;var monthly=cp.monthlyFee+cp.monthlyAdSpend;
-  h+='<span class="ed-timer-badge" style="color:var(--green)">💰 Paid: '+fmtUSD(st.totalPaid)+'</span>';
-  h+='<span class="ed-timer-badge" style="color:var(--amber)">📋 '+st.openCount+' open · '+st.doneCount+' done</span>';
-  if(st.totalTime)h+='<span class="ed-timer-badge" style="color:var(--pink)">⏱ '+fmtM(st.totalTime)+'</span>';
-  h+='</div></div>';
+
+  /* Helper: build common fields HTML */
+  function cpFieldsHTML(gridCls){
+    var fh='<div class="'+gridCls+'">';
+    fh+='<div class="ed-fld"><span class="ed-lbl">Partner</span><select class="edf" id="cp-partner">';
+    S.clients.forEach(function(c){fh+='<option'+(c===cp.partner?' selected':'')+'>'+esc(c)+'</option>'});fh+='</select></div>';
+    fh+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="cp-ec" onchange="TF.ecAddNew(\'cp-ec\')">'+buildEndClientOptions(cp.endClient||'')+'</select></div>';
+    fh+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="cp-status">';
+    STATUSES.forEach(function(s){fh+='<option'+(s===cp.status?' selected':'')+'>'+s+'</option>'});fh+='</select></div>';
+    fh+='<div class="ed-fld"><span class="ed-lbl">Platform</span><select class="edf" id="cp-platform"><option value="">Select...</option>';
+    PLATFORMS.forEach(function(p){fh+='<option'+(p===cp.platform?' selected':'')+'>'+p+'</option>'});fh+='</select></div>';
+    fh+='<div class="ed-fld"><span class="ed-lbl">Campaign Term</span><select class="edf" id="cp-term"><option value="">Select...</option>';
+    TERMS.forEach(function(t){fh+='<option'+(t===cp.campaignTerm?' selected':'')+'>'+t+'</option>'});fh+='</select></div>';
+    fh+='<div class="ed-fld"><span class="ed-lbl">Planned Launch</span><input type="date" class="edf" id="cp-planned" value="'+(cp.plannedLaunch?cp.plannedLaunch.toISOString().slice(0,10):'')+'"></div>';
+    fh+='<div class="ed-fld"><span class="ed-lbl">Actual Launch</span><input type="date" class="edf" id="cp-actual" value="'+(cp.actualLaunch?cp.actualLaunch.toISOString().slice(0,10):'')+'"></div>';
+    fh+='<div class="ed-fld"><span class="ed-lbl">Renewal Date</span><input type="date" class="edf" id="cp-renewal" value="'+(cp.renewalDate?cp.renewalDate.toISOString().slice(0,10):'')+'"></div>';
+    fh+='<div class="ed-fld full"><span class="ed-lbl">Goal</span><input type="text" class="edf" id="cp-goal" value="'+esc(cp.goal)+'" placeholder="Campaign goal..."></div>';
+    fh+='</div>';return fh}
+
+  /* Helper: fees HTML */
+  function cpFeesHTML(){
+    var fh='<div class="cp-fees-grid">';
+    fh+='<div class="cp-fee-item"><div class="cp-fee-label">Strategy Fee</div><input type="number" class="edf" id="cp-strategyFee" value="'+(cp.strategyFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
+    fh+='<div class="cp-fee-item"><div class="cp-fee-label">Set-Up Fee</div><input type="number" class="edf" id="cp-setupFee" value="'+(cp.setupFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
+    fh+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Fee</div><input type="number" class="edf" id="cp-monthlyFee" value="'+(cp.monthlyFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
+    fh+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Ad Spend</div><input type="number" class="edf" id="cp-monthlyAdSpend" value="'+(cp.monthlyAdSpend||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
+    fh+='</div>';
+    fh+='<div class="cp-fee-total"><div class="cp-fee-total-label">One-off: '+fmtUSD(oneOff)+' · Monthly: '+fmtUSD(monthly)+'</div><div class="cp-fee-total-value">Total Paid: '+fmtUSD(st.totalPaid)+'</div></div>';
+    return fh}
+
+  /* Helper: links HTML */
+  function cpLinksHTML(){
+    var fh='<div class="cp-links-grid">';
+    var links=[['Proposal','cp-proposalLink',cp.proposalLink],['Monthly Reports','cp-reportsLink',cp.reportsLink],['Video Assets','cp-videoAssetsLink',cp.videoAssetsLink],['Transcripts','cp-transcriptsLink',cp.transcriptsLink],['Contract','cp-contractLink',cp.contractLink],['Awareness LP','cp-awarenessLP',cp.awarenessLP],['Consideration LP','cp-considerationLP',cp.considerationLP],['Decision LP','cp-decisionLP',cp.decisionLP]];
+    links.forEach(function(l){
+      fh+='<div class="cp-link-item"><span class="cp-link-label">'+l[0]+'</span>';
+      if(l[2])fh+='<a href="'+esc(l[2])+'" target="_blank" onclick="event.stopPropagation()">Open ↗</a>';
+      fh+='<input type="url" class="edf" id="'+l[1]+'" value="'+esc(l[2])+'" placeholder="https://..." style="flex:1;font-size:11px">';
+      fh+='</div>'});
+    fh+='</div>';return fh}
+
+  var h='';
+
+  if(isMob){
+    /* ═══ MOBILE: Single-column campaign detail ═══ */
+    h+='<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">';
+    /* Header */
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--gborder);flex-shrink:0">';
+    h+='<input type="text" class="edf edf-name" id="cp-name" value="'+esc(cp.name)+'" style="font-size:16px;padding:4px 6px">';
+    h+='<input type="hidden" id="cp-id" value="'+esc(cp.id)+'">';
+    h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+
+    /* Scrollable */
+    h+='<div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch">';
+
+    /* Badges */
+    h+='<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px">';
+    h+='<span class="bg bg-'+(cp.status==='Active'?'im':cp.status==='Setup'?'mt':cp.status==='Paused'?'wt':'cr')+'">'+esc(cp.status)+'</span>';
+    if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
+    h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
+    if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
+    h+='<span style="font-size:11px;color:var(--green);font-weight:700">💰 '+fmtUSD(st.totalPaid)+'</span>';
+    h+='<span style="font-size:11px;color:var(--amber);font-weight:700">📋 '+st.openCount+' open</span>';
+    h+='</div>';
+
+    /* Notes */
+    h+='<div style="padding:0 16px 12px"><textarea class="edf edf-notes" id="cp-notes" placeholder="Campaign notes..." style="min-height:60px;font-size:14px">'+esc(cp.notes||'')+'</textarea></div>';
+
+    /* Open Tasks */
+    h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)" open>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">📋 Open Tasks ('+st.openCount+') <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    if(st.openTasks.length){st.openTasks.forEach(function(t){h+=miniRow(t,td_)})}
+    h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal();setTimeout(function(){var cs=gel(\'f-cli\');if(cs)cs.value=\''+escAttr(cp.partner)+'\';TF.refreshAddCampaigns();var cc=gel(\'f-campaign\');if(cc)cc.value=\''+escAttr(cp.id)+'\';TF.fillFromCampaign()},200)" style="margin:6px 0 12px;font-size:12px;padding:10px 14px;width:100%;text-align:center">+ Add Task</button>';
+    h+='</details>';
+
+    /* Details */
+    h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">📋 Details <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+=cpFieldsHTML('ed-grid');
+    h+='</details>';
+
+    /* Fees */
+    h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">💰 Fees <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+=cpFeesHTML();
+    h+='<div style="margin-bottom:12px"></div></details>';
+
+    /* Payments */
+    h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">💳 Payments ('+st.payments.length+') <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    if(st.payments.length){st.payments.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(p){
+      h+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(130,55,245,0.04);font-size:12px">';
+      h+='<span>'+(p.date?fmtDShort(p.date):'')+'</span><span style="color:var(--green);font-weight:700">'+fmtUSD(p.amount)+'</span></div>'})}
+    h+='<button class="btn" onclick="TF.openAddPayment(\''+escAttr(cp.id)+'\')" style="margin:6px 0 12px;font-size:12px;padding:10px 14px">+ Add Payment</button>';
+    h+='</details>';
+
+    /* Links */
+    h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">🔗 Links <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+=cpLinksHTML();
+    h+='<div style="margin-bottom:12px"></div></details>';
+
+    h+='</div>';/* end scrollable */
+
+    /* Bottom bar */
+    h+='<div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--gborder);flex-shrink:0;background:var(--bg1)">';
+    h+='<button class="btn btn-p" onclick="TF.saveCampaign()" style="flex:1;padding:14px;font-size:14px">💾 Save</button>';
+    h+='<button class="btn btn-d" onclick="TF.confirmDeleteCampaign()" style="padding:14px">🗑️</button>';
+    h+='</div><div id="del-zone" style="padding:0 16px"></div>';
+
+    h+='</div>';/* end mobile wrapper */
+  }else{
+    /* ═══ DESKTOP: Split-pane layout ═══ */
+    h+='<div class="detail-full-header">';
+    h+='<div class="tf-modal-top">';
+    h+='<input type="text" class="edf edf-name" id="cp-name" value="'+esc(cp.name)+'">';
+    h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+    h+='<input type="hidden" id="cp-id" value="'+esc(cp.id)+'">';
+
+    h+='<div class="tf-modal-badges">';
+    h+='<span class="bg bg-'+(cp.status==='Active'?'im':cp.status==='Setup'?'mt':cp.status==='Paused'?'wt':'cr')+'">'+esc(cp.status)+'</span>';
+    if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
+    h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
+    if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
+    h+='<span class="ed-timer-badge" style="color:var(--green)">💰 Paid: '+fmtUSD(st.totalPaid)+'</span>';
+    h+='<span class="ed-timer-badge" style="color:var(--amber)">📋 '+st.openCount+' open · '+st.doneCount+' done</span>';
+    if(st.totalTime)h+='<span class="ed-timer-badge" style="color:var(--pink)">⏱ '+fmtM(st.totalTime)+'</span>';
+    h+='</div></div>';
 
   /* ── Split pane ── */
   h+='<div class="detail-split">';
@@ -1057,6 +1248,7 @@ function openCampaignDetail(id){
 
   h+='</div>';/* end detail-split-right */
   h+='</div>';/* end detail-split */
+  }/* end desktop else */
 
   gel('detail-body').innerHTML=h;
   gel('detail-modal').classList.add('on','full-detail')}

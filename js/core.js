@@ -487,9 +487,16 @@ function buildNav(){var h='';VIEWS.forEach(function(v){
   /* Position the active indicator */
   setTimeout(function(){var nav=gel('s-nav');var active=nav.querySelector('.s-item.on');var ind=nav.querySelector('.s-nav-indicator');
     if(!ind){ind=document.createElement('div');ind.className='s-nav-indicator';nav.appendChild(ind)}
-    if(active){ind.style.top=active.offsetTop+'px';ind.style.height=active.offsetHeight+'px'}},0)}
-function openMenu(){gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on')}
-function closeMenu(){gel('sidebar').classList.remove('open');gel('mob-overlay').classList.remove('on')}
+    if(active){ind.style.top=active.offsetTop+'px';ind.style.height=active.offsetHeight+'px'}},0);
+  /* Sync bottom tab bar */
+  var btmNav=gel('btm-nav');
+  if(btmNav){btmNav.querySelectorAll('.btm-tab').forEach(function(tab){
+    var isMore=tab.dataset.v==='more';tab.classList.toggle('on',!isMore&&tab.dataset.v===S.view)});
+    var btmBadge=gel('btm-badge');if(btmBadge)btmBadge.textContent=S.review.length?S.review.length:''}}
+function openMenu(){gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on');
+  var mt=document.querySelector('.btm-tab[data-v="more"]');if(mt)mt.classList.add('on')}
+function closeMenu(){gel('sidebar').classList.remove('open');gel('mob-overlay').classList.remove('on');
+  var btmNav=gel('btm-nav');if(btmNav){btmNav.querySelectorAll('.btm-tab').forEach(function(tab){tab.classList.toggle('on',tab.dataset.v===S.view)})}}
 document.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&!e.shiftKey){
     var modal=gel('modal');if(modal&&modal.classList.contains('on')){
@@ -504,3 +511,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='/'){e.preventDefault();setTimeout(function(){var si=document.querySelector('.fl-s');if(si)si.focus()},50)}
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCmdPalette()}
   if((e.ctrlKey||e.metaKey)&&e.key==='b'&&S.view==='tasks'){e.preventDefault();toggleBulk()}});
+/* Swipe to close sidebar */
+(function(){var ov=gel('mob-overlay'),sx=0;if(!ov)return;
+  ov.addEventListener('touchstart',function(e){sx=e.touches[0].clientX},{passive:true});
+  ov.addEventListener('touchmove',function(e){if(e.touches[0].clientX-sx<-50)closeMenu()},{passive:true})})();

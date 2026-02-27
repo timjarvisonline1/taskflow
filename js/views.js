@@ -91,9 +91,9 @@ function miniRow(t,td){
   if(hasT)h+='<span data-tmr="'+esc(t.id)+'" style="color:'+(running?'var(--green)':'var(--amber)')+';font-family:var(--fd);font-weight:600;letter-spacing:0.03em">'+fmtT(elapsed)+'</span>';
   h+='</span>';
   h+='<span class="td-mini-acts">';
-  if(running)h+='<button class="ab ab-pa ab-sm" onclick="event.stopPropagation();TF.pause(\''+eid+'\')" title="Pause" style="width:24px;height:24px;font-size:11px">⏸</button>';
-  else h+='<button class="ab ab-go ab-sm" onclick="event.stopPropagation();TF.start(\''+eid+'\')" title="Start" style="width:24px;height:24px;font-size:11px">▶</button>';
-  h+='<button class="ab ab-dn ab-sm" onclick="event.stopPropagation();TF.done(\''+eid+'\')" title="Done" style="width:24px;height:24px">'+CK_XS+'</button>';
+  if(running)h+='<button class="ab ab-pa ab-mini" onclick="event.stopPropagation();TF.pause(\''+eid+'\')" title="Pause">⏸</button>';
+  else h+='<button class="ab ab-go ab-mini" onclick="event.stopPropagation();TF.start(\''+eid+'\')" title="Start">▶</button>';
+  h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid+'\')" title="Done">'+CK_XS+'</button>';
   h+='</span></div>';return h}
 
 function rSchedule(){
@@ -273,11 +273,11 @@ function rSchedule(){
       h+='<div class="tb-wrap"><table class="tb"><thead><tr><th style="width:40%">Task</th><th style="width:15%">Importance</th><th style="width:20%">Due</th><th class="r" style="width:15%">Est.</th><th style="width:10%"></th></tr></thead><tbody>';
       upcoming.forEach(function(t){
         h+='<tr style="cursor:pointer" onclick="TF.openDetail(\''+escAttr(t.id)+'\')">';
-        h+='<td>'+esc(t.item)+'</td>';
-        h+='<td><span class="bg '+impCls(t.importance)+'">'+esc(t.importance)+'</span></td>';
-        h+='<td style="color:var(--t3)">'+dueLabel(t.due,td)+'</td>';
-        h+='<td class="nm">'+fmtM(t.est)+'</td>';
-        h+='<td><button class="ab ab-go ab-sm" onclick="event.stopPropagation();TF.start(\''+escAttr(t.id)+'\')" title="Start" style="width:24px;height:24px;font-size:11px">▶</button></td>';
+        h+='<td data-label="Task">'+esc(t.item)+'</td>';
+        h+='<td data-label="Importance"><span class="bg '+impCls(t.importance)+'">'+esc(t.importance)+'</span></td>';
+        h+='<td data-label="Due" style="color:var(--t3)">'+dueLabel(t.due,td)+'</td>';
+        h+='<td data-label="Est." class="nm">'+fmtM(t.est)+'</td>';
+        h+='<td><button class="ab ab-go ab-mini" onclick="event.stopPropagation();TF.start(\''+escAttr(t.id)+'\')" title="Start">▶</button></td>';
         h+='</tr>'});
       h+='</tbody></table></div></div>'}
     h+='</div>';
@@ -292,11 +292,11 @@ function rSchedule(){
       h+='<div class="tb-wrap"><table class="tb"><thead><tr><th style="width:40%">Task</th><th style="width:15%">Importance</th><th style="width:20%">Due</th><th class="r" style="width:15%">Est.</th><th style="width:10%"></th></tr></thead><tbody>';
       overdue.slice(0,10).forEach(function(t){
         h+='<tr style="cursor:pointer" onclick="TF.openDetail(\''+escAttr(t.id)+'\')">';
-        h+='<td>'+esc(t.item)+'</td>';
-        h+='<td><span class="bg '+impCls(t.importance)+'">'+esc(t.importance)+'</span></td>';
-        h+='<td style="color:var(--red)">'+dueLabel(t.due,td)+'</td>';
-        h+='<td class="nm">'+fmtM(t.est)+'</td>';
-        h+='<td><button class="ab ab-go ab-sm" onclick="event.stopPropagation();TF.start(\''+escAttr(t.id)+'\')" title="Start" style="width:24px;height:24px;font-size:11px">▶</button></td>';
+        h+='<td data-label="Task">'+esc(t.item)+'</td>';
+        h+='<td data-label="Importance"><span class="bg '+impCls(t.importance)+'">'+esc(t.importance)+'</span></td>';
+        h+='<td data-label="Due" style="color:var(--red)">'+dueLabel(t.due,td)+'</td>';
+        h+='<td data-label="Est." class="nm">'+fmtM(t.est)+'</td>';
+        h+='<td><button class="ab ab-go ab-mini" onclick="event.stopPropagation();TF.start(\''+escAttr(t.id)+'\')" title="Start">▶</button></td>';
         h+='</tr>'});
       if(overdue.length>10)h+='<tr><td colspan="5" style="text-align:center;color:var(--t4);font-size:12px;cursor:pointer" onclick="TF.nav(\'tasks\')">+ '+(overdue.length-10)+' more</td></tr>';
       h+='</tbody></table></div></div>'}
@@ -1176,7 +1176,7 @@ function rAnalytics(){
   var catTotal=0;catK.forEach(function(c){catTotal+=catD[c]});
   h+='<div class="tb-wrap"><table class="tb"><thead><tr><th style="width:25%">Category</th><th class="r" style="width:10%">Time</th><th class="r" style="width:8%">%</th><th class="c" style="width:8%">Tasks</th><th class="r" style="width:10%">Avg</th><th style="width:39%">Visual</th></tr></thead><tbody>';
   catK.forEach(function(c,i){var pct=Math.round(catD[c]/maxC*100),share=catTotal?Math.round(catD[c]/catTotal*100):0;
-    h+='<tr><td>'+esc(c)+'</td><td class="nm" style="color:'+P[i%P.length]+'">'+fmtM(catD[c])+'</td><td class="nm" style="color:var(--t3)">'+share+'%</td><td class="tc">'+catN[c]+'</td><td class="nm" style="color:var(--t3)">'+fmtM(Math.round(catD[c]/catN[c]))+'</td><td class="bar-c"><div class="bar" style="width:'+pct+'%;background:'+P[i%P.length]+'"></div></td></tr>'});
+    h+='<tr><td data-label="Category">'+esc(c)+'</td><td data-label="Time" class="nm" style="color:'+P[i%P.length]+'">'+fmtM(catD[c])+'</td><td data-label="%" class="nm" style="color:var(--t3)">'+share+'%</td><td data-label="Tasks" class="tc">'+catN[c]+'</td><td data-label="Avg" class="nm" style="color:var(--t3)">'+fmtM(Math.round(catD[c]/catN[c]))+'</td><td class="bar-c"><div class="bar" style="width:'+pct+'%;background:'+P[i%P.length]+'"></div></td></tr>'});
   h+='</tbody></table></div>';
 
   var cliD={},cliN={};done.forEach(function(d){var c=d.client||'Unassigned';cliD[c]=(cliD[c]||0)+d.duration;cliN[c]=(cliN[c]||0)+1});
@@ -1184,7 +1184,7 @@ function rAnalytics(){
   var cliTotal=0;cliK.forEach(function(c){cliTotal+=cliD[c]});
   h+='<div class="tb-wrap" style="margin-top:16px"><table class="tb"><thead><tr><th style="width:25%">Client</th><th class="r" style="width:10%">Time</th><th class="r" style="width:8%">%</th><th class="c" style="width:8%">Tasks</th><th class="r" style="width:10%">Avg</th><th style="width:39%">Visual</th></tr></thead><tbody>';
   cliK.forEach(function(c,i){var pct=Math.round(cliD[c]/maxCl*100),share=cliTotal?Math.round(cliD[c]/cliTotal*100):0;
-    h+='<tr><td>'+esc(c)+'</td><td class="nm" style="color:var(--pink50)">'+fmtM(cliD[c])+'</td><td class="nm" style="color:var(--t3)">'+share+'%</td><td class="tc">'+cliN[c]+'</td><td class="nm" style="color:var(--t3)">'+fmtM(cliN[c]?Math.round(cliD[c]/cliN[c]):0)+'</td><td class="bar-c"><div class="bar" style="width:'+pct+'%;background:var(--pink)"></div></td></tr>'});
+    h+='<tr><td data-label="Client">'+esc(c)+'</td><td data-label="Time" class="nm" style="color:var(--pink50)">'+fmtM(cliD[c])+'</td><td data-label="%" class="nm" style="color:var(--t3)">'+share+'%</td><td data-label="Tasks" class="tc">'+cliN[c]+'</td><td data-label="Avg" class="nm" style="color:var(--t3)">'+fmtM(cliN[c]?Math.round(cliD[c]/cliN[c]):0)+'</td><td class="bar-c"><div class="bar" style="width:'+pct+'%;background:var(--pink)"></div></td></tr>'});
   h+='</tbody></table></div>';
 
   var ecD={},ecN={};done.forEach(function(d){var ec=d.endClient||'';if(!ec)return;ecD[ec]=(ecD[ec]||0)+d.duration;ecN[ec]=(ecN[ec]||0)+1});
@@ -1193,7 +1193,7 @@ function rAnalytics(){
     var maxEc=ecK.length?ecD[ecK[0]]:1;var ecTotal=0;ecK.forEach(function(c){ecTotal+=ecD[c]});
     h+='<div class="tb-wrap" style="margin-top:16px"><table class="tb"><thead><tr><th style="width:25%">End Client</th><th class="r" style="width:10%">Time</th><th class="r" style="width:8%">%</th><th class="c" style="width:8%">Tasks</th><th class="r" style="width:10%">Avg</th><th style="width:39%">Visual</th></tr></thead><tbody>';
     ecK.forEach(function(c,i){var pct=Math.round(ecD[c]/maxEc*100),share=ecTotal?Math.round(ecD[c]/ecTotal*100):0;
-      h+='<tr><td>'+esc(c)+'</td><td class="nm" style="color:var(--teal)">'+fmtM(ecD[c])+'</td><td class="nm" style="color:var(--t3)">'+share+'%</td><td class="tc">'+ecN[c]+'</td><td class="nm" style="color:var(--t3)">'+fmtM(ecN[c]?Math.round(ecD[c]/ecN[c]):0)+'</td><td class="bar-c"><div class="bar" style="width:'+pct+'%;background:var(--teal)"></div></td></tr>'});
+      h+='<tr><td data-label="End Client">'+esc(c)+'</td><td data-label="Time" class="nm" style="color:var(--teal)">'+fmtM(ecD[c])+'</td><td data-label="%" class="nm" style="color:var(--t3)">'+share+'%</td><td data-label="Tasks" class="tc">'+ecN[c]+'</td><td data-label="Avg" class="nm" style="color:var(--t3)">'+fmtM(ecN[c]?Math.round(ecD[c]/ecN[c]):0)+'</td><td class="bar-c"><div class="bar" style="width:'+pct+'%;background:var(--teal)"></div></td></tr>'});
     h+='</tbody></table></div>'}
 
   /* Campaign breakdown */
@@ -1207,7 +1207,7 @@ function rAnalytics(){
     var maxCp=cpK.length?cpD[cpK[0]]:1;var cpTotal=0;cpK.forEach(function(c){cpTotal+=cpD[c]});
     h+='<div class="tb-wrap" style="margin-top:16px"><table class="tb"><thead><tr><th style="width:22%">Campaign</th><th class="r" style="width:10%">Time</th><th class="r" style="width:8%">%</th><th class="c" style="width:8%">Tasks</th><th class="r" style="width:12%">Payments</th><th style="width:40%">Visual</th></tr></thead><tbody>';
     cpK.forEach(function(c,i){var pct=Math.round(cpD[c]/maxCp*100),share=cpTotal?Math.round(cpD[c]/cpTotal*100):0;
-      h+='<tr><td>'+esc(c)+'</td><td class="nm" style="color:var(--amber)">'+fmtM(cpD[c])+'</td><td class="nm" style="color:var(--t3)">'+share+'%</td><td class="tc">'+cpN[c]+'</td><td class="nm" style="color:var(--green)">'+fmtUSD(cpPay[c]||0)+'</td><td class="bar-c"><div class="bar" style="width:'+pct+'%;background:var(--amber)"></div></td></tr>'});
+      h+='<tr><td data-label="Campaign">'+esc(c)+'</td><td data-label="Time" class="nm" style="color:var(--amber)">'+fmtM(cpD[c])+'</td><td data-label="%" class="nm" style="color:var(--t3)">'+share+'%</td><td data-label="Tasks" class="tc">'+cpN[c]+'</td><td data-label="Payments" class="nm" style="color:var(--green)">'+fmtUSD(cpPay[c]||0)+'</td><td class="bar-c"><div class="bar" style="width:'+pct+'%;background:var(--amber)"></div></td></tr>'});
     h+='</tbody></table></div>'}
 
   h+='<h2>🧠 Productivity Patterns</h2>';

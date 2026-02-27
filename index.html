@@ -51,12 +51,32 @@
     </nav>
     <!-- Mobile Header -->
     <div class="mob">
-      <button class="mob-btn" onclick="TF.openMenu()">☰</button>
       <span style="font-family:var(--fd);font-weight:700;font-size:16px;letter-spacing:-0.01em;background:linear-gradient(135deg,#fff,var(--pink50));-webkit-background-clip:text;-webkit-text-fill-color:transparent">⚡ TaskFlow</span>
       <button class="mob-btn" onclick="TF.load()">🔄</button>
     </div>
     <!-- Main Content -->
     <main class="main" id="main"></main>
+    <!-- Bottom Nav (mobile) -->
+    <nav class="btm-nav" id="btm-nav">
+      <button class="btm-tab" data-v="overview" onclick="TF.nav('overview')">
+        <span class="btm-ico">⚡</span><span class="btm-lbl">Today</span>
+      </button>
+      <button class="btm-tab" data-v="schedule" onclick="TF.nav('schedule')">
+        <span class="btm-ico">📅</span><span class="btm-lbl">Schedule</span>
+      </button>
+      <button class="btm-tab" data-v="tasks" onclick="TF.nav('tasks')">
+        <span class="btm-ico">📋</span><span class="btm-lbl">Tasks</span>
+      </button>
+      <button class="btm-tab" data-v="review" onclick="TF.nav('review')">
+        <span class="btm-ico">📥</span><span class="btm-lbl">Review</span>
+        <span class="btm-badge" id="btm-badge"></span>
+      </button>
+      <button class="btm-tab" data-v="more" onclick="TF.openMenu()">
+        <span class="btm-ico">☰</span><span class="btm-lbl">More</span>
+      </button>
+    </nav>
+    <!-- FAB (mobile) -->
+    <button class="fab" id="fab" onclick="TF.openAddModal()">+</button>
   </div>
 
   <!-- JavaScript -->

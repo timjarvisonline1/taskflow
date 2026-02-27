@@ -9,7 +9,8 @@ function applyManualOrder(tasks){
     var ob=orderMap[b.id]!==undefined?orderMap[b.id]:999;
     if(oa!==ob)return oa-ob;return(b._score||0)-(a._score||0)})}
 var dragId=null;
-function dragStart(e,id){dragId=id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);
+function dragStart(e,id){if(window.innerWidth<=480){e.preventDefault();return}
+  dragId=id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);
   var el=e.target.closest('.reorder-row');if(el)el.classList.add('dragging')}
 function dragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move'}
 function dragDrop(e,targetId){e.preventDefault();
@@ -30,7 +31,8 @@ function getSchedIds(dk){
   var dayDate=parseDayKey(dk);
   var sched=scheduleTasks(dayDate,{});
   return sched.map(function(s){return s.task.id})}
-function schedDragStart(e,id){schedDragId=id;schedDragSrcDk=e.target.closest('[data-sched-day]').dataset.schedDay;
+function schedDragStart(e,id){if(window.innerWidth<=480){e.preventDefault();return}
+  schedDragId=id;schedDragSrcDk=e.target.closest('[data-sched-day]').dataset.schedDay;
   e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);
   var el=e.target.closest('.cal-panel-row')||e.target.closest('.today-cal-tk');if(el)el.classList.add('dragging');
   /* Highlight panels as drop targets */
