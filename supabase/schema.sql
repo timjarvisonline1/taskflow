@@ -243,3 +243,42 @@ CREATE POLICY "Users CRUD own project_phases" ON project_phases
 CREATE INDEX idx_projects_user ON projects(user_id);
 CREATE INDEX idx_project_phases_user ON project_phases(user_id);
 CREATE INDEX idx_project_phases_project ON project_phases(project_id);
+
+-- =====================================================
+-- 11. OPPORTUNITIES
+-- =====================================================
+CREATE TABLE opportunities (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id               uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name                  text NOT NULL,
+  description           text NOT NULL DEFAULT '',
+  stage                 text NOT NULL DEFAULT 'Lead',
+  client                text NOT NULL DEFAULT '',
+  end_client            text NOT NULL DEFAULT '',
+  contact_name          text NOT NULL DEFAULT '',
+  contact_email         text NOT NULL DEFAULT '',
+  strategy_fee          numeric NOT NULL DEFAULT 0,
+  setup_fee             numeric NOT NULL DEFAULT 0,
+  monthly_fee           numeric NOT NULL DEFAULT 0,
+  probability           integer NOT NULL DEFAULT 50,
+  expected_close        date,
+  source                text NOT NULL DEFAULT '',
+  notes                 text NOT NULL DEFAULT '',
+  closed_at             timestamptz,
+  converted_campaign_id uuid REFERENCES campaigns(id) ON DELETE SET NULL,
+  created_at            timestamptz NOT NULL DEFAULT now()
+);
+
+-- Add opportunity column to tasks and done
+ALTER TABLE tasks ADD COLUMN opportunity text NOT NULL DEFAULT '';
+ALTER TABLE done ADD COLUMN opportunity text NOT NULL DEFAULT '';
+
+-- RLS for opportunities
+ALTER TABLE opportunities ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users CRUD own opportunities" ON opportunities
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Indexes for opportunities
+CREATE INDEX idx_opportunities_user ON opportunities(user_id);
+CREATE INDEX idx_opportunities_stage ON opportunities(user_id, stage);

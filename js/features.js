@@ -158,6 +158,7 @@ function renderFocusOverlay(){
   if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
   if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
   if(task.campaign){var _cpfm=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpfm)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpfm.name)+'</span>'}
+  if(task.opportunity){var _opfm=S.opportunities.find(function(o){return o.id===task.opportunity});if(_opfm)h+='<span class="bg bg-opp">💎 '+esc(_opfm.name)+'</span>'}
   if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
   if(task.due)h+='<span class="bg-du">📅 '+fmtDShort(task.due)+'</span>';
   h+='</div>';
@@ -248,6 +249,9 @@ function cmdSearch(q){
   /* Campaigns */
   S.campaigns.forEach(function(c){if(c.name.toLowerCase().indexOf(q)>-1||c.partner.toLowerCase().indexOf(q)>-1||(c.endClient||'').toLowerCase().indexOf(q)>-1)
     results.push({type:'campaign',icon:'🎯',label:c.name,sub:c.partner+(c.endClient?' → '+c.endClient:''),action:'TF.openCampaignDetail(\''+escAttr(c.id)+'\');TF.closeCmdPalette()'})});
+  /* Opportunities */
+  S.opportunities.forEach(function(o){if(o.name.toLowerCase().indexOf(q)>-1||(o.client||'').toLowerCase().indexOf(q)>-1||(o.endClient||'').toLowerCase().indexOf(q)>-1)
+    results.push({type:'opportunity',icon:'💎',label:o.name,sub:(o.client||'')+(o.endClient?' → '+o.endClient:''),action:'TF.openOpportunityDetail(\''+escAttr(o.id)+'\');TF.closeCmdPalette()'})});
   /* Templates */
   S.templates.forEach(function(t,i){if(t.name.toLowerCase().indexOf(q)>-1)
     results.push({type:'tpl',icon:'📎',label:'Use template: '+t.name,action:'TF.useTpl('+i+');TF.closeCmdPalette()'})})}
@@ -284,7 +288,7 @@ async function processRecurring(){
       client:tpl.client||'Internal / N/A',endClient:tpl.endClient||'',type:tpl.type||'Business',est:tpl.est||0,notes:tpl.notes||'',status:'Planned',flag:false,campaign:tpl.campaign||''};
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:item,due:now,importance:data.importance,est:data.est,category:data.category,
-      client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:'Planned',flag:false,campaign:data.campaign});
+      client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:'Planned',flag:false,campaign:data.campaign,opportunity:'',project:'',phase:''});
       S.recurrLast[idx]=todayKey;created++}}
   if(created){save();toast('🔄 Created '+created+' recurring task'+(created>1?'s':''),'ok')}}
 

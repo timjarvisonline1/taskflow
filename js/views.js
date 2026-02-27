@@ -12,11 +12,11 @@ function render(){
   /* Desktop: full experience */
   if(S.view==='completed'){S.view='tasks';S.taskMode='done'}
   switch(S.view){case'schedule':html=rSchedule();break;case'overview':html=rOverview();break;case'tasks':html=rTasks();break;case'review':html=rReview();break;
-    case'analytics':html=rAnalytics();break;case'meetings':html=rMeetings();break;case'weekly':html=rWeekly();break;case'templates':html=rTemplates();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break}
+    case'analytics':html=rAnalytics();break;case'meetings':html=rMeetings();break;case'weekly':html=rWeekly();break;case'templates':html=rTemplates();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'opportunities':html=rOpportunities();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='schedule')initScheduleCharts();
   if(S.view==='overview')initTodayCharts();
-  if(S.view==='analytics')initAnalyticsCharts();if(S.view==='projects')initProjectCharts();renderSidebar()}
+  if(S.view==='analytics')initAnalyticsCharts();if(S.view==='projects')initProjectCharts();if(S.view==='opportunities')initOpportunityCharts();renderSidebar()}
 
 /* ═══════════ TASK CARD ═══════════ */
 function taskCard(t,td,idx){
@@ -66,6 +66,7 @@ function taskCard(t,td,idx){
   if(t.endClient)h+='<span class="bg bg-ec">'+esc(t.endClient)+'</span>';
   if(t.campaign){var _cp=S.campaigns.find(function(c){return c.id===t.campaign});if(_cp)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cp.name)+'</span>'}
   if(t.project){var _pj=S.projects.find(function(p){return p.id===t.project});if(_pj)h+='<span class="bg bg-proj" onclick="event.stopPropagation();TF.openProjectDetail(\''+escAttr(_pj.id)+'\')">📁 '+esc(_pj.name)+'</span>'}
+  if(t.opportunity){var _op=S.opportunities.find(function(o){return o.id===t.opportunity});if(_op)h+='<span class="bg bg-opp" onclick="event.stopPropagation();TF.openOpportunityDetail(\''+escAttr(_op.id)+'\')">💎 '+esc(_op.name)+'</span>'}
   if(t.meetingKey){var _me=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===t.meetingKey});if(_me)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 '+esc(_me.title)+' '+fmtTime(_me.start)+'</span>';else h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 Linked meeting</span>'}
   if(t.category)h+='<span class="bg bg-ca">'+esc(t.category)+'</span>';
   if(t.est)h+='<span class="bg-es">⏱ '+fmtM(t.est)+'</span>';
@@ -829,6 +830,7 @@ function rTasks(){
           if(d.client&&d.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(d.client)+'</span>';
           if(d.endClient)h+='<span class="bg bg-ec">'+esc(d.endClient)+'</span>';
           if(d.campaign){var _cpd=S.campaigns.find(function(c){return c.id===d.campaign});if(_cpd)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpd.name)+'</span>'}
+          if(d.opportunity){var _opd=S.opportunities.find(function(o){return o.id===d.opportunity});if(_opd)h+='<span class="bg bg-opp">💎 '+esc(_opd.name)+'</span>'}
           if(d.category)h+='<span class="bg bg-ca">'+esc(d.category)+'</span>';
           h+='<span class="done-dur">'+fmtM(d.duration)+'</span>';
           h+='</div></div>'})});
@@ -1628,6 +1630,7 @@ function rCompleted(){
       if(d.client&&d.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(d.client)+'</span>';
       if(d.endClient)h+='<span class="bg bg-ec">'+esc(d.endClient)+'</span>';
       if(d.campaign){var _cpd=S.campaigns.find(function(c){return c.id===d.campaign});if(_cpd)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpd.name)+'</span>'}
+      if(d.opportunity){var _opd2=S.opportunities.find(function(o){return o.id===d.opportunity});if(_opd2)h+='<span class="bg bg-opp">💎 '+esc(_opd2.name)+'</span>'}
       if(d.category)h+='<span class="bg bg-ca">'+esc(d.category)+'</span>';
       h+='<span class="done-dur">'+fmtM(d.duration)+'</span>';
       h+='</div></div>'})});
@@ -1888,6 +1891,217 @@ function renderHeatmap(){
   h+='<span style="color:var(--t4);font-size:10px">More</span></div>';
   el.innerHTML=h}
 
+/* ═══════════ OPPORTUNITIES ═══════════ */
+function getOpportunityStats(op){
+  var openTasks=S.tasks.filter(function(t){return t.opportunity===op.id});
+  var doneTasks=S.done.filter(function(d){return d.opportunity===op.id});
+  var totalTime=doneTasks.reduce(function(s,d){return s+(d.duration||0)},0);
+  var totalValue=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12);
+  var weightedValue=totalValue*((op.probability||0)/100);
+  var nextDue=openTasks.filter(function(t){return t.due}).sort(function(a,b){return a.due-b.due})[0];
+  return{openTasks:openTasks,doneTasks:doneTasks,totalTime:totalTime,
+    totalValue:totalValue,weightedValue:weightedValue,
+    openCount:openTasks.length,doneCount:doneTasks.length,
+    nextDue:nextDue?nextDue.due:null}}
+
+function opStageClass(s){
+  if(s==='Lead')return'op-st-lead';if(s==='Discovery')return'op-st-discovery';
+  if(s==='Video Tracking')return'op-st-video';if(s==='Proposal')return'op-st-proposal';
+  if(s==='Negotiation')return'op-st-negotiation';if(s==='Closed Won')return'op-st-won';
+  if(s==='Closed Lost')return'op-st-lost';return'op-st-lead'}
+
+function opCardClass(s){
+  if(s==='Lead')return'op-lead';if(s==='Discovery')return'op-discovery';
+  if(s==='Video Tracking')return'op-video-tracking';if(s==='Proposal')return'op-proposal';
+  if(s==='Negotiation')return'op-negotiation';if(s==='Closed Won')return'op-won';
+  if(s==='Closed Lost')return'op-lost';return'op-lead'}
+
+function probClass(p){return p>=70?'op-prob-high':p>=40?'op-prob-mid':'op-prob-low'}
+
+function rOpportunities(){
+  var td_=today();
+  var opps=S.opportunities.slice();
+
+  /* Counts & metrics */
+  var activeOpps=opps.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
+  var wonOpps=opps.filter(function(o){return o.stage==='Closed Won'});
+  var lostOpps=opps.filter(function(o){return o.stage==='Closed Lost'});
+  var totalPipeline=0,weightedPipeline=0,openTaskCount=0;
+  activeOpps.forEach(function(op){
+    var st=getOpportunityStats(op);
+    totalPipeline+=st.totalValue;weightedPipeline+=st.weightedValue;openTaskCount+=st.openCount});
+  var winRate=wonOpps.length+lostOpps.length>0?Math.round(wonOpps.length/(wonOpps.length+lostOpps.length)*100):0;
+  var avgDeal=activeOpps.length>0?Math.round(totalPipeline/activeOpps.length):0;
+
+  /* HEADER */
+  var h='<div class="pg-head"><h1>💎 Opportunities</h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:12px;padding:8px 18px">+ Add Opportunity</button>';
+  h+='</div>';
+
+  /* DASHBOARD METRICS */
+  h+='<div class="op-dash">';
+  h+='<div class="op-dash-met" style="animation-delay:0s"><div class="op-dash-met-v" style="color:var(--green)">'+fmtUSD(totalPipeline)+'</div><div class="op-dash-met-l">Pipeline Value</div></div>';
+  h+='<div class="op-dash-met" style="animation-delay:0.05s"><div class="op-dash-met-v" style="color:var(--amber)">'+fmtUSD(weightedPipeline)+'</div><div class="op-dash-met-l">Weighted Pipeline</div></div>';
+  h+='<div class="op-dash-met" style="animation-delay:0.1s"><div class="op-dash-met-v" style="color:var(--t1)">'+activeOpps.length+'</div><div class="op-dash-met-l">Active Opps</div></div>';
+  h+='<div class="op-dash-met" style="animation-delay:0.15s"><div class="op-dash-met-v" style="color:'+(winRate>=50?'var(--green)':'var(--amber)')+'">'+winRate+'%</div><div class="op-dash-met-l">Win Rate</div></div>';
+  h+='<div class="op-dash-met" style="animation-delay:0.2s"><div class="op-dash-met-v" style="color:var(--blue)">'+openTaskCount+'</div><div class="op-dash-met-l">Open Tasks</div></div>';
+  h+='<div class="op-dash-met" style="animation-delay:0.25s"><div class="op-dash-met-v" style="color:var(--purple50)">'+fmtUSD(avgDeal)+'</div><div class="op-dash-met-l">Avg Deal Size</div></div>';
+  h+='</div>';
+
+  /* STAGE TOGGLE + VIEW TOGGLE */
+  h+='<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;justify-content:space-between">';
+  h+='<div class="cp-status-filters">';
+  h+='<span class="cp-status-toggle always">Active <span style="opacity:.6;margin-left:2px">'+activeOpps.length+'</span></span>';
+  h+='<span class="cp-status-toggle'+(S.opShowClosed?' active':'')+'" onclick="TF.toggleOpShowClosed()" style="cursor:pointer">Closed <span style="opacity:.6;margin-left:2px">'+(wonOpps.length+lostOpps.length)+'</span></span>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:6px;align-items:center">';
+  h+='<button class="btn'+(S.opView==='pipeline'?' btn-p':'')+'" onclick="TF.setOpView(\'pipeline\')" style="font-size:11px;padding:5px 12px">Pipeline</button>';
+  h+='<button class="btn'+(S.opView==='list'?' btn-p':'')+'" onclick="TF.setOpView(\'list\')" style="font-size:11px;padding:5px 12px">List</button>';
+  h+='</div></div>';
+
+  if(S.opView==='list')return h+rOpportunityList(opps,td_);
+  return h+rOpportunityPipeline(opps,td_)+rOpportunityChartsHTML()}
+
+function opCardCompact(op,td_,idx){
+  var st=getOpportunityStats(op);
+  var stageCls=opCardClass(op.stage);
+  var delay=typeof idx==='number'?Math.min(idx*0.03,0.45):0;
+  var h='<div class="op-card '+stageCls+'" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')"'+(delay?' style="animation-delay:'+delay+'s"':'')+'>';
+  h+='<span class="op-card-name">'+esc(op.name)+'</span>';
+  h+='<span class="op-card-meta">';
+  if(op.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:2px 8px">'+esc(op.client)+'</span>';
+  if(op.endClient)h+='<span class="bg bg-ec" style="font-size:9px;padding:2px 8px">'+esc(op.endClient)+'</span>';
+  h+='</span>';
+  h+='<span class="op-card-meta">';
+  if(st.totalValue)h+='<span class="op-card-val">'+fmtUSD(st.totalValue)+'</span>';
+  h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span>';
+  if(st.openCount)h+='<span class="op-card-stat" style="color:var(--blue)">📋 '+st.openCount+'</span>';
+  if(op.expectedClose)h+='<span class="op-card-stat">📅 '+fmtDShort(op.expectedClose)+'</span>';
+  h+='</span></div>';
+  return h}
+
+function rOpportunityPipeline(opps,td_){
+  var OPP_STAGES=['Lead','Discovery','Video Tracking','Proposal','Negotiation'];
+  var grouped={};OPP_STAGES.forEach(function(s){grouped[s]=[]});
+  var closedWon=[],closedLost=[];
+  opps.forEach(function(op){
+    if(op.stage==='Closed Won'){closedWon.push(op);return}
+    if(op.stage==='Closed Lost'){closedLost.push(op);return}
+    if(grouped[op.stage])grouped[op.stage].push(op);
+    else grouped['Lead'].push(op)});
+
+  /* Sort within columns: probability DESC → expected close ASC → created DESC */
+  OPP_STAGES.forEach(function(s){
+    if(!grouped[s])return;
+    grouped[s].sort(function(a,b){
+      if(b.probability!==a.probability)return b.probability-a.probability;
+      var aClose=a.expectedClose?a.expectedClose.getTime():Infinity;
+      var bClose=b.expectedClose?b.expectedClose.getTime():Infinity;
+      if(aClose!==bClose)return aClose-bClose;
+      return(b.created?b.created.getTime():0)-(a.created?a.created.getTime():0)})});
+
+  var h='<div class="op-pipeline">';
+  OPP_STAGES.forEach(function(s){
+    var items=grouped[s]||[];
+    h+='<div class="op-column">';
+    h+='<div class="op-column-head">'+esc(s)+' <span class="op-column-count">'+items.length+'</span></div>';
+    if(!items.length){h+='<div style="text-align:center;padding:30px 10px;color:var(--t4);font-size:12px">No opportunities</div>'}
+    items.forEach(function(op,idx){h+=opCardCompact(op,td_,idx)});
+    h+='</div>'});
+  h+='</div>';
+
+  /* Closed Won / Closed Lost */
+  if(S.opShowClosed&&(closedWon.length||closedLost.length)){
+    h+='<div class="op-closed-section">';
+    if(closedWon.length){
+      h+='<details style="margin-top:16px"><summary style="cursor:pointer;color:var(--green);font-size:12px;font-weight:600">🏆 Closed Won ('+closedWon.length+')</summary>';
+      h+='<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px">';
+      closedWon.forEach(function(op,idx){h+='<div style="flex:1;min-width:260px;max-width:340px">'+opCardCompact(op,td_,idx)+'</div>'});
+      h+='</div></details>'}
+    if(closedLost.length){
+      h+='<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--red);font-size:12px;font-weight:600">✕ Closed Lost ('+closedLost.length+')</summary>';
+      h+='<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px">';
+      closedLost.forEach(function(op,idx){h+='<div style="flex:1;min-width:260px;max-width:340px">'+opCardCompact(op,td_,idx)+'</div>'});
+      h+='</div></details>'}
+    h+='</div>'}
+  return h}
+
+function rOpportunityList(opps,td_){
+  var sorted=opps.slice();
+  var stageOrder={'Lead':0,'Discovery':1,'Video Tracking':2,'Proposal':3,'Negotiation':4,'Closed Won':5,'Closed Lost':6};
+  sorted.sort(function(a,b){
+    var oa=stageOrder[a.stage]!==undefined?stageOrder[a.stage]:9;
+    var ob=stageOrder[b.stage]!==undefined?stageOrder[b.stage]:9;
+    if(oa!==ob)return oa-ob;return b.probability-a.probability});
+  if(!S.opShowClosed)sorted=sorted.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
+
+  var h='<div class="tb-wrap"><table class="tb"><thead><tr>';
+  h+='<th style="width:18%">Name</th><th style="width:12%">Client</th><th style="width:12%">End Client</th>';
+  h+='<th style="width:10%">Stage</th><th class="r" style="width:10%">Value</th>';
+  h+='<th class="c" style="width:6%">Prob</th><th class="r" style="width:10%">Weighted</th>';
+  h+='<th style="width:10%">Expected Close</th><th class="c" style="width:6%">Tasks</th>';
+  h+='</tr></thead><tbody>';
+
+  sorted.forEach(function(op){
+    var st=getOpportunityStats(op);
+    h+='<tr class="op-list-row" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')">';
+    h+='<td><strong>'+esc(op.name)+'</strong></td>';
+    h+='<td>'+esc(op.client)+'</td>';
+    h+='<td>'+esc(op.endClient)+'</td>';
+    h+='<td><span class="bg '+opStageClass(op.stage)+'">'+esc(op.stage)+'</span></td>';
+    h+='<td class="nm" style="color:var(--green)">'+fmtUSD(st.totalValue)+'</td>';
+    h+='<td class="tc"><span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span></td>';
+    h+='<td class="nm" style="color:var(--amber)">'+fmtUSD(st.weightedValue)+'</td>';
+    h+='<td>'+(op.expectedClose?fmtDShort(op.expectedClose):'—')+'</td>';
+    h+='<td class="tc">'+st.openCount+'</td>';
+    h+='</tr>'});
+  h+='</tbody></table></div>';
+  return h+rOpportunityChartsHTML()}
+
+function rOpportunityChartsHTML(){
+  return'<div class="op-chart-grid">'+
+    '<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:12px">Pipeline Value by Stage</div><div style="height:200px"><canvas id="opp-stage-chart"></canvas></div></div>'+
+    '<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:12px">Weighted Pipeline</div><div style="height:200px"><canvas id="opp-weighted-chart"></canvas></div></div>'+
+    '</div>'}
+
+function initOpportunityCharts(){setTimeout(function(){
+  /* Pipeline value by stage */
+  var stageVals={};
+  var OPP_STAGES=['Lead','Discovery','Video Tracking','Proposal','Negotiation'];
+  OPP_STAGES.forEach(function(s){stageVals[s]=0});
+  S.opportunities.forEach(function(op){
+    if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
+      var v=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12);
+      if(stageVals[op.stage]!==undefined)stageVals[op.stage]+=v}});
+  /* Filter out zero stages */
+  var filteredStage={};Object.keys(stageVals).forEach(function(k){if(stageVals[k]>0)filteredStage[k]=stageVals[k]});
+  if(Object.keys(filteredStage).length){
+    var el=gel('opp-stage-chart');if(el){killChart('opp-stage-chart');
+      var labels=Object.keys(filteredStage),vals=labels.map(function(k){return filteredStage[k]});
+      var cols=labels.map(function(_,i){return P[i%P.length]});
+      charts['opp-stage-chart']=new Chart(el,{type:'bar',data:{labels:labels,datasets:[{data:vals,backgroundColor:cols,borderRadius:6,barThickness:24}]},
+        options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(c){return fmtUSD(c.parsed.x)}}}},
+          scales:{x:{grid:{color:'rgba(130,55,245,0.06)'},ticks:{color:'#8a7ca8',font:{size:10},callback:function(v){return fmtUSD(v)}}},
+            y:{grid:{display:false},ticks:{color:'#c4b8dc',font:{size:10}}}}}})}}
+
+  /* Weighted pipeline donut */
+  var weightedByStage={};
+  S.opportunities.forEach(function(op){
+    if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
+      var v=((op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12))*((op.probability||0)/100);
+      if(!weightedByStage[op.stage])weightedByStage[op.stage]=0;
+      weightedByStage[op.stage]+=v}});
+  var filteredWeighted={};Object.keys(weightedByStage).forEach(function(k){if(weightedByStage[k]>0)filteredWeighted[k]=weightedByStage[k]});
+  if(Object.keys(filteredWeighted).length){
+    var el2=gel('opp-weighted-chart');if(el2){killChart('opp-weighted-chart');
+      var labels2=Object.keys(filteredWeighted),vals2=labels2.map(function(k){return filteredWeighted[k]});
+      var cols2=labels2.map(function(_,i){return P[i%P.length]});
+      charts['opp-weighted-chart']=new Chart(el2,{type:'doughnut',data:{labels:labels2,datasets:[{data:vals2,backgroundColor:cols2,borderWidth:0,hoverOffset:8}]},
+        options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:'#c4b8dc',font:{family:'DM Sans',size:11},padding:10,boxWidth:11}},
+          tooltip:{callbacks:{label:function(c){return c.label+': '+fmtUSD(c.parsed)}}}}}})}}
+},200)}
+
 /* ═══════════ CAMPAIGNS ═══════════ */
 function getCampaignStats(cp){
   var openTasks=S.tasks.filter(function(t){return t.campaign===cp.id});
@@ -2075,6 +2289,7 @@ function rMobAdd(){
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Campaign</span><select class="edf" id="f-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'f\',\'campaign\')">'+buildCampaignOptions('','','')+'</select></div>';
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Project</span><select class="edf" id="f-project" onchange="TF.onProjectChange(\'f\',\'project\');TF.refreshAddPhases()">'+buildProjectOptions('')+'</select></div>';
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Phase</span><select class="edf" id="f-phase">'+buildPhaseOptions('','')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Opportunity</span><select class="edf" id="f-opportunity" onchange="TF.onProjectChange(\'f\',\'opportunity\')">'+buildOpportunityOptions('')+'</select></div>';
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Meeting</span><select class="edf" id="f-mtg">'+buildMeetingOptions('')+'</select></div>';
   h+='<div class="mob-add-fld"><span class="mob-add-lbl">Notes</span><textarea class="edf mob-add-notes" id="f-notes" placeholder="Additional context..." rows="2"></textarea></div>';
   /* Flags */

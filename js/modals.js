@@ -75,6 +75,7 @@ function openDetail(id){
     h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(task.project||'')+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="d-phase">'+buildPhaseOptions(task.project||'',task.phase||'')+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'')+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
     h+='</div>';
     h+='<div class="flag-row" style="margin:8px 0 12px;flex-direction:column;gap:12px;padding:12px">';
@@ -147,6 +148,7 @@ function openDetail(id){
     h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(task.project||'')+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="d-phase">'+buildPhaseOptions(task.project||'',task.phase||'')+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'')+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
     h+='</div>';
     h+='<div class="flag-row ed-flags-inline">';
@@ -202,6 +204,7 @@ async function saveDetail(){
   task.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   task.project=gel('d-project')?gel('d-project').value:'';
   task.phase=gel('d-phase')?gel('d-phase').value:'';
+  task.opportunity=gel('d-opportunity')?gel('d-opportunity').value:'';
   task.meetingKey=gel('d-mtg')?gel('d-mtg').value:'';
   if(task.campaign&&!task.endClient){var _cpsd=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpsd)task.endClient=_cpsd.endClient}
   task.est=parseInt(gel('d-est').value)||0;task.notes=gel('d-notes').value;
@@ -225,13 +228,14 @@ async function markAlreadyCompleted(id){
   task.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   task.project=gel('d-project')?gel('d-project').value:'';
   task.phase=gel('d-phase')?gel('d-phase').value:'';
+  task.opportunity=gel('d-opportunity')?gel('d-opportunity').value:'';
   if(task.campaign&&!task.endClient){var _cpmac=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpmac)task.endClient=_cpmac.endClient}
   task.est=parseInt(gel('d-est').value)||0;task.notes=gel('d-notes').value;
   task.flag=gel('d-flag').checked;
   var mins=parseInt((gel('d-already-dur')||{}).value)||task.est||0;
   /* Move to done — DB first */
   var doneData={item:task.item,due:task.due,importance:task.importance,category:task.category,
-    client:task.client,endClient:task.endClient,type:task.type,duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||''};
+    client:task.client,endClient:task.endClient,type:task.type,duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||'',opportunity:task.opportunity||''};
   var result=await dbCompleteTask(doneData);
   if(result){await dbDeleteTask(id);
     S.tasks=S.tasks.filter(function(t){return t.id!==id});delete S.timers[id];
@@ -274,6 +278,7 @@ function openAddModal(){var now=new Date();now.setHours(17,0,0,0);var iso=now.to
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="f-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'f\',\'campaign\')">'+buildCampaignOptions('','','')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="f-project" onchange="TF.onProjectChange(\'f\',\'project\');TF.refreshAddPhases()">'+buildProjectOptions('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="f-phase">'+buildPhaseOptions('','')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="f-opportunity" onchange="TF.onProjectChange(\'f\',\'opportunity\')">'+buildOpportunityOptions('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="f-mtg">'+buildMeetingOptions('')+'</select></div>';
   h+='</div>';
 
@@ -306,22 +311,23 @@ async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim
   var mtgVal=(gel('f-mtg')||{}).value||'';
   var projVal=(gel('f-project')||{}).value||'';
   var phaseVal=(gel('f-phase')||{}).value||'';
+  var oppVal=(gel('f-opportunity')||{}).value||'';
   var data={item:item.trim(),due:gel('f-due').value,importance:gel('f-imp').value,category:gel('f-cat').value,
     client:gel('f-cli').value||'Internal / N/A',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal,
-    project:projVal,phase:phaseVal};
+    project:projVal,phase:phaseVal,opportunity:oppVal};
   if(markDone){
     var mins=parseInt((gel('f-done-dur')||{}).value)||data.est||0;
     var doneData={item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,category:data.category,
-      client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase};
+      client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity};
     var result=await dbCompleteTask(doneData);
     if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:doneData.due,importance:data.importance,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase})}
+      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity})}
     toast('Completed: '+data.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
   else{
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase})}
+      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity})}
     toast('Added: '+data.item,'ok')}
   closeModal();render()}
 
@@ -333,15 +339,16 @@ async function addAndStart(){var item=(gel('f-item')||{}).value;if(!item||!item.
   var mtgVal2=(gel('f-mtg')||{}).value||'';
   var projVal2=(gel('f-project')||{}).value||'';
   var phaseVal2=(gel('f-phase')||{}).value||'';
+  var oppVal2=(gel('f-opportunity')||{}).value||'';
   var data={item:item.trim(),due:gel('f-due').value,importance:gel('f-imp').value,category:gel('f-cat').value,
     client:gel('f-cli').value||'Internal / N/A',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal2,
-    project:projVal2,phase:phaseVal2};
+    project:projVal2,phase:phaseVal2,opportunity:oppVal2};
   var result=await dbAddTask(data);
   if(!result){toast('❌ Failed to add task','warn');return}
   var id=result.id;
   S.tasks.push({id:id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
-    category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase});
+    category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
   save();
   /* Start timer + enter Focus Mode */
   var t=tmrGet(id);t.started=Date.now();S.timers[id]=t;save();
@@ -590,6 +597,7 @@ function openDoneDetail(id){
   if(d.client&&d.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(d.client)+'</span>';
   if(d.endClient)h+='<span class="bg bg-ec">'+esc(d.endClient)+'</span>';
   if(d.campaign){var _cpdd=S.campaigns.find(function(c){return c.id===d.campaign});if(_cpdd)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpdd.name)+'</span>'}
+  if(d.opportunity){var _opdd=S.opportunities.find(function(o){return o.id===d.opportunity});if(_opdd)h+='<span class="bg bg-opp">💎 '+esc(_opdd.name)+'</span>'}
   if(d.category)h+='<span class="bg bg-ca">'+esc(d.category)+'</span>';
   if(d.duration)h+='<span class="bg-es" style="color:var(--green);font-weight:600">⏱ '+fmtM(d.duration)+'</span>';
   h+='</div>';
@@ -609,6 +617,7 @@ function openDoneDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(d.endClient||'',d.client)+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign()">'+buildCampaignOptions(d.campaign||'',d.client,d.endClient)+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" disabled>'+buildProjectOptions(d.project||'')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" disabled>'+buildOpportunityOptions(d.opportunity||'')+'</select></div>';
   h+='</div>';
 
   /* ── Notes ── */
@@ -635,7 +644,7 @@ async function saveDoneDetail(){
   d.notes=gel('d-notes').value;
   await _sb.from('done').update({item:d.item,completed:d.completed?d.completed.toISOString():null,
     importance:d.importance,category:d.category,client:d.client,end_client:d.endClient||'',type:d.type,
-    duration:d.duration,est:d.est,notes:d.notes,campaign:d.campaign||''}).eq('id',id);
+    duration:d.duration,est:d.est,notes:d.notes,campaign:d.campaign||'',opportunity:d.opportunity||''}).eq('id',id);
   toast('💾 Saved: '+d.item,'ok');closeModal();render()}
 
 function confirmDeleteDone(){
@@ -705,6 +714,7 @@ function openReviewDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(r.campaign||'',r.client,r.endClient)+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="d-phase">'+buildPhaseOptions('','')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions('')+'</select></div>';
   h+='</div>';
 
@@ -732,10 +742,10 @@ function openReviewDetail(id){
 async function approveReview(id){
   var r=S.review.find(function(t){return t.id===id});if(!r)return;
   var data={item:r.item,due:r.due?r.due.toISOString():'',importance:r.importance,category:r.category,
-    client:r.client||'Internal / N/A',endClient:r.endClient||'',type:r.type,est:r.est,notes:r.notes,status:'Planned',flag:false,campaign:r.campaign||'',meetingKey:'',project:'',phase:''};
+    client:r.client||'Internal / N/A',endClient:r.endClient||'',type:r.type,est:r.est,notes:r.notes,status:'Planned',flag:false,campaign:r.campaign||'',meetingKey:'',project:'',phase:'',opportunity:''};
   var result=await dbAddTask(data);
   if(result){S.tasks.push({id:result.id,item:r.item,due:r.due,importance:r.importance,est:r.est,category:r.category,
-    client:r.client||'Internal / N/A',endClient:r.endClient||'',type:r.type,duration:0,notes:r.notes,status:'Planned',flag:false,campaign:r.campaign||'',meetingKey:'',project:'',phase:''})}
+    client:r.client||'Internal / N/A',endClient:r.endClient||'',type:r.type,duration:0,notes:r.notes,status:'Planned',flag:false,campaign:r.campaign||'',meetingKey:'',project:'',phase:'',opportunity:''})}
   await dbDeleteReview(id);
   S.review=S.review.filter(function(rv){return rv.id!==id});
   toast('Added: '+r.item,'ok');advanceReview()}
@@ -751,23 +761,24 @@ async function approveFromModal(){
   var mtgVal3=(gel('d-mtg')||{}).value||'';
   var projVal3=(gel('d-project')||{}).value||'';
   var phaseVal3=(gel('d-phase')||{}).value||'';
+  var oppVal3=(gel('d-opportunity')||{}).value||'';
   var data={item:item,due:dueVal,importance:gel('d-imp').value,category:gel('d-cat').value,
     client:gel('d-cli').value||'Internal / N/A',endClient:(gel('d-ec')?gel('d-ec').value:'').trim(),type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
-    notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal2,meetingKey:mtgVal3,project:projVal3,phase:phaseVal3};
+    notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal2,meetingKey:mtgVal3,project:projVal3,phase:phaseVal3,opportunity:oppVal3};
   await dbDeleteReview(id);
   S.review=S.review.filter(function(rv){return rv.id!==id});
   if(markDone){
     var mins=parseInt((gel('d-done-dur')||{}).value)||data.est||0;
     var dueDate=dueVal?new Date(dueVal):null;
     var doneData={item:data.item,due:dueVal||null,importance:data.importance,category:data.category,
-      client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase};
+      client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity};
     var result=await dbCompleteTask(doneData);
-    if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:dueDate,importance:data.importance,category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase})}
+    if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:dueDate,importance:data.importance,category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity})}
     toast('Completed: '+data.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
   else{
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:data.item,due:dueVal?new Date(dueVal):null,importance:data.importance,est:data.est,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase})}
+      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity})}
     toast('Added: '+data.item,'ok')}
   advanceReview()}
 
@@ -782,14 +793,15 @@ async function approveAndStart(){
   var mtgVal4=(gel('d-mtg')||{}).value||'';
   var projVal4=(gel('d-project')||{}).value||'';
   var phaseVal4=(gel('d-phase')||{}).value||'';
+  var oppVal4=(gel('d-opportunity')||{}).value||'';
   var data={item:item,due:dueVal,importance:gel('d-imp').value,category:gel('d-cat').value,
     client:gel('d-cli').value||'Internal / N/A',endClient:(gel('d-ec')?gel('d-ec').value:'').trim(),type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
-    notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal3,meetingKey:mtgVal4,project:projVal4,phase:phaseVal4};
+    notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal3,meetingKey:mtgVal4,project:projVal4,phase:phaseVal4,opportunity:oppVal4};
   var result=await dbAddTask(data);
   if(!result)return;
   var taskId=result.id;
   S.tasks.push({id:taskId,item:data.item,due:dueVal?new Date(dueVal):null,importance:data.importance,est:data.est,
-    category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase});
+    category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
   await dbDeleteReview(id);
   S.review=S.review.filter(function(rv){return rv.id!==id});
   toast('▶ Added & started: '+data.item,'ok');
@@ -1405,14 +1417,257 @@ function refreshDetailPhases(){
   phaseSel.innerHTML=buildPhaseOptions(projSel.value,'')}
 
 function onProjectChange(prefix,source){
-  /* Mutual exclusion: project and campaign can't both be set */
+  /* Mutual exclusion: project, campaign, and opportunity — only one can be set */
   if(source==='project'){
     var projSel=gel(prefix+'-project');if(projSel&&projSel.value){
-      var cpSel=gel(prefix+'-campaign');if(cpSel)cpSel.value=''}}
+      var cpSel=gel(prefix+'-campaign');if(cpSel)cpSel.value='';
+      var opSel=gel(prefix+'-opportunity');if(opSel)opSel.value=''}}
   else if(source==='campaign'){
     var cpSel2=gel(prefix+'-campaign');if(cpSel2&&cpSel2.value){
       var projSel2=gel(prefix+'-project');if(projSel2){projSel2.value=''}
-      var phaseSel2=gel(prefix+'-phase');if(phaseSel2){phaseSel2.innerHTML=buildPhaseOptions('','')}}}}
+      var phaseSel2=gel(prefix+'-phase');if(phaseSel2){phaseSel2.innerHTML=buildPhaseOptions('','')}
+      var opSel2=gel(prefix+'-opportunity');if(opSel2)opSel2.value=''}}
+  else if(source==='opportunity'){
+    var opSel3=gel(prefix+'-opportunity');if(opSel3&&opSel3.value){
+      var cpSel3=gel(prefix+'-campaign');if(cpSel3)cpSel3.value='';
+      var projSel3=gel(prefix+'-project');if(projSel3){projSel3.value=''}
+      var phaseSel3=gel(prefix+'-phase');if(phaseSel3){phaseSel3.innerHTML=buildPhaseOptions('','')}}}}
+
+function buildOpportunityOptions(currentValue){
+  var opts='<option value="">None</option>';
+  S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'}).forEach(function(o){
+    opts+='<option value="'+esc(o.id)+'"'+(currentValue===o.id?' selected':'')+'>'+esc(o.name)+'</option>'});
+  return opts}
+
+/* ═══════════ OPPORTUNITY DETAIL MODAL ═══════════ */
+function openOpportunityDetail(id){
+  var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
+  var st=getOpportunityStats(op);
+  var eid=escAttr(id);
+  var stages=['Lead','Discovery','Video Tracking','Proposal','Negotiation','Closed Won','Closed Lost'];
+  var cliOpts=S.clients.map(function(c){return'<option'+(c===op.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var isClosed=op.stage==='Closed Won'||op.stage==='Closed Lost';
+
+  var h='<div class="detail-full-header">';
+  h+='<div class="tf-modal-top">';
+  h+='<input type="text" class="edf edf-name" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+' style="font-size:18px">';
+  h+='<input type="hidden" id="op-id" value="'+esc(op.id)+'">';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="tf-modal-badges">';
+  h+='<span class="bg '+opStageClass(op.stage)+'">'+esc(op.stage)+'</span>';
+  h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'% prob</span>';
+  if(st.totalValue)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+fmtUSD(st.totalValue)+'</span>';
+  if(st.weightedValue)h+='<span class="bg" style="background:rgba(255,176,48,0.08);color:var(--amber)">'+fmtUSD(st.weightedValue)+' weighted</span>';
+  if(st.openCount)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">📋 '+st.openCount+' tasks</span>';
+  if(op.client)h+='<span class="bg bg-cl">'+esc(op.client)+'</span>';
+  if(op.endClient)h+='<span class="bg bg-ec">'+esc(op.endClient)+'</span>';
+  if(op.convertedCampaignId){var cpLink=S.campaigns.find(function(c){return c.id===op.convertedCampaignId});
+    if(cpLink)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openCampaignDetail(\''+escAttr(cpLink.id)+'\')},100)">🎯 '+esc(cpLink.name)+'</span>'}
+  h+='</div></div>';
+
+  h+='<div class="detail-split">';
+  /* LEFT PANE */
+  h+='<div class="detail-split-left">';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'"></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="op-source" value="'+esc(op.source)+'" placeholder="e.g. Referral, Inbound..."></div>';
+  h+='</div>';
+  /* Fees */
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01"></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||50)+'" min="0" max="100"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
+  h+='</div>';
+
+  /* Actions */
+  h+='<div class="ed-actions" style="margin-top:12px">';
+  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">💾 Save</button>';
+  if(!isClosed){
+    h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertOpportunity(\''+eid+'\')">🏆 Convert to Campaign</button>';
+    h+='<button class="btn" style="background:rgba(255,51,88,0.1);color:var(--red);border-color:rgba(255,51,88,0.3)" onclick="TF.closeAsLost(\''+eid+'\')">✕ Close as Lost</button>'}
+  h+='<button class="btn ab-del" style="margin-left:auto" onclick="TF.confirmDeleteOpportunity()">🗑 Delete</button>';
+  h+='</div>';
+  h+='</div>';
+
+  /* RIGHT PANE */
+  h+='<div class="detail-split-right">';
+  /* Notes */
+  h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
+  h+='<textarea class="edf edf-notes" id="op-notes" rows="3" placeholder="Notes about this opportunity...">'+esc(op.notes)+'</textarea></div>';
+
+  /* Open Tasks */
+  h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Open Tasks ('+st.openCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.closeModal();TF.openAddModal()">+ Add</button></span>';
+  if(st.openTasks.length){st.openTasks.forEach(function(t){
+    var eid2=escAttr(t.id);
+    h+='<div class="proj-phase-task">';
+    h+='<span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:2px 6px;flex-shrink:0">'+esc(t.importance.charAt(0))+'</span>';
+    h+='<span class="proj-phase-task-name" onclick="TF.closeModal();setTimeout(function(){TF.openDetail(\''+eid2+'\')},100)">'+esc(t.item)+'</span>';
+    if(t.due)h+='<span style="font-size:10px;color:var(--t4)">'+fmtDShort(t.due)+'</span>';
+    h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid2+'\')" title="Complete">'+CK_XS+'</button>';
+    h+='</div>'})}
+  else{h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px">No open tasks</div>'}
+  h+='</div>';
+
+  /* Completed Tasks */
+  if(st.doneTasks.length){
+    h+='<div style="margin-bottom:16px"><span class="ed-lbl">Completed ('+st.doneCount+')</span>';
+    st.doneTasks.slice(0,20).forEach(function(d){
+      h+='<div class="proj-phase-task" style="opacity:.6">';
+      h+='<span style="color:var(--green);flex-shrink:0">'+CK_XS+'</span>';
+      h+='<span style="flex:1;font-size:12px;color:var(--t3)">'+esc(d.item)+'</span>';
+      if(d.duration)h+='<span style="font-size:10px;color:var(--t4)">'+fmtM(d.duration)+'</span>';
+      h+='</div>'});
+    h+='</div>'}
+
+  h+='</div></div>';
+
+  gel('detail-body').innerHTML=h;
+  gel('detail-modal').classList.add('on','full-detail')}
+
+async function saveOpportunity(){
+  var id=gel('op-id').value;var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
+  op.name=(gel('op-name').value||'').trim();if(!op.name){toast('⚠ Opportunity name required','warn');return}
+  op.stage=gel('op-stage').value;
+  op.client=gel('op-client').value||'';
+  op.endClient=(gel('op-endclient').value||'').trim();
+  op.contactName=(gel('op-contact').value||'').trim();
+  op.contactEmail=(gel('op-email').value||'').trim();
+  op.source=(gel('op-source').value||'').trim();
+  op.strategyFee=parseFloat(gel('op-strategy').value)||0;
+  op.setupFee=parseFloat(gel('op-setup').value)||0;
+  op.monthlyFee=parseFloat(gel('op-monthly').value)||0;
+  op.probability=parseInt(gel('op-prob').value)||50;
+  op.expectedClose=gel('op-close').value?new Date(gel('op-close').value+'T00:00:00'):null;
+  op.description=(gel('op-desc').value||'').trim();
+  op.notes=gel('op-notes').value||'';
+  await dbEditOpportunity(id,op);
+  toast('Saved: '+op.name,'ok');closeModal();render()}
+
+function openAddOpportunity(){
+  var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">💎 New Opportunity</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:6px 0"><input type="text" class="edf" id="nop-name" placeholder="Opportunity name..." autofocus style="font-size:15px;font-weight:600;padding:11px 14px"></div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="nop-stage"><option>Lead</option><option>Discovery</option><option>Video Tracking</option><option>Proposal</option><option>Negotiation</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="nop-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="nop-endclient" placeholder="End client..."></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="nop-contact" placeholder="Key contact..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="nop-email" placeholder="email@..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="nop-source" placeholder="Referral, Inbound..."></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="nop-strategy" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="nop-setup" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="nop-monthly" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="nop-prob" value="50" min="0" max="100"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="nop-close"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="nop-desc" placeholder="Brief description..."></div>';
+  h+='</div>';
+  h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
+  h+='<textarea class="edf edf-notes" id="nop-notes" placeholder="Notes about this opportunity..." rows="2"></textarea></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.addOpportunity()">💎 Create Opportunity</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var fi=gel('nop-name');if(fi)fi.focus()},100)}
+
+async function addOpportunity(){
+  var name=(gel('nop-name').value||'').trim();if(!name){toast('⚠ Enter opportunity name','warn');return}
+  var data={name:name,stage:gel('nop-stage').value||'Lead',
+    client:gel('nop-client').value||'',endClient:(gel('nop-endclient').value||'').trim(),
+    contactName:(gel('nop-contact').value||'').trim(),contactEmail:(gel('nop-email').value||'').trim(),
+    source:(gel('nop-source').value||'').trim(),
+    strategyFee:parseFloat(gel('nop-strategy').value)||0,setupFee:parseFloat(gel('nop-setup').value)||0,
+    monthlyFee:parseFloat(gel('nop-monthly').value)||0,
+    probability:parseInt(gel('nop-prob').value)||50,
+    expectedClose:gel('nop-close').value||null,
+    description:(gel('nop-desc').value||'').trim(),notes:gel('nop-notes').value||''};
+  var result=await dbAddOpportunity(data);
+  if(!result){toast('❌ Failed to create opportunity','warn');return}
+  S.opportunities.unshift({id:result.id,name:data.name,description:data.description,stage:data.stage,
+    client:data.client,endClient:data.endClient,contactName:data.contactName,contactEmail:data.contactEmail,
+    strategyFee:data.strategyFee,setupFee:data.setupFee,monthlyFee:data.monthlyFee,
+    probability:data.probability,expectedClose:data.expectedClose?new Date(data.expectedClose+'T00:00:00'):null,
+    source:data.source,notes:data.notes,closedAt:null,convertedCampaignId:'',created:new Date()});
+  toast('Created: '+data.name,'ok');closeModal();render()}
+
+function confirmDeleteOpportunity(){
+  var id=gel('op-id').value;var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
+  gel('detail-body').innerHTML='<div style="padding:40px;text-align:center"><h2 style="margin-bottom:16px;color:var(--t1)">Delete Opportunity?</h2>'+
+    '<p style="color:var(--t3);margin-bottom:24px">This will permanently delete <strong>'+esc(op.name)+'</strong>. Tasks linked to this opportunity will be unlinked.</p>'+
+    '<button class="btn ab-del" onclick="TF.doDeleteOpportunity(\''+escAttr(id)+'\')">🗑 Delete</button>'+
+    '<button class="btn" onclick="TF.openOpportunityDetail(\''+escAttr(id)+'\')" style="margin-left:8px">Cancel</button></div>'}
+
+async function doDeleteOpportunity(id){
+  await dbDeleteOpportunity(id);
+  /* Unlink tasks */
+  S.tasks.forEach(function(t){if(t.opportunity===id)t.opportunity=''});
+  S.done.forEach(function(d){if(d.opportunity===id)d.opportunity=''});
+  S.opportunities=S.opportunities.filter(function(o){return o.id!==id});
+  toast('Deleted opportunity','ok');closeModal();render()}
+
+async function convertOpportunity(id){
+  var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
+  if(!confirm('Convert "'+op.name+'" to a Campaign? This will:\n\n• Create a new Campaign with pre-filled data\n• Move all linked tasks to the new Campaign\n• Mark this opportunity as Closed Won'))return;
+
+  /* 1. Create campaign from opportunity data */
+  var cpData={name:op.name,partner:op.client,endClient:op.endClient,
+    status:'Setup',platform:'',strategyFee:op.strategyFee,setupFee:op.setupFee,
+    monthlyFee:op.monthlyFee,monthlyAdSpend:0,campaignTerm:'',
+    plannedLaunch:null,actualLaunch:null,renewalDate:null,
+    goal:op.description,proposalLink:'',reportsLink:'',videoAssetsLink:'',
+    transcriptsLink:'',awarenessLP:'',considerationLP:'',decisionLP:'',
+    contractLink:'',notes:op.notes};
+  var cpResult=await dbAddCampaign(cpData);
+  if(!cpResult){toast('❌ Failed to create campaign','warn');return}
+
+  /* 2. Update opportunity */
+  op.stage='Closed Won';op.closedAt=new Date();op.convertedCampaignId=cpResult.id;
+  await dbEditOpportunity(id,op);
+
+  /* 3. Batch migrate tasks */
+  var taskIds=S.tasks.filter(function(t){return t.opportunity===id}).map(function(t){return t.id});
+  if(taskIds.length){
+    await _sb.from('tasks').update({campaign:cpResult.id,opportunity:''}).in('id',taskIds);
+    S.tasks.forEach(function(t){if(t.opportunity===id){t.campaign=cpResult.id;t.opportunity=''}})}
+
+  /* 4. Batch migrate done items */
+  var doneIds=S.done.filter(function(d){return d.opportunity===id}).map(function(d){return d.id});
+  if(doneIds.length){
+    await _sb.from('done').update({campaign:cpResult.id,opportunity:''}).in('id',doneIds);
+    S.done.forEach(function(d){if(d.opportunity===id){d.campaign=cpResult.id;d.opportunity=''}})}
+
+  /* 5. Add campaign to local state */
+  S.campaigns.unshift({id:cpResult.id,name:cpData.name,partner:cpData.partner,endClient:cpData.endClient,
+    status:'Setup',platform:'',strategyFee:cpData.strategyFee,setupFee:cpData.setupFee,
+    monthlyFee:cpData.monthlyFee,monthlyAdSpend:0,campaignTerm:'',
+    plannedLaunch:null,actualLaunch:null,renewalDate:null,goal:cpData.goal,
+    proposalLink:'',reportsLink:'',videoAssetsLink:'',transcriptsLink:'',
+    awarenessLP:'',considerationLP:'',decisionLP:'',contractLink:'',
+    notes:cpData.notes,created:new Date()});
+
+  toast('🏆 Converted to campaign: '+op.name,'ok');closeModal();render()}
+
+async function closeAsLost(id){
+  var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
+  if(!confirm('Close "'+op.name+'" as Lost?'))return;
+  op.stage='Closed Lost';op.closedAt=new Date();
+  await dbEditOpportunity(id,op);
+  toast('Closed Lost: '+op.name,'warn');closeModal();render()}
 
 /* ═══════════ PROJECT DETAIL MODAL ═══════════ */
 function openProjectDetail(id){
