@@ -11,12 +11,13 @@ function render(){
     renderSidebar();return}
   /* Desktop: full experience */
   if(S.view==='completed'){S.view='tasks';S.taskMode='done'}
-  switch(S.view){case'schedule':html=rSchedule();break;case'overview':html=rOverview();break;case'tasks':html=rTasks();break;case'review':html=rReview();break;
-    case'analytics':html=rAnalytics();break;case'meetings':html=rMeetings();break;case'weekly':html=rWeekly();break;case'templates':html=rTemplates();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'opportunities':html=rOpportunities();break}
+  switch(S.view){case'dashboard':html=rDashboard();break;case'schedule':html=rSchedule();break;case'overview':html=rOverview();break;case'tasks':html=rTasks();break;case'review':html=rReview();break;
+    case'analytics':html=rAnalytics();break;case'meetings':html=rMeetings();break;case'weekly':html=rWeekly();break;case'templates':html=rTemplates();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'opportunities':html=rOpportunities();break;case'clients':html=rClients();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
+  if(S.view==='dashboard')initDashboardCharts();
   if(S.view==='schedule')initScheduleCharts();
   if(S.view==='overview')initTodayCharts();
-  if(S.view==='analytics')initAnalyticsCharts();if(S.view==='projects')initProjectCharts();if(S.view==='opportunities')initOpportunityCharts();renderSidebar()}
+  if(S.view==='analytics')initAnalyticsCharts();if(S.view==='projects')initProjectCharts();if(S.view==='opportunities')initOpportunityCharts();if(S.view==='clients')initClientsCharts();renderSidebar()}
 
 /* ═══════════ TASK CARD ═══════════ */
 function taskCard(t,td,idx){
@@ -106,6 +107,253 @@ function miniRow(t,td){
   h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid+'\')" title="Done">'+CK_XS+'</button>';
   h+='</span></div>';return h}
 
+/* ═══════════ DASHBOARD ═══════════ */
+function dashMet(label,value,color){return'<div class="dash-met"><div class="dash-met-v" style="color:'+color+'">'+value+'</div><div class="dash-met-l">'+label+'</div></div>'}
+
+function rDashboard(){
+  var td_=today();
+  /* Task metrics */
+  var openTasks=S.tasks.length;
+  var overdueTasks=S.tasks.filter(function(t){return t.due&&t.due<td_}).length;
+  var inProgress=0;Object.keys(S.timers).forEach(function(id){if(S.timers[id].started)inProgress++});
+  var todayDone=S.done.filter(function(d){return d.completed&&d.completed>=td_});
+  var todayMins=0;todayDone.forEach(function(d){todayMins+=d.duration||0});
+  var reviewCount=S.review.length;
+
+  /* Campaign metrics */
+  var activeCampaigns=S.campaigns.filter(function(c){return c.status==='Active'});
+  var monthlyRecurring=0;activeCampaigns.forEach(function(c){monthlyRecurring+=(c.monthlyFee||0)+(c.monthlyAdSpend||0)});
+  var totalRevenue=0;S.payments.forEach(function(p){totalRevenue+=(p.amount||0)});
+
+  /* Opportunity metrics */
+  var activeOpps=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
+  var pipelineValue=0;activeOpps.forEach(function(o){pipelineValue+=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12)});
+
+  /* Project metrics */
+  var activeProjects=S.projects.filter(function(p){return p.status==='Active'});
+
+  var h='<div class="pg-head"><h1>📊 Dashboard</h1></div>';
+
+  /* Productivity */
+  h+='<div class="dash-section">Productivity</div>';
+  h+='<div class="dash-mets">';
+  h+=dashMet('Open Tasks',openTasks,'var(--t1)');
+  h+=dashMet('Overdue',overdueTasks,overdueTasks?'var(--red)':'var(--green)');
+  h+=dashMet('In Progress',inProgress,inProgress?'var(--green)':'var(--t4)');
+  h+=dashMet('Done Today',todayDone.length,'var(--green)');
+  h+=dashMet('Tracked Today',fmtM(todayMins),'var(--pink)');
+  h+=dashMet('To Review',reviewCount,reviewCount?'var(--amber)':'var(--t4)');
+  h+='</div>';
+
+  /* Business */
+  h+='<div class="dash-section">Business Overview</div>';
+  h+='<div class="dash-mets">';
+  h+=dashMet('Active Campaigns',activeCampaigns.length,'var(--amber)');
+  h+=dashMet('Monthly Recurring',fmtUSD(monthlyRecurring),'var(--green)');
+  h+=dashMet('Total Revenue',fmtUSD(totalRevenue),'var(--green)');
+  h+=dashMet('Pipeline Value',fmtUSD(pipelineValue),'var(--blue)');
+  h+=dashMet('Active Opportunities',activeOpps.length,'var(--purple50)');
+  h+=dashMet('Active Projects',activeProjects.length,'var(--t1)');
+  h+='</div>';
+
+  /* Recent completions */
+  h+='<div class="dash-section">Recent Completions</div>';
+  var recent=S.done.slice(0,8);
+  if(recent.length){
+    h+='<div class="dash-recent">';
+    recent.forEach(function(d){
+      h+='<div class="dash-recent-item">';
+      h+='<span class="dash-recent-check">'+CK_XS+'</span>';
+      h+='<span class="dash-recent-name">'+esc(d.item)+'</span>';
+      h+='<span class="dash-recent-meta">';
+      if(d.client&&d.client!=='Internal / N/A')h+='<span>'+esc(d.client)+'</span>';
+      if(d.duration)h+='<span>'+fmtM(d.duration)+'</span>';
+      if(d.completed)h+='<span>'+fmtDShort(d.completed)+'</span>';
+      h+='</span></div>'});
+    h+='</div>'}
+  else{h+='<div style="padding:20px;text-align:center;color:var(--t4);font-size:13px">No completed tasks yet</div>'}
+
+  /* Charts */
+  h+='<div class="dash-charts">';
+  h+='<div class="chart-card"><h3>Tasks by Category</h3><div class="chart-wrap"><canvas id="dash-cat-chart"></canvas></div></div>';
+  h+='<div class="chart-card"><h3>Time by Client (30d)</h3><div class="chart-wrap"><canvas id="dash-client-chart"></canvas></div></div>';
+  h+='</div>';
+  return h}
+
+function initDashboardCharts(){
+  setTimeout(function(){
+    /* Category donut */
+    var catData={};S.done.forEach(function(d){var c=d.category||'Uncategorised';catData[c]=(catData[c]||0)+(d.duration||0)});
+    if(Object.keys(catData).length)mkDonut('dash-cat-chart',catData);
+    /* Client time bar (last 30 days) */
+    var cutoff=new Date(today().getTime()-30*864e5);
+    var clientData={};S.done.filter(function(d){return d.completed&&d.completed>=cutoff}).forEach(function(d){
+      var cl=d.client||'Internal / N/A';clientData[cl]=(clientData[cl]||0)+(d.duration||0)});
+    if(Object.keys(clientData).length)mkHBar('dash-client-chart',clientData);
+  },200)}
+
+/* ═══════════ RETAIN CLIENTS ═══════════ */
+function rClients(){
+  var td_=today();
+  /* Build client data map */
+  var clientMap={};
+  function ensureClient(name){
+    if(!name||name==='Internal / N/A')return;
+    if(!clientMap[name])clientMap[name]={name:name,campaigns:0,activeCampaigns:0,monthlyRev:0,
+      opportunities:0,pipelineValue:0,openTasks:0,overdueTasks:0,doneTasks:0,timeTracked:0,
+      meetings:0,lastActivity:null,campaignList:[],oppList:[],recentDone:[]}}
+
+  /* From campaigns */
+  S.campaigns.forEach(function(cp){
+    ensureClient(cp.partner);if(!cp.partner||cp.partner==='Internal / N/A')return;
+    var c=clientMap[cp.partner];c.campaigns++;
+    if(cp.status==='Active'){c.activeCampaigns++;c.monthlyRev+=(cp.monthlyFee||0)}
+    c.campaignList.push({name:cp.name,status:cp.status,id:cp.id})});
+
+  /* From opportunities */
+  S.opportunities.forEach(function(op){
+    ensureClient(op.client);if(!op.client||op.client==='Internal / N/A')return;
+    var c=clientMap[op.client];
+    if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
+      c.opportunities++;c.pipelineValue+=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12)}
+    c.oppList.push({name:op.name,stage:op.stage,id:op.id})});
+
+  /* From tasks */
+  S.tasks.forEach(function(t){
+    ensureClient(t.client);if(!t.client||t.client==='Internal / N/A')return;
+    clientMap[t.client].openTasks++;
+    if(t.due&&t.due<td_)clientMap[t.client].overdueTasks++});
+
+  /* From done */
+  S.done.forEach(function(d){
+    ensureClient(d.client);if(!d.client||d.client==='Internal / N/A')return;
+    var c=clientMap[d.client];c.doneTasks++;c.timeTracked+=(d.duration||0);
+    if(d.completed&&(!c.lastActivity||d.completed>c.lastActivity))c.lastActivity=d.completed;
+    if(c.recentDone.length<5)c.recentDone.push({item:d.item,duration:d.duration,completed:d.completed})});
+
+  /* From campaign meetings */
+  var cpMap={};S.campaigns.forEach(function(cp){cpMap[cp.id]=cp.partner||''});
+  var thisMonth=new Date(td_.getFullYear(),td_.getMonth(),1);
+  S.campaignMeetings.forEach(function(m){
+    var partner=cpMap[m.campaignId]||'';
+    ensureClient(partner);if(!partner||partner==='Internal / N/A')return;
+    clientMap[partner].meetings++;
+    if(m.date&&m.date>=thisMonth)clientMap[partner].meetings++});
+
+  /* Sort by activity */
+  var clients=Object.keys(clientMap).map(function(k){return clientMap[k]});
+  clients.sort(function(a,b){return(b.activeCampaigns+b.openTasks+b.opportunities)-(a.activeCampaigns+a.openTasks+a.opportunities)});
+
+  /* Totals */
+  var totalClients=clients.length;
+  var totalActive=clients.filter(function(c){return c.activeCampaigns>0}).length;
+  var totalOpenTasks=clients.reduce(function(s,c){return s+c.openTasks},0);
+  var totalPipeline=clients.reduce(function(s,c){return s+c.pipelineValue},0);
+  var totalTime=clients.reduce(function(s,c){return s+c.timeTracked},0);
+  var totalMeetings=clients.reduce(function(s,c){return s+c.meetings},0);
+
+  var h='<div class="pg-head"><h1>👥 Retain Clients</h1></div>';
+
+  /* Metrics */
+  h+='<div class="dash-mets">';
+  h+=dashMet('Total Clients',totalClients,'var(--t1)');
+  h+=dashMet('Active (campaigns)',totalActive,'var(--green)');
+  h+=dashMet('Open Tasks',totalOpenTasks,'var(--blue)');
+  h+=dashMet('Pipeline Value',fmtUSD(totalPipeline),'var(--purple50)');
+  h+=dashMet('Time Tracked',fmtM(totalTime),'var(--pink)');
+  h+=dashMet('Meetings',totalMeetings,'var(--amber)');
+  h+='</div>';
+
+  if(!clients.length){
+    h+='<div style="padding:30px;text-align:center;color:var(--t4);font-size:13px">No client data yet. Clients are aggregated from campaigns, opportunities, and tasks.</div>';
+    return h}
+
+  /* Client table */
+  h+='<div class="tb-wrap"><table class="tb"><thead><tr>';
+  h+='<th style="text-align:left;width:30px"></th>';
+  h+='<th style="text-align:left">Client</th>';
+  h+='<th class="r">Campaigns</th>';
+  h+='<th class="r">Opportunities</th>';
+  h+='<th class="r">Open Tasks</th>';
+  h+='<th class="r">Meetings</th>';
+  h+='<th class="r">Time Tracked</th>';
+  h+='<th class="r">Last Activity</th>';
+  h+='</tr></thead><tbody>';
+
+  clients.forEach(function(c,idx){
+    var eid='cl-'+idx;
+    h+='<tr class="cl-row" onclick="var d=document.getElementById(\''+eid+'\');if(d){d.style.display=d.style.display===\'none\'?\'table-row\':\'none\';var ch=this.querySelector(\'.cl-expand\');if(ch)ch.classList.toggle(\'open\')}">';
+    h+='<td><span class="cl-expand">▸</span></td>';
+    h+='<td style="font-weight:600;color:var(--t1)">'+esc(c.name)+'</td>';
+    h+='<td class="r" style="color:'+(c.activeCampaigns?'var(--green)':'var(--t4)')+'">'+c.activeCampaigns+' / '+c.campaigns+'</td>';
+    h+='<td class="r" style="color:'+(c.opportunities?'var(--purple50)':'var(--t4)')+'">'+c.opportunities+'</td>';
+    h+='<td class="r" style="color:'+(c.overdueTasks?'var(--red)':'var(--t2)')+'">'+c.openTasks+(c.overdueTasks?' <span style="color:var(--red);font-size:10px">('+c.overdueTasks+' overdue)</span>':'')+'</td>';
+    h+='<td class="r">'+c.meetings+'</td>';
+    h+='<td class="r" style="color:var(--pink)">'+fmtM(c.timeTracked)+'</td>';
+    h+='<td class="r" style="color:var(--t3)">'+(c.lastActivity?fmtDShort(c.lastActivity):'-')+'</td>';
+    h+='</tr>';
+
+    /* Expandable detail row */
+    h+='<tr id="'+eid+'" style="display:none"><td colspan="8"><div class="cl-detail">';
+
+    /* Campaigns */
+    if(c.campaignList.length){
+      h+='<div class="cl-detail-section"><div class="cl-detail-label">🎯 Campaigns</div>';
+      c.campaignList.forEach(function(cp){
+        h+='<div class="cl-detail-item"><span style="flex:1;cursor:pointer;color:var(--t1)" onclick="event.stopPropagation();TF.openCampaignDetail(\''+escAttr(cp.id)+'\')">'+esc(cp.name)+'</span>';
+        h+='<span class="bg" style="font-size:10px;padding:2px 8px">'+esc(cp.status)+'</span></div>'});
+      h+='</div>'}
+
+    /* Opportunities */
+    if(c.oppList.length){
+      h+='<div class="cl-detail-section"><div class="cl-detail-label">💎 Opportunities</div>';
+      c.oppList.forEach(function(op){
+        h+='<div class="cl-detail-item"><span style="flex:1;cursor:pointer;color:var(--t1)" onclick="event.stopPropagation();TF.openOpportunityDetail(\''+escAttr(op.id)+'\')">'+esc(op.name)+'</span>';
+        h+='<span class="bg '+opStageClass(op.stage)+'" style="font-size:10px;padding:2px 8px">'+esc(op.stage)+'</span></div>'});
+      h+='</div>'}
+
+    /* Recent completed tasks */
+    if(c.recentDone.length){
+      h+='<div class="cl-detail-section"><div class="cl-detail-label">✅ Recent Completed Tasks</div>';
+      c.recentDone.forEach(function(d){
+        h+='<div class="cl-detail-item"><span style="color:var(--green);flex-shrink:0">'+CK_XS+'</span>';
+        h+='<span style="flex:1;color:var(--t2)">'+esc(d.item)+'</span>';
+        if(d.duration)h+='<span style="color:var(--t4);font-size:11px">'+fmtM(d.duration)+'</span>';
+        if(d.completed)h+='<span style="color:var(--t4);font-size:11px">'+fmtDShort(d.completed)+'</span>';
+        h+='</div>'});
+      h+='</div>'}
+
+    /* Summary */
+    h+='<div class="cl-detail-section"><div class="cl-detail-label">📊 Summary</div>';
+    h+='<div class="cl-detail-item"><span style="color:var(--t3)">Total done tasks:</span><span style="font-weight:600">'+c.doneTasks+'</span></div>';
+    if(c.monthlyRev)h+='<div class="cl-detail-item"><span style="color:var(--t3)">Monthly revenue:</span><span style="font-weight:600;color:var(--green)">'+fmtUSD(c.monthlyRev)+'</span></div>';
+    if(c.pipelineValue)h+='<div class="cl-detail-item"><span style="color:var(--t3)">Pipeline value:</span><span style="font-weight:600;color:var(--purple50)">'+fmtUSD(c.pipelineValue)+'</span></div>';
+    h+='</div>';
+
+    h+='</div></td></tr>'});
+
+  h+='</tbody></table></div>';
+
+  /* Charts */
+  h+='<div class="dash-charts">';
+  h+='<div class="chart-card"><h3>Time by Client</h3><div class="chart-wrap"><canvas id="clients-time-chart"></canvas></div></div>';
+  h+='<div class="chart-card"><h3>Pipeline by Client</h3><div class="chart-wrap"><canvas id="clients-pipeline-chart"></canvas></div></div>';
+  h+='</div>';
+  return h}
+
+function initClientsCharts(){
+  setTimeout(function(){
+    var timeData={},pipeData={};
+    S.done.forEach(function(d){if(!d.client||d.client==='Internal / N/A')return;timeData[d.client]=(timeData[d.client]||0)+(d.duration||0)});
+    S.opportunities.forEach(function(o){if(!o.client||o.client==='Internal / N/A')return;
+      if(o.stage==='Closed Won'||o.stage==='Closed Lost')return;
+      var val=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
+      pipeData[o.client]=(pipeData[o.client]||0)+val});
+    if(Object.keys(timeData).length)mkHBar('clients-time-chart',timeData);
+    if(Object.keys(pipeData).length)mkDonut('clients-pipeline-chart',pipeData);
+  },200)}
+
+/* ═══════════ SCHEDULE ═══════════ */
 function rSchedule(){
   var td=today(),now=new Date();S.tasks.forEach(function(t){t._score=taskScore(t)});
   var sorted=S.tasks.slice().sort(function(a,b){return(b._score||0)-(a._score||0)});

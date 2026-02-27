@@ -236,7 +236,7 @@ function cmdSearch(q){
   var r=gel('cmd-results');if(!r)return;
   q=q.toLowerCase().trim();var results=[];
   /* Views */
-  VIEWS.forEach(function(v){if(!q||v.label.toLowerCase().indexOf(q)>-1)results.push({type:'view',icon:v.icon,label:'Go to '+v.label,action:'TF.nav(\''+v.id+'\');TF.closeCmdPalette()'})});
+  VIEWS_FLAT.forEach(function(v){if(!q||v.label.toLowerCase().indexOf(q)>-1)results.push({type:'view',icon:v.icon,label:'Go to '+v.label,action:'TF.nav(\''+v.id+'\');TF.closeCmdPalette()'})});
   /* Actions */
   var actions=[{icon:'➕',label:'Add New Task',action:'TF.openAddModal();TF.closeCmdPalette()'},
     {icon:'📋',label:'Daily Summary',action:'TF.openSummary();TF.closeCmdPalette()'},
