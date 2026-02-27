@@ -18,7 +18,7 @@ function openDetail(id){
 
   if(isMob){
     /* ═══ MOBILE: Single-column sheet ═══ */
-    h+='<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">';
+    h+='<div style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">';
 
     /* Header: name + close */
     h+='<div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--gborder);flex-shrink:0">';
@@ -1068,7 +1068,7 @@ function openCampaignDetail(id){
 
   if(isMob){
     /* ═══ MOBILE: Single-column campaign detail ═══ */
-    h+='<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">';
+    h+='<div style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">';
     /* Header */
     h+='<div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--gborder);flex-shrink:0">';
     h+='<input type="text" class="edf edf-name" id="cp-name" value="'+esc(cp.name)+'" style="font-size:16px;padding:4px 6px">';

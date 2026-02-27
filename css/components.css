@@ -75,6 +75,7 @@
 /* ── Full-screen Detail ── */
 .tf-modal-overlay.full-detail .tf-modal{max-width:calc(100vw - 40px);max-height:calc(100vh - 40px);width:calc(100vw - 40px);height:calc(100vh - 40px);display:flex;flex-direction:column;animation:modalFullIn .4s var(--ease-out);padding:0;overflow:hidden}
 @keyframes modalFullIn{from{opacity:0;transform:translateY(30px) scale(0.97)}to{opacity:1;transform:none}}
+#detail-body{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .detail-full-header{padding:20px 28px 0;flex-shrink:0}
 .detail-full-header .tf-modal-top{margin-bottom:4px}
 .detail-full-header .tf-modal-badges{padding:6px 0 12px;border-bottom:1px solid var(--gborder);margin-bottom:0}
@@ -300,10 +301,14 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
 
 /* ═══════════ MOBILE: SHEET MODAL (600px) ═══════════ */
 @media(max-width:600px){
-  .tf-modal-overlay{padding:0;align-items:flex-end}
-  .tf-modal{max-width:100vw;max-height:100vh;width:100vw;height:100vh;border-radius:0;padding:16px;animation:modalSlideUp .35s var(--ease-out)}
+  .tf-modal-overlay,#modal{padding:0;align-items:flex-end}
+  .tf-modal{max-width:100vw;max-height:100vh;width:100vw;height:100vh;border-radius:0;padding:0;animation:modalSlideUp .35s var(--ease-out);display:flex;flex-direction:column;overflow:hidden}
   @keyframes modalSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
   .tf-modal-overlay.full-detail .tf-modal{width:100vw;height:100vh;max-width:100vw;max-height:100vh;border-radius:0}
+  /* Generic modal body (#m-body) needs scroll */
+  #m-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px}
+  /* Detail modal body — inner layout handles scrolling */
+  #detail-body{overflow:hidden}
   .detail-split{grid-template-columns:1fr;grid-template-rows:auto;overflow-y:auto}
   .detail-split-left{max-height:none;border-right:none;border-bottom:1px solid var(--gborder);padding:16px;overflow:visible}
   .detail-split-right{padding:16px;overflow:visible}
@@ -314,12 +319,18 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
   .edf{padding:12px 14px;font-size:14px}
   select.edf{padding:12px 14px;font-size:14px}
   .edf-notes{min-height:80px;font-size:14px}
-  .ed-actions{flex-wrap:wrap;gap:8px}
-  .ed-actions .btn{flex:1;min-width:calc(50% - 4px);padding:12px;text-align:center;display:flex;align-items:center;justify-content:center}
+  .ed-actions{flex-wrap:wrap;gap:8px;padding:16px;padding-top:12px;border-top:1px solid var(--gborder);flex-shrink:0;background:var(--bg2);margin:0;position:sticky;bottom:0}
+  .ed-actions .btn{flex:1;min-width:calc(50% - 4px);padding:14px;text-align:center;display:flex;align-items:center;justify-content:center;font-size:14px}
   .flag-row{flex-direction:column;gap:12px;padding:12px}
   .ed-flags-inline{gap:12px}
   .tf-modal-badges{padding:6px 4px 10px;gap:4px}
   .bg{font-size:9px;padding:3px 8px}
+  /* Modal close button: always reachable */
+  .tf-modal-top{position:sticky;top:0;z-index:10;background:var(--bg2);padding:16px 16px 8px;margin:0;border-bottom:1px solid var(--gborder);flex-shrink:0}
+  /* Form grids single column */
+  .frm{max-width:none}
+  .frm-grid{grid-template-columns:1fr;gap:10px}
+  .fld input,.fld select,.fld textarea{padding:12px 14px;font-size:14px}
 }
 
 /* ═══════════ MOBILE: PHONE (480px) ═══════════ */
