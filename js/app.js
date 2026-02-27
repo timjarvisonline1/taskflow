@@ -58,39 +58,6 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
 var arTimer=null;
 function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterval(function(){loadData()},1800000)}
 
-/* ═══════════ MOBILE FIX: ensure hidden overlays can never block touches ═══════════ */
-if(window.innerWidth<=860){
-  var _fixOverlays=function(){
-    ['detail-modal','modal','mob-overlay'].forEach(function(id){
-      var el=document.getElementById(id);
-      if(!el)return;
-      if(!el.classList.contains('on')){
-        el.style.pointerEvents='none';
-      } else {
-        el.style.pointerEvents='';
-      }
-    });
-  };
-  _fixOverlays();
-  setInterval(_fixOverlays,500);
-
-  /* Debug: show a visible banner with diagnostic info at top of screen */
-  setTimeout(function(){
-    var banner=document.createElement('div');
-    banner.style.cssText='position:fixed;top:0;left:0;right:0;background:red;color:white;font-size:11px;font-family:monospace;padding:2px 8px;z-index:99999;pointer-events:none;text-align:center';
-    /* Check what element is at where the input should be */
-    var inputEl=document.getElementById('f-item')||document.getElementById('mob-add-item');
-    var inputInfo=inputEl?'INPUT FOUND':'NO INPUT';
-    if(inputEl){
-      var r=inputEl.getBoundingClientRect();
-      var topAt=document.elementFromPoint(r.left+10,r.top+10);
-      inputInfo+=' at('+Math.round(r.left)+','+Math.round(r.top)+') topEl='+(topAt?topAt.tagName+(topAt.id?'#'+topAt.id:'')+(topAt.className?'.'+String(topAt.className).split(' ')[0]:''):'null');
-      inputInfo+=' same='+(topAt===inputEl?'YES':'NO>>>'+( topAt?topAt.outerHTML.substring(0,80):''));
-    }
-    banner.textContent=inputInfo;
-    document.body.appendChild(banner);
-  },3000);
-}
 
 /* ═══════════ INIT (with auth guard) ═══════════ */
 (async function(){
