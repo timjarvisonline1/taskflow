@@ -58,46 +58,37 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
 var arTimer=null;
 function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterval(function(){loadData()},1800000)}
 
-/* ═══════════ MOBILE DEBUG (visible on screen) ═══════════ */
+/* ═══════════ MOBILE FIX: ensure hidden overlays can never block touches ═══════════ */
 if(window.innerWidth<=860){
-  var _dbg=document.createElement('div');
-  _dbg.id='mob-debug';
-  _dbg.style.cssText='position:fixed;bottom:70px;left:4px;right:4px;max-height:120px;overflow-y:auto;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;font-family:monospace;padding:6px;border-radius:8px;z-index:9999;pointer-events:none;word-break:break-all';
-  document.body.appendChild(_dbg);
-  function _log(msg){_dbg.innerHTML=msg+'<br>'+_dbg.innerHTML;if(_dbg.children.length>10)_dbg.lastChild.remove()}
-  document.addEventListener('touchstart',function(e){
-    var el=e.target;
-    var tag=el.tagName+(el.id?'#'+el.id:'');
-    var cls=el.className?'.'+String(el.className).split(' ').slice(0,2).join('.'):'';
-    /* What's actually on top at touch point? */
-    var touch=e.touches[0];
-    var topEl=document.elementFromPoint(touch.clientX,touch.clientY);
-    var topTag=topEl?topEl.tagName+(topEl.id?'#'+topEl.id:''):'null';
-    var topCls=topEl&&topEl.className?'.'+String(topEl.className).split(' ')[0]:'';
-    var same=topEl===el?'✅':'❌BLOCKED';
-    _log('TAP→'+tag+cls+' TOP→'+topTag+topCls+' '+same);
-  },true);
-  /* Check what's covering the viewport after load */
-  setTimeout(function(){
-    var points=[[window.innerWidth/2,100,'mid-top'],[window.innerWidth/2,window.innerHeight/2,'center'],[50,150,'left-150']];
-    points.forEach(function(p){
-      var el=document.elementFromPoint(p[0],p[1]);
-      _log('AT('+p[2]+'):'+( el?el.tagName+(el.id?'#'+el.id:'')+(el.className?'.'+String(el.className).split(' ')[0]:''):'null'));
-    });
-    /* List ALL fixed/absolute elements with high z-index */
-    var all=document.querySelectorAll('*');
-    var blocking=[];
-    all.forEach(function(el){
-      var s=getComputedStyle(el);
-      if((s.position==='fixed'||s.position==='absolute')&&s.display!=='none'&&s.visibility!=='hidden'){
-        var z=parseInt(s.zIndex)||0;
-        var w=el.offsetWidth,h=el.offsetHeight;
-        if(z>=100&&w>50&&h>50){
-          blocking.push(el.tagName+(el.id?'#'+el.id:'')+(el.className?'.'+String(el.className).split(' ')[0]:'')+' z:'+z+' '+w+'x'+h+' pos:'+s.position);
-        }
+  var _fixOverlays=function(){
+    ['detail-modal','modal','mob-overlay'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(!el)return;
+      if(!el.classList.contains('on')){
+        el.style.pointerEvents='none';
+      } else {
+        el.style.pointerEvents='';
       }
     });
-    _log('FIXED ELEMENTS: '+blocking.join(' | '));
+  };
+  _fixOverlays();
+  setInterval(_fixOverlays,500);
+
+  /* Debug: show a visible banner with diagnostic info at top of screen */
+  setTimeout(function(){
+    var banner=document.createElement('div');
+    banner.style.cssText='position:fixed;top:0;left:0;right:0;background:red;color:white;font-size:11px;font-family:monospace;padding:2px 8px;z-index:99999;pointer-events:none;text-align:center';
+    /* Check what element is at where the input should be */
+    var inputEl=document.getElementById('f-item')||document.getElementById('mob-add-item');
+    var inputInfo=inputEl?'INPUT FOUND':'NO INPUT';
+    if(inputEl){
+      var r=inputEl.getBoundingClientRect();
+      var topAt=document.elementFromPoint(r.left+10,r.top+10);
+      inputInfo+=' at('+Math.round(r.left)+','+Math.round(r.top)+') topEl='+(topAt?topAt.tagName+(topAt.id?'#'+topAt.id:'')+(topAt.className?'.'+String(topAt.className).split(' ')[0]:''):'null');
+      inputInfo+=' same='+(topAt===inputEl?'YES':'NO>>>'+( topAt?topAt.outerHTML.substring(0,80):''));
+    }
+    banner.textContent=inputInfo;
+    document.body.appendChild(banner);
   },3000);
 }
 

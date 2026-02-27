@@ -19,18 +19,8 @@
   <div class="app" id="app">
     <div class="toast-wrap" id="toasts"></div>
     <div class="mob-overlay" id="mob-overlay" onclick="TF.closeMenu()"></div>
-    <!-- Detail/Edit Modal -->
-    <div class="tf-modal-overlay" id="detail-modal" onclick="TF.closeModal()">
-      <div class="tf-modal" onclick="event.stopPropagation()">
-        <div id="detail-body"></div>
-      </div>
-    </div>
-    <!-- Generic Modal (templates etc) -->
-    <div class="tf-modal-overlay" id="modal" onclick="this.classList.remove('on')">
-      <div class="tf-modal" onclick="event.stopPropagation()">
-        <div id="m-body"></div>
-      </div>
-    </div>
+    <!-- Detail/Edit Modal — moved AFTER main content so it never blocks on mobile -->
+    <!-- Generic Modal — moved AFTER main content so it never blocks on mobile -->
     <!-- Sidebar -->
     <nav class="side" id="sidebar">
       <div class="s-logo">
@@ -77,6 +67,18 @@
     </nav>
     <!-- FAB (mobile) -->
     <button class="fab" id="fab" onclick="TF.openAddModal()">+</button>
+    <!-- Detail/Edit Modal -->
+    <div class="tf-modal-overlay" id="detail-modal" onclick="TF.closeModal()">
+      <div class="tf-modal" onclick="event.stopPropagation()">
+        <div id="detail-body"></div>
+      </div>
+    </div>
+    <!-- Generic Modal (templates etc) -->
+    <div class="tf-modal-overlay" id="modal" onclick="this.classList.remove('on')">
+      <div class="tf-modal" onclick="event.stopPropagation()">
+        <div id="m-body"></div>
+      </div>
+    </div>
   </div>
 
   <!-- JavaScript -->
