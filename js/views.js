@@ -2049,23 +2049,45 @@ function mobDefaultDue(){var d=new Date();d.setHours(17,0,0,0);return d.toISOStr
 
 /* ── Quick Add ── */
 function rMobAdd(){
+  var iso=mobDefaultDue();
+  var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
   var h='<div class="mob-add-view">';
   h+='<h1 style="margin-bottom:20px">Quick Add</h1>';
-  h+='<input type="text" class="mob-add-input" id="mob-add-item" placeholder="What needs doing?" autofocus>';
+  /* Task name */
+  h+='<input type="text" class="mob-add-input" id="f-item" placeholder="What needs doing?" autofocus>';
   /* Importance pills */
   h+='<div class="mob-add-pills" id="mob-add-pills">';
   IMPS.forEach(function(imp){var cls=imp===mobAddImp?' on':'';
     h+='<button class="mob-pill'+cls+'" onclick="TF.setMobAddImp(\''+escAttr(imp)+'\')">'+esc(imp)+'</button>'});
   h+='</div>';
-  /* Optional extras */
-  h+='<details class="mob-add-detail"><summary class="mob-add-more">+ Due date &amp; notes</summary>';
+  /* Hidden select synced by pills */
+  h+='<select class="edf" id="f-imp" style="display:none">'+IMPS.map(function(i){return'<option'+(i===mobAddImp?' selected':'')+'>'+i+'</option>'}).join('')+'</select>';
+  /* More options */
+  h+='<details class="mob-add-detail"><summary class="mob-add-more">+ More options</summary>';
   h+='<div class="mob-add-fields">';
-  h+='<input type="datetime-local" class="edf" id="mob-add-due" value="'+mobDefaultDue()+'">';
-  h+='<select class="edf" id="mob-add-cat"><option value="">Category (optional)</option>'+CATS.map(function(c){return'<option>'+esc(c)+'</option>'}).join('')+'</select>';
-  h+='<textarea class="edf mob-add-notes" id="mob-add-notes" placeholder="Notes (optional)" rows="2"></textarea>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Due Date</span><input type="datetime-local" class="edf" id="f-due" value="'+iso+'"></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Category</span><select class="edf" id="f-cat"><option value="">Select...</option>'+CATS.map(function(c){return'<option>'+esc(c)+'</option>'}).join('')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Type</span><select class="edf" id="f-type">'+TYPES.map(function(t){return'<option>'+t+'</option>'}).join('')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Estimate (mins)</span><input type="number" class="edf" id="f-est" placeholder="30" min="0"></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Client</span><select class="edf" id="f-cli" onchange="TF.refreshAddEndClients()"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">End Client</span><select class="edf" id="f-ec" onchange="TF.refreshAddCampaigns();TF.ecAddNew(\'f-ec\')">'+buildEndClientOptions('')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Campaign</span><select class="edf" id="f-campaign" onchange="TF.fillFromCampaign()">'+buildCampaignOptions('','','')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Meeting</span><select class="edf" id="f-mtg">'+buildMeetingOptions('')+'</select></div>';
+  h+='<div class="mob-add-fld"><span class="mob-add-lbl">Notes</span><textarea class="edf mob-add-notes" id="f-notes" placeholder="Additional context..." rows="2"></textarea></div>';
+  /* Flags */
+  h+='<div class="mob-add-flags">';
+  h+='<label class="flag-toggle"><input type="checkbox" id="f-flag"><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
+  h+='<label class="flag-toggle"><input type="checkbox" id="f-done" onchange="var c=this.checked;document.getElementById(\'f-done-dur-wrap\').style.display=c?\'flex\':\'none\';document.getElementById(\'f-btn-add\').textContent=c?\'Add \\u0026 Complete\':\'Add Task\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
+  h+='<div id="f-done-dur-wrap" style="display:none;align-items:center;gap:8px"><span class="mob-add-lbl" style="margin:0">Actual Mins</span><input type="number" id="f-done-dur" class="edf" style="width:80px;padding:8px 10px" placeholder="30" min="0"></div>';
+  h+='</div>';
   h+='</div></details>';
-  /* Add button */
-  h+='<button class="mob-add-btn" onclick="TF.mobAddTask()">Add Task</button>';
+  /* Action buttons */
+  h+='<div class="mob-add-actions">';
+  h+='<button class="mob-add-btn" id="f-btn-add" onclick="TF.mobAddTask()">Add Task</button>';
+  h+='<button class="mob-add-btn-alt" onclick="TF.mobAddAndStart()">▶ Add &amp; Start</button>';
+  h+='</div>';
+  if(S.templates.length){h+='<select class="edf" id="f-tpl" onchange="TF.fillFromTemplate(this.value)" style="margin-top:12px"><option value="">📎 Use Template...</option>';
+    S.templates.forEach(function(t,i){h+='<option value="'+i+'">'+esc(t.name)+'</option>'});h+='</select>'}
   h+='</div>';
   /* Recently added */
   var recent=S.tasks.slice(-5).reverse();
@@ -2078,22 +2100,16 @@ function rMobAdd(){
     h+='</div>'}
   return h}
 
-/* ── Quick Add submit ── */
+/* ── Quick Add submit (reuses desktop addTask/addAndStart logic) ── */
 async function mobAddTask(){
-  var input=gel('mob-add-item');if(!input)return;
-  var item=input.value.trim();if(!item){toast('Enter a task name','warn');return}
-  var due=(gel('mob-add-due')||{}).value||'';
-  var notes=(gel('mob-add-notes')||{}).value||'';
-  var cat=(gel('mob-add-cat')||{}).value||'';
-  var data={item:item,due:due||mobDefaultDue(),importance:mobAddImp,category:cat,
-    client:'Internal / N/A',endClient:'',type:'Business',est:0,
-    notes:notes,status:'Planned',flag:false,campaign:'',meetingKey:''};
-  var result=await dbAddTask(data);
-  if(result){S.tasks.push({id:result.id,item:item,due:data.due?new Date(data.due):null,
-    importance:mobAddImp,est:0,category:cat,client:'Internal / N/A',endClient:'',
-    type:'Business',duration:0,notes:notes,status:'Planned',flag:false,campaign:'',meetingKey:''})}
-  input.value='';toast('Added: '+item,'ok');render();
-  setTimeout(function(){var i=gel('mob-add-item');if(i)i.focus()},100)}
+  /* Sync importance pill selection to hidden select */
+  var impSel=gel('f-imp');if(impSel)impSel.value=mobAddImp;
+  await addTask();
+  /* addTask() calls render() which rebuilds the form — refocus for rapid adds */
+  setTimeout(function(){var i=gel('f-item');if(i)i.focus()},100)}
+async function mobAddAndStart(){
+  var impSel=gel('f-imp');if(impSel)impSel.value=mobAddImp;
+  await addAndStart()}
 
 /* ── Mobile Today ── */
 function rMobToday(){

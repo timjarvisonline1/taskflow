@@ -432,3 +432,12 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
 
 /* Mobile section headers */
 .mob-section-h{font-size:14px;font-weight:700;color:var(--t2);margin:20px 0 10px;letter-spacing:-0.01em}
+
+/* Mobile add form fields */
+.mob-add-fld{display:flex;flex-direction:column;gap:4px}
+.mob-add-lbl{font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.7px}
+.mob-add-flags{display:flex;flex-direction:column;gap:10px;padding-top:8px;border-top:1px solid var(--gborder);margin-top:4px}
+.mob-add-actions{display:flex;gap:8px;margin-top:4px}
+.mob-add-actions .mob-add-btn{flex:1}
+.mob-add-btn-alt{flex:1;padding:16px;background:var(--bg3);border:1px solid var(--gborder);color:var(--t1);font-size:14px;font-weight:700;font-family:var(--f);border-radius:var(--r);cursor:pointer;transition:all .25s var(--ease);-webkit-tap-highlight-color:transparent;letter-spacing:0.02em}
+.mob-add-btn-alt:active{transform:scale(0.97);background:var(--ghover)}
