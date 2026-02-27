@@ -34,7 +34,11 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
   openAddCampaignMeeting:openAddCampaignMeeting,addCampaignMeeting:addCampaignMeeting,
   refreshAddEndClients:refreshAddEndClients,refreshAddCampaigns:refreshAddCampaigns,refreshDetailEndClients:refreshDetailEndClients,refreshDetailCampaigns:refreshDetailCampaigns,fillFromCampaign:fillFromCampaign,ecAddNew:ecAddNew,
   signOut:signOut,
-  toast:toast};
+  toast:toast,
+  /* Mobile */
+  mobAddTask:mobAddTask,
+  setMobAddImp:function(v){mobAddImp=v;var pills=document.querySelectorAll('.mob-pill');pills.forEach(function(p){p.classList.toggle('on',p.textContent===v)})},
+  mobSearchTasks:function(v){clearTimeout(S._mobSearchTmr);S._mobSearchTmr=setTimeout(function(){var list=gel('mob-task-list');if(!list)return;var q=v.toLowerCase();list.querySelectorAll('.mob-task-row').forEach(function(row){var name=row.querySelector('.mob-task-name');if(!name)return;row.style.display=name.textContent.toLowerCase().indexOf(q)!==-1?'':'none'})},150)}};
 
 /* ═══════════ AUTO-REFRESH ═══════════ */
 var arTimer=null;
@@ -44,5 +48,5 @@ function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterva
 (async function(){
   var sess=await _sb.auth.getSession();
   if(!sess.data.session){window.location.href='/login.html';return}
-  restore();S.view='schedule';buildNav();await loadData();startAutoRefresh();startMeetingCheck();
+  restore();S.view=isMobile()?'mob-add':'schedule';buildNav();await loadData();startAutoRefresh();startMeetingCheck();
 })();

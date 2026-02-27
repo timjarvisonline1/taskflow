@@ -2,6 +2,14 @@
 function render(){
   buildNav();
   var m=gel('main'),html='';
+  /* Mobile: focused 4-view experience */
+  if(isMobile()){
+    var mobIds=['mob-add','overview','tasks','review'];
+    if(mobIds.indexOf(S.view)===-1)S.view='mob-add';
+    switch(S.view){case'mob-add':html=rMobAdd();break;case'overview':html=rMobToday();break;case'tasks':html=rMobTasks();break;case'review':html=rReview();break}
+    m.innerHTML='<section class="vw on">'+html+'</section>';
+    renderSidebar();return}
+  /* Desktop: full experience */
   if(S.view==='completed'){S.view='tasks';S.taskMode='done'}
   switch(S.view){case'schedule':html=rSchedule();break;case'overview':html=rOverview();break;case'tasks':html=rTasks();break;case'review':html=rReview();break;
     case'analytics':html=rAnalytics();break;case'meetings':html=rMeetings();break;case'weekly':html=rWeekly();break;case'templates':html=rTemplates();break;case'campaigns':html=rCampaigns();break}
@@ -2033,3 +2041,130 @@ function rCampaignList(campaigns,td_){
     h+='</tr>'});
   h+='</tbody></table></div>';
   return h}
+
+/* ═══════════ MOBILE VIEWS ═══════════ */
+var mobAddImp='Important';
+
+function mobDefaultDue(){var d=new Date();d.setHours(17,0,0,0);return d.toISOString().slice(0,16)}
+
+/* ── Quick Add ── */
+function rMobAdd(){
+  var h='<div class="mob-add-view">';
+  h+='<h1 style="margin-bottom:20px">Quick Add</h1>';
+  h+='<input type="text" class="mob-add-input" id="mob-add-item" placeholder="What needs doing?" autofocus>';
+  /* Importance pills */
+  h+='<div class="mob-add-pills" id="mob-add-pills">';
+  IMPS.forEach(function(imp){var cls=imp===mobAddImp?' on':'';
+    h+='<button class="mob-pill'+cls+'" onclick="TF.setMobAddImp(\''+escAttr(imp)+'\')">'+esc(imp)+'</button>'});
+  h+='</div>';
+  /* Optional extras */
+  h+='<details class="mob-add-detail"><summary class="mob-add-more">+ Due date &amp; notes</summary>';
+  h+='<div class="mob-add-fields">';
+  h+='<input type="datetime-local" class="edf" id="mob-add-due" value="'+mobDefaultDue()+'">';
+  h+='<select class="edf" id="mob-add-cat"><option value="">Category (optional)</option>'+CATS.map(function(c){return'<option>'+esc(c)+'</option>'}).join('')+'</select>';
+  h+='<textarea class="edf mob-add-notes" id="mob-add-notes" placeholder="Notes (optional)" rows="2"></textarea>';
+  h+='</div></details>';
+  /* Add button */
+  h+='<button class="mob-add-btn" onclick="TF.mobAddTask()">Add Task</button>';
+  h+='</div>';
+  /* Recently added */
+  var recent=S.tasks.slice(-5).reverse();
+  if(recent.length){
+    h+='<div class="mob-recent"><div class="mob-section-h">Recently Added</div>';
+    recent.forEach(function(t){var eid=escAttr(t.id);
+      h+='<div class="mob-recent-item" onclick="TF.openDetail(\''+eid+'\')">';
+      h+='<span class="bg '+impCls(t.importance)+'">'+esc((t.importance||'I')[0])+'</span>';
+      h+='<span class="mob-recent-name">'+esc(t.item)+'</span></div>'});
+    h+='</div>'}
+  return h}
+
+/* ── Quick Add submit ── */
+async function mobAddTask(){
+  var input=gel('mob-add-item');if(!input)return;
+  var item=input.value.trim();if(!item){toast('Enter a task name','warn');return}
+  var due=(gel('mob-add-due')||{}).value||'';
+  var notes=(gel('mob-add-notes')||{}).value||'';
+  var cat=(gel('mob-add-cat')||{}).value||'';
+  var data={item:item,due:due||mobDefaultDue(),importance:mobAddImp,category:cat,
+    client:'Internal / N/A',endClient:'',type:'Business',est:0,
+    notes:notes,status:'Planned',flag:false,campaign:'',meetingKey:''};
+  var result=await dbAddTask(data);
+  if(result){S.tasks.push({id:result.id,item:item,due:data.due?new Date(data.due):null,
+    importance:mobAddImp,est:0,category:cat,client:'Internal / N/A',endClient:'',
+    type:'Business',duration:0,notes:notes,status:'Planned',flag:false,campaign:'',meetingKey:''})}
+  input.value='';toast('Added: '+item,'ok');render();
+  setTimeout(function(){var i=gel('mob-add-item');if(i)i.focus()},100)}
+
+/* ── Mobile Today ── */
+function rMobToday(){
+  var td=today(),effDay=getEffectiveDay();
+  var isShifted=effDay.getTime()!==td.getTime();
+  S.tasks.forEach(function(t){t._score=taskScore(t)});
+  var effEnd=new Date(effDay.getTime()+864e5);
+  var todayDone=S.done.filter(function(d){return d.completed&&d.completed>=effDay&&d.completed<effEnd});
+  var todayMins=0;todayDone.forEach(function(d){todayMins+=d.duration||0});
+  /* In-progress */
+  var inProg=S.tasks.filter(function(t){var ts=tmrGet(t.id);return ts.started||(ts.elapsed||0)>0});
+  /* Due today or overdue */
+  var focus=S.tasks.filter(function(t){if(!t.due)return false;return dayDiff(effDay,t.due)<=0})
+    .sort(function(a,b){return(b._score||0)-(a._score||0)});
+  /* Upcoming (due within 3 days) */
+  var upcoming=S.tasks.filter(function(t){if(!t.due)return false;var dd=dayDiff(effDay,t.due);return dd>0&&dd<=3})
+    .sort(function(a,b){return(a.due||0)-(b.due||0)});
+
+  var dayTitle=isShifted?fmtDFull(effDay):'Today';
+  var h='<h1 style="margin-bottom:16px">'+dayTitle+'</h1>';
+  /* Metrics */
+  h+='<div class="mob-mets">';
+  h+='<div class="mob-met"><div class="mob-met-v" style="color:var(--green)">'+todayDone.length+'</div><div class="mob-met-l">Done</div></div>';
+  h+='<div class="mob-met"><div class="mob-met-v" style="color:var(--pink)">'+fmtM(todayMins)+'</div><div class="mob-met-l">Tracked</div></div>';
+  h+='<div class="mob-met"><div class="mob-met-v" style="color:var(--red)">'+focus.length+'</div><div class="mob-met-l">Due</div></div>';
+  h+='</div>';
+  /* In progress */
+  if(inProg.length){h+='<div class="mob-section-h">In Progress</div><div class="mob-task-list">';
+    inProg.forEach(function(t){h+=mobTaskRow(t,td)});h+='</div>'}
+  /* Due / overdue */
+  if(focus.length){h+='<div class="mob-section-h">Due Today</div><div class="mob-task-list">';
+    focus.forEach(function(t){h+=mobTaskRow(t,td)});h+='</div>'}
+  /* Upcoming */
+  if(upcoming.length){h+='<div class="mob-section-h">Coming Up</div><div class="mob-task-list">';
+    upcoming.forEach(function(t){h+=mobTaskRow(t,td)});h+='</div>'}
+  /* Completed */
+  if(todayDone.length){h+='<div class="mob-section-h">Completed Today</div><div class="mob-task-list">';
+    todayDone.forEach(function(d){
+      h+='<div class="mob-done-row">';
+      h+='<span class="bg '+impCls(d.importance||'Important')+'">'+esc((d.importance||'I')[0])+'</span>';
+      h+='<span class="mob-task-name" style="text-decoration:line-through;color:var(--t3)">'+esc(d.item)+'</span>';
+      if(d.duration)h+='<span style="font-size:11px;color:var(--green);font-weight:600;margin-left:auto">'+fmtM(d.duration)+'</span>';
+      h+='</div>'});h+='</div>'}
+  if(!inProg.length&&!focus.length&&!upcoming.length&&!todayDone.length){
+    h+='<div style="text-align:center;color:var(--t4);padding:40px 0;font-size:14px">Nothing on today yet. Tap <b>Add</b> to capture a task.</div>'}
+  return h}
+
+/* ── Mobile Tasks ── */
+function rMobTasks(){
+  S.tasks.forEach(function(t){t._score=taskScore(t)});
+  var sorted=S.tasks.slice().sort(function(a,b){return(b._score||0)-(a._score||0)});
+  var td=today();
+  var h='<h1 style="margin-bottom:12px">Tasks</h1>';
+  h+='<input class="edf" placeholder="Search tasks..." style="width:100%;margin-bottom:16px;padding:12px 14px;font-size:14px;box-sizing:border-box" oninput="TF.mobSearchTasks(this.value)" id="mob-task-search">';
+  h+='<div class="mob-task-list" id="mob-task-list">';
+  if(!sorted.length){h+='<div style="text-align:center;color:var(--t4);padding:40px 0;font-size:14px">No open tasks</div>'}
+  else{sorted.forEach(function(t){h+=mobTaskRow(t,td)})}
+  h+='</div>';return h}
+
+/* ── Shared task row ── */
+function mobTaskRow(t,td){
+  var ts=tmrGet(t.id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
+  var elapsed=tmrElapsed(t.id);var eid=escAttr(t.id);
+  var isOd=t.due&&t.due<td;
+  var h='<div class="mob-task-row'+(isOd?' od':'')+'" onclick="TF.openDetail(\''+eid+'\')">';
+  h+='<div class="mob-task-left">';
+  h+='<span class="bg '+impCls(t.importance)+'" style="flex-shrink:0;width:28px;height:28px;font-size:12px;border-radius:8px;display:flex;align-items:center;justify-content:center">'+esc((t.importance||'I')[0])+'</span>';
+  h+='<span class="mob-task-name">'+esc(t.item)+'</span></div>';
+  h+='<div class="mob-task-right">';
+  if(hasT){h+='<span class="tmr tmr-sm'+(running?' go':'')+'" style="font-size:11px">';
+    h+='<span class="dot '+(running?'pulse':'pau')+'"></span>';
+    h+='<span data-tmr="'+esc(t.id)+'">'+fmtT(elapsed)+'</span></span>'}
+  h+='<button class="ab ab-dn ab-sm" onclick="event.stopPropagation();TF.done(\''+eid+'\')" title="Complete" style="width:36px;height:36px">'+CK_S+'</button>';
+  h+='</div></div>';return h}

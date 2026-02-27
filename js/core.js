@@ -31,6 +31,15 @@ var VIEWS=[
   {id:'campaigns',icon:'🎯',label:'Campaigns',kbd:'9'}
 ];
 
+/* ═══════════ MOBILE ═══════════ */
+function isMobile(){return window.innerWidth<=860}
+var MOB_VIEWS=[
+  {id:'mob-add',icon:'➕',label:'Add'},
+  {id:'overview',icon:'⚡',label:'Today'},
+  {id:'tasks',icon:'📋',label:'Tasks'},
+  {id:'review',icon:'📥',label:'Review'}
+];
+
 /* ═══════════ UTILS ═══════════ */
 function gel(id){return document.getElementById(id)}
 function cel(tag,cls,html){var e=document.createElement(tag);if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;return e}
@@ -544,7 +553,9 @@ function applyFilters(items,useDate){var f=S.filters;return items.filter(functio
   if(useDate&&f.dateTo){var d2=t.completed||t.due;var to=new Date(f.dateTo);to.setHours(23,59,59);if(!d2||d2>to)return false}
   return true})}
 /* ═══════════ NAV ═══════════ */
-function nav(id){S.view=id;document.querySelectorAll('.s-item').forEach(function(n){n.classList.toggle('on',n.dataset.v===id)});render();closeMenu()}
+function nav(id){
+  if(isMobile()){var mobIds=['mob-add','overview','tasks','review'];if(mobIds.indexOf(id)===-1)id='mob-add'}
+  S.view=id;document.querySelectorAll('.s-item').forEach(function(n){n.classList.toggle('on',n.dataset.v===id)});render();closeMenu()}
 function buildNav(){var h='';VIEWS.forEach(function(v){
     var badge='';if(v.id==='review'&&S.review.length)badge='<span class="nav-badge">'+S.review.length+'</span>';
     h+='<div class="s-item'+(v.id===S.view?' on':'')+'" data-v="'+v.id+'" onclick="TF.nav(\''+v.id+'\')"><span class="ico">'+v.icon+'</span>'+v.label+'<span class="s-right">'+badge+'<span class="kbd">'+v.kbd+'</span></span></div>'});
@@ -555,10 +566,20 @@ function buildNav(){var h='';VIEWS.forEach(function(v){
     if(active){ind.style.top=active.offsetTop+'px';ind.style.height=active.offsetHeight+'px'}},0);
   /* Sync bottom tab bar */
   var btmNav=gel('btm-nav');
-  if(btmNav){btmNav.querySelectorAll('.btm-tab').forEach(function(tab){
-    var isMore=tab.dataset.v==='more';tab.classList.toggle('on',!isMore&&tab.dataset.v===S.view)});
-    var btmBadge=gel('btm-badge');if(btmBadge)btmBadge.textContent=S.review.length?S.review.length:''}}
-function openMenu(){gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on');
+  if(btmNav){
+    if(isMobile()){
+      var bh='';MOB_VIEWS.forEach(function(mv){
+        var isOn=mv.id===S.view;
+        var badge='';if(mv.id==='review'&&S.review.length)badge='<span class="btm-badge" id="btm-badge">'+S.review.length+'</span>';
+        bh+='<button class="btm-tab'+(isOn?' on':'')+'" data-v="'+mv.id+'" onclick="TF.nav(\''+mv.id+'\')">';
+        bh+='<span class="btm-ico">'+mv.icon+'</span><span class="btm-lbl">'+mv.label+'</span>'+badge+'</button>'});
+      btmNav.innerHTML=bh;
+    } else {
+      btmNav.querySelectorAll('.btm-tab').forEach(function(tab){
+        var isMore=tab.dataset.v==='more';tab.classList.toggle('on',!isMore&&tab.dataset.v===S.view)});
+      var btmBadge=gel('btm-badge');if(btmBadge)btmBadge.textContent=S.review.length?S.review.length:'';
+    }}}
+function openMenu(){if(isMobile())return;gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on');
   var mt=document.querySelector('.btm-tab[data-v="more"]');if(mt)mt.classList.add('on')}
 function closeMenu(){gel('sidebar').classList.remove('open');gel('mob-overlay').classList.remove('on');
   var btmNav=gel('btm-nav');if(btmNav){btmNav.querySelectorAll('.btm-tab').forEach(function(tab){tab.classList.toggle('on',tab.dataset.v===S.view)})}}
@@ -571,7 +592,7 @@ document.addEventListener('keydown',function(e){
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
   var n=parseInt(e.key);if(n>=0&&n<=9){var v=VIEWS.find(function(vv){return vv.kbd===e.key});if(v)nav(v.id)}
   if(e.key==='Escape'){closeModal();closeCmdPalette();closeFocus()}
-  if(e.key==='n'||e.key==='N'){openAddModal()}
+  if(e.key==='n'||e.key==='N'){if(isMobile())nav('mob-add');else openAddModal()}
   if(e.key==='s'||e.key==='S'){openDailySummary()}
   if(e.key==='/'){e.preventDefault();setTimeout(function(){var si=document.querySelector('.fl-s');if(si)si.focus()},50)}
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCmdPalette()}

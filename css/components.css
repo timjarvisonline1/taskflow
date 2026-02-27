@@ -383,3 +383,52 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
   .task-toolbar .flts{min-width:0;width:100%}
   .task-controls{width:100%;justify-content:space-between}
 }
+
+/* ═══════════ MOBILE VIEWS ═══════════ */
+
+/* Quick Add view */
+.mob-add-view{padding:8px 0}
+.mob-add-input{width:100%;background:var(--bg3);border:1px solid var(--gborder);color:var(--t1);padding:16px 18px;border-radius:var(--r);font-size:18px;font-family:var(--f);font-weight:600;letter-spacing:-0.01em;transition:border-color .25s var(--ease);margin-bottom:16px;box-sizing:border-box}
+.mob-add-input:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,0,153,0.08)}
+.mob-add-input::placeholder{color:var(--t4);font-weight:400}
+.mob-add-pills{display:flex;gap:8px;margin-bottom:16px}
+.mob-pill{flex:1;padding:12px 8px;border-radius:var(--rs);border:1px solid var(--gborder);background:var(--bg3);color:var(--t3);font-size:12px;font-weight:600;font-family:var(--f);cursor:pointer;transition:all .22s var(--ease);text-align:center;-webkit-tap-highlight-color:transparent}
+.mob-pill:active{transform:scale(0.96)}
+.mob-pill.on{border-color:var(--pink);color:var(--pink);background:rgba(255,0,153,0.08)}
+.mob-add-detail{margin-bottom:16px}
+.mob-add-more{font-size:13px;color:var(--t3);cursor:pointer;padding:8px 0;list-style:none}
+.mob-add-more::-webkit-details-marker{display:none}
+.mob-add-fields{display:flex;flex-direction:column;gap:10px;padding-top:10px}
+.mob-add-notes{min-height:60px;resize:none}
+.mob-add-btn{width:100%;padding:16px;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;font-size:16px;font-weight:700;font-family:var(--f);border-radius:var(--r);cursor:pointer;box-shadow:0 4px 20px rgba(255,0,153,0.2);transition:all .25s var(--ease);-webkit-tap-highlight-color:transparent;letter-spacing:0.02em}
+.mob-add-btn:active{transform:scale(0.97);box-shadow:0 2px 10px rgba(255,0,153,0.15)}
+
+/* Recent tasks below add form */
+.mob-recent{margin-top:24px;padding-top:20px;border-top:1px solid var(--gborder)}
+.mob-recent-item{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid rgba(130,55,245,0.04);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mob-recent-item:active{opacity:0.7}
+.mob-recent-name{font-size:13px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Shared mobile task rows */
+.mob-task-list{display:flex;flex-direction:column;gap:6px}
+.mob-task-row{display:flex;align-items:center;gap:10px;padding:14px 12px;background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);cursor:pointer;transition:all .2s var(--ease);-webkit-tap-highlight-color:transparent}
+.mob-task-row.od{border-left:3px solid var(--red)}
+.mob-task-row:active{background:var(--ghover);transform:scale(0.99)}
+.mob-task-left{flex:1;display:flex;align-items:center;gap:10px;min-width:0}
+.mob-task-name{font-size:14px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mob-task-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.mob-done-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(130,55,245,0.04)}
+
+/* Mobile today metrics */
+.mob-mets{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px}
+.mob-met{background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:12px 8px;text-align:center}
+.mob-met-v{font-size:20px;font-weight:800;font-family:var(--fd);letter-spacing:-0.03em;line-height:1.2}
+.mob-met-l{font-size:9px;font-weight:600;color:var(--t4);text-transform:uppercase;letter-spacing:0.8px;margin-top:4px}
+
+/* Bottom nav Add tab emphasis */
+.btm-tab[data-v="mob-add"] .btm-ico{width:40px;height:40px;background:linear-gradient(135deg,var(--pink),var(--purple));border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:300;margin-top:-10px;box-shadow:0 2px 12px rgba(255,0,153,0.25)}
+.btm-tab[data-v="mob-add"] .btm-lbl{margin-top:2px}
+.btm-tab[data-v="mob-add"].on .btm-ico{box-shadow:0 4px 20px rgba(255,0,153,0.35)}
+
+/* Mobile section headers */
+.mob-section-h{font-size:14px;font-weight:700;color:var(--t2);margin:20px 0 10px;letter-spacing:-0.01em}
