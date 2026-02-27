@@ -128,7 +128,7 @@ function openDetail(id){
     if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
     if(task.campaign){var _cpdet=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpdet)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpdet.name)+'</span>'}
     if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
-    if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
+    if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(255,0,153,0.08);color:var(--purple50)">📅 '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
     if(isPinned)h+='<span class="bg" style="background:rgba(255,176,48,0.1);color:var(--amber)">📌 Pinned</span>';
     if(hasT){h+='<span class="ed-timer-badge"><span class="dot '+(running?'pulse':'pau')+'"></span><span class="'+(running?'go':'')+'" data-tmr="'+esc(id)+'">'+fmtT(elapsed)+'</span></span>'}
     h+='</div></div>';
@@ -402,7 +402,7 @@ function openLogMeetingModal(){
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="tf-modal-badges" style="margin-top:4px">';
   h+='<span class="bg" style="background:rgba(255,0,153,0.1);color:var(--pink)">📅 '+fmtDShort(e.start)+'</span>';
-  h+='<span class="bg" style="background:rgba(130,55,245,0.1);color:var(--purple50)">'+fmtTime(e.start)+' – '+fmtTime(e.end)+'</span>';
+  h+='<span class="bg" style="background:rgba(255,0,153,0.1);color:var(--purple50)">'+fmtTime(e.start)+' – '+fmtTime(e.end)+'</span>';
   h+='<span class="bg" style="background:rgba(77,166,255,0.1);color:var(--blue)">'+fmtM(dur)+' scheduled</span>';
   h+='</div>';
 
@@ -427,10 +427,10 @@ function openLogMeetingModal(){
   var mKey=mtgKey(e.title,e.start);
   var linkedTasks=S.tasks.filter(function(t){return t.meetingKey===mKey});
   if(linkedTasks.length){
-    h+='<div style="margin:12px 0 8px;padding:12px 14px;background:rgba(130,55,245,0.03);border:1px solid rgba(130,55,245,0.1);border-radius:var(--r)">';
+    h+='<div style="margin:12px 0 8px;padding:12px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,0,153,0.1);border-radius:var(--r)">';
     h+='<div style="font-size:11px;font-weight:700;color:var(--purple50);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">📋 Linked Tasks ('+linkedTasks.length+')</div>';
     linkedTasks.forEach(function(lt,i){
-      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;'+(i<linkedTasks.length-1?'border-bottom:1px solid rgba(130,55,245,0.05);':'')+';font-size:12.5px">';
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;'+(i<linkedTasks.length-1?'border-bottom:1px solid rgba(255,255,255,0.04);':'')+';font-size:12.5px">';
       h+='<input type="checkbox" id="lm-lt-'+i+'" data-task-id="'+escAttr(lt.id)+'" checked>';
       h+='<span class="bg '+impCls(lt.importance)+'" style="font-size:10px;padding:2px 7px">'+esc(lt.importance).charAt(0)+'</span>';
       h+='<span style="flex:1;color:var(--t1)">'+esc(lt.item)+'</span>';
@@ -1149,7 +1149,7 @@ function openCampaignDetail(id){
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
     h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">💳 Payments ('+st.payments.length+') <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
     if(st.payments.length){st.payments.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(p){
-      h+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(130,55,245,0.04);font-size:12px">';
+      h+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">';
       h+='<span>'+(p.date?fmtDShort(p.date):'')+'</span><span style="color:var(--green);font-weight:700">'+fmtUSD(p.amount)+'</span></div>'})}
     h+='<button class="btn" onclick="TF.openAddPayment(\''+escAttr(cp.id)+'\')" style="margin:6px 0 12px;font-size:12px;padding:10px 14px">+ Add Payment</button>';
     h+='</details>';
@@ -1270,7 +1270,7 @@ function openCampaignDetail(id){
   h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">'+CK_S+' Completed Tasks ('+st.doneCount+')</span>';
   if(st.totalTime)h+='<div style="font-size:12px;color:var(--green);font-weight:700;margin-bottom:8px">⏱ Total Time: '+fmtM(st.totalTime)+'</div>';
   if(st.doneTasks.length){st.doneTasks.slice(0,20).forEach(function(d){
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(130,55,245,0.04);font-size:12px">';
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">';
     h+='<span style="color:var(--green)">'+fmtM(d.duration)+'</span>';
     h+='<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.item)+'</span>';
     if(d.completed)h+='<span style="color:var(--t4);flex-shrink:0;font-size:11px">'+fmtDShort(d.completed)+'</span>';

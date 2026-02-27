@@ -55,7 +55,7 @@ function taskCard(t,td,idx){
   h+='<span class="tk-name">'+esc(t.item)+'</span>';
   if(dueTxt)h+='<span class="bg-du'+dueCls+'" style="flex-shrink:0">📅 '+dueTxt+'</span>';
   if(isFl)h+='<span class="bg bg-fl" style="flex-shrink:0">🚩</span>';
-  if(t.meetingKey)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50);flex-shrink:0;font-size:10px">📅</span>';
+  if(t.meetingKey)h+='<span class="bg" style="background:rgba(255,0,153,0.08);color:var(--purple50);flex-shrink:0;font-size:10px">📅</span>';
   h+='</div><div class="tk-right">';
   if(hasT){h+='<span class="tmr tmr-sm'+(running?' go':'')+'">';
     if(running)h+='<span class="dot pulse"></span>';else h+='<span class="dot pau"></span>';
@@ -81,7 +81,7 @@ function taskCard(t,td,idx){
   if(t.campaign){var _cp=S.campaigns.find(function(c){return c.id===t.campaign});if(_cp)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cp.name)+'</span>'}
   if(t.project){var _pj=S.projects.find(function(p){return p.id===t.project});if(_pj)h+='<span class="bg bg-proj" onclick="event.stopPropagation();TF.openProjectDetail(\''+escAttr(_pj.id)+'\')">📁 '+esc(_pj.name)+'</span>'}
   if(t.opportunity){var _op=S.opportunities.find(function(o){return o.id===t.opportunity});if(_op)h+='<span class="bg bg-opp" onclick="event.stopPropagation();TF.openOpportunityDetail(\''+escAttr(_op.id)+'\')">💎 '+esc(_op.name)+'</span>'}
-  if(t.meetingKey){var _me=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===t.meetingKey});if(_me)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 '+esc(_me.title)+' '+fmtTime(_me.start)+'</span>';else h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 Linked meeting</span>'}
+  if(t.meetingKey){var _me=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===t.meetingKey});if(_me)h+='<span class="bg" style="background:rgba(255,0,153,0.08);color:var(--purple50)">📅 '+esc(_me.title)+' '+fmtTime(_me.start)+'</span>';else h+='<span class="bg" style="background:rgba(255,0,153,0.08);color:var(--purple50)">📅 Linked meeting</span>'}
   if(t.category)h+='<span class="bg bg-ca">'+esc(t.category)+'</span>';
   if(t.est)h+='<span class="bg-es">⏱ '+fmtM(t.est)+'</span>';
   h+='</div>';
@@ -849,7 +849,7 @@ function rOverview(){
   var prepKeys=Object.keys(mtgPrepGroups).sort(function(a,b){
     return mtgPrepGroups[a].event.start.getTime()-mtgPrepGroups[b].event.start.getTime()});
   if(prepKeys.length){
-    h+='<div class="td-panel" style="border-color:rgba(130,55,245,0.15);margin-bottom:18px">';
+    h+='<div class="td-panel" style="border-color:rgba(255,0,153,0.15);margin-bottom:18px">';
     h+='<div class="td-panel-h"><span class="td-panel-t" style="color:var(--purple50)">📋 Meeting Prep</span>';
     var totalPrepTasks=0;prepKeys.forEach(function(k){totalPrepTasks+=mtgPrepGroups[k].tasks.length});
     h+='<span class="td-panel-c">'+totalPrepTasks+' task'+(totalPrepTasks>1?'s':'')+'</span></div>';
@@ -860,7 +860,7 @@ function rOverview(){
       var urgClr=isToday_?'var(--red)':'var(--amber)';
       var urgLabel=isToday_?'TODAY':'TOMORROW';
       var timeUntil=Math.round((me.start-now)/60000);
-      h+='<div style="padding:8px 0;'+(key!==prepKeys[prepKeys.length-1]?'border-bottom:1px solid rgba(130,55,245,0.05);':'')+'">';
+      h+='<div style="padding:8px 0;'+(key!==prepKeys[prepKeys.length-1]?'border-bottom:1px solid rgba(255,255,255,0.04);':'')+'">';
       h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
       h+='<span style="font-size:10px;font-weight:700;color:'+urgClr+';text-transform:uppercase;letter-spacing:0.5px">'+urgLabel+'</span>';
       h+='<span style="font-size:12.5px;font-weight:600;color:var(--t1)">'+esc(me.title)+'</span>';
@@ -1314,7 +1314,7 @@ function rMeetings(){
       if(matchedDone)h+='<span class="mtg-tag done">✓ Logged</span>';
       var mKey_=mtgKey(e.title,e.start);
       var linkedCount=S.tasks.filter(function(t){return t.meetingKey===mKey_}).length;
-      if(linkedCount)h+='<span class="mtg-tag" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📋 '+linkedCount+' task'+(linkedCount>1?'s':'')+'</span>';
+      if(linkedCount)h+='<span class="mtg-tag" style="background:rgba(255,0,153,0.08);color:var(--purple50)">📋 '+linkedCount+' task'+(linkedCount>1?'s':'')+'</span>';
       h+='</div></div></div>'});
     h+='</div>'}
 
@@ -1646,7 +1646,7 @@ function initAnalyticsCharts(){
   done.forEach(function(d){if(!d.completed)return;var hr=d.completed.getHours();if(hr>=6&&hr<=22){hD[hr].c++;hD[hr].m+=d.duration}});
   var mxH=0;Object.values(hD).forEach(function(v){if(v.c>mxH)mxH=v.c});
   var ph='';for(var h3=6;h3<=22;h3++){var int=mxH>0?hD[h3].c/mxH:0;
-    var bg=int>.6?'rgba(255,0,153,0.3)':int>.3?'rgba(121,40,202,0.2)':int>0?'rgba(121,40,202,0.08)':'rgba(28,20,80,0.35)';
+    var bg=int>.6?'rgba(255,0,153,0.3)':int>.3?'rgba(255,0,153,0.15)':int>0?'rgba(255,0,153,0.06)':'rgba(255,255,255,0.03)';
     ph+='<div class="heat" style="background:'+bg+'"><div style="font-weight:700;color:var(--t1);font-family:var(--fd);letter-spacing:0.02em">'+(h3<10?'0':'')+h3+':00</div><div style="color:var(--t3);font-size:9px">'+hD[h3].c+' tasks</div>'+(hD[h3].m?'<div style="color:var(--pink50);font-size:9px;font-weight:600">'+fmtM(hD[h3].m)+'</div>':'')+'</div>'}
   var peakEl=gel('ac-peak');if(peakEl)peakEl.innerHTML=ph;
 
@@ -2141,14 +2141,14 @@ function renderHeatmap(){
   for(var w=0;w<weeks+1;w++){h+='<div class="hm-week">';
     for(var d=0;d<7;d++){var k=cursor.toISOString().slice(0,10);var count=doneByDay[k]||0;
       var intensity=maxD>0?count/maxD:0;
-      var bg=count===0?'rgba(130,55,245,0.04)':intensity>.6?'rgba(255,0,153,0.45)':intensity>.3?'rgba(255,0,153,0.25)':'rgba(255,0,153,0.1)';
+      var bg=count===0?'rgba(255,255,255,0.04)':intensity>.6?'rgba(255,0,153,0.45)':intensity>.3?'rgba(255,0,153,0.25)':'rgba(255,0,153,0.1)';
       var title=cursor.getDate()+' '+MO[cursor.getMonth()]+': '+count+' task'+(count!==1?'s':'');
       h+='<div class="hm-cell" style="background:'+bg+'" title="'+title+'"></div>';
       cursor.setDate(cursor.getDate()+1)}
     h+='</div>'}
   h+='</div></div>';
   h+='<div class="hm-legend"><span style="color:var(--t4);font-size:10px">Less</span>';
-  ['rgba(130,55,245,0.04)','rgba(255,0,153,0.1)','rgba(255,0,153,0.25)','rgba(255,0,153,0.45)'].forEach(function(c){h+='<div class="hm-cell" style="background:'+c+';width:12px;height:12px"></div>'});
+  ['rgba(255,255,255,0.04)','rgba(255,0,153,0.1)','rgba(255,0,153,0.25)','rgba(255,0,153,0.45)'].forEach(function(c){h+='<div class="hm-cell" style="background:'+c+';width:12px;height:12px"></div>'});
   h+='<span style="color:var(--t4);font-size:10px">More</span></div>';
   el.innerHTML=h}
 
@@ -2343,8 +2343,8 @@ function initOpportunityCharts(){setTimeout(function(){
       charts['opp-stage-chart']=new Chart(el,{type:'bar',data:{labels:labels,datasets:[{data:vals,backgroundColor:cols,borderRadius:6,barThickness:24}]},
         options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},
           tooltip:{callbacks:{label:function(c){return fmtUSD(c.parsed.x)}}}},
-          scales:{x:{grid:{color:'rgba(130,55,245,0.06)'},ticks:{color:'#8a7ca8',font:{size:10},callback:function(v){return fmtUSD(v)}}},
-            y:{grid:{display:false},ticks:{color:'#c4b8dc',font:{size:10}}}}}})}}
+          scales:{x:{grid:{color:'rgba(255,255,255,0.06)'},ticks:{color:'#52525b',font:{size:10},callback:function(v){return fmtUSD(v)}}},
+            y:{grid:{display:false},ticks:{color:'#a1a1aa',font:{size:10}}}}}})}}
 
   /* Weighted pipeline donut */
   var weightedByStage={};
@@ -2359,7 +2359,7 @@ function initOpportunityCharts(){setTimeout(function(){
       var labels2=Object.keys(filteredWeighted),vals2=labels2.map(function(k){return filteredWeighted[k]});
       var cols2=labels2.map(function(_,i){return P[i%P.length]});
       charts['opp-weighted-chart']=new Chart(el2,{type:'doughnut',data:{labels:labels2,datasets:[{data:vals2,backgroundColor:cols2,borderWidth:0,hoverOffset:8}]},
-        options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:'#c4b8dc',font:{family:'DM Sans',size:11},padding:10,boxWidth:11}},
+        options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:'#a1a1aa',font:{family:'Inter',size:11},padding:10,boxWidth:11}},
           tooltip:{callbacks:{label:function(c){return c.label+': '+fmtUSD(c.parsed)}}}}}})}}
 },200)}
 
@@ -2711,7 +2711,7 @@ function initProjectCharts(){
       var cols=activeProjects.filter(function(p){return progData[p.name]!==undefined}).map(function(p){return p.color});
       charts['proj-progress-chart']=new Chart(el,{type:'bar',data:{labels:labels,datasets:[{data:vals,backgroundColor:cols.map(function(c){return c+'88'}),hoverBackgroundColor:cols,borderRadius:6,barThickness:22}]},
         options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.parsed.x+'% complete'}}}},
-          scales:{x:{max:100,grid:{color:'rgba(130,55,245,0.06)'},ticks:{color:'#8a7ca8',font:{size:10},callback:function(v){return v+'%'}}},y:{grid:{display:false},ticks:{color:'#c4b8dc',font:{size:10}}}}}})}}
+          scales:{x:{max:100,grid:{color:'rgba(255,255,255,0.06)'},ticks:{color:'#52525b',font:{size:10},callback:function(v){return v+'%'}}},y:{grid:{display:false},ticks:{color:'#a1a1aa',font:{size:10}}}}}})}}
   /* Time bar chart */
   var timeData={};
   activeProjects.forEach(function(p){var st=getProjectStats(p);if(st.totalTime>0)timeData[p.name]=st.totalTime});
