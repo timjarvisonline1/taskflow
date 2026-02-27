@@ -13,11 +13,24 @@ function render(){
   if(S.view==='completed'){S.view='tasks';S.taskMode='done'}
   switch(S.view){case'dashboard':html=rDashboard();break;case'schedule':html=rSchedule();break;case'overview':html=rOverview();break;case'tasks':html=rTasks();break;case'review':html=rReview();break;
     case'analytics':html=rAnalytics();break;case'meetings':html=rMeetings();break;case'weekly':html=rWeekly();break;case'templates':html=rTemplates();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'opportunities':html=rOpportunities();break;case'clients':html=rClients();break}
+  /* Prepend task tab bar for all task sub-views */
+  if(isTaskView(S.view))html=taskTabBar()+html;
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='dashboard')initDashboardCharts();
   if(S.view==='schedule')initScheduleCharts();
   if(S.view==='overview')initTodayCharts();
   if(S.view==='analytics')initAnalyticsCharts();if(S.view==='projects')initProjectCharts();if(S.view==='opportunities')initOpportunityCharts();if(S.view==='clients')initClientsCharts();renderSidebar()}
+
+/* ═══════════ TASK TAB BAR ═══════════ */
+function taskTabBar(){
+  var h='<div class="task-tabs">';
+  TASK_TABS.forEach(function(t){
+    var isOn=t.id===S.view;
+    var badge='';if(t.id==='review'&&S.review.length)badge='<span class="tt-badge">'+S.review.length+'</span>';
+    h+='<button class="tt'+(isOn?' tt-on':'')+'" onclick="TF.nav(\''+t.id+'\')">';
+    h+=t.icon+' '+t.label+badge+'</button>'});
+  h+='</div>';
+  return h}
 
 /* ═══════════ TASK CARD ═══════════ */
 function taskCard(t,td,idx){

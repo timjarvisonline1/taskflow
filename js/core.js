@@ -17,19 +17,23 @@ var CK_XS='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="c
 var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],timers:{},view:'overview',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,expandedSection:'tasks-section'};
+  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false};
+
+var TASK_TABS=[
+  {id:'schedule',icon:'📅',label:'Schedule',kbd:'1'},
+  {id:'overview',icon:'⚡',label:'Today',kbd:'2'},
+  {id:'tasks',icon:'📋',label:'Tasks',kbd:'3'},
+  {id:'review',icon:'📥',label:'Review',kbd:'4'},
+  {id:'analytics',icon:'📊',label:'Analytics',kbd:'5'},
+  {id:'meetings',icon:'🤝',label:'Meetings',kbd:'6'},
+  {id:'weekly',icon:'📅',label:'Weekly',kbd:'7'},
+  {id:'templates',icon:'📎',label:'Templates',kbd:'8'}
+];
+var TASK_TAB_IDS=TASK_TABS.map(function(t){return t.id});
 
 var SECTIONS=[
   {id:'dashboard',type:'single',icon:'📊',label:'Dashboard',kbd:''},
-  {id:'tasks-section',type:'group',icon:'📋',label:'Tasks',children:[
-    {id:'schedule',icon:'📅',label:'Schedule',kbd:'1'},
-    {id:'overview',icon:'⚡',label:'Today',kbd:'2'},
-    {id:'tasks',icon:'📋',label:'Tasks',kbd:'3'},
-    {id:'review',icon:'📥',label:'Review',kbd:'4'},
-    {id:'analytics',icon:'📊',label:'Analytics',kbd:'5'},
-    {id:'meetings',icon:'🤝',label:'Meetings',kbd:'6'},
-    {id:'weekly',icon:'📅',label:'Weekly',kbd:'7'},
-    {id:'templates',icon:'📎',label:'Templates',kbd:'8'}]},
+  {id:'schedule',type:'single',icon:'📋',label:'Tasks',kbd:''},
   {id:'opportunities',type:'single',icon:'💎',label:'F&C Opportunities',kbd:''},
   {id:'campaigns',type:'single',icon:'🎯',label:'F&C Campaigns',kbd:'9'},
   {id:'projects',type:'single',icon:'📁',label:'Projects',kbd:'0'},
@@ -39,15 +43,10 @@ var SECTIONS=[
   {id:'cash-flow',type:'soon',icon:'💰',label:'Cash Flow'}
 ];
 var VIEWS_FLAT=[];
-SECTIONS.forEach(function(sec){
-  if(sec.type==='single')VIEWS_FLAT.push(sec);
-  if(sec.type==='group'&&sec.children)sec.children.forEach(function(ch){VIEWS_FLAT.push(ch)});
-});
-function getSectionForView(viewId){
-  for(var i=0;i<SECTIONS.length;i++){var sec=SECTIONS[i];
-    if(sec.type==='single'&&sec.id===viewId)return null;
-    if(sec.type==='group'&&sec.children){for(var j=0;j<sec.children.length;j++){if(sec.children[j].id===viewId)return sec.id}}}
-  return null}
+SECTIONS.forEach(function(sec){if(sec.type==='single')VIEWS_FLAT.push(sec)});
+TASK_TABS.forEach(function(t){VIEWS_FLAT.push(t)});
+
+function isTaskView(viewId){return TASK_TAB_IDS.indexOf(viewId)!==-1}
 
 /* ═══════════ MOBILE ═══════════ */
 function isMobile(){return window.innerWidth<=860}
@@ -262,7 +261,7 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_pv',S.projView);localStorage.setItem('tf_opvw',S.opView);localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_es',S.expandedSection||'')}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_pv',S.projView);localStorage.setItem('tf_opvw',S.opView);localStorage.setItem('tf_opsc',S.opShowClosed?'1':'')}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
@@ -278,8 +277,7 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var cpsc=localStorage.getItem('tf_cpsc');if(cpsc)S.cpShowCompleted=true;
   var pv=localStorage.getItem('tf_pv');if(pv)S.projView=pv;
   var opv=localStorage.getItem('tf_opvw');if(opv)S.opView=opv;
-  var opsc=localStorage.getItem('tf_opsc');if(opsc)S.opShowClosed=true;
-  var es=localStorage.getItem('tf_es');if(es)S.expandedSection=es}catch(e){}}
+  var opsc=localStorage.getItem('tf_opsc');if(opsc)S.opShowClosed=true}catch(e){}}
 function toast(msg,type){var t=cel('div','toast toast-'+(type||'ok'),msg);gel('toasts').appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t)},3200)}
 
 /* ═══════════ DATA — Supabase queries ═══════════ */
@@ -685,46 +683,29 @@ function applyFilters(items,useDate){var f=S.filters;return items.filter(functio
 /* ═══════════ NAV ═══════════ */
 function nav(id){
   if(isMobile()){var mobIds=['mob-add','overview','tasks','review'];if(mobIds.indexOf(id)===-1)id='mob-add'}
-  S.view=id;
-  var parentSection=getSectionForView(id);
-  if(parentSection)S.expandedSection=parentSection;
-  save();
-  document.querySelectorAll('.s-item').forEach(function(n){n.classList.toggle('on',n.dataset.v===id)});render();closeMenu()}
-function toggleSection(sectionId){
-  if(S.expandedSection===sectionId)S.expandedSection='';else S.expandedSection=sectionId;
-  save();buildNav()}
+  S.view=id;save();
+  document.querySelectorAll('.s-item').forEach(function(n){
+    var dv=n.dataset.v;
+    /* 'schedule' sidebar item is active for any task tab view */
+    if(dv==='schedule')n.classList.toggle('on',isTaskView(id));
+    else n.classList.toggle('on',dv===id)});
+  render();closeMenu()}
 function buildNav(){var h='';
   SECTIONS.forEach(function(sec){
     if(sec.type==='soon'){
       h+='<div class="s-item s-item-soon"><span class="ico">'+sec.icon+'</span>'+sec.label+'<span class="s-right"><span class="s-soon-badge">Soon</span></span></div>';
       return}
     if(sec.type==='single'){
-      var badge='';if(sec.id==='review'&&S.review.length)badge='<span class="nav-badge">'+S.review.length+'</span>';
-      var isOn=sec.id===S.view;
+      var badge='';
+      /* Show review badge on Tasks sidebar item */
+      if(sec.id==='schedule'&&S.review.length)badge='<span class="nav-badge">'+S.review.length+'</span>';
+      var isOn=(sec.id==='schedule')?isTaskView(S.view):sec.id===S.view;
       h+='<div class="s-item'+(isOn?' on':'')+'" data-v="'+sec.id+'" onclick="TF.nav(\''+sec.id+'\')">';
       h+='<span class="ico">'+sec.icon+'</span>'+sec.label;
       h+='<span class="s-right">'+badge;
       if(sec.kbd)h+='<span class="kbd">'+sec.kbd+'</span>';
       h+='</span></div>';
       return}
-    if(sec.type==='group'){
-      var isExp=S.expandedSection===sec.id;
-      var hasActive=sec.children.some(function(ch){return ch.id===S.view});
-      var reviewBadge='';
-      sec.children.forEach(function(ch){if(ch.id==='review'&&S.review.length)reviewBadge='<span class="nav-badge">'+S.review.length+'</span>'});
-      h+='<div class="s-section-head'+(isExp?' expanded':'')+(hasActive?' has-active':'')+'" onclick="TF.toggleSection(\''+sec.id+'\')">';
-      h+='<span class="ico">'+sec.icon+'</span>'+sec.label;
-      h+='<span class="s-right">'+reviewBadge+'<span class="s-chevron">'+(isExp?'▾':'▸')+'</span></span></div>';
-      h+='<div class="s-section-children'+(isExp?' open':'')+'">';
-      sec.children.forEach(function(ch){
-        var childBadge='';if(ch.id==='review'&&S.review.length)childBadge='<span class="nav-badge">'+S.review.length+'</span>';
-        var childOn=ch.id===S.view;
-        h+='<div class="s-item s-item-child'+(childOn?' on':'')+'" data-v="'+ch.id+'" onclick="TF.nav(\''+ch.id+'\')">';
-        h+='<span class="ico">'+ch.icon+'</span>'+ch.label;
-        h+='<span class="s-right">'+childBadge;
-        if(ch.kbd)h+='<span class="kbd">'+ch.kbd+'</span>';
-        h+='</span></div>'});
-      h+='</div>'}
   });
   gel('s-nav').innerHTML=h;
   /* Position the active indicator */

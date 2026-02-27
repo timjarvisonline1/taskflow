@@ -46,8 +46,6 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
   convertOpportunity:convertOpportunity,closeAsLost:closeAsLost,
   setOpView:function(v){S.opView=v;save();render()},
   toggleOpShowClosed:function(){S.opShowClosed=!S.opShowClosed;save();render()},
-  /* Navigation */
-  toggleSection:toggleSection,
   signOut:signOut,
   toast:toast,
   /* Mobile */
