@@ -83,6 +83,12 @@ function schedPanelDrop(e,dk){e.preventDefault();e.stopPropagation();
 function resetSchedule(dk){delete S.schedOrder[dk];save();toast('Schedule reset to auto','info');render()}
 function resetAllSchedules(){S.schedOrder={};save();toast('All schedules reset to auto','info');render()}
 
+/* ═══════════ FEATURE: CAMPAIGN STATUS TOGGLE ═══════════ */
+function toggleCpStatus(status){
+  if(status==='paused')S.cpShowPaused=!S.cpShowPaused;
+  if(status==='completed')S.cpShowCompleted=!S.cpShowCompleted;
+  save();render()}
+
 /* ═══════════ FEATURE: PIN / STAR ═══════════ */
 function togglePin(id){if(S.pins[id])delete S.pins[id];else S.pins[id]=true;save();render();
   var modal=gel('detail-modal');if(modal&&modal.classList.contains('on'))openDetail(id)}
@@ -302,7 +308,7 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
   completeMeetingEnd:completeMeetingEnd,dismissMeetingEnd:dismissMeetingEnd,
   openLogMeetingModal:openLogMeetingModal,logMeeting:logMeeting,refreshLogMtgEC:refreshLogMtgEC,refreshLogMtgCp:refreshLogMtgCp,
   /* New features */
-  togglePin:togglePin,addLog:addLog,
+  togglePin:togglePin,addLog:addLog,toggleCpStatus:toggleCpStatus,
   openFocus:openFocus,pauseFocus:pauseFocus,resumeFocus:resumeFocus,doneFocus:doneFocus,closeFocus:closeFocus,setFocusDur:setFocusDur,
   openCmdPalette:openCmdPalette,closeCmdPalette:closeCmdPalette,cmdSearch:cmdSearch,
   openSummary:openDailySummary,openClientReport:openClientReport,genClientReport:genClientReport,

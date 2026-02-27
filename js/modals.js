@@ -1,5 +1,7 @@
 
 /* ═══════════ DETAIL MODAL ═══════════ */
+function fmtLogTs(ts){if(!ts)return'';var d=new Date(ts);return MO[d.getMonth()]+' '+d.getDate()+', '+(d.getHours()%12||12)+':'+String(d.getMinutes()).padStart(2,'0')+' '+(d.getHours()<12?'AM':'PM')}
+
 function openDetail(id){
   var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
   var td=today(),ts=tmrGet(id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
@@ -10,7 +12,9 @@ function openDetail(id){
   var typeOpts=TYPES.map(function(t){return'<option'+(t===task.type?' selected':'')+'>'+t+'</option>'}).join('');
   var isPinned=!!S.pins[id];
 
-  var h='<div class="tf-modal-top">';
+  /* ── Full-screen header ── */
+  var h='<div class="detail-full-header">';
+  h+='<div class="tf-modal-top">';
   h+='<input type="text" class="edf edf-name" id="d-item" value="'+esc(task.item)+'">';
   h+='<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">';
   h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="font-size:11px;padding:5px 12px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">📌 '+(isPinned?'Unpin':'Pin')+'</button>';
@@ -28,15 +32,21 @@ function openDetail(id){
   if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
   if(isPinned)h+='<span class="bg" style="background:rgba(255,176,48,0.1);color:var(--amber)">📌 Pinned</span>';
   if(hasT){h+='<span class="ed-timer-badge"><span class="dot '+(running?'pulse':'pau')+'"></span><span class="'+(running?'go':'')+'" data-tmr="'+esc(id)+'">'+fmtT(elapsed)+'</span></span>'}
-  h+='</div>';
+  h+='</div></div>';
 
-  /* ── Scheduling ── */
+  /* ── Split pane ── */
+  h+='<div class="detail-split">';
+
+  /* LEFT: Fields + Actions */
+  h+='<div class="detail-split-left">';
+
+  /* Scheduling */
   h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Due Date</span><input type="datetime-local" class="edf" id="d-due" value="'+(task.due?fmtISO(task.due):'')+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="d-cat">'+catOpts+'</select></div>';
   h+='</div>';
-  /* ── Details ── */
+  /* Details */
   h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="d-est" value="'+(task.est||'')+'" min="0" placeholder="30"></div>';
@@ -46,18 +56,14 @@ function openDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
   h+='</div>';
 
-  /* ── Options (single row) ── */
+  /* Options (single row) */
   h+='<div class="flag-row ed-flags-inline">';
   h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
   h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
   h+='<div id="d-already-dur-wrap" style="display:none;align-items:center;gap:8px;margin-left:auto"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-already-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(task.est||30)+'" min="0"></div>';
   h+='</div>';
 
-  /* ── Notes ── */
-  h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
-  h+='<textarea class="edf edf-notes" id="d-notes" placeholder="Add notes...">'+esc(task.notes)+'</textarea></div>';
-
-  /* ── Actions: primary left, secondary right ── */
+  /* Actions */
   h+='<div class="ed-actions">';
   h+='<button class="btn btn-p" onclick="TF.saveDetail()">💾 Save</button>';
   if(running){
@@ -70,11 +76,39 @@ function openDetail(id){
   h+='<span class="spacer"></span>';
   h+='<button class="btn btn-d" onclick="TF.confirmDelete()">🗑️</button>';
   h+='</div><div id="del-zone"></div>';
+  h+='</div>';/* end detail-split-left */
+
+  /* RIGHT: Notes + Activity Log */
+  h+='<div class="detail-split-right">';
+
+  /* Notes (large) */
+  h+='<div class="detail-notes-large"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">📝 Notes</span>';
+  h+='<textarea class="edf edf-notes" id="d-notes" placeholder="Add notes about your progress, where you left off, what to do next...">'+esc(task.notes)+'</textarea></div>';
+
+  /* Activity Log */
+  var logs=S.actLogs[id]||[];
+  h+='<div class="detail-activity">';
+  h+='<span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">📋 Activity Log</span>';
+  h+='<div class="act-log-input"><input type="text" class="edf" id="d-log-input" placeholder="Add a log entry..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.addLog(\''+eid+'\')}">';
+  h+='<button class="act-log-add" onclick="TF.addLog(\''+eid+'\')">+</button></div>';
+  if(logs.length){
+    h+='<div class="act-log-list">';
+    var rlogs=logs.slice().reverse();
+    rlogs.forEach(function(entry){
+      h+='<div class="act-log-entry"><span class="act-log-time">'+fmtLogTs(entry.ts)+'</span><span class="act-log-text">'+esc(entry.text)+'</span></div>'});
+    h+='</div>';
+  }else{
+    h+='<div style="text-align:center;padding:20px;color:var(--t4);font-size:12px">No activity log entries yet</div>';
+  }
+  h+='</div>';
+
+  h+='</div>';/* end detail-split-right */
+  h+='</div>';/* end detail-split */
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on')}
+  gel('detail-modal').classList.add('on','full-detail')}
 
-function closeModal(){gel('detail-modal').classList.remove('on');var m=gel('modal');if(m)m.classList.remove('on')}
+function closeModal(){var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail');var m=gel('modal');if(m)m.classList.remove('on')}
 
 async function saveDetail(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
@@ -909,7 +943,9 @@ function openCampaignDetail(id){
   var STATUSES=['Setup','Active','Paused','Completed','Archived'];
   var TERMS=['1 month','2 months','3 months','4 months','5 months','6 months','7 months','8 months','9 months','10 months','11 months','12 months','18 months','24 months','Ongoing'];
 
-  var h='<div class="tf-modal-top">';
+  /* ── Full-screen header ── */
+  var h='<div class="detail-full-header">';
+  h+='<div class="tf-modal-top">';
   h+='<input type="text" class="edf edf-name" id="cp-name" value="'+esc(cp.name)+'">';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<input type="hidden" id="cp-id" value="'+esc(cp.id)+'">';
@@ -919,7 +955,17 @@ function openCampaignDetail(id){
   if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
   h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
   if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
-  h+='</div>';
+  var oneOff=cp.strategyFee+cp.setupFee;var monthly=cp.monthlyFee+cp.monthlyAdSpend;
+  h+='<span class="ed-timer-badge" style="color:var(--green)">💰 Paid: '+fmtUSD(st.totalPaid)+'</span>';
+  h+='<span class="ed-timer-badge" style="color:var(--amber)">📋 '+st.openCount+' open · '+st.doneCount+' done</span>';
+  if(st.totalTime)h+='<span class="ed-timer-badge" style="color:var(--pink)">⏱ '+fmtM(st.totalTime)+'</span>';
+  h+='</div></div>';
+
+  /* ── Split pane ── */
+  h+='<div class="detail-split">';
+
+  /* LEFT: Edit fields + Fees + Links + Actions */
+  h+='<div class="detail-split-left">';
 
   /* Edit grid */
   h+='<div class="ed-grid">';
@@ -939,19 +985,18 @@ function openCampaignDetail(id){
   h+='</div>';
 
   /* Fees */
-  h+='<div class="cp-detail-section"><h3>💰 Fees</h3>';
+  h+='<div style="margin-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">💰 Fees</span>';
   h+='<div class="cp-fees-grid">';
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Strategy Fee</div><input type="number" class="edf" id="cp-strategyFee" value="'+(cp.strategyFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Set-Up Fee</div><input type="number" class="edf" id="cp-setupFee" value="'+(cp.setupFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Fee</div><input type="number" class="edf" id="cp-monthlyFee" value="'+(cp.monthlyFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Ad Spend</div><input type="number" class="edf" id="cp-monthlyAdSpend" value="'+(cp.monthlyAdSpend||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
   h+='</div>';
-  var oneOff=cp.strategyFee+cp.setupFee;var monthly=cp.monthlyFee+cp.monthlyAdSpend;
   h+='<div class="cp-fee-total"><div class="cp-fee-total-label">One-off: '+fmtUSD(oneOff)+' · Monthly: '+fmtUSD(monthly)+'</div><div class="cp-fee-total-value">Total Paid: '+fmtUSD(st.totalPaid)+'</div></div>';
   h+='</div>';
 
   /* Links */
-  h+='<div class="cp-detail-section"><h3>🔗 Links</h3><div class="cp-links-grid">';
+  h+='<div style="margin-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">🔗 Links</span><div class="cp-links-grid">';
   var links=[['Proposal','cp-proposalLink',cp.proposalLink],['Monthly Reports','cp-reportsLink',cp.reportsLink],['Video Assets','cp-videoAssetsLink',cp.videoAssetsLink],['Transcripts','cp-transcriptsLink',cp.transcriptsLink],['Contract','cp-contractLink',cp.contractLink],['Awareness LP','cp-awarenessLP',cp.awarenessLP],['Consideration LP','cp-considerationLP',cp.considerationLP],['Decision LP','cp-decisionLP',cp.decisionLP]];
   links.forEach(function(l){
     h+='<div class="cp-link-item"><span class="cp-link-label">'+l[0]+'</span>';
@@ -960,54 +1005,61 @@ function openCampaignDetail(id){
     h+='</div>'});
   h+='</div></div>';
 
-  /* Payments */
-  h+='<div class="cp-detail-section"><h3>💳 Payments ('+st.payments.length+')</h3>';
-  if(st.payments.length){
-    h+='<div class="tb-wrap"><table class="tb"><thead><tr><th>Date</th><th class="r">Amount</th><th>Type</th><th>Notes</th></tr></thead><tbody>';
-    st.payments.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(p){
-      h+='<tr><td>'+(p.date?fmtDShort(p.date):'')+'</td><td class="nm" style="color:var(--green)">'+fmtUSD(p.amount)+'</td><td>'+esc(p.type)+'</td><td style="color:var(--t3)">'+esc(p.notes)+'</td></tr>'});
-    h+='<tr style="font-weight:700"><td>Total</td><td class="nm" style="color:var(--green)">'+fmtUSD(st.totalPaid)+'</td><td></td><td></td></tr>';
-    h+='</tbody></table></div>'}
-  h+='<button class="btn" onclick="TF.openAddPayment(\''+escAttr(cp.id)+'\')" style="margin-top:8px;font-size:11px;padding:5px 12px">+ Add Payment</button></div>';
-
-  /* Campaign Meetings */
-  h+='<div class="cp-detail-section"><h3>🤝 Campaign Meetings ('+st.meetings.length+')</h3>';
-  if(st.meetings.length){
-    h+='<div class="tb-wrap"><table class="tb"><thead><tr><th>Date</th><th>Title</th><th>Recording</th><th>Notes</th></tr></thead><tbody>';
-    st.meetings.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(m){
-      h+='<tr><td>'+(m.date?fmtDShort(m.date):'')+'</td><td>'+esc(m.title)+'</td><td>'+(m.recordingLink?'<a href="'+esc(m.recordingLink)+'" target="_blank" onclick="event.stopPropagation()">Watch ↗</a>':'')+'</td><td style="color:var(--t3)">'+esc(m.notes)+'</td></tr>'});
-    h+='</tbody></table></div>'}
-  h+='<button class="btn" onclick="TF.openAddCampaignMeeting(\''+escAttr(cp.id)+'\')" style="margin-top:8px;font-size:11px;padding:5px 12px">+ Add Meeting</button></div>';
-
-  /* Linked Open Tasks */
-  h+='<div class="cp-detail-section"><h3>📋 Open Tasks ('+st.openCount+')</h3>';
-  if(st.openTasks.length){st.openTasks.forEach(function(t){h+=miniRow(t,td_)})}
-  h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal();setTimeout(function(){var cs=gel(\'f-cli\');if(cs)cs.value=\''+escAttr(cp.partner)+'\';TF.refreshAddCampaigns();var cc=gel(\'f-campaign\');if(cc)cc.value=\''+escAttr(cp.id)+'\';TF.fillFromCampaign()},200)" style="margin-top:8px;font-size:11px;padding:5px 12px">+ Add Task to Campaign</button></div>';
-
-  /* Linked Done Tasks */
-  h+='<div class="cp-detail-section"><h3>✅ Completed Tasks ('+st.doneCount+')</h3>';
-  if(st.totalTime)h+='<div style="font-size:13px;color:var(--green);font-weight:700;margin-bottom:8px">⏱ Total Time: '+fmtM(st.totalTime)+'</div>';
-  if(st.doneTasks.length){st.doneTasks.slice(0,20).forEach(function(d){
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gborder);font-size:12px">';
-    h+='<span style="color:var(--green)">'+fmtM(d.duration)+'</span>';
-    h+='<span>'+esc(d.item)+'</span>';
-    if(d.completed)h+='<span style="color:var(--t4);margin-left:auto">'+fmtDShort(d.completed)+'</span>';
-    h+='</div>'})}
-  h+='</div>';
-
-  /* Notes */
-  h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
-  h+='<textarea class="edf edf-notes" id="cp-notes" placeholder="Campaign notes...">'+esc(cp.notes||'')+'</textarea></div>';
-
   /* Actions */
   h+='<div class="ed-actions">';
   h+='<button class="btn btn-p" onclick="TF.saveCampaign()" style="padding:10px 22px">💾 Save Campaign</button>';
   h+='<span class="spacer"></span>';
   h+='<button class="btn btn-d" onclick="TF.confirmDeleteCampaign()" style="padding:10px 16px">🗑️ Delete</button>';
   h+='</div><div id="del-zone"></div>';
+  h+='</div>';/* end detail-split-left */
+
+  /* RIGHT: Payments, Meetings, Tasks, Notes */
+  h+='<div class="detail-split-right">';
+
+  /* Payments */
+  h+='<div><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">💳 Payments ('+st.payments.length+')</span>';
+  if(st.payments.length){
+    h+='<div class="tb-wrap"><table class="tb"><thead><tr><th>Date</th><th class="r">Amount</th><th>Type</th><th>Notes</th></tr></thead><tbody>';
+    st.payments.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(p){
+      h+='<tr><td>'+(p.date?fmtDShort(p.date):'')+'</td><td class="nm" style="color:var(--green)">'+fmtUSD(p.amount)+'</td><td>'+esc(p.type)+'</td><td style="color:var(--t3)">'+esc(p.notes)+'</td></tr>'});
+    h+='<tr style="font-weight:700"><td>Total</td><td class="nm" style="color:var(--green)">'+fmtUSD(st.totalPaid)+'</td><td></td><td></td></tr>';
+    h+='</tbody></table></div>'}
+  h+='<button class="btn" onclick="TF.openAddPayment(\''+escAttr(cp.id)+'\')" style="margin-top:6px;font-size:11px;padding:5px 12px">+ Add Payment</button></div>';
+
+  /* Campaign Meetings */
+  h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">🤝 Campaign Meetings ('+st.meetings.length+')</span>';
+  if(st.meetings.length){
+    h+='<div class="tb-wrap"><table class="tb"><thead><tr><th>Date</th><th>Title</th><th>Recording</th><th>Notes</th></tr></thead><tbody>';
+    st.meetings.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(m){
+      h+='<tr><td>'+(m.date?fmtDShort(m.date):'')+'</td><td>'+esc(m.title)+'</td><td>'+(m.recordingLink?'<a href="'+esc(m.recordingLink)+'" target="_blank" onclick="event.stopPropagation()">Watch ↗</a>':'')+'</td><td style="color:var(--t3)">'+esc(m.notes)+'</td></tr>'});
+    h+='</tbody></table></div>'}
+  h+='<button class="btn" onclick="TF.openAddCampaignMeeting(\''+escAttr(cp.id)+'\')" style="margin-top:6px;font-size:11px;padding:5px 12px">+ Add Meeting</button></div>';
+
+  /* Open Tasks */
+  h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">📋 Open Tasks ('+st.openCount+')</span>';
+  if(st.openTasks.length){st.openTasks.forEach(function(t){h+=miniRow(t,td_)})}
+  h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal();setTimeout(function(){var cs=gel(\'f-cli\');if(cs)cs.value=\''+escAttr(cp.partner)+'\';TF.refreshAddCampaigns();var cc=gel(\'f-campaign\');if(cc)cc.value=\''+escAttr(cp.id)+'\';TF.fillFromCampaign()},200)" style="margin-top:6px;font-size:11px;padding:5px 12px">+ Add Task to Campaign</button></div>';
+
+  /* Completed Tasks */
+  h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">'+CK_S+' Completed Tasks ('+st.doneCount+')</span>';
+  if(st.totalTime)h+='<div style="font-size:12px;color:var(--green);font-weight:700;margin-bottom:8px">⏱ Total Time: '+fmtM(st.totalTime)+'</div>';
+  if(st.doneTasks.length){st.doneTasks.slice(0,20).forEach(function(d){
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(130,55,245,0.04);font-size:12px">';
+    h+='<span style="color:var(--green)">'+fmtM(d.duration)+'</span>';
+    h+='<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(d.item)+'</span>';
+    if(d.completed)h+='<span style="color:var(--t4);flex-shrink:0;font-size:11px">'+fmtDShort(d.completed)+'</span>';
+    h+='</div>'})}
+  h+='</div>';
+
+  /* Notes */
+  h+='<div class="detail-notes-large" style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">📝 Notes</span>';
+  h+='<textarea class="edf edf-notes" id="cp-notes" placeholder="Campaign notes, strategy details...">'+esc(cp.notes||'')+'</textarea></div>';
+
+  h+='</div>';/* end detail-split-right */
+  h+='</div>';/* end detail-split */
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on')}
+  gel('detail-modal').classList.add('on','full-detail')}
 
 async function saveCampaign(){
   var id=gel('cp-id').value;var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;

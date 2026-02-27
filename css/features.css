@@ -39,14 +39,15 @@
 /* ── TODAY DASHBOARD ── */
 .td-metrics{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
 .td-met{flex:1;min-width:100px;background:var(--glass);border:1px solid var(--gborder);border-radius:var(--rs);padding:14px 16px;text-align:center;transition:all .25s var(--ease)}
-.td-met:hover{border-color:rgba(130,55,245,0.15);box-shadow:0 0 16px rgba(130,55,245,0.04)}
+.td-met:hover{border-color:rgba(130,55,245,0.15);box-shadow:0 0 16px rgba(130,55,245,0.04),0 0 30px rgba(255,0,153,0.03)}
 .td-met-v{font-family:var(--fd);font-size:22px;font-weight:800;line-height:1.2;letter-spacing:-0.02em}
 .td-met-l{font-size:10px;color:var(--t4);margin-top:3px;letter-spacing:0.04em;text-transform:uppercase;font-weight:600}
 .td-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-bottom:18px}
 @media(max-width:768px){.td-row{grid-template-columns:1fr}}
 .td-alerts-single{margin-bottom:18px}
 .td-col{display:flex;flex-direction:column;gap:14px}
-.td-panel{background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px 20px;transition:border-color .3s var(--ease)}
+.td-panel{background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px 20px;transition:border-color .3s var(--ease);animation:panelIn .4s var(--ease-out) backwards}
+@keyframes panelIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .td-panel:hover{border-color:rgba(130,55,245,0.12)}
 .td-panel-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .td-panel-t{font-family:var(--fd);font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:-0.01em}
@@ -459,6 +460,29 @@
 @media(max-width:700px){
   .cp-pipeline{grid-template-columns:1fr}
 }
+
+/* ── Campaign Dashboard ── */
+.cp-dash{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.cp-dash-met{background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:16px 14px;text-align:center;transition:all .3s var(--ease);cursor:default;position:relative;overflow:hidden;animation:panelIn .4s var(--ease-out) backwards}
+.cp-dash-met::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--amber),transparent);opacity:0;transition:opacity .3s}
+.cp-dash-met:hover{border-color:rgba(255,153,0,0.2);transform:translateY(-3px);box-shadow:0 4px 20px rgba(0,0,0,0.15),0 0 30px rgba(255,153,0,0.06)}.cp-dash-met:hover::after{opacity:1}
+.cp-dash-met-v{font-family:var(--fd);font-size:22px;font-weight:800;letter-spacing:-0.02em;line-height:1.3}
+.cp-dash-met-l{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--t3);margin-top:4px;font-weight:600}
+
+/* ── Compact Campaign Cards ── */
+.cp-card-compact{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);cursor:pointer;transition:all .25s var(--ease);margin-bottom:6px;animation:cardIn .3s var(--ease-out) backwards}
+.cp-card-compact:hover{border-color:rgba(255,153,0,0.3);background:var(--ghover);box-shadow:0 2px 12px rgba(0,0,0,0.12),0 0 20px rgba(255,153,0,0.04)}
+.cp-card-compact:last-child{margin-bottom:0}
+.cp-card-compact-name{font-weight:700;font-size:13px;color:var(--t1);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0.01em}
+.cp-card-compact-meta{display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:nowrap}
+.cp-card-compact-stat{font-family:var(--fd);font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:0.02em}
+
+/* ── Campaign Status Filter Toggles ── */
+.cp-status-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.cp-status-toggle{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--gborder);background:var(--bg3);color:var(--t3);cursor:pointer;transition:all .22s var(--ease);user-select:none;letter-spacing:0.02em}
+.cp-status-toggle:hover{border-color:rgba(255,153,0,0.2);color:var(--t1)}
+.cp-status-toggle.active{border-color:rgba(255,153,0,0.35);color:var(--amber);background:rgba(255,153,0,0.08)}
+.cp-status-toggle.always{border-color:rgba(255,153,0,0.2);color:var(--amber);background:rgba(255,153,0,0.06);cursor:default}
 /* ── WEEKLY REVIEW REDESIGN ── */
 .wkr-duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
 .wkr-panel{background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px 20px;display:flex;flex-direction:column}

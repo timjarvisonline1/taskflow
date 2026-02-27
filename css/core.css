@@ -44,7 +44,9 @@ body{background:var(--bg);color:var(--t1);font-family:var(--f);font-size:14px;li
 .s-item{display:flex;align-items:center;gap:11px;padding:11px 20px;color:var(--t3);font-size:13.5px;font-weight:500;cursor:pointer;border-left:3px solid transparent;transition:all .2s var(--ease);user-select:none;letter-spacing:0.01em}
 .s-item .s-right{margin-left:auto;display:flex;align-items:center;gap:6px}
 .s-item:hover{color:var(--t1);background:rgba(130,55,245,0.05)}
-.s-item.on{color:var(--pink);border-left-color:var(--pink);background:rgba(255,0,153,0.04);font-weight:600}
+.s-item.on{color:var(--pink);border-left-color:transparent;background:rgba(255,0,153,0.04);font-weight:600}
+.s-nav{position:relative}
+.s-nav-indicator{position:absolute;left:0;width:3px;background:linear-gradient(180deg,var(--pink),var(--purple));border-radius:0 3px 3px 0;transition:top .3s var(--ease-out),height .3s var(--ease-out);z-index:1}
 .s-item .ico{width:22px;text-align:center;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
 
 /* ── SIDEBAR ACTIVE TIMERS ── */
@@ -82,7 +84,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--f);font-size:14px;li
 }
 .main{flex:1;margin-left:232px;padding:30px 36px;min-height:100vh;position:relative}
 .vw{display:none;animation:vwIn .45s var(--ease-out)}.vw.on{display:block}
-@keyframes vwIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes vwIn{from{opacity:0;transform:translateY(14px) scale(0.998)}to{opacity:1;transform:none}}
 
 /* ── TOASTS ── */
 .toast-wrap{position:fixed;top:20px;right:20px;z-index:600;display:flex;flex-direction:column;gap:10px}

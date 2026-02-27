@@ -11,7 +11,7 @@ function render(){
   if(S.view==='analytics')initAnalyticsCharts();renderSidebar()}
 
 /* ═══════════ TASK CARD ═══════════ */
-function taskCard(t,td){
+function taskCard(t,td,idx){
   var ts=tmrGet(t.id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
   var elapsed=tmrElapsed(t.id),isOd=t.due&&t.due<td,isFl=t.flag||t.status==='Need Client Input';
   var isPinned=!!S.pins[t.id];
@@ -20,8 +20,9 @@ function taskCard(t,td){
   var dueTxt=t.due?dueLabel(t.due,td):'';
   var dueCls=t.due?(isOd?' od':(dayDiff(td,t.due)===0?' td':'')):'';
   var clickAction=S.bulkMode?'TF.toggleSel(\''+eid+'\')':'TF.openDetail(\''+eid+'\')';
+  var delay=typeof idx==='number'?Math.min(idx*0.03,0.45):0;
 
-  var h='<div class="'+cls+'" data-task-id="'+esc(t.id)+'" onclick="'+clickAction+'">';
+  var h='<div class="'+cls+'" data-task-id="'+esc(t.id)+'" onclick="'+clickAction+'"'+(delay?' style="animation-delay:'+delay+'s"':'')+'>';
 
   /* LIST compact row */
   h+='<div class="tk-compact">';
@@ -744,7 +745,7 @@ function rTasks(){
         h+='<div class="reorder-row" data-task-id="'+esc(t.id)+'" draggable="true" ondragstart="TF.dragStart(event,\''+eid+'\')" ondragover="TF.dragOver(event)" ondrop="TF.dragDrop(event,\''+eid+'\')">';
         h+='<span class="reorder-handle" title="Drag to reorder">⠿</span>';
         h+='<span class="reorder-num">'+(idx+1)+'</span>';
-        h+=taskCard(t,td);
+        h+=taskCard(t,td,idx);
         h+='</div>'});
       h+='</div>';
     } else {
@@ -753,7 +754,7 @@ function rTasks(){
         h+='<div class="sec"><div class="sec-h" onclick="TF.toggle(\''+s.key+'\')"><span class="sec-t" style="color:'+s.color+'">'+s.label+'</span>';
         h+='<span class="sec-c">'+s.items.length+'</span><span class="sec-toggle">'+(coll?'▸':'▾')+'</span></div>';
         h+='<div class="sec-body'+(coll?' collapsed':'')+'"><div class="tk-'+S.layout+'">';
-        s.items.forEach(function(t){h+=taskCard(t,td)});h+='</div></div></div>'});
+        s.items.forEach(function(t,i){h+=taskCard(t,td,i)});h+='</div></div></div>'});
     }
     if(!filtered.length)h+='<div class="no-data">No tasks match your filters</div>';
   }
@@ -852,7 +853,7 @@ function rTasks(){
       h+='<span class="sec-c">'+openFiltered.length+'</span><span class="sec-toggle">'+(coll?'▸':'▾')+'</span></div>';
       h+='<div class="sec-body'+(coll?' collapsed':'')+'"><div class="tk-'+S.layout+'">';
       var sortedOpen=openFiltered.slice().sort(function(a,b){return(b._score||0)-(a._score||0)});
-      sortedOpen.forEach(function(t){h+=taskCard(t,td)});
+      sortedOpen.forEach(function(t,i){h+=taskCard(t,td,i)});
       h+='</div></div></div>';
     }
     /* Completed tasks section */
@@ -1895,57 +1896,83 @@ function rCampaigns(){
   var td_=today();
   var campaigns=S.campaigns.slice();
 
-  /* Header stats */
+  /* Counts & metrics */
   var activeCount=campaigns.filter(function(c){return c.status==='Active'}).length;
   var setupCount=campaigns.filter(function(c){return c.status==='Setup'}).length;
   var pausedCount=campaigns.filter(function(c){return c.status==='Paused'}).length;
-  var totalVal=S.payments.reduce(function(s,p){return s+p.amount},0);
+  var completedCount=campaigns.filter(function(c){return c.status==='Completed'}).length;
+  var totalPaid=S.payments.reduce(function(s,p){return s+p.amount},0);
+  var monthlyRecurring=0;
+  campaigns.forEach(function(c){if(c.status==='Active')monthlyRecurring+=c.monthlyFee+c.monthlyAdSpend});
+  var openTaskCount=0,totalTimeSpent=0,upcoming7d=0,overdueCount=0;
+  campaigns.forEach(function(cp){
+    var st=getCampaignStats(cp);
+    openTaskCount+=st.openCount;totalTimeSpent+=st.totalTime;
+    st.openTasks.forEach(function(t){
+      if(t.due){var diff=dayDiff(td_,t.due);if(diff<0)overdueCount++;else if(diff<=7)upcoming7d++}})});
 
-  var h='<div class="pg-head"><h1>🎯 Campaigns</h1><div class="stats">';
-  h+='<div class="st"><b style="color:var(--green)">'+activeCount+'</b> active</div>';
-  h+='<div class="st"><b style="color:var(--amber)">'+setupCount+'</b> setup</div>';
-  if(pausedCount)h+='<div class="st"><b style="color:var(--t4)">'+pausedCount+'</b> paused</div>';
-  h+='<div class="st"><b style="color:var(--green)">'+fmtUSD(totalVal)+'</b> total paid</div>';
-  h+='</div></div>';
-
-  /* Controls */
-  h+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">';
-  h+='<button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:12px;padding:6px 16px">+ Add Campaign</button>';
-  h+='<button class="btn'+(S.cpView==='pipeline'?' btn-p':'')+'" onclick="S.cpView=\'pipeline\';render()" style="font-size:11px;padding:5px 12px">Pipeline</button>';
-  h+='<button class="btn'+(S.cpView==='list'?' btn-p':'')+'" onclick="S.cpView=\'list\';render()" style="font-size:11px;padding:5px 12px">List</button>';
-
-  /* Campaign filters */
-  var partners=uniqueVals(campaigns,'partner');
-  var ecs=[];campaigns.forEach(function(c){if(c.endClient&&ecs.indexOf(c.endClient)===-1)ecs.push(c.endClient)});ecs.sort();
-  var statuses=['Setup','Active','Paused','Completed'];
-  var platforms=uniqueVals(campaigns,'platform');
-  h+='<select class="fl" onchange="this.dataset.fv=this.value;render();" id="cp-f-partner"><option value="">All Partners</option>';
-  partners.forEach(function(p){h+='<option>'+esc(p)+'</option>'});h+='</select>';
-  h+='<select class="fl" onchange="render();" id="cp-f-ec"><option value="">All End Clients</option>';
-  ecs.forEach(function(e){h+='<option>'+esc(e)+'</option>'});h+='</select>';
-  h+='<select class="fl" onchange="render();" id="cp-f-platform"><option value="">All Platforms</option>';
-  platforms.forEach(function(p){h+='<option>'+esc(p)+'</option>'});h+='</select>';
+  /* HEADER */
+  var h='<div class="pg-head"><h1>🎯 Campaigns</h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:12px;padding:8px 18px">+ Add Campaign</button>';
   h+='</div>';
 
-  /* Filter campaigns */
+  /* DASHBOARD METRICS */
+  h+='<div class="cp-dash">';
+  h+='<div class="cp-dash-met" style="animation-delay:0s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalPaid)+'</div><div class="cp-dash-met-l">Total Revenue</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--amber)">'+fmtUSD(monthlyRecurring)+'</div><div class="cp-dash-met-l">Monthly Recurring</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:var(--t1)">'+openTaskCount+'</div><div class="cp-dash-met-l">Open Tasks</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:var(--pink)">'+fmtM(totalTimeSpent)+'</div><div class="cp-dash-met-l">Time Spent</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.2s"><div class="cp-dash-met-v" style="color:'+(upcoming7d?'var(--blue)':'var(--green)')+'">'+upcoming7d+'</div><div class="cp-dash-met-l">Upcoming (7d)</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.25s"><div class="cp-dash-met-v" style="color:'+(overdueCount?'var(--red)':'var(--green)')+'">'+overdueCount+'</div><div class="cp-dash-met-l">Overdue</div></div>';
+  h+='</div>';
+
+  /* STATUS FILTERS + VIEW TOGGLE */
+  h+='<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;justify-content:space-between">';
+  h+='<div class="cp-status-filters">';
+  h+='<span class="cp-status-toggle always">Setup <span style="opacity:.6;margin-left:2px">'+setupCount+'</span></span>';
+  h+='<span class="cp-status-toggle always">Active <span style="opacity:.6;margin-left:2px">'+activeCount+'</span></span>';
+  h+='<span class="cp-status-toggle'+(S.cpShowPaused?' active':'')+'" onclick="TF.toggleCpStatus(\'paused\')" style="cursor:pointer">Paused <span style="opacity:.6;margin-left:2px">'+pausedCount+'</span></span>';
+  h+='<span class="cp-status-toggle'+(S.cpShowCompleted?' active':'')+'" onclick="TF.toggleCpStatus(\'completed\')" style="cursor:pointer">Completed <span style="opacity:.6;margin-left:2px">'+completedCount+'</span></span>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:6px;align-items:center">';
+  h+='<button class="btn'+(S.cpView==='pipeline'?' btn-p':'')+'" onclick="S.cpView=\'pipeline\';render()" style="font-size:11px;padding:5px 12px">Pipeline</button>';
+  h+='<button class="btn'+(S.cpView==='list'?' btn-p':'')+'" onclick="S.cpView=\'list\';render()" style="font-size:11px;padding:5px 12px">List</button>';
+  h+='</div></div>';
+
+  /* Filter campaigns by toggled statuses */
   var filtered=campaigns;
-  /* Note: since we re-render, filter values come from current DOM which isn't updated yet.
-     We use a simpler approach - read from state or just show all in the view */
 
   if(S.cpView==='list') return h+rCampaignList(filtered,td_);
   return h+rCampaignPipeline(filtered,td_)}
 
+function cpCardCompact(cp,td_,idx){
+  var st=getCampaignStats(cp);
+  var statusCls=cp.status.toLowerCase().replace(/ /g,'-');
+  var delay=typeof idx==='number'?Math.min(idx*0.03,0.45):0;
+  var h='<div class="cp-card-compact cp-'+statusCls+'" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')"'+(delay?' style="animation-delay:'+delay+'s"':'')+'>';
+  h+='<span class="cp-card-compact-name">'+esc(cp.name)+'</span>';
+  h+='<span class="cp-card-compact-meta">';
+  if(cp.partner)h+='<span class="bg bg-cl" style="font-size:9px;padding:2px 8px">'+esc(cp.partner)+'</span>';
+  if(cp.endClient)h+='<span class="bg bg-ec" style="font-size:9px;padding:2px 8px">'+esc(cp.endClient)+'</span>';
+  if(st.openCount)h+='<span class="cp-card-compact-stat" style="color:var(--blue)">📋 '+st.openCount+'</span>';
+  if(st.totalPaid)h+='<span class="cp-card-compact-stat" style="color:var(--green)">'+fmtUSD(st.totalPaid)+'</span>';
+  h+='</span></div>';
+  return h}
+
 function rCampaignPipeline(campaigns,td_){
-  var statuses=['Setup','Active','Paused','Completed'];
-  var grouped={};statuses.forEach(function(s){grouped[s]=[]});
+  /* Build visible statuses */
+  var visibleStatuses=['Setup','Active'];
+  if(S.cpShowPaused)visibleStatuses.push('Paused');
+  if(S.cpShowCompleted)visibleStatuses.push('Completed');
+
+  var grouped={};visibleStatuses.forEach(function(s){grouped[s]=[]});
   var archived=[];
   campaigns.forEach(function(cp){
     if(cp.status==='Archived'){archived.push(cp);return}
-    if(!grouped[cp.status])grouped[cp.status]=[];
-    grouped[cp.status].push(cp)});
+    if(grouped[cp.status])grouped[cp.status].push(cp)});
 
   /* Sort within columns */
-  statuses.forEach(function(s){
+  visibleStatuses.forEach(function(s){
     if(!grouped[s])return;
     grouped[s].sort(function(a,b){
       var sa=getCampaignStats(a),sb2=getCampaignStats(b);
@@ -1957,49 +1984,22 @@ function rCampaignPipeline(campaigns,td_){
       if(aNext!==bNext)return aNext-bNext;
       return(b.created?b.created.getTime():0)-(a.created?a.created.getTime():0)})});
 
-  var h='<div class="cp-pipeline">';
-  statuses.forEach(function(s){
+  var colCount=visibleStatuses.length;
+  var h='<div class="cp-pipeline" style="grid-template-columns:repeat('+colCount+',1fr)">';
+  visibleStatuses.forEach(function(s){
     var items=grouped[s]||[];
-    var statusCls=s.toLowerCase().replace(/ /g,'-');
     h+='<div class="cp-column">';
     h+='<div class="cp-column-head">'+esc(s)+' <span class="cp-column-count">'+items.length+'</span></div>';
     if(!items.length){h+='<div style="text-align:center;padding:30px 10px;color:var(--t4);font-size:12px">No campaigns</div>'}
-    items.forEach(function(cp){h+=cpCard(cp,td_,statusCls)});
+    items.forEach(function(cp,idx){h+=cpCardCompact(cp,td_,idx)});
     h+='</div>'});
   h+='</div>';
 
   if(archived.length){
     h+='<details style="margin-top:16px"><summary style="cursor:pointer;color:var(--t4);font-size:12px">Show archived ('+archived.length+')</summary>';
     h+='<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px">';
-    archived.forEach(function(cp){h+='<div style="flex:1;min-width:260px;max-width:340px">'+cpCard(cp,td_,'archived')+'</div>'});
+    archived.forEach(function(cp,idx){h+='<div style="flex:1;min-width:260px;max-width:340px">'+cpCardCompact(cp,td_,idx)+'</div>'});
     h+='</div></details>'}
-  return h}
-
-function cpCard(cp,td_,statusCls){
-  var st=getCampaignStats(cp);
-  var h='<div class="cp-card cp-'+statusCls+'" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')">';
-  h+='<div class="cp-card-name">'+esc(cp.name)+'</div>';
-  h+='<div class="cp-card-meta">';
-  h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
-  if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
-  if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
-  h+='</div>';
-  if(cp.goal)h+='<div class="cp-card-goal">'+esc(cp.goal)+'</div>';
-
-  /* Launch status */
-  var launch='';
-  if(cp.actualLaunch)launch='Launched: '+fmtDShort(cp.actualLaunch);
-  else if(cp.plannedLaunch)launch='Planned: '+fmtDShort(cp.plannedLaunch);
-  else launch='Not scheduled';
-  h+='<div style="font-size:10px;color:var(--t4);margin-bottom:8px">'+launch+'</div>';
-
-  h+='<div class="cp-card-stats">';
-  h+='<div class="cp-card-stat">📋 <b>'+st.openCount+'</b> open · <b>'+st.doneCount+'</b> done</div>';
-  if(st.totalTime)h+='<div class="cp-card-stat">⏱ <b>'+fmtM(st.totalTime)+'</b></div>';
-  if(st.totalPaid)h+='<div class="cp-card-stat">💰 <b>'+fmtUSD(st.totalPaid)+'</b></div>';
-  if(cp.renewalDate){var rDiff=dayDiff(td_,cp.renewalDate);
-    if(rDiff>=0&&rDiff<=30)h+='<div class="cp-card-stat" style="color:var(--amber)">🔄 Renews '+fmtDShort(cp.renewalDate)+'</div>'}
-  h+='</div></div>';
   return h}
 
 function rCampaignList(campaigns,td_){

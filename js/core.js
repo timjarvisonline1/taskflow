@@ -17,7 +17,7 @@ var CK_XS='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="c
 var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],payments:[],campaignMeetings:[],timers:{},view:'overview',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',taskMode:'open',doneSort:'date'};
+  filters:{client:'',endClient:'',campaign:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false};
 
 var VIEWS=[
   {id:'schedule',icon:'📅',label:'Schedule',kbd:'1'},
@@ -160,7 +160,7 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort)}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'')}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
@@ -171,7 +171,9 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var so=localStorage.getItem('tf_so');if(so)S.schedOrder=JSON.parse(so);
   var rl=localStorage.getItem('tf_rl');if(rl)S.recurrLast=JSON.parse(rl);
   var tm=localStorage.getItem('tf_tm');if(tm)S.taskMode=tm;
-  var ds=localStorage.getItem('tf_ds');if(ds)S.doneSort=ds}catch(e){}}
+  var ds=localStorage.getItem('tf_ds');if(ds)S.doneSort=ds;
+  var cpsp=localStorage.getItem('tf_cpsp');if(cpsp)S.cpShowPaused=true;
+  var cpsc=localStorage.getItem('tf_cpsc');if(cpsc)S.cpShowCompleted=true}catch(e){}}
 function toast(msg,type){var t=cel('div','toast toast-'+(type||'ok'),msg);gel('toasts').appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t)},3200)}
 
 /* ═══════════ DATA — Supabase queries ═══════════ */
@@ -480,7 +482,12 @@ function applyDropdownFilters(items){var f=S.filters;return items.filter(functio
 function nav(id){S.view=id;document.querySelectorAll('.s-item').forEach(function(n){n.classList.toggle('on',n.dataset.v===id)});render();closeMenu()}
 function buildNav(){var h='';VIEWS.forEach(function(v){
     var badge='';if(v.id==='review'&&S.review.length)badge='<span class="nav-badge">'+S.review.length+'</span>';
-    h+='<div class="s-item'+(v.id===S.view?' on':'')+'" data-v="'+v.id+'" onclick="TF.nav(\''+v.id+'\')"><span class="ico">'+v.icon+'</span>'+v.label+'<span class="s-right">'+badge+'<span class="kbd">'+v.kbd+'</span></span></div>'});gel('s-nav').innerHTML=h}
+    h+='<div class="s-item'+(v.id===S.view?' on':'')+'" data-v="'+v.id+'" onclick="TF.nav(\''+v.id+'\')"><span class="ico">'+v.icon+'</span>'+v.label+'<span class="s-right">'+badge+'<span class="kbd">'+v.kbd+'</span></span></div>'});
+  gel('s-nav').innerHTML=h;
+  /* Position the active indicator */
+  setTimeout(function(){var nav=gel('s-nav');var active=nav.querySelector('.s-item.on');var ind=nav.querySelector('.s-nav-indicator');
+    if(!ind){ind=document.createElement('div');ind.className='s-nav-indicator';nav.appendChild(ind)}
+    if(active){ind.style.top=active.offsetTop+'px';ind.style.height=active.offsetHeight+'px'}},0)}
 function openMenu(){gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on')}
 function closeMenu(){gel('sidebar').classList.remove('open');gel('mob-overlay').classList.remove('on')}
 document.addEventListener('keydown',function(e){
