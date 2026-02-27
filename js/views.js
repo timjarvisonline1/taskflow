@@ -32,6 +32,7 @@ function taskCard(t,td){
   h+='<span class="tk-name">'+esc(t.item)+'</span>';
   if(dueTxt)h+='<span class="bg-du'+dueCls+'" style="flex-shrink:0">📅 '+dueTxt+'</span>';
   if(isFl)h+='<span class="bg bg-fl" style="flex-shrink:0">🚩</span>';
+  if(t.meetingKey)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50);flex-shrink:0;font-size:10px">📅</span>';
   h+='</div><div class="tk-right">';
   if(hasT){h+='<span class="tmr tmr-sm'+(running?' go':'')+'">';
     if(running)h+='<span class="dot pulse"></span>';else h+='<span class="dot pau"></span>';
@@ -55,6 +56,7 @@ function taskCard(t,td){
   if(t.client&&t.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(t.client)+'</span>';
   if(t.endClient)h+='<span class="bg bg-ec">'+esc(t.endClient)+'</span>';
   if(t.campaign){var _cp=S.campaigns.find(function(c){return c.id===t.campaign});if(_cp)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cp.name)+'</span>'}
+  if(t.meetingKey){var _me=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===t.meetingKey});if(_me)h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 '+esc(_me.title)+' '+fmtTime(_me.start)+'</span>';else h+='<span class="bg" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📅 Linked meeting</span>'}
   if(t.category)h+='<span class="bg bg-ca">'+esc(t.category)+'</span>';
   if(t.est)h+='<span class="bg-es">⏱ '+fmtM(t.est)+'</span>';
   h+='</div>';
@@ -83,6 +85,7 @@ function miniRow(t,td){
   if(t.est)h+='<span style="color:var(--blue);font-weight:600">'+fmtM(t.est)+'</span>';
   if(t.due){var dl=dueLabel(t.due,td);h+='<span style="color:'+(isOd?'var(--red)':'var(--t4)')+'">'+dl+'</span>'}
   if(t.campaign){var _cp2=S.campaigns.find(function(c){return c.id===t.campaign});if(_cp2)h+='<span style="color:var(--amber)">🎯 '+esc(_cp2.name)+'</span>'}
+  if(t.meetingKey){var _me2=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===t.meetingKey});if(_me2)h+='<span style="color:var(--purple50)">📅 '+fmtTime(_me2.start)+'</span>'}
   if(isFl)h+='<span>🚩</span>';
   if(hasT)h+='<span data-tmr="'+esc(t.id)+'" style="color:'+(running?'var(--green)':'var(--amber)')+';font-family:var(--fd);font-weight:600;letter-spacing:0.03em">'+fmtT(elapsed)+'</span>';
   h+='</span>';
@@ -562,6 +565,40 @@ function rOverview(){
       h+='</div>'}
     h+='</div>'}
 
+  /* MEETING PREP WIDGET */
+  var prepCutoff=new Date(now.getTime()+48*3600000);
+  var mtgPrepGroups={};
+  S.tasks.forEach(function(t){
+    if(!t.meetingKey)return;
+    var mtgEvt=S.calEvents.find(function(e){return mtgKey(e.title,e.start)===t.meetingKey});
+    if(!mtgEvt||mtgEvt.start>prepCutoff||mtgEvt.end<now)return;
+    if(!mtgPrepGroups[t.meetingKey])mtgPrepGroups[t.meetingKey]={event:mtgEvt,tasks:[]};
+    mtgPrepGroups[t.meetingKey].tasks.push(t)});
+  var prepKeys=Object.keys(mtgPrepGroups).sort(function(a,b){
+    return mtgPrepGroups[a].event.start.getTime()-mtgPrepGroups[b].event.start.getTime()});
+  if(prepKeys.length){
+    h+='<div class="td-panel" style="border-color:rgba(130,55,245,0.15);margin-bottom:18px">';
+    h+='<div class="td-panel-h"><span class="td-panel-t" style="color:var(--purple50)">📋 Meeting Prep</span>';
+    var totalPrepTasks=0;prepKeys.forEach(function(k){totalPrepTasks+=mtgPrepGroups[k].tasks.length});
+    h+='<span class="td-panel-c">'+totalPrepTasks+' task'+(totalPrepTasks>1?'s':'')+'</span></div>';
+    prepKeys.forEach(function(key){
+      var grp=mtgPrepGroups[key];
+      var me=grp.event;
+      var isToday_=me.start>=effDay&&me.start<effDayEnd;
+      var urgClr=isToday_?'var(--red)':'var(--amber)';
+      var urgLabel=isToday_?'TODAY':'TOMORROW';
+      var timeUntil=Math.round((me.start-now)/60000);
+      h+='<div style="padding:8px 0;'+(key!==prepKeys[prepKeys.length-1]?'border-bottom:1px solid rgba(130,55,245,0.05);':'')+'">';
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+      h+='<span style="font-size:10px;font-weight:700;color:'+urgClr+';text-transform:uppercase;letter-spacing:0.5px">'+urgLabel+'</span>';
+      h+='<span style="font-size:12.5px;font-weight:600;color:var(--t1)">'+esc(me.title)+'</span>';
+      h+='<span style="font-size:11px;color:var(--t3);margin-left:auto">'+fmtTime(me.start);
+      if(timeUntil>0&&timeUntil<480)h+=' (in '+fmtM(timeUntil)+')';
+      h+='</span></div>';
+      grp.tasks.forEach(function(t){h+=miniRow(t,effDay)});
+      h+='</div>'});
+    h+='</div>'}
+
   /* PINNED TASKS */
   var pinnedTasks=sorted.filter(function(t){return S.pins[t.id]});
   if(pinnedTasks.length){
@@ -637,9 +674,9 @@ function initTodayCharts(){
 
 async function quickAdd(){var input=gel('qa-item');if(!input)return;var item=input.value.trim();if(!item){toast('⚠ Enter a task name','warn');return}
   var now=new Date();now.setHours(17,0,0,0);
-  var data={item:item,due:now.toISOString(),importance:qaImp,category:'',client:'Internal / N/A',endClient:'',type:'Business',est:0,notes:'',status:'Planned',flag:false,campaign:''};
+  var data={item:item,due:now.toISOString(),importance:qaImp,category:'',client:'Internal / N/A',endClient:'',type:'Business',est:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:''};
   var result=await dbAddTask(data);
-  if(result){S.tasks.push({id:result.id,item:item,due:now,importance:qaImp,est:0,category:'',client:'Internal / N/A',endClient:'',type:'Business',duration:0,notes:'',status:'Planned',flag:false,campaign:''})}
+  if(result){S.tasks.push({id:result.id,item:item,due:now,importance:qaImp,est:0,category:'',client:'Internal / N/A',endClient:'',type:'Business',duration:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:''})}
   input.value='';toast('Added: '+item,'ok');render()}
 
 /* ═══════════ TASKS (UNIFIED: Open / Completed / All) ═══════════ */
@@ -1002,6 +1039,9 @@ function rMeetings(){
       if(matchedDone&&matchedDone.client&&matchedDone.client!=='Internal / N/A')h+='<span class="mtg-tag cli">'+esc(matchedDone.client)+'</span>';
       if(matchedDone&&matchedDone.endClient)h+='<span class="mtg-tag" style="background:rgba(45,212,191,0.08);color:var(--teal)">'+esc(matchedDone.endClient)+'</span>';
       if(matchedDone)h+='<span class="mtg-tag done">✓ Logged</span>';
+      var mKey_=mtgKey(e.title,e.start);
+      var linkedCount=S.tasks.filter(function(t){return t.meetingKey===mKey_}).length;
+      if(linkedCount)h+='<span class="mtg-tag" style="background:rgba(130,55,245,0.08);color:var(--purple50)">📋 '+linkedCount+' task'+(linkedCount>1?'s':'')+'</span>';
       h+='</div></div></div>'});
     h+='</div>'}
 

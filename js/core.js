@@ -186,7 +186,7 @@ async function loadTasks(){
   S.tasks=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,due:r.due?new Date(r.due+'T00:00:00'):null,importance:r.importance||'When Time Allows',est:r.est||0,
       category:r.category||'',client:r.client||'',endClient:r.end_client||'',type:r.type||'Business',
-      duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||''}})}
+      duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||'',meetingKey:r.meeting_key||''}})}
 
 async function loadDone(){
   var res=await _sb.from('done').select('*').order('completed',{ascending:false});
@@ -292,7 +292,7 @@ async function dbAddTask(taskData){
   var row={user_id:uid,item:taskData.item,due:taskData.due||null,importance:taskData.importance||'When Time Allows',
     est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:taskData.endClient||'',
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
-    flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0};
+    flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||''};
   var res=await _sb.from('tasks').insert(row).select().single();
   if(res.error){toast('❌ Save failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -301,7 +301,7 @@ async function dbEditTask(id,taskData){
   var row={item:taskData.item,due:taskData.due||null,importance:taskData.importance||'When Time Allows',
     est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:taskData.endClient||'',
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
-    flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0};
+    flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||''};
   var res=await _sb.from('tasks').update(row).eq('id',id);
   if(res.error){toast('❌ Update failed: '+res.error.message,'warn');return false}
   return true}
@@ -325,6 +325,10 @@ async function dbCompleteTask(taskData){
 async function dbUpdateTaskDuration(id,duration){
   var res=await _sb.from('tasks').update({duration:duration}).eq('id',id);
   if(res.error)console.error('dbUpdateTaskDuration:',res.error)}
+
+async function dbUpdateMeetingKey(id,meetingKey){
+  var res=await _sb.from('tasks').update({meeting_key:meetingKey}).eq('id',id);
+  if(res.error)console.error('dbUpdateMeetingKey:',res.error)}
 
 async function dbDeleteReview(id){
   var res=await _sb.from('review').delete().eq('id',id);

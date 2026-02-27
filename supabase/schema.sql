@@ -19,9 +19,10 @@ CREATE TABLE tasks (
   notes      text NOT NULL DEFAULT '',
   status     text NOT NULL DEFAULT 'Planned',
   flag       boolean NOT NULL DEFAULT false,
-  campaign   text NOT NULL DEFAULT '',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  sort_order integer
+  campaign    text NOT NULL DEFAULT '',
+  meeting_key text NOT NULL DEFAULT '',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  sort_order  integer
 );
 
 -- 2. DONE (completed tasks)
