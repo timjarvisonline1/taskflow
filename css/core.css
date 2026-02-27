@@ -107,7 +107,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--f);font-size:14px;li
 .fab:active{transform:scale(0.9)}
 
 @media(max-width:860px){
-  .side{transform:translateX(-100%);box-shadow:8px 0 40px rgba(0,0,0,.6)}.side.open{transform:translateX(0)}
+  .side{transform:translateX(-100%);box-shadow:8px 0 40px rgba(0,0,0,.6);visibility:hidden}.side.open{transform:translateX(0);visibility:visible}
   .mob{display:flex}
   .btm-nav{display:flex}
   .fab{display:none!important}

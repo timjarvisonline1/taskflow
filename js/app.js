@@ -58,6 +58,26 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
 var arTimer=null;
 function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterval(function(){loadData()},1800000)}
 
+/* ═══════════ MOBILE DEBUG ═══════════ */
+if(window.innerWidth<=860){
+  document.addEventListener('touchstart',function(e){
+    var el=e.target;
+    var info=el.tagName+(el.id?'#'+el.id:'')+(el.className?'.'+String(el.className).split(' ').join('.'):'')+' z:'+getComputedStyle(el).zIndex+' vis:'+getComputedStyle(el).visibility+' ptr:'+getComputedStyle(el).pointerEvents;
+    /* Check if anything fixed is blocking */
+    var rect=el.getBoundingClientRect();
+    var topEl=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
+    var blocking=topEl!==el?'BLOCKED by '+topEl.tagName+(topEl.id?'#'+topEl.id:'')+(topEl.className?'.'+String(topEl.className).split(' ')[0]:''):'OK';
+    console.log('[TAP]',info,'|',blocking);
+  },true);
+  /* Also check for any fixed overlays covering viewport on load */
+  setTimeout(function(){
+    var mid=document.elementFromPoint(window.innerWidth/2,window.innerHeight/2);
+    console.log('[OVERLAY CHECK] Center of screen:',mid?mid.tagName+(mid.id?'#'+mid.id:'')+(mid.className?'.'+String(mid.className).split(' ')[0]:''):'none');
+    var top100=document.elementFromPoint(window.innerWidth/2,100);
+    console.log('[OVERLAY CHECK] y=100:',top100?top100.tagName+(top100.id?'#'+top100.id:'')+(top100.className?'.'+String(top100.className).split(' ')[0]:''):'none');
+  },2000);
+}
+
 /* ═══════════ INIT (with auth guard) ═══════════ */
 (async function(){
   var sess=await _sb.auth.getSession();
