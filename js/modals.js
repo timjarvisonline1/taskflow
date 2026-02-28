@@ -2029,6 +2029,8 @@ function openFinancePaymentDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Net</span><div class="edf" style="color:var(--green)">'+fmtUSD(p.net)+'</div></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="fp-category" onchange="TF.fpCatChange()">'+catOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fp-client">'+clOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Or Create New</span><input type="text" class="edf" id="fp-newclient" placeholder="New client name..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">New Client Status</span><select class="edf" id="fp-newstatus"><option value="active">Active</option><option value="lapsed">Lapsed</option></select></div>';
   h+='<div class="ed-fld" id="fp-campaign-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">Campaign</span><select class="edf" id="fp-campaign">'+cpOpts+'</select></div>';
   h+='<div class="ed-fld" id="fp-endclient-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="fp-endclient" value="'+esc(p.endClient)+'" placeholder="End client..."></div>';
   h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="fp-notes" rows="3" placeholder="Notes...">'+esc(p.notes)+'</textarea></div>';
@@ -2082,14 +2084,26 @@ async function saveFinancePayment(){
   var id=(gel('fp-id')||{}).value;if(!id)return;
   var p=S.financePayments.find(function(fp){return fp.id===id});if(!p)return;
   var clientId=(gel('fp-client')||{}).value||null;
+  var newName=(gel('fp-newclient')||{}).value||'';
+
+  /* Create new client if specified */
+  if(newName.trim()&&!clientId){
+    var newClStatus=(gel('fp-newstatus')||{}).value||'active';
+    var ok=await dbAddClient(newName.trim(),newClStatus);
+    if(!ok)return;
+    await loadClientRecords();
+    var newCl=S.clientRecords.find(function(c){return c.name===newName.trim()});
+    if(newCl)clientId=newCl.id;
+    else{toast('Could not find created client','warn');return}}
+
   var cat=(gel('fp-category')||{}).value||'';
   var newStatus=clientId?'matched':p.status;
   var data={date:(gel('fp-date')||{}).value||null,category:cat,
     clientId:clientId,campaignId:(gel('fp-campaign')||{}).value||null,
     endClient:(gel('fp-endclient')||{}).value||'',notes:(gel('fp-notes')||{}).value||'',
     status:newStatus};
-  var ok=await dbEditFinancePayment(id,data);
-  if(ok){
+  var ok2=await dbEditFinancePayment(id,data);
+  if(ok2){
     p.date=data.date?new Date(data.date+'T00:00:00'):null;p.category=cat;
     p.clientId=clientId;p.campaignId=data.campaignId;p.endClient=data.endClient;
     p.notes=data.notes;p.status=newStatus;
