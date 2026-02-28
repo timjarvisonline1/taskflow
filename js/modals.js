@@ -2021,20 +2021,38 @@ function openFinancePaymentDetail(id){
 
   /* Left pane: edit fields */
   h+='<div class="detail-split-left">';
+
+  /* Section 1: Payment Details */
+  h+='<div style="margin-bottom:4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Payment Details</span></div>';
   h+='<div class="ed-grid">';
   h+='<div class="ed-fld"><span class="ed-lbl">Date</span><input type="date" class="edf" id="fp-date" value="'+(p.date?p.date.toISOString().slice(0,10):'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="fp-category" onchange="TF.fpCatChange()">'+catOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><div class="edf" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</div></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Fee</span><div class="edf" style="color:var(--t4)">'+fmtUSD(p.fee)+'</div></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Net</span><div class="edf" style="color:var(--green)">'+fmtUSD(p.net)+'</div></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="fp-category" onchange="TF.fpCatChange()">'+catOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fp-client" onchange="TF.fpClientChange()">'+clOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Or Create New Client</span><input type="text" class="edf" id="fp-newclient" placeholder="New client name..."></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">New Client Status</span><select class="edf" id="fp-newstatus"><option value="active">Active</option><option value="lapsed">Lapsed</option></select></div>';
-  h+='<div class="ed-fld" id="fp-endclient-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">End Client</span><select class="edf" id="fp-endclient" onchange="TF.fpEndClientChange()">'+ecOpts+'</select></div>';
-  h+='<div class="ed-fld" id="fp-campaign-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">Campaign</span><select class="edf" id="fp-campaign">'+cpOpts+'</select></div>';
-  h+='<div class="ed-fld" id="fp-newcampaign-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">Or Create New Campaign</span><input type="text" class="edf" id="fp-newcampaign" placeholder="New campaign name..."></div>';
-  h+='<div class="ed-fld" id="fp-newcpstatus-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">New Campaign Status</span><select class="edf" id="fp-newcpstatus"><option>Setup</option><option>Active</option><option>Paused</option><option>Completed</option><option>Archived</option></select></div>';
-  h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="fp-notes" rows="3" placeholder="Notes...">'+esc(p.notes)+'</textarea></div>';
+  h+='</div>';
+
+  /* Section 2: Client */
+  h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Client</span></div>';
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Select Client</span><select class="edf" id="fp-client" onchange="TF.fpClientChange()">'+clOpts+'</select></div>';
+  h+='<div class="ed-fld" id="fp-newclient-row"'+(p.clientId?' style="display:none"':'')+'><span class="ed-lbl">Or Create New</span><input type="text" class="edf" id="fp-newclient" placeholder="New client name..."></div>';
+  h+='<div class="ed-fld" id="fp-newstatus-row"'+(p.clientId?' style="display:none"':'')+'><span class="ed-lbl">Status</span><select class="edf" id="fp-newstatus"><option value="active">Active</option><option value="lapsed">Lapsed</option></select></div>';
+  h+='</div>';
+
+  /* Section 3: F&C Details (End Client + Campaign) */
+  h+='<div id="fp-fc-section" style="'+(isFcCat?'':'display:none')+'">';
+  h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">F&C Details</span></div>';
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="fp-endclient" onchange="TF.fpEndClientChange()">'+ecOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="fp-campaign">'+cpOpts+'</select></div>';
+  h+='<div class="ed-fld" id="fp-newcampaign-row"><span class="ed-lbl">Or Create New Campaign</span><input type="text" class="edf" id="fp-newcampaign" placeholder="New campaign name..."></div>';
+  h+='<div class="ed-fld" id="fp-newcpstatus-row"><span class="ed-lbl">Campaign Status</span><select class="edf" id="fp-newcpstatus"><option>Setup</option><option>Active</option><option>Paused</option><option>Completed</option><option>Archived</option></select></div>';
+  h+='</div></div>';
+
+  /* Section 4: Notes */
+  h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Notes</span></div>';
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld ed-fld-full"><textarea class="edf" id="fp-notes" rows="3" placeholder="Notes...">'+esc(p.notes)+'</textarea></div>';
   h+='</div>';
 
   h+='<div class="ed-actions" style="margin-top:16px">';
@@ -2046,29 +2064,42 @@ function openFinancePaymentDetail(id){
 
   /* Right pane: payer info & related payments */
   h+='<div class="detail-split-right">';
-  h+='<div class="ed-section"><div class="ed-section-title">Payer Info</div>';
+  h+='<div class="ed-section"><div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Payer Info</div>';
   if(p.payerName)h+='<div class="ed-fld"><span class="ed-lbl">Name</span><div class="edf">'+esc(p.payerName)+'</div></div>';
   if(p.payerEmail)h+='<div class="ed-fld"><span class="ed-lbl">Email</span><div class="edf">'+esc(p.payerEmail)+'</div></div>';
   if(p.sourceId)h+='<div class="ed-fld"><span class="ed-lbl">Source ID</span><div class="edf" style="font-size:11px;word-break:break-all">'+esc(p.sourceId)+'</div></div>';
   if(p.description)h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Description</span><div class="edf" style="font-size:12px">'+esc(p.description)+'</div></div>';
   h+='</div>';
 
-  /* Other payments from same payer */
+  /* Other payments from same payer — with checkboxes */
   var payerKey=p.payerEmail||p.payerName;
   if(payerKey){
     var related=S.financePayments.filter(function(fp){
       return fp.id!==p.id&&((p.payerEmail&&fp.payerEmail===p.payerEmail)||(p.payerName&&fp.payerName===p.payerName))});
     if(related.length){
-      h+='<div class="ed-section" style="margin-top:16px"><div class="ed-section-title">Other Payments from This Payer ('+related.length+')</div>';
-      if(p.status==='unmatched')h+='<button class="btn btn-p" onclick="TF.openAssociateModal(\''+escAttr(p.id)+'\')" style="margin-bottom:12px;font-size:12px">Associate All ('+related.length+' + this)</button>';
+      var unmatchedRelated=related.filter(function(rp){return rp.status==='unmatched'});
+      h+='<div class="ed-section" style="margin-top:16px">';
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+      h+='<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px">Other Payments from This Payer ('+related.length+')</div>';
+      if(unmatchedRelated.length>1)h+='<button class="btn" onclick="TF.fpSelectAll()" style="font-size:10px;padding:3px 8px">Select All Unmatched</button>';
+      h+='</div>';
+      h+='<div style="font-size:11px;color:var(--t4);margin-bottom:8px">Tick payments below to apply the same settings when you Save</div>';
       h+='<div class="fin-related-list">';
-      related.slice(0,20).forEach(function(rp){
-        h+='<div class="fin-related-item" onclick="TF.openFinancePaymentDetail(\''+escAttr(rp.id)+'\')">';
-        h+='<span class="fin-related-date">'+(rp.date?fmtDShort(rp.date):'')+'</span>';
+      related.sort(function(a,b){return(b.date||0)-(a.date||0)});
+      related.forEach(function(rp,idx){
+        if(idx>=50)return;
+        var cName=clientNameById(rp.clientId);
+        var isUnmatched=rp.status==='unmatched';
+        h+='<label class="fin-related-item'+(isUnmatched?' fin-related-unmatched':'')+'" style="cursor:pointer">';
+        h+='<input type="checkbox" class="fp-batch-cb" value="'+esc(rp.id)+'"'+(isUnmatched?'':' disabled')+' style="accent-color:var(--green);flex-shrink:0">';
+        h+='<span class="fin-related-date">'+(rp.date?fmtDShort(rp.date):'—')+'</span>';
         h+='<span class="fin-related-amt" style="color:var(--green)">'+fmtUSD(rp.amount)+'</span>';
-        h+='<span class="fin-status fin-status-'+rp.status+'">'+rp.status+'</span>';
-        h+='</div>'});
-      if(related.length>20)h+='<div style="color:var(--t4);font-size:11px;padding:4px 0">+ '+(related.length-20)+' more</div>';
+        h+='<span style="flex:1;font-size:11px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(rp.description||'—')+'</span>';
+        if(rp.category)h+='<span class="fin-cat" style="font-size:9px">'+esc(rp.category)+'</span>';
+        if(cName)h+='<span style="font-size:10px;color:var(--t3)">'+esc(cName)+'</span>';
+        else h+='<span class="fin-status fin-status-unmatched" style="font-size:9px">Unmatched</span>';
+        h+='</label>'});
+      if(related.length>50)h+='<div style="color:var(--t4);font-size:11px;padding:4px 0">+ '+(related.length-50)+' more</div>';
       h+='</div></div>'}}
   h+='</div>';
   h+='</div>';
@@ -2078,15 +2109,15 @@ function openFinancePaymentDetail(id){
 function fpCatChange(){
   var cat=(gel('fp-category')||{}).value||'';
   var isFc=cat.indexOf('F&C')===0;
-  var d=isFc?'':'none';
-  var ecRow=gel('fp-endclient-row');if(ecRow)ecRow.style.display=d;
-  var cpRow=gel('fp-campaign-row');if(cpRow)cpRow.style.display=d;
-  var ncpRow=gel('fp-newcampaign-row');if(ncpRow)ncpRow.style.display=d;
-  var ncsRow=gel('fp-newcpstatus-row');if(ncsRow)ncsRow.style.display=d}
+  var fcSec=gel('fp-fc-section');if(fcSec)fcSec.style.display=isFc?'':'none'}
 
 function fpClientChange(){
   var clientId=(gel('fp-client')||{}).value||'';
   var clientName=clientNameById(clientId);
+  /* Show/hide create-new fields */
+  var ncRow=gel('fp-newclient-row');if(ncRow)ncRow.style.display=clientId?'none':'';
+  var nsRow=gel('fp-newstatus-row');if(nsRow)nsRow.style.display=clientId?'none':'';
+  /* Cascade end client */
   var ecSel=gel('fp-endclient');
   if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',clientName);
   fpEndClientChange()}
@@ -2098,6 +2129,10 @@ function fpEndClientChange(){
   if(ec==='__addnew__'){ecAddNew('fp-endclient');return}
   var cpSel=gel('fp-campaign');
   if(cpSel)cpSel.innerHTML=buildCampaignOptions('',clientName,ec)}
+
+function fpSelectAll(){
+  var cbs=document.querySelectorAll('.fp-batch-cb');
+  cbs.forEach(function(cb){if(!cb.disabled)cb.checked=true})}
 
 async function saveFinancePayment(){
   var id=(gel('fp-id')||{}).value;if(!id)return;
@@ -2152,11 +2187,27 @@ async function saveFinancePayment(){
     endClient:endClient,notes:(gel('fp-notes')||{}).value||'',
     status:newStatus};
   var ok2=await dbEditFinancePayment(id,data);
-  if(ok2){
-    p.date=data.date?new Date(data.date+'T00:00:00'):null;p.category=cat;
-    p.clientId=clientId;p.campaignId=campaignId;p.endClient=endClient;
-    p.notes=data.notes;p.status=newStatus;
-    toast('Payment saved','ok');closeModal();render()}}
+  if(!ok2)return;
+  p.date=data.date?new Date(data.date+'T00:00:00'):null;p.category=cat;
+  p.clientId=clientId;p.campaignId=campaignId;p.endClient=endClient;
+  p.notes=data.notes;p.status=newStatus;
+
+  /* Batch update checked related payments */
+  var cbs=document.querySelectorAll('.fp-batch-cb:checked');
+  var batchCount=0;
+  for(var i=0;i<cbs.length;i++){
+    var bId=cbs[i].value;
+    var bp=S.financePayments.find(function(fp){return fp.id===bId});
+    if(!bp)continue;
+    var bData={category:cat,clientId:clientId,campaignId:campaignId,
+      endClient:endClient,status:clientId?'matched':'unmatched'};
+    var bok=await dbEditFinancePayment(bId,bData);
+    if(bok){
+      bp.category=cat;bp.clientId=clientId;bp.campaignId=campaignId;
+      bp.endClient=endClient;bp.status=bData.status;batchCount++}}
+
+  var msg=batchCount>0?'Payment saved + '+batchCount+' more updated':'Payment saved';
+  toast(msg,'ok');closeModal();render()}
 
 async function excludeFinancePayment(){
   var id=(gel('fp-id')||{}).value;if(!id)return;

@@ -736,11 +736,12 @@
 .fin-assoc-payer{background:var(--bg3);border-radius:10px;padding:16px;margin-bottom:8px;border:1px solid var(--gborder)}
 
 /* Related payments list (right pane) */
-.fin-related-list{display:flex;flex-direction:column;gap:2px}
-.fin-related-item{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:8px;cursor:pointer;transition:background .15s var(--ease);font-size:12px}
-.fin-related-item:hover{background:rgba(255,255,255,.04)}
-.fin-related-date{color:var(--t3);font-size:11px;min-width:90px}
-.fin-related-amt{font-weight:600;min-width:80px}
+.fin-related-list{display:flex;flex-direction:column;gap:2px;max-height:400px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--bg4) transparent}
+.fin-related-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer;transition:background .15s var(--ease);font-size:12px}
+.fin-related-item:hover{background:rgba(255,255,255,.06)}
+.fin-related-unmatched{background:rgba(255,255,255,.02)}
+.fin-related-date{color:var(--t3);font-size:11px;min-width:75px;flex-shrink:0}
+.fin-related-amt{font-weight:600;min-width:70px;flex-shrink:0}
 
 /* Client status dot */
 .cl-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
