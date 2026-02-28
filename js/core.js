@@ -709,9 +709,11 @@ async function dbDeleteOpportunity(id){
   if(res.error){toast('Opportunity delete failed: '+res.error.message,'warn');return false}
   return true}
 
-async function dbAddClient(name){
+async function dbAddClient(name,status){
   var uid=await getUserId();if(!uid)return false;
-  var res=await _sb.from('clients').insert({user_id:uid,name:name}).select().single();
+  var rec={user_id:uid,name:name};
+  if(status)rec.status=status;
+  var res=await _sb.from('clients').insert(rec).select().single();
   if(res.error){
     if(res.error.code==='23505')return true;/* already exists, not an error */
     toast('Client save failed: '+res.error.message,'warn');return false}

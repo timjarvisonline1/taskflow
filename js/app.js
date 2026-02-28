@@ -54,6 +54,7 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
   openAssociateModal:openAssociateModal,associatePayer:associatePayer,
   setFinFilter:setFinFilter,setFinSearch:setFinSearch,
   openEditClient:openEditClient,saveClient:saveClient,
+  openAddClientModal:openAddClientModal,addNewClient:addNewClient,
   signOut:signOut,
   toast:toast,
   /* Mobile */

@@ -2147,6 +2147,7 @@ function openAssociateModal(paymentId){
   h+='<div class="ed-grid" style="margin-top:16px">';
   h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="assoc-client">'+clOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Or Create New</span><input type="text" class="edf" id="assoc-newclient" placeholder="New client name..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">New Client Status</span><select class="edf" id="assoc-newstatus"><option value="active">Active</option><option value="lapsed">Lapsed</option></select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Category (optional)</span><select class="edf" id="assoc-cat">'+catOpts+'</select></div>';
   h+='</div>';
 
@@ -2166,7 +2167,8 @@ async function associatePayer(){
 
   /* Create new client if specified */
   if(newName.trim()&&!clientId){
-    var ok=await dbAddClient(newName.trim());
+    var newStatus=(gel('assoc-newstatus')||{}).value||'active';
+    var ok=await dbAddClient(newName.trim(),newStatus);
     if(!ok)return;
     await loadClientRecords();
     var newCl=S.clientRecords.find(function(c){return c.name===newName.trim()});
@@ -2247,3 +2249,35 @@ async function saveClient(){
   if(!data.name.trim()){toast('Client name required','warn');return}
   var ok=await dbEditClient(id,data);
   if(ok){await loadClientRecords();toast('Client updated','ok');closeModal();render()}}
+
+/* ─── Add Client Modal ─── */
+function openAddClientModal(){
+  var h='<div class="tf-modal-top"><h2>Add Client</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:0 20px 20px"><div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="ncl-name" placeholder="Client name..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="ncl-status"><option value="active" selected>Active</option><option value="lapsed">Lapsed</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="text" class="edf" id="ncl-email" placeholder="email@example.com"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="ncl-company" placeholder="Company name..."></div>';
+  h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="ncl-notes" rows="3" placeholder="Notes..."></textarea></div>';
+  h+='</div>';
+  h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.addNewClient()">'+icon('check',14)+' Create Client</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
+  h+='</div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function addNewClient(){
+  var name=(gel('ncl-name')||{}).value||'';
+  if(!name.trim()){toast('Client name required','warn');return}
+  var status=(gel('ncl-status')||{}).value||'active';
+  var ok=await dbAddClient(name.trim(),status);
+  if(!ok)return;
+  await loadClientRecords();
+  /* Also set email, company, notes if provided */
+  var newCl=S.clientRecords.find(function(c){return c.name===name.trim()});
+  if(newCl){
+    var email=(gel('ncl-email')||{}).value||'';
+    var company=(gel('ncl-company')||{}).value||'';
+    var notes=(gel('ncl-notes')||{}).value||'';
+    if(email||company||notes){
+      await dbEditClient(newCl.id,{name:newCl.name,status:status,email:email,company:company,notes:notes});
+      await loadClientRecords()}}
+  toast('Client created','ok');closeModal();render()}

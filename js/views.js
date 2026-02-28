@@ -276,7 +276,8 @@ function rClients(){
   var totalMeetings=clients.reduce(function(s,c){return s+c.meetings},0);
   var totalRevenue=clients.reduce(function(s,c){return s+c.totalRevenue},0);
 
-  var h='<div class="pg-head"><h1>'+icon('clients',18)+' Clients</h1></div>';
+  var h='<div class="pg-head"><h1>'+icon('clients',18)+' Clients</h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddClientModal()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Client</button></div>';
 
   /* Metrics */
   h+='<div class="dash-mets">';
