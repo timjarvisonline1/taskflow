@@ -58,14 +58,17 @@ function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\
 var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],timers:{},view:'today',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,pipelineTab:'opportunities'};
+  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false};
 
 var SECTIONS=[
   {id:'today',type:'single',icon:'today',label:'Today',kbd:'1'},
   {id:'tasks',type:'single',icon:'tasks',label:'Tasks',kbd:'2'},
-  {id:'pipeline',type:'single',icon:'pipeline',label:'Pipeline',kbd:'3'},
-  {id:'clients',type:'single',icon:'clients',label:'Clients',kbd:'4'},
-  {id:'dashboard',type:'single',icon:'dashboard',label:'Dashboard',kbd:'5'}
+  {id:'opportunities',type:'single',icon:'gem',label:'Opportunities',kbd:'3'},
+  {id:'campaigns',type:'single',icon:'target',label:'Campaigns',kbd:'4'},
+  {id:'projects',type:'single',icon:'folder',label:'Projects',kbd:'5'},
+  {id:'clients',type:'single',icon:'clients',label:'Clients',kbd:'6'},
+  {id:'dashboard',type:'single',icon:'dashboard',label:'Dashboard',kbd:'7'},
+  {id:'finance',type:'single',icon:'activity',label:'Finance',kbd:'8',soon:true}
 ];
 var VIEWS_FLAT=[];
 SECTIONS.forEach(function(sec){VIEWS_FLAT.push(sec)});
@@ -76,7 +79,7 @@ var MOB_VIEWS=[
   {id:'mob-add',icon:'plus',label:'Add'},
   {id:'today',icon:'today',label:'Today'},
   {id:'tasks',icon:'tasks',label:'Tasks'},
-  {id:'pipeline',icon:'pipeline',label:'Pipeline'}
+  {id:'opportunities',icon:'gem',label:'Opps'}
 ];
 
 /* ═══════════ UTILS ═══════════ */
@@ -283,7 +286,7 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_pv',S.projView);localStorage.setItem('tf_opvw',S.opView);localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_pt',S.pipelineTab);localStorage.setItem('tf_sv',S.view)}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_tm',S.taskMode);localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_pv',S.projView);localStorage.setItem('tf_opvw',S.opView);localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_sv',S.view)}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
@@ -300,10 +303,9 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var pv=localStorage.getItem('tf_pv');if(pv)S.projView=pv;
   var opv=localStorage.getItem('tf_opvw');if(opv)S.opView=opv;
   var opsc=localStorage.getItem('tf_opsc');if(opsc)S.opShowClosed=true;
-  var pt=localStorage.getItem('tf_pt');if(pt)S.pipelineTab=pt;
   var sv=localStorage.getItem('tf_sv');if(sv)S.view=sv;
   /* Migrate old view IDs to new structure */
-  var viewMap={overview:'today',schedule:'today',analytics:'tasks',meetings:'today',weekly:'tasks',templates:'tasks',opportunities:'pipeline',campaigns:'pipeline',projects:'pipeline',review:'tasks'};
+  var viewMap={overview:'today',schedule:'today',analytics:'tasks',meetings:'today',weekly:'tasks',templates:'tasks',pipeline:'opportunities',review:'tasks'};
   if(viewMap[S.view])S.view=viewMap[S.view]}catch(e){}}
 function toast(msg,type){var t=cel('div','toast toast-'+(type||'ok'),msg);gel('toasts').appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t)},3200)}
 
@@ -709,7 +711,7 @@ function applyFilters(items,useDate){var f=S.filters;return items.filter(functio
   return true})}
 /* ═══════════ NAV ═══════════ */
 function nav(id){
-  if(isMobile()){var mobIds=['mob-add','today','tasks','pipeline'];if(mobIds.indexOf(id)===-1)id='mob-add'}
+  if(isMobile()){var mobIds=['mob-add','today','tasks','opportunities'];if(mobIds.indexOf(id)===-1)id='mob-add'}
   S.view=id;save();
   document.querySelectorAll('.s-item').forEach(function(n){
     n.classList.toggle('on',n.dataset.v===id)});
@@ -719,6 +721,14 @@ function buildNav(){var h='';
     var badge='';
     if(sec.id==='tasks'&&S.review.length)badge='<span class="nav-badge">'+S.review.length+'</span>';
     var isOn=sec.id===S.view;
+    if(sec.soon){
+      h+='<div class="s-item s-item-soon" data-v="'+sec.id+'">';
+      h+='<span class="ico">'+icon(sec.icon)+'</span>'+sec.label;
+      h+='<span class="s-right"><span class="s-soon-badge">Soon</span>';
+      if(sec.kbd)h+='<span class="kbd">'+sec.kbd+'</span>';
+      h+='</span></div>';
+      return;
+    }
     h+='<div class="s-item'+(isOn?' on':'')+'" data-v="'+sec.id+'" onclick="TF.nav(\''+sec.id+'\')">';
     h+='<span class="ico">'+icon(sec.icon)+'</span>'+sec.label;
     h+='<span class="s-right">'+badge;
@@ -756,7 +766,7 @@ document.addEventListener('keydown',function(e){
         e.preventDefault();
         var saveBtn=modal.querySelector('.btn-p');if(saveBtn)saveBtn.click();return}}}
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-  var n=parseInt(e.key);if(n>=0&&n<=9){var v=VIEWS_FLAT.find(function(vv){return vv.kbd===e.key});if(v)nav(v.id)}
+  var n=parseInt(e.key);if(n>=0&&n<=9){var v=VIEWS_FLAT.find(function(vv){return vv.kbd===e.key&&!vv.soon});if(v)nav(v.id)}
   if(e.key==='Escape'){closeModal();closeCmdPalette();closeFocus()}
   if(e.key==='n'||e.key==='N'){if(isMobile())nav('mob-add');else openAddModal()}
   if(e.key==='s'||e.key==='S'){openDailySummary()}

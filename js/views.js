@@ -4,19 +4,19 @@ function render(){
   var m=gel('main'),html='';
   /* Mobile: focused 4-view experience */
   if(isMobile()){
-    var mobIds=['mob-add','today','tasks','pipeline'];
+    var mobIds=['mob-add','today','tasks','opportunities'];
     if(mobIds.indexOf(S.view)===-1)S.view='mob-add';
-    switch(S.view){case'mob-add':html=rMobAdd();break;case'today':html=rMobToday();break;case'tasks':html=rMobTasks();break;case'pipeline':html=rMobPipeline();break}
+    switch(S.view){case'mob-add':html=rMobAdd();break;case'today':html=rMobToday();break;case'tasks':html=rMobTasks();break;case'opportunities':html=rMobOpportunities();break}
     m.innerHTML='<section class="vw on">'+html+'</section>';
     renderSidebar();return}
-  /* Desktop: 5-view experience */
+  /* Desktop: 8-view experience */
   if(S.view==='completed'){S.view='tasks';S.taskMode='done'}
-  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'pipeline':html=rPipeline();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break}
+  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today')initTodayCharts();
   if(S.view==='dashboard')initDashboardCharts();
-  if(S.view==='pipeline'&&S.pipelineTab==='projects')initProjectCharts();
-  if(S.view==='pipeline'&&S.pipelineTab==='opportunities')initOpportunityCharts();
+  if(S.view==='projects')initProjectCharts();
+  if(S.view==='opportunities')initOpportunityCharts();
   if(S.view==='clients')initClientsCharts();renderSidebar()}
 
 
@@ -174,6 +174,10 @@ function rDashboard(){
     h+='</div>'}
   else{h+='<div style="padding:20px;text-align:center;color:var(--t4);font-size:13px">No completed tasks yet</div>'}
 
+  /* Heatmap */
+  h+='<div class="dash-section">Activity</div>';
+  h+='<div class="dash-heatmap" id="heatmap-cal"></div>';
+
   /* Charts */
   h+='<div class="dash-charts">';
   h+='<div class="chart-card"><h3>Tasks by Category</h3><div class="chart-wrap"><canvas id="dash-cat-chart"></canvas></div></div>';
@@ -191,6 +195,8 @@ function initDashboardCharts(){
     var clientData={};S.done.filter(function(d){return d.completed&&d.completed>=cutoff}).forEach(function(d){
       var cl=d.client||'Internal / N/A';clientData[cl]=(clientData[cl]||0)+(d.duration||0)});
     if(Object.keys(clientData).length)mkHBar('dash-client-chart',clientData);
+    /* Heatmap */
+    renderHeatmap();
   },200)}
 
 /* ═══════════ RETAIN CLIENTS ═══════════ */
@@ -354,7 +360,7 @@ function initClientsCharts(){
     if(Object.keys(pipeData).length)mkDonut('clients-pipeline-chart',pipeData);
   },200)}
 
-/* Schedule view and initScheduleCharts removed — Today replaces it */
+/* Schedule capacity planning is integrated into rToday() */
 
 function rToday(){
   var td=today(),now=new Date(),effDay=getEffectiveDay();
@@ -412,6 +418,98 @@ function rToday(){
   h+='<div class="td-met"><div class="td-met-v" style="color:var(--red)">'+focus.length+'</div><div class="td-met-l">Due</div></div>';
   if(prog)h+='<div class="td-met"><div class="td-met-v" style="color:var(--green)">'+prog+'</div><div class="td-met-l">Running</div></div>';
   h+='</div>';
+
+  /* WEEKLY CAPACITY PLANNING */
+  var schedDaysConf=CONFIG.schedDays||[1,2,3,4];
+  var wSC=CONFIG.workStart||9,wEC=CONFIG.workEnd||20;
+  var workMinsPerDay=(wEC-wSC)*60;
+  var capDays=[],capWeekUsed={};
+  var capWeekFreeMins=0,capWeekBusyMins=0,capWeekSchedMins=0,capWeekSchedCount=0;
+  var capWeekMtgMins=0,capWeekOooMins=0,capWeekSchedCrit=0,capWeekSchedImp=0,capWeekSchedWta=0;
+  for(var wd=0;wd<7;wd++){
+    var wdd=new Date(td.getTime()+wd*864e5);
+    if(schedDaysConf.indexOf(wdd.getDay())===-1)continue;
+    var wdEnd=new Date(wdd.getTime()+864e5);
+    var wdEvents=S.calEvents.filter(function(e){return e.start>=wdd&&e.start<wdEnd});
+    var wdFreeSlots=calcFreeSlots(wdEvents,wSC,wEC,wdd);
+    var wdFreeMins=0;wdFreeSlots.forEach(function(s){wdFreeMins+=Math.round((s.end-s.start)/60000)});
+    var wdMtgMins=0,wdOooMins=0;wdEvents.forEach(function(e){
+      var es=Math.max(e.start.getTime(),new Date(wdd).setHours(wSC,0,0,0));
+      var ee=Math.min(e.end.getTime(),new Date(wdd).setHours(wEC,0,0,0));
+      if(ee>es){var m=Math.round((ee-es)/60000);if(e.title&&e.title.indexOf('OOO')===0)wdOooMins+=m;else wdMtgMins+=m}});
+    var wdBusyMins=wdMtgMins+wdOooMins;
+    var wdSched=scheduleTasks(wdd,capWeekUsed);
+    var wdSchedMins=0,wdSchedCrit=0,wdSchedImp=0,wdSchedWta=0;
+    wdSched.forEach(function(s){wdSchedMins+=s.mins;capWeekUsed[s.task.id]=true;
+      if(s.task.importance==='Critical')wdSchedCrit+=s.mins;
+      else if(s.task.importance==='When Time Allows')wdSchedWta+=s.mins;
+      else wdSchedImp+=s.mins});
+    capWeekFreeMins+=wdFreeMins;capWeekBusyMins+=wdBusyMins;
+    capWeekSchedMins+=wdSchedMins;capWeekSchedCount+=wdSched.length;
+    capWeekMtgMins+=wdMtgMins;capWeekOooMins+=wdOooMins;
+    capWeekSchedCrit+=wdSchedCrit;capWeekSchedImp+=wdSchedImp;capWeekSchedWta+=wdSchedWta;
+    var dayPct=workMinsPerDay>0?Math.round((wdBusyMins+wdSchedMins)/workMinsPerDay*100):0;
+    capDays.push({date:wdd,label:DAYSHORT[wdd.getDay()]+' '+wdd.getDate(),
+      mtg:wdMtgMins,ooo:wdOooMins,busy:wdBusyMins,sched:wdSchedMins,
+      schedCrit:wdSchedCrit,schedImp:wdSchedImp,schedWta:wdSchedWta,
+      free:Math.max(0,wdFreeMins-wdSchedMins),tasks:wdSched.length,pct:dayPct,isToday:wd===0})}
+  var capTotalTasks=S.tasks.filter(function(t){return t.est>0&&(t.est-(t.duration||0))>0}).length;
+  var capUnscheduled=capTotalTasks-capWeekSchedCount;
+  var capUnschedMins=0;if(capUnscheduled>0)S.tasks.forEach(function(t){if(t.est>0&&!capWeekUsed[t.id]){capUnschedMins+=Math.max(5,t.est-(t.duration||0))}});
+  var capWeekWorkMins=capDays.length*workMinsPerDay;
+  var capWeekUsedMins=capWeekBusyMins+capWeekSchedMins;
+  var capWeekPct=capWeekWorkMins>0?Math.round(capWeekUsedMins/capWeekWorkMins*100):0;
+  var capWeekClr=capWeekPct>95?'var(--red)':capWeekPct>70?'var(--amber)':'var(--green)';
+
+  if(capDays.length){
+    h+='<div class="cap-section">';
+    h+='<div class="cap-week">';
+    h+='<div class="cap-week-head">';
+    h+='<span class="cap-week-title">'+icon('activity',12)+' Weekly Capacity ('+capDays.length+' work days)</span>';
+    h+='<span class="cap-week-pct" style="color:'+capWeekClr+'">'+capWeekPct+'%</span>';
+    h+='</div>';
+    var cwP=function(v){return capWeekWorkMins>0?Math.round(v/capWeekWorkMins*100):0};
+    h+='<div class="cap-day-bar cap-week-bar">';
+    if(capWeekOooMins>0)h+='<div class="cap-bar-seg ooo" style="width:'+cwP(capWeekOooMins)+'%" title="OOO: '+fmtM(capWeekOooMins)+'"></div>';
+    if(capWeekMtgMins>0)h+='<div class="cap-bar-seg mtg" style="width:'+cwP(capWeekMtgMins)+'%" title="Meetings: '+fmtM(capWeekMtgMins)+'"></div>';
+    if(capWeekSchedCrit>0)h+='<div class="cap-bar-seg crit" style="width:'+cwP(capWeekSchedCrit)+'%" title="Critical: '+fmtM(capWeekSchedCrit)+'"></div>';
+    if(capWeekSchedImp>0)h+='<div class="cap-bar-seg imp" style="width:'+cwP(capWeekSchedImp)+'%" title="Important: '+fmtM(capWeekSchedImp)+'"></div>';
+    if(capWeekSchedWta>0)h+='<div class="cap-bar-seg wta" style="width:'+cwP(capWeekSchedWta)+'%" title="When Time Allows: '+fmtM(capWeekSchedWta)+'"></div>';
+    h+='</div>';
+    h+='<div class="cap-week-stats">';
+    if(capWeekOooMins>0)h+='<span>OOO <b style="color:var(--purple50)">'+fmtM(capWeekOooMins)+'</b></span>';
+    h+='<span>Meetings <b style="color:var(--pink)">'+fmtM(capWeekMtgMins)+'</b></span>';
+    if(capWeekSchedCrit>0)h+='<span>Critical <b style="color:var(--red)">'+fmtM(capWeekSchedCrit)+'</b></span>';
+    if(capWeekSchedImp>0)h+='<span>Important <b style="color:var(--blue)">'+fmtM(capWeekSchedImp)+'</b></span>';
+    if(capWeekSchedWta>0)h+='<span>Flex <b style="color:var(--green)">'+fmtM(capWeekSchedWta)+'</b></span>';
+    h+='<span>Free <b style="color:var(--green)">'+fmtM(Math.max(0,capWeekFreeMins-capWeekSchedMins))+'</b></span>';
+    if(capUnscheduled>0)h+='<span>'+icon('alert',11)+' Overflow <b style="color:var(--red)">'+capUnscheduled+' tasks</b> ('+fmtM(capUnschedMins)+')</span>';
+    else h+='<span>'+icon('check',11)+' <b style="color:var(--green)">All scheduled</b></span>';
+    h+='</div></div>';
+    h+='<div class="cap-days">';
+    capDays.forEach(function(d){
+      var dayClr=d.pct>95?'var(--red)':d.pct>70?'var(--amber)':'var(--green)';
+      var pM=function(v){return workMinsPerDay>0?Math.round(v/workMinsPerDay*100):0};
+      h+='<div class="cap-day'+(d.isToday?' cap-day-today':'')+'">';
+      h+='<div class="cap-day-label">'+d.label+'</div>';
+      h+='<div class="cap-day-bar">';
+      if(d.ooo>0)h+='<div class="cap-bar-seg ooo" style="width:'+pM(d.ooo)+'%" title="OOO: '+fmtM(d.ooo)+'"></div>';
+      if(d.mtg>0)h+='<div class="cap-bar-seg mtg" style="width:'+pM(d.mtg)+'%" title="Meetings: '+fmtM(d.mtg)+'"></div>';
+      if(d.schedCrit>0)h+='<div class="cap-bar-seg crit" style="width:'+pM(d.schedCrit)+'%" title="Critical: '+fmtM(d.schedCrit)+'"></div>';
+      if(d.schedImp>0)h+='<div class="cap-bar-seg imp" style="width:'+pM(d.schedImp)+'%" title="Important: '+fmtM(d.schedImp)+'"></div>';
+      if(d.schedWta>0)h+='<div class="cap-bar-seg wta" style="width:'+pM(d.schedWta)+'%" title="When Time Allows: '+fmtM(d.schedWta)+'"></div>';
+      h+='</div>';
+      h+='<div class="cap-day-meta">';
+      h+='<span class="cap-day-pct" style="color:'+dayClr+'">'+d.pct+'%</span>';
+      if(d.mtg>0)h+='<span class="cap-day-info"><b style="color:var(--pink)">'+fmtM(d.mtg)+'</b> mtg</span>';
+      if(d.ooo>0)h+='<span class="cap-day-info"><b style="color:var(--purple50)">'+fmtM(d.ooo)+'</b> OOO</span>';
+      h+='<span class="cap-day-info"><b style="color:var(--blue)">'+fmtM(d.sched)+'</b> tasks ('+d.tasks+')</span>';
+      if(d.free>0)h+='<span class="cap-day-info"><b style="color:var(--green)">'+fmtM(d.free)+'</b> free</span>';
+      h+='</div></div>'});
+    h+='</div></div>'}
+
+  /* CALENDAR + 2-DAY PLANNER */
+  h+='<div id="cal-section">'+renderCalSection()+'</div>';
 
   /* TODAY'S SCHEDULE (calendar-style day planner) */
   var wS=CONFIG.workStart||9,wE=CONFIG.workEnd||20;
@@ -1219,38 +1317,7 @@ function opCardClass(s){
 
 function probClass(p){return p>=70?'op-prob-high':p>=40?'op-prob-mid':'op-prob-low'}
 
-/* ═══════════ PIPELINE WRAPPER ═══════════ */
-function rPipeline(){
-  var tab=S.pipelineTab||'opportunities';
-  var h='<div class="pg-head"><h1>'+icon('pipeline',18)+' Pipeline</h1>';
-  h+='<div class="task-mode-toggle">';
-  ['opportunities','campaigns','projects'].forEach(function(t){
-    h+='<button class="tm-btn'+(tab===t?' on':'')+'" onclick="S.pipelineTab=\''+t+'\';save();render()">'+t.charAt(0).toUpperCase()+t.slice(1)+'</button>';
-  });
-  h+='</div></div>';
-  switch(tab){
-    case'opportunities':h+=rOpportunitiesBody();break;
-    case'campaigns':h+=rCampaignsBody();break;
-    case'projects':h+=rProjectsBody();break;
-  }
-  return h;
-}
-
-function rMobPipeline(){
-  var tab=S.pipelineTab||'opportunities';
-  var h='<div class="pg-head"><h1>Pipeline</h1>';
-  h+='<div class="task-mode-toggle">';
-  ['opportunities','campaigns','projects'].forEach(function(t){
-    h+='<button class="tm-btn'+(tab===t?' on':'')+'" onclick="S.pipelineTab=\''+t+'\';save();render()">'+t.charAt(0).toUpperCase()+t.slice(1)+'</button>';
-  });
-  h+='</div></div>';
-  switch(tab){
-    case'opportunities':h+=rOpportunitiesBody();break;
-    case'campaigns':h+=rCampaignsBody();break;
-    case'projects':h+=rProjectsBody();break;
-  }
-  return h;
-}
+function rMobOpportunities(){return rOpportunities()}
 
 function rOpportunities(){return '<div class="pg-head"><h1>'+icon('gem',18)+' Opportunities</h1><button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:12px;padding:8px 18px">+ Add Opportunity</button></div>'+rOpportunitiesBody()}
 function rOpportunitiesBody(){
@@ -1686,7 +1753,7 @@ function projStatusClass(s){
   if(s==='Planning')return'proj-st-planning';if(s==='Active')return'proj-st-active';
   if(s==='On Hold')return'proj-st-hold';if(s==='Completed')return'proj-st-completed';return'proj-st-archived'}
 
-function rProjects(){return '<div class="vw-head"><h1>'+icon('folder',18)+' Projects</h1><button class="btn btn-p" onclick="TF.openAddProject()">+ New Project</button></div>'+rProjectsBody()}
+function rProjects(){return '<div class="pg-head"><h1>'+icon('folder',18)+' Projects</h1><button class="btn btn-p" onclick="TF.openAddProject()">+ New Project</button></div>'+rProjectsBody()}
 function rProjectsBody(){
   var activeProjects=S.projects.filter(function(p){return p.status!=='Archived'});
   var totalOpen=0,totalTime=0,totalOverdue=0,activeCount=0;

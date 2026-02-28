@@ -1350,7 +1350,7 @@ async function addCampaign(){
     awarenessLP:'',considerationLP:'',decisionLP:'',contractLink:'',notes:(gel('ncp-notes')||{}).value||''};
   var result=await dbAddCampaign(cp);
   if(result){cp.id=result.id;cp.created=new Date();S.campaigns.push(cp)}
-  toast('Created: '+cp.name,'ok');closeModal();S.pipelineTab='campaigns';nav('pipeline');render()}
+  toast('Created: '+cp.name,'ok');closeModal();nav('campaigns');render()}
 
 function confirmDeleteCampaign(){
   var id=gel('cp-id').value;var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
@@ -1854,7 +1854,7 @@ async function addProject(){
         if(phResult){S.phases.push({id:phResult.id,projectId:projId,name:pn,description:'',sortOrder:order,
           startDate:null,endDate:null,status:'Not Started',created:new Date()})}
         order++}}}
-  toast('Created: '+data.name,'ok');closeModal();S.pipelineTab='projects';nav('pipeline')}
+  toast('Created: '+data.name,'ok');closeModal();nav('projects')}
 
 function confirmDeleteProject(){
   var id=gel('pj-id').value;var proj=S.projects.find(function(p){return p.id===id});if(!proj)return;

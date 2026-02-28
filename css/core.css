@@ -53,6 +53,10 @@ body{background:var(--bg);color:var(--t1);font-family:var(--f);font-size:14px;li
 .s-item .ico svg{width:16px;height:16px}
 .btm-ico svg{width:20px;height:20px}
 
+/* ── COMING SOON ── */
+.s-item-soon{opacity:0.4;cursor:default;pointer-events:none}
+.s-soon-badge{font-size:9px;text-transform:uppercase;letter-spacing:0.06em;color:var(--t4);background:var(--bg4);padding:2px 7px;border-radius:4px;font-weight:700}
+
 /* ── SIDEBAR ACTIVE TIMERS ── */
 .s-active{padding:0 14px;border-top:1px solid var(--gborder);max-height:280px;overflow-y:auto}
 .sb-qa{display:flex;gap:4px;padding:10px 0 6px 0}
