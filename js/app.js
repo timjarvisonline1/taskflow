@@ -51,6 +51,7 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
   openAddFinancePayment:openAddFinancePayment,addFinancePayment:addFinancePayment,
   confirmDeleteFinancePayment:confirmDeleteFinancePayment,doDeleteFinancePayment:doDeleteFinancePayment,
   excludeFinancePayment:excludeFinancePayment,fpCatChange:fpCatChange,
+  fpClientChange:fpClientChange,fpEndClientChange:fpEndClientChange,
   openAssociateModal:openAssociateModal,associatePayer:associatePayer,
   setFinFilter:setFinFilter,setFinSearch:setFinSearch,
   openEditClient:openEditClient,saveClient:saveClient,

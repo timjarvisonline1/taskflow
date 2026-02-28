@@ -2000,10 +2000,9 @@ function openFinancePaymentDetail(id){
   PAY_CATS.forEach(function(c){
     catOpts+='<option'+(p.category===c?' selected':'')+'>'+esc(c)+'</option>'});
 
-  /* Build campaign options */
-  var cpOpts='<option value="">— None —</option>';
-  S.campaigns.forEach(function(c){
-    cpOpts+='<option value="'+esc(c.id)+'"'+(p.campaignId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  /* Build end client + campaign options (filtered by current client) */
+  var ecOpts=buildEndClientOptions(p.endClient,clientName);
+  var cpOpts=buildCampaignOptions(p.campaignId,clientName,p.endClient);
 
   var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
   var isFcCat=p.category&&p.category.indexOf('F&C')===0;
@@ -2028,11 +2027,13 @@ function openFinancePaymentDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Fee</span><div class="edf" style="color:var(--t4)">'+fmtUSD(p.fee)+'</div></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Net</span><div class="edf" style="color:var(--green)">'+fmtUSD(p.net)+'</div></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="fp-category" onchange="TF.fpCatChange()">'+catOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fp-client">'+clOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Or Create New</span><input type="text" class="edf" id="fp-newclient" placeholder="New client name..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fp-client" onchange="TF.fpClientChange()">'+clOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Or Create New Client</span><input type="text" class="edf" id="fp-newclient" placeholder="New client name..."></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">New Client Status</span><select class="edf" id="fp-newstatus"><option value="active">Active</option><option value="lapsed">Lapsed</option></select></div>';
+  h+='<div class="ed-fld" id="fp-endclient-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">End Client</span><select class="edf" id="fp-endclient" onchange="TF.fpEndClientChange()">'+ecOpts+'</select></div>';
   h+='<div class="ed-fld" id="fp-campaign-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">Campaign</span><select class="edf" id="fp-campaign">'+cpOpts+'</select></div>';
-  h+='<div class="ed-fld" id="fp-endclient-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="fp-endclient" value="'+esc(p.endClient)+'" placeholder="End client..."></div>';
+  h+='<div class="ed-fld" id="fp-newcampaign-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">Or Create New Campaign</span><input type="text" class="edf" id="fp-newcampaign" placeholder="New campaign name..."></div>';
+  h+='<div class="ed-fld" id="fp-newcpstatus-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">New Campaign Status</span><select class="edf" id="fp-newcpstatus"><option>Setup</option><option>Active</option><option>Paused</option><option>Completed</option><option>Archived</option></select></div>';
   h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="fp-notes" rows="3" placeholder="Notes...">'+esc(p.notes)+'</textarea></div>';
   h+='</div>';
 
@@ -2077,8 +2078,26 @@ function openFinancePaymentDetail(id){
 function fpCatChange(){
   var cat=(gel('fp-category')||{}).value||'';
   var isFc=cat.indexOf('F&C')===0;
-  var cpRow=gel('fp-campaign-row');if(cpRow)cpRow.style.display=isFc?'':'none';
-  var ecRow=gel('fp-endclient-row');if(ecRow)ecRow.style.display=isFc?'':'none'}
+  var d=isFc?'':'none';
+  var ecRow=gel('fp-endclient-row');if(ecRow)ecRow.style.display=d;
+  var cpRow=gel('fp-campaign-row');if(cpRow)cpRow.style.display=d;
+  var ncpRow=gel('fp-newcampaign-row');if(ncpRow)ncpRow.style.display=d;
+  var ncsRow=gel('fp-newcpstatus-row');if(ncsRow)ncsRow.style.display=d}
+
+function fpClientChange(){
+  var clientId=(gel('fp-client')||{}).value||'';
+  var clientName=clientNameById(clientId);
+  var ecSel=gel('fp-endclient');
+  if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',clientName);
+  fpEndClientChange()}
+
+function fpEndClientChange(){
+  var clientId=(gel('fp-client')||{}).value||'';
+  var clientName=clientNameById(clientId);
+  var ec=(gel('fp-endclient')||{}).value||'';
+  if(ec==='__addnew__'){ecAddNew('fp-endclient');return}
+  var cpSel=gel('fp-campaign');
+  if(cpSel)cpSel.innerHTML=buildCampaignOptions('',clientName,ec)}
 
 async function saveFinancePayment(){
   var id=(gel('fp-id')||{}).value;if(!id)return;
@@ -2097,15 +2116,45 @@ async function saveFinancePayment(){
     else{toast('Could not find created client','warn');return}}
 
   var cat=(gel('fp-category')||{}).value||'';
+  var isFc=cat.indexOf('F&C')===0;
+
+  /* Resolve end client value (dropdown or typed-in text input) */
+  var ecEl=gel('fp-endclient');
+  var endClient='';
+  if(isFc&&ecEl){
+    endClient=ecEl.value||'';
+    if(endClient==='__addnew__')endClient=''}
+
+  /* Resolve campaign — either selected or create new */
+  var campaignId=(gel('fp-campaign')||{}).value||null;
+  var newCpName=(gel('fp-newcampaign')||{}).value||'';
+
+  if(isFc&&newCpName.trim()&&!campaignId){
+    var clientForCp=clientNameById(clientId);
+    var cpStatus=(gel('fp-newcpstatus')||{}).value||'Setup';
+    var cpData={name:newCpName.trim(),partner:clientForCp,endClient:endClient,
+      status:cpStatus,platform:'',strategyFee:0,setupFee:0,monthlyFee:0,
+      monthlyAdSpend:0,campaignTerm:'',plannedLaunch:null,actualLaunch:null,
+      renewalDate:null,goal:'',proposalLink:'',reportsLink:'',videoAssetsLink:'',
+      transcriptsLink:'',awarenessLP:'',considerationLP:'',decisionLP:'',
+      contractLink:'',notes:''};
+    var cpResult=await dbAddCampaign(cpData);
+    if(cpResult){
+      cpData.id=cpResult.id;cpData.created=new Date();
+      S.campaigns.push(cpData);
+      campaignId=cpResult.id;
+      toast('Campaign created: '+newCpName.trim(),'ok')}
+    else{return}}
+
   var newStatus=clientId?'matched':p.status;
   var data={date:(gel('fp-date')||{}).value||null,category:cat,
-    clientId:clientId,campaignId:(gel('fp-campaign')||{}).value||null,
-    endClient:(gel('fp-endclient')||{}).value||'',notes:(gel('fp-notes')||{}).value||'',
+    clientId:clientId,campaignId:campaignId,
+    endClient:endClient,notes:(gel('fp-notes')||{}).value||'',
     status:newStatus};
   var ok2=await dbEditFinancePayment(id,data);
   if(ok2){
     p.date=data.date?new Date(data.date+'T00:00:00'):null;p.category=cat;
-    p.clientId=clientId;p.campaignId=data.campaignId;p.endClient=data.endClient;
+    p.clientId=clientId;p.campaignId=campaignId;p.endClient=endClient;
     p.notes=data.notes;p.status=newStatus;
     toast('Payment saved','ok');closeModal();render()}}
 
