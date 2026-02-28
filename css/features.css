@@ -687,3 +687,66 @@
 .cl-row:hover{background:rgba(255,255,255,0.02)}
 .cl-expand{font-size:10px;color:var(--t4);transition:transform .2s var(--ease);display:inline-block}
 .cl-expand.open{transform:rotate(90deg)}
+
+/* ═══════════ FINANCE ═══════════ */
+.fin-filters{display:flex;align-items:center;gap:12px;margin:16px 0;flex-wrap:wrap}
+.fin-tabs{display:flex;gap:2px;background:var(--bg3);border-radius:10px;padding:3px}
+.fin-tab{padding:7px 16px;font-size:12px;font-weight:600;border:none;background:transparent;color:var(--t3);cursor:pointer;border-radius:8px;transition:all .2s var(--ease)}
+.fin-tab.on{background:var(--bg2);color:var(--t1);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.fin-tab:hover:not(.on){color:var(--t2)}
+.fin-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:var(--amber);color:#000;font-size:10px;font-weight:700;padding:0 5px;margin-left:4px}
+
+/* Finance table */
+.fin-tb{font-size:12px}
+.fin-tb th{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--t4);padding:10px 12px;border-bottom:1px solid var(--gborder)}
+.fin-tb td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.03)}
+.fin-row{cursor:pointer;transition:background .15s var(--ease)}
+.fin-row:hover{background:rgba(255,255,255,.03)}
+.fin-unmatched{border-left:3px solid var(--amber)}
+.fin-date{white-space:nowrap;color:var(--t3);font-size:11px}
+.fin-payer{display:flex;flex-direction:column;gap:1px}
+.fin-payer-name{font-weight:500;color:var(--t1)}
+.fin-payer-email{font-size:10px;color:var(--t4)}
+.fin-desc{color:var(--t4);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Source badges */
+.fin-src{display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.fin-src-stripe,.fin-src-stripe2{background:rgba(99,91,255,.15);color:#7c6bff}
+.fin-src-zoho{background:rgba(77,166,255,.15);color:var(--blue)}
+.fin-src-brex{background:rgba(61,220,132,.15);color:var(--green)}
+.fin-src-manual{background:rgba(161,161,170,.15);color:var(--t3)}
+
+/* Status badges */
+.fin-status{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;text-transform:capitalize}
+.fin-status-unmatched{background:rgba(255,152,0,.12);color:var(--amber)}
+.fin-status-matched{background:rgba(61,220,132,.12);color:var(--green)}
+.fin-status-excluded{background:rgba(161,161,170,.1);color:var(--t4)}
+
+/* Category badges */
+.fin-cat{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:500;background:rgba(255,0,153,.1);color:var(--pink)}
+
+/* Client name in table */
+.fin-client-name{font-weight:500;color:var(--t1)}
+
+/* Associate button in table */
+.fin-match-btn{padding:4px 12px!important;font-size:11px!important;font-weight:600!important;border-radius:6px!important;background:var(--amber)!important;color:#000!important;border:none!important;cursor:pointer!important}
+.fin-match-btn:hover{opacity:.85}
+
+/* Associate modal */
+.fin-assoc-payer{background:var(--bg3);border-radius:10px;padding:16px;margin-bottom:8px;border:1px solid var(--gborder)}
+
+/* Related payments list (right pane) */
+.fin-related-list{display:flex;flex-direction:column;gap:2px}
+.fin-related-item{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:8px;cursor:pointer;transition:background .15s var(--ease);font-size:12px}
+.fin-related-item:hover{background:rgba(255,255,255,.04)}
+.fin-related-date{color:var(--t3);font-size:11px;min-width:90px}
+.fin-related-amt{font-weight:600;min-width:80px}
+
+/* Client status dot */
+.cl-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.cl-status-active{background:var(--green)}
+.cl-status-lapsed{background:var(--t4)}
+.cl-rev{font-weight:600;color:var(--green);font-size:12px}
+.cl-edit-btn{display:inline-flex;align-items:center;opacity:0;margin-left:6px;cursor:pointer;color:var(--t4);transition:opacity .15s,color .15s}
+.cl-edit-btn:hover{color:var(--blue)}
+.cl-row:hover .cl-edit-btn{opacity:1}

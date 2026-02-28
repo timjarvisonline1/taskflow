@@ -55,10 +55,13 @@ var ICONS={
 };
 function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"')}return s}
 
+var PAY_CATS=['Products','Retain Live','F&C Campaign Set-Up','F&C Strategy','F&C Monthly Fees','Other'];
+
 var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],timers:{},view:'today',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false};
+  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
+  financePayments:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:''};
 
 var SECTIONS=[
   {id:'today',type:'single',icon:'today',label:'Today',kbd:'1'},
@@ -68,7 +71,7 @@ var SECTIONS=[
   {id:'projects',type:'single',icon:'folder',label:'Projects',kbd:'5'},
   {id:'clients',type:'single',icon:'clients',label:'Clients',kbd:'6'},
   {id:'dashboard',type:'single',icon:'dashboard',label:'Dashboard',kbd:'7'},
-  {id:'finance',type:'single',icon:'activity',label:'Finance',kbd:'8',soon:true}
+  {id:'finance',type:'single',icon:'activity',label:'Finance',kbd:'8'}
 ];
 var VIEWS_FLAT=[];
 SECTIONS.forEach(function(sec){VIEWS_FLAT.push(sec)});
@@ -427,14 +430,90 @@ async function loadOpportunities(){
       convertedCampaignId:r.converted_campaign_id||'',
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
+/* ═══════════ FINANCE DATA ═══════════ */
+async function loadFinancePayments(){
+  var res=await _sb.from('finance_payments').select('*').order('date',{ascending:false});
+  if(res.error){console.error('loadFinancePayments:',res.error);return}
+  S.financePayments=(res.data||[]).map(function(r){
+    return{id:r.id,date:r.date?new Date(r.date+'T00:00:00'):null,amount:parseFloat(r.amount)||0,
+      fee:parseFloat(r.fee)||0,net:parseFloat(r.net)||0,source:r.source||'',sourceId:r.source_id||'',
+      payerEmail:r.payer_email||'',payerName:r.payer_name||'',description:r.description||'',
+      category:r.category||'',clientId:r.client_id||'',campaignId:r.campaign_id||'',
+      endClient:r.end_client||'',notes:r.notes||'',status:r.status||'unmatched'}})}
+
+async function loadClientRecords(){
+  var res=await _sb.from('clients').select('*').order('name');
+  if(res.error){console.error('loadClientRecords:',res.error);return}
+  S.clientRecords=(res.data||[]).map(function(r){
+    return{id:r.id,name:r.name||'',status:r.status||'active',email:r.email||'',company:r.company||'',notes:r.notes||''}});
+  /* Also update S.clients string array for backward compat */
+  var cls=S.clientRecords.map(function(r){return r.name});
+  cls.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
+  cls.unshift('Internal / N/A');
+  S.clients=cls}
+
+async function loadPayerMap(){
+  var res=await _sb.from('payer_client_map').select('*');
+  if(res.error){console.error('loadPayerMap:',res.error);return}
+  S.payerMap=(res.data||[]).map(function(r){
+    return{id:r.id,payerEmail:r.payer_email||'',payerName:r.payer_name||'',clientId:r.client_id||''}})}
+
+/* Finance CRUD */
+async function dbAddFinancePayment(data){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,date:data.date||null,amount:data.amount||0,fee:data.fee||0,
+    net:data.net||0,source:data.source||'manual',source_id:data.sourceId||'',
+    payer_email:data.payerEmail||'',payer_name:data.payerName||'',description:data.description||'',
+    category:data.category||'',client_id:data.clientId||null,campaign_id:data.campaignId||null,
+    end_client:data.endClient||'',notes:data.notes||'',status:data.status||'unmatched'};
+  var res=await _sb.from('finance_payments').insert(row).select().single();
+  if(res.error){toast('Payment save failed: '+res.error.message,'warn');return null}
+  return res.data}
+
+async function dbEditFinancePayment(id,data){
+  var row={date:data.date||null,category:data.category||'',client_id:data.clientId||null,
+    campaign_id:data.campaignId||null,end_client:data.endClient||'',notes:data.notes||'',
+    status:data.status||'unmatched'};
+  var res=await _sb.from('finance_payments').update(row).eq('id',id);
+  if(res.error){toast('Payment update failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbDeleteFinancePayment(id){
+  var res=await _sb.from('finance_payments').delete().eq('id',id);
+  if(res.error){toast('Payment delete failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbEditClient(id,data){
+  var row={name:data.name,status:data.status||'active',email:data.email||'',
+    company:data.company||'',notes:data.notes||''};
+  var res=await _sb.from('clients').update(row).eq('id',id);
+  if(res.error){toast('Client update failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbAssociatePayerToClient(payerEmail,payerName,clientId,category){
+  var uid=await getUserId();if(!uid)return false;
+  /* 1. Upsert payer_client_map */
+  var mapRow={user_id:uid,payer_email:payerEmail||'',payer_name:payerName||'',client_id:clientId};
+  var mapRes=await _sb.from('payer_client_map').upsert(mapRow,{onConflict:'user_id,payer_email,payer_name'});
+  if(mapRes.error){toast('Mapping save failed: '+mapRes.error.message,'warn');return false}
+  /* 2. Bulk update all unmatched payments from this payer */
+  var upd={client_id:clientId,status:'matched'};
+  if(category)upd.category=category;
+  var query=_sb.from('finance_payments').update(upd).eq('user_id',uid).eq('status','unmatched');
+  if(payerEmail)query=query.eq('payer_email',payerEmail);
+  else query=query.eq('payer_name',payerName);
+  var res=await query;
+  if(res.error){toast('Bulk match failed: '+res.error.message,'warn');return false}
+  return true}
+
 function fmtUSD(n){return'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
 
 async function loadData(){toast('Loading data...','info');
   try{
     /* Load campaigns first (payments/meetings reference them) */
-    await Promise.all([loadTasks(),loadDone(),loadClients(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
-    /* Now load payments, campaign meetings, activity logs & phases (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs(),loadPhases()]);
+    await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
+    /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadPayerMap()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -709,6 +788,18 @@ function applyFilters(items,useDate){var f=S.filters;return items.filter(functio
   if(useDate&&f.dateFrom){var d=t.completed||t.due;if(!d||d<new Date(f.dateFrom))return false}
   if(useDate&&f.dateTo){var d2=t.completed||t.due;var to=new Date(f.dateTo);to.setHours(23,59,59);if(!d2||d2>to)return false}
   return true})}
+/* Finance helpers */
+function setFinFilter(v){S.finFilter=v;render()}
+function finFilteredPayments(){
+  var fp=S.financePayments.slice();
+  if(S.finFilter==='unmatched')fp=fp.filter(function(p){return p.status==='unmatched'});
+  else if(S.finFilter==='matched')fp=fp.filter(function(p){return p.status==='matched'});
+  if(S.finSearch){var q=S.finSearch.toLowerCase();
+    fp=fp.filter(function(p){return(p.payerEmail||'').toLowerCase().indexOf(q)!==-1||(p.payerName||'').toLowerCase().indexOf(q)!==-1||(p.description||'').toLowerCase().indexOf(q)!==-1||(p.notes||'').toLowerCase().indexOf(q)!==-1})}
+  return fp}
+function setFinSearch(v){S.finSearch=v;render()}
+function clientNameById(id){if(!id)return'';var c=S.clientRecords.find(function(r){return r.id===id});return c?c.name:''}
+
 /* ═══════════ NAV ═══════════ */
 function nav(id){
   if(isMobile()){var mobIds=['mob-add','today','tasks','opportunities'];if(mobIds.indexOf(id)===-1)id='mob-add'}

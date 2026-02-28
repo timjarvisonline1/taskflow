@@ -11,7 +11,7 @@ function render(){
     renderSidebar();return}
   /* Desktop: 8-view experience */
   if(S.view==='completed'){S.view='tasks';S.taskMode='done'}
-  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break}
+  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today')initTodayCharts();
   if(S.view==='dashboard')initDashboardCharts();
@@ -208,7 +208,8 @@ function rClients(){
     if(!name||name==='Internal / N/A')return;
     if(!clientMap[name])clientMap[name]={name:name,campaigns:0,activeCampaigns:0,monthlyRev:0,
       opportunities:0,pipelineValue:0,openTasks:0,overdueTasks:0,doneTasks:0,timeTracked:0,
-      meetings:0,lastActivity:null,campaignList:[],oppList:[],recentDone:[]}}
+      meetings:0,lastActivity:null,campaignList:[],oppList:[],recentDone:[],
+      totalRevenue:0,paymentCount:0,clientStatus:'active',clientId:''}}
 
   /* From campaigns */
   S.campaigns.forEach(function(cp){
@@ -247,6 +248,21 @@ function rClients(){
     clientMap[partner].meetings++;
     if(m.date&&m.date>=thisMonth)clientMap[partner].meetings++});
 
+  /* From finance payments */
+  S.financePayments.forEach(function(fp){
+    if(!fp.clientId||fp.status==='excluded')return;
+    var cName=clientNameById(fp.clientId);
+    if(!cName)return;
+    ensureClient(cName);
+    clientMap[cName].totalRevenue+=fp.amount;
+    clientMap[cName].paymentCount++});
+
+  /* Overlay client record status & id */
+  S.clientRecords.forEach(function(cr){
+    if(clientMap[cr.name]){
+      clientMap[cr.name].clientStatus=cr.status||'active';
+      clientMap[cr.name].clientId=cr.id}});
+
   /* Sort by activity */
   var clients=Object.keys(clientMap).map(function(k){return clientMap[k]});
   clients.sort(function(a,b){return(b.activeCampaigns+b.openTasks+b.opportunities)-(a.activeCampaigns+a.openTasks+a.opportunities)});
@@ -258,6 +274,7 @@ function rClients(){
   var totalPipeline=clients.reduce(function(s,c){return s+c.pipelineValue},0);
   var totalTime=clients.reduce(function(s,c){return s+c.timeTracked},0);
   var totalMeetings=clients.reduce(function(s,c){return s+c.meetings},0);
+  var totalRevenue=clients.reduce(function(s,c){return s+c.totalRevenue},0);
 
   var h='<div class="pg-head"><h1>'+icon('clients',18)+' Clients</h1></div>';
 
@@ -265,9 +282,9 @@ function rClients(){
   h+='<div class="dash-mets">';
   h+=dashMet('Total Clients',totalClients,'var(--t1)');
   h+=dashMet('Active (campaigns)',totalActive,'var(--green)');
+  h+=dashMet('Total Revenue',fmtUSD(totalRevenue),'var(--green)');
   h+=dashMet('Open Tasks',totalOpenTasks,'var(--blue)');
   h+=dashMet('Pipeline Value',fmtUSD(totalPipeline),'var(--purple50)');
-  h+=dashMet('Time Tracked',fmtM(totalTime),'var(--pink)');
   h+=dashMet('Meetings',totalMeetings,'var(--amber)');
   h+='</div>';
 
@@ -279,6 +296,8 @@ function rClients(){
   h+='<div class="tb-wrap"><table class="tb"><thead><tr>';
   h+='<th style="text-align:left;width:30px"></th>';
   h+='<th style="text-align:left">Client</th>';
+  h+='<th style="text-align:center;width:70px">Status</th>';
+  h+='<th class="r">Revenue</th>';
   h+='<th class="r">Campaigns</th>';
   h+='<th class="r">Opportunities</th>';
   h+='<th class="r">Open Tasks</th>';
@@ -289,9 +308,15 @@ function rClients(){
 
   clients.forEach(function(c,idx){
     var eid='cl-'+idx;
+    var st=c.clientStatus||'active';
     h+='<tr class="cl-row" onclick="var d=document.getElementById(\''+eid+'\');if(d){d.style.display=d.style.display===\'none\'?\'table-row\':\'none\';var ch=this.querySelector(\'.cl-expand\');if(ch)ch.classList.toggle(\'open\')}">';
     h+='<td><span class="cl-expand">▸</span></td>';
-    h+='<td style="font-weight:600;color:var(--t1)">'+esc(c.name)+'</td>';
+    h+='<td style="font-weight:600;color:var(--t1)">';
+    h+=esc(c.name);
+    if(c.clientId)h+=' <span class="cl-edit-btn" onclick="event.stopPropagation();TF.openEditClient(\''+escAttr(c.clientId)+'\')">'+icon('edit',10)+'</span>';
+    h+='</td>';
+    h+='<td style="text-align:center"><span class="cl-status-dot '+(st==='active'?'cl-status-active':'cl-status-lapsed')+'"></span><span style="font-size:11px;color:var(--t3)">'+esc(st)+'</span></td>';
+    h+='<td class="r" style="color:'+(c.totalRevenue?'var(--green)':'var(--t4)')+'">'+fmtUSD(c.totalRevenue)+'</td>';
     h+='<td class="r" style="color:'+(c.activeCampaigns?'var(--green)':'var(--t4)')+'">'+c.activeCampaigns+' / '+c.campaigns+'</td>';
     h+='<td class="r" style="color:'+(c.opportunities?'var(--purple50)':'var(--t4)')+'">'+c.opportunities+'</td>';
     h+='<td class="r" style="color:'+(c.overdueTasks?'var(--red)':'var(--t2)')+'">'+c.openTasks+(c.overdueTasks?' <span style="color:var(--red);font-size:10px">('+c.overdueTasks+' overdue)</span>':'')+'</td>';
@@ -301,7 +326,7 @@ function rClients(){
     h+='</tr>';
 
     /* Expandable detail row */
-    h+='<tr id="'+eid+'" style="display:none"><td colspan="8"><div class="cl-detail">';
+    h+='<tr id="'+eid+'" style="display:none"><td colspan="10"><div class="cl-detail">';
 
     /* Campaigns */
     if(c.campaignList.length){
@@ -319,6 +344,21 @@ function rClients(){
         h+='<span class="bg '+opStageClass(op.stage)+'" style="font-size:10px;padding:2px 8px">'+esc(op.stage)+'</span></div>'});
       h+='</div>'}
 
+    /* Payment history from finance */
+    var clientPayments=c.clientId?S.financePayments.filter(function(fp){return fp.clientId===c.clientId&&fp.status!=='excluded'})
+      .sort(function(a,b){return(b.date||0)-(a.date||0)}).slice(0,10):[];
+    if(clientPayments.length){
+      h+='<div class="cl-detail-section"><div class="cl-detail-label">'+icon('activity',11)+' Recent Payments ('+c.paymentCount+' total)</div>';
+      clientPayments.forEach(function(fp){
+        h+='<div class="cl-detail-item" style="cursor:pointer" onclick="event.stopPropagation();TF.openFinancePaymentDetail(\''+escAttr(fp.id)+'\')">';
+        h+='<span style="color:var(--t3);font-size:11px;min-width:75px">'+(fp.date?fmtDShort(fp.date):'-')+'</span>';
+        h+='<span style="flex:1;color:var(--t1)">'+esc(fp.description||fp.payerName||fp.payerEmail||'Payment')+'</span>';
+        h+='<span class="fin-src fin-src-'+esc(fp.source)+'">'+esc(fp.source)+'</span>';
+        h+='<span style="font-weight:600;color:var(--green);min-width:80px;text-align:right">'+fmtUSD(fp.amount)+'</span>';
+        h+='</div>'});
+      if(c.paymentCount>10)h+='<div style="font-size:11px;color:var(--t4);padding:4px 0">+ '+(c.paymentCount-10)+' more payments</div>';
+      h+='</div>'}
+
     /* Recent completed tasks */
     if(c.recentDone.length){
       h+='<div class="cl-detail-section"><div class="cl-detail-label">Recent Completed Tasks</div>';
@@ -333,6 +373,7 @@ function rClients(){
     /* Summary */
     h+='<div class="cl-detail-section"><div class="cl-detail-label">'+icon('dashboard',14)+' Summary</div>';
     h+='<div class="cl-detail-item"><span style="color:var(--t3)">Total done tasks:</span><span style="font-weight:600">'+c.doneTasks+'</span></div>';
+    if(c.totalRevenue)h+='<div class="cl-detail-item"><span style="color:var(--t3)">Total revenue:</span><span style="font-weight:600;color:var(--green)">'+fmtUSD(c.totalRevenue)+'</span></div>';
     if(c.monthlyRev)h+='<div class="cl-detail-item"><span style="color:var(--t3)">Monthly revenue:</span><span style="font-weight:600;color:var(--green)">'+fmtUSD(c.monthlyRev)+'</span></div>';
     if(c.pipelineValue)h+='<div class="cl-detail-item"><span style="color:var(--t3)">Pipeline value:</span><span style="font-weight:600;color:var(--purple50)">'+fmtUSD(c.pipelineValue)+'</span></div>';
     h+='</div>';
@@ -1928,3 +1969,68 @@ function mobTaskRow(t,td){
     h+='<span data-tmr="'+esc(t.id)+'">'+fmtT(elapsed)+'</span></span>'}
   h+='<button class="ab ab-dn ab-sm" onclick="event.stopPropagation();TF.done(\''+eid+'\')" title="Complete" style="width:36px;height:36px">'+CK_S+'</button>';
   h+='</div></div>';return h}
+
+/* ═══════════ FINANCE VIEW ═══════════ */
+function rFinance(){
+  var fp=S.financePayments;
+  var totalRev=0,unmatchedCount=0,matchedCount=0;
+  fp.forEach(function(p){totalRev+=p.amount;if(p.status==='unmatched')unmatchedCount++;else if(p.status==='matched')matchedCount++});
+  var filtered=finFilteredPayments();
+
+  var h='<div class="pg-head"><h1>'+icon('activity',18)+' Finance</h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddFinancePayment()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Payment</button></div>';
+
+  /* Metrics */
+  h+='<div class="cp-dash">';
+  h+='<div class="cp-dash-met" style="animation-delay:0s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalRev)+'</div><div class="cp-dash-met-l">Total Revenue</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--t1)">'+fp.length+'</div><div class="cp-dash-met-l">Payments</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:'+(unmatchedCount>0?'var(--amber)':'var(--t4)')+'">'+unmatchedCount+'</div><div class="cp-dash-met-l">Unmatched</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:var(--green)">'+matchedCount+'</div><div class="cp-dash-met-l">Matched</div></div>';
+  h+='</div>';
+
+  /* Filter bar */
+  h+='<div class="fin-filters">';
+  h+='<div class="fin-tabs">';
+  var tabs=[['all','All'],['unmatched','Unmatched'],['matched','Matched']];
+  tabs.forEach(function(t){
+    h+='<button class="fin-tab'+(S.finFilter===t[0]?' on':'')+'" onclick="TF.setFinFilter(\''+t[0]+'\')">'+t[1];
+    if(t[0]==='unmatched'&&unmatchedCount>0)h+=' <span class="fin-tab-count">'+unmatchedCount+'</span>';
+    h+='</button>'});
+  h+='</div>';
+  h+='<input class="fl fl-s" placeholder="Search payments..." value="'+esc(S.finSearch||'')+'" oninput="TF.setFinSearch(this.value)" style="max-width:260px">';
+  h+='</div>';
+
+  /* Table */
+  if(!filtered.length){
+    h+='<div style="text-align:center;padding:60px 20px;color:var(--t4)">No payments found</div>';
+    return h}
+
+  h+='<div class="tb-wrap"><table class="tb fin-tb">';
+  h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th></th></tr></thead>';
+  h+='<tbody>';
+  filtered.forEach(function(p){
+    var eid=escAttr(p.id);
+    var clientName=clientNameById(p.clientId);
+    var srcCls='fin-src fin-src-'+p.source;
+    var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+    h+='<tr class="fin-row'+(p.status==='unmatched'?' fin-unmatched':'')+'" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
+    h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
+    h+='<td class="fin-payer"><span class="fin-payer-name">'+esc(p.payerName||p.payerEmail||'Unknown')+'</span>';
+    if(p.payerEmail&&p.payerName)h+='<span class="fin-payer-email">'+esc(p.payerEmail)+'</span>';
+    h+='</td>';
+    h+='<td class="r nm" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</td>';
+    h+='<td><span class="'+srcCls+'">'+esc(srcLabel)+'</span></td>';
+    h+='<td>'+(p.category?'<span class="fin-cat">'+esc(p.category)+'</span>':'<span style="color:var(--t5)">—</span>')+'</td>';
+    h+='<td>';
+    if(clientName)h+='<span class="fin-client-name">'+esc(clientName)+'</span>';
+    else h+='<button class="btn fin-match-btn" onclick="event.stopPropagation();TF.openAssociateModal(\''+eid+'\')">Associate</button>';
+    h+='</td>';
+    h+='<td class="fin-desc">'+esc((p.description||'').substring(0,60))+(p.description&&p.description.length>60?'...':'')+'</td>';
+    h+='<td>';
+    if(p.status==='unmatched')h+='<span class="fin-status fin-status-unmatched">Unmatched</span>';
+    else h+='<span class="fin-status fin-status-matched">Matched</span>';
+    h+='</td>';
+    h+='</tr>'});
+  h+='</tbody></table></div>';
+  return h}
+

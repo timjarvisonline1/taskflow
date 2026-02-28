@@ -46,6 +46,14 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
   convertOpportunity:convertOpportunity,closeAsLost:closeAsLost,
   setOpView:function(v){S.opView=v;save();render()},
   toggleOpShowClosed:function(){S.opShowClosed=!S.opShowClosed;save();render()},
+  /* Finance */
+  openFinancePaymentDetail:openFinancePaymentDetail,saveFinancePayment:saveFinancePayment,
+  openAddFinancePayment:openAddFinancePayment,addFinancePayment:addFinancePayment,
+  confirmDeleteFinancePayment:confirmDeleteFinancePayment,doDeleteFinancePayment:doDeleteFinancePayment,
+  excludeFinancePayment:excludeFinancePayment,fpCatChange:fpCatChange,
+  openAssociateModal:openAssociateModal,associatePayer:associatePayer,
+  setFinFilter:setFinFilter,setFinSearch:setFinSearch,
+  openEditClient:openEditClient,saveClient:saveClient,
   signOut:signOut,
   toast:toast,
   /* Mobile */

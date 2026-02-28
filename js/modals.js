@@ -1981,3 +1981,269 @@ async function addCampaignMeeting(){
   toast(icon('mic',12)+' Meeting added: '+mtg.title,'ok');closeModal();
   if(gel('cp-id')&&gel('cp-id').value===cpId){openCampaignDetail(cpId)}
   render()}
+
+/* ═══════════ FINANCE MODALS ═══════════ */
+
+/* ─── Payment Detail Modal ─── */
+function openFinancePaymentDetail(id){
+  var p=S.financePayments.find(function(fp){return fp.id===id});
+  if(!p)return;
+  var clientName=clientNameById(p.clientId);
+
+  /* Build client options */
+  var clOpts='<option value="">— Unmatched —</option>';
+  S.clientRecords.forEach(function(c){
+    clOpts+='<option value="'+esc(c.id)+'"'+(p.clientId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+
+  /* Build category options */
+  var catOpts='<option value="">— None —</option>';
+  PAY_CATS.forEach(function(c){
+    catOpts+='<option'+(p.category===c?' selected':'')+'>'+esc(c)+'</option>'});
+
+  /* Build campaign options */
+  var cpOpts='<option value="">— None —</option>';
+  S.campaigns.forEach(function(c){
+    cpOpts+='<option value="'+esc(c.id)+'"'+(p.campaignId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+
+  var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+  var isFcCat=p.category&&p.category.indexOf('F&C')===0;
+
+  var h='<div class="detail-full-header">';
+  h+='<div class="tf-modal-top">';
+  h+='<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">';
+  h+='<span class="fin-src fin-src-'+p.source+'" style="flex-shrink:0">'+esc(srcLabel)+'</span>';
+  h+='<span style="font-size:20px;font-weight:700;color:var(--green)">'+fmtUSD(p.amount)+'</span>';
+  h+='</div>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="fp-id" value="'+esc(p.id)+'">';
+  h+='</div>';
+
+  h+='<div class="detail-split">';
+
+  /* Left pane: edit fields */
+  h+='<div class="detail-split-left">';
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Date</span><input type="date" class="edf" id="fp-date" value="'+(p.date?p.date.toISOString().slice(0,10):'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><div class="edf" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</div></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Fee</span><div class="edf" style="color:var(--t4)">'+fmtUSD(p.fee)+'</div></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Net</span><div class="edf" style="color:var(--green)">'+fmtUSD(p.net)+'</div></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="fp-category" onchange="TF.fpCatChange()">'+catOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fp-client">'+clOpts+'</select></div>';
+  h+='<div class="ed-fld" id="fp-campaign-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">Campaign</span><select class="edf" id="fp-campaign">'+cpOpts+'</select></div>';
+  h+='<div class="ed-fld" id="fp-endclient-row" style="'+(isFcCat?'':'display:none')+'"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="fp-endclient" value="'+esc(p.endClient)+'" placeholder="End client..."></div>';
+  h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="fp-notes" rows="3" placeholder="Notes...">'+esc(p.notes)+'</textarea></div>';
+  h+='</div>';
+
+  h+='<div class="ed-actions" style="margin-top:16px">';
+  h+='<button class="btn btn-p" onclick="TF.saveFinancePayment()" style="gap:6px">'+icon('save',14)+' Save</button>';
+  h+='<button class="btn" onclick="TF.excludeFinancePayment()" style="color:var(--t4)">Exclude</button>';
+  h+='<button class="btn btn-d" onclick="TF.confirmDeleteFinancePayment()">'+icon('trash',14)+' Delete</button>';
+  h+='</div>';
+  h+='</div>';
+
+  /* Right pane: payer info & related payments */
+  h+='<div class="detail-split-right">';
+  h+='<div class="ed-section"><div class="ed-section-title">Payer Info</div>';
+  if(p.payerName)h+='<div class="ed-fld"><span class="ed-lbl">Name</span><div class="edf">'+esc(p.payerName)+'</div></div>';
+  if(p.payerEmail)h+='<div class="ed-fld"><span class="ed-lbl">Email</span><div class="edf">'+esc(p.payerEmail)+'</div></div>';
+  if(p.sourceId)h+='<div class="ed-fld"><span class="ed-lbl">Source ID</span><div class="edf" style="font-size:11px;word-break:break-all">'+esc(p.sourceId)+'</div></div>';
+  if(p.description)h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Description</span><div class="edf" style="font-size:12px">'+esc(p.description)+'</div></div>';
+  h+='</div>';
+
+  /* Other payments from same payer */
+  var payerKey=p.payerEmail||p.payerName;
+  if(payerKey){
+    var related=S.financePayments.filter(function(fp){
+      return fp.id!==p.id&&((p.payerEmail&&fp.payerEmail===p.payerEmail)||(p.payerName&&fp.payerName===p.payerName))});
+    if(related.length){
+      h+='<div class="ed-section" style="margin-top:16px"><div class="ed-section-title">Other Payments from This Payer ('+related.length+')</div>';
+      if(p.status==='unmatched')h+='<button class="btn btn-p" onclick="TF.openAssociateModal(\''+escAttr(p.id)+'\')" style="margin-bottom:12px;font-size:12px">Associate All ('+related.length+' + this)</button>';
+      h+='<div class="fin-related-list">';
+      related.slice(0,20).forEach(function(rp){
+        h+='<div class="fin-related-item" onclick="TF.openFinancePaymentDetail(\''+escAttr(rp.id)+'\')">';
+        h+='<span class="fin-related-date">'+(rp.date?fmtDShort(rp.date):'')+'</span>';
+        h+='<span class="fin-related-amt" style="color:var(--green)">'+fmtUSD(rp.amount)+'</span>';
+        h+='<span class="fin-status fin-status-'+rp.status+'">'+rp.status+'</span>';
+        h+='</div>'});
+      if(related.length>20)h+='<div style="color:var(--t4);font-size:11px;padding:4px 0">+ '+(related.length-20)+' more</div>';
+      h+='</div></div>'}}
+  h+='</div>';
+  h+='</div>';
+
+  gel('detail-body').innerHTML=h;gel('detail-modal').classList.add('on','full-detail')}
+
+function fpCatChange(){
+  var cat=(gel('fp-category')||{}).value||'';
+  var isFc=cat.indexOf('F&C')===0;
+  var cpRow=gel('fp-campaign-row');if(cpRow)cpRow.style.display=isFc?'':'none';
+  var ecRow=gel('fp-endclient-row');if(ecRow)ecRow.style.display=isFc?'':'none'}
+
+async function saveFinancePayment(){
+  var id=(gel('fp-id')||{}).value;if(!id)return;
+  var p=S.financePayments.find(function(fp){return fp.id===id});if(!p)return;
+  var clientId=(gel('fp-client')||{}).value||null;
+  var cat=(gel('fp-category')||{}).value||'';
+  var newStatus=clientId?'matched':p.status;
+  var data={date:(gel('fp-date')||{}).value||null,category:cat,
+    clientId:clientId,campaignId:(gel('fp-campaign')||{}).value||null,
+    endClient:(gel('fp-endclient')||{}).value||'',notes:(gel('fp-notes')||{}).value||'',
+    status:newStatus};
+  var ok=await dbEditFinancePayment(id,data);
+  if(ok){
+    p.date=data.date?new Date(data.date+'T00:00:00'):null;p.category=cat;
+    p.clientId=clientId;p.campaignId=data.campaignId;p.endClient=data.endClient;
+    p.notes=data.notes;p.status=newStatus;
+    toast('Payment saved','ok');closeModal();render()}}
+
+async function excludeFinancePayment(){
+  var id=(gel('fp-id')||{}).value;if(!id)return;
+  var ok=await dbEditFinancePayment(id,{status:'excluded',date:null,category:'',clientId:null,campaignId:null,endClient:'',notes:''});
+  if(ok){
+    var p=S.financePayments.find(function(fp){return fp.id===id});
+    if(p)p.status='excluded';
+    toast('Payment excluded','info');closeModal();render()}}
+
+function confirmDeleteFinancePayment(){
+  var id=(gel('fp-id')||{}).value;if(!id)return;
+  var h='<div class="tf-modal-top"><h2>Delete Payment?</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<p style="color:var(--t3);margin:16px 0">This will permanently delete this payment record.</p>';
+  h+='<div class="ed-actions"><button class="btn btn-d" onclick="TF.doDeleteFinancePayment(\''+escAttr(id)+'\')">'+icon('trash',14)+' Delete</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function doDeleteFinancePayment(id){
+  var ok=await dbDeleteFinancePayment(id);
+  if(ok){S.financePayments=S.financePayments.filter(function(fp){return fp.id!==id});
+    toast('Payment deleted','ok');closeModal();render()}}
+
+/* ─── Associate Modal ─── */
+function openAssociateModal(paymentId){
+  var p=S.financePayments.find(function(fp){return fp.id===paymentId});
+  if(!p)return;
+  var payerKey=p.payerEmail||p.payerName;
+  /* Count other unmatched from same payer */
+  var sameCount=S.financePayments.filter(function(fp){
+    return fp.status==='unmatched'&&fp.id!==p.id&&
+      ((p.payerEmail&&fp.payerEmail===p.payerEmail)||(p.payerName&&fp.payerName===p.payerName))}).length;
+
+  var clOpts='<option value="">— Select Client —</option>';
+  S.clientRecords.forEach(function(c){
+    clOpts+='<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>'});
+
+  var catOpts='<option value="">— All keep current —</option>';
+  PAY_CATS.forEach(function(c){catOpts+='<option>'+esc(c)+'</option>'});
+
+  var h='<div class="tf-modal-top"><h2>Associate Payer to Client</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:0 20px 20px">';
+  h+='<div class="fin-assoc-payer">';
+  if(p.payerName)h+='<div style="font-weight:600;font-size:15px">'+esc(p.payerName)+'</div>';
+  if(p.payerEmail)h+='<div style="color:var(--t3);font-size:13px">'+esc(p.payerEmail)+'</div>';
+  h+='<div style="color:var(--green);font-weight:600;margin-top:4px">'+fmtUSD(p.amount)+' — '+(p.date?fmtDShort(p.date):'')+'</div>';
+  if(sameCount>0)h+='<div style="color:var(--amber);font-size:12px;margin-top:6px">+ '+sameCount+' other unmatched payment'+(sameCount>1?'s':'')+' from this payer will also be associated</div>';
+  h+='</div>';
+  h+='<input type="hidden" id="assoc-pid" value="'+esc(p.id)+'">';
+  h+='<input type="hidden" id="assoc-email" value="'+esc(p.payerEmail)+'">';
+  h+='<input type="hidden" id="assoc-name" value="'+esc(p.payerName)+'">';
+
+  h+='<div class="ed-grid" style="margin-top:16px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="assoc-client">'+clOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Or Create New</span><input type="text" class="edf" id="assoc-newclient" placeholder="New client name..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Category (optional)</span><select class="edf" id="assoc-cat">'+catOpts+'</select></div>';
+  h+='</div>';
+
+  h+='<div class="ed-actions" style="margin-top:20px">';
+  h+='<button class="btn btn-p" onclick="TF.associatePayer()" style="gap:6px">'+icon('check',14)+' Associate'+(sameCount>0?' All ('+(sameCount+1)+')':'')+'</button>';
+  h+='<button class="btn" onclick="TF.closeModal()">Cancel</button>';
+  h+='</div></div>';
+
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function associatePayer(){
+  var email=(gel('assoc-email')||{}).value||'';
+  var name=(gel('assoc-name')||{}).value||'';
+  var clientId=(gel('assoc-client')||{}).value||'';
+  var newName=(gel('assoc-newclient')||{}).value||'';
+  var cat=(gel('assoc-cat')||{}).value||'';
+
+  /* Create new client if specified */
+  if(newName.trim()&&!clientId){
+    var ok=await dbAddClient(newName.trim());
+    if(!ok)return;
+    await loadClientRecords();
+    var newCl=S.clientRecords.find(function(c){return c.name===newName.trim()});
+    if(newCl)clientId=newCl.id;
+    else{toast('Could not find created client','warn');return}}
+
+  if(!clientId){toast('Select or create a client','warn');return}
+
+  var ok=await dbAssociatePayerToClient(email,name,clientId,cat);
+  if(ok){
+    await loadFinancePayments();await loadPayerMap();
+    var clientName=clientNameById(clientId);
+    toast('Associated to '+clientName,'ok');closeModal();render()}}
+
+/* ─── Add Manual Payment ─── */
+function openAddFinancePayment(){
+  var clOpts='<option value="">— Select Client —</option>';
+  S.clientRecords.forEach(function(c){
+    clOpts+='<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>'});
+  var catOpts='<option value="">— None —</option>';
+  PAY_CATS.forEach(function(c){catOpts+='<option>'+esc(c)+'</option>'});
+  var cpOpts='<option value="">— None —</option>';
+  S.campaigns.forEach(function(c){
+    cpOpts+='<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>'});
+
+  var h='<div class="tf-modal-top"><h2>Add Payment</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:0 20px 20px"><div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Date</span><input type="date" class="edf" id="afp-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="afp-amount" placeholder="0.00" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Payer Name</span><input type="text" class="edf" id="afp-pname" placeholder="Company or person name..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Payer Email</span><input type="text" class="edf" id="afp-pemail" placeholder="email@example.com"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="afp-cat">'+catOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="afp-client">'+clOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="afp-campaign">'+cpOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><select class="edf" id="afp-source"><option value="manual">Manual</option><option value="brex">Brex</option><option value="zoho">Zoho</option><option value="stripe">Stripe</option></select></div>';
+  h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="afp-notes" rows="2" placeholder="Notes..."></textarea></div>';
+  h+='</div>';
+  h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.addFinancePayment()">'+icon('plus',14)+' Add Payment</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
+  h+='</div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function addFinancePayment(){
+  var amt=parseFloat((gel('afp-amount')||{}).value)||0;
+  if(amt<=0){toast('Enter an amount','warn');return}
+  var clientId=(gel('afp-client')||{}).value||null;
+  var data={date:(gel('afp-date')||{}).value||null,amount:amt,fee:0,net:amt,
+    source:(gel('afp-source')||{}).value||'manual',sourceId:'',
+    payerName:(gel('afp-pname')||{}).value||'',payerEmail:(gel('afp-pemail')||{}).value||'',
+    description:'',category:(gel('afp-cat')||{}).value||'',
+    clientId:clientId,campaignId:(gel('afp-campaign')||{}).value||null,
+    endClient:'',notes:(gel('afp-notes')||{}).value||'',
+    status:clientId?'matched':'unmatched'};
+  var result=await dbAddFinancePayment(data);
+  if(result){await loadFinancePayments();toast('Payment added','ok');closeModal();render()}}
+
+/* ─── Client Edit Modal (enhanced) ─── */
+function openEditClient(id){
+  var cl=S.clientRecords.find(function(c){return c.id===id});
+  if(!cl)return;
+  var h='<div class="tf-modal-top"><h2>Edit Client</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:0 20px 20px"><div class="ed-grid">';
+  h+='<input type="hidden" id="ecl-id" value="'+esc(cl.id)+'">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="ecl-name" value="'+esc(cl.name)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="ecl-status"><option'+(cl.status==='active'?' selected':'')+'>active</option><option'+(cl.status==='lapsed'?' selected':'')+'>lapsed</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="text" class="edf" id="ecl-email" value="'+esc(cl.email)+'" placeholder="email@example.com"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="ecl-company" value="'+esc(cl.company)+'" placeholder="Company name..."></div>';
+  h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="ecl-notes" rows="3" placeholder="Notes...">'+esc(cl.notes)+'</textarea></div>';
+  h+='</div>';
+  h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveClient()">'+icon('save',14)+' Save</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
+  h+='</div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function saveClient(){
+  var id=(gel('ecl-id')||{}).value;if(!id)return;
+  var data={name:(gel('ecl-name')||{}).value||'',status:(gel('ecl-status')||{}).value||'active',
+    email:(gel('ecl-email')||{}).value||'',company:(gel('ecl-company')||{}).value||'',
+    notes:(gel('ecl-notes')||{}).value||''};
+  if(!data.name.trim()){toast('Client name required','warn');return}
+  var ok=await dbEditClient(id,data);
+  if(ok){await loadClientRecords();toast('Client updated','ok');closeModal();render()}}
