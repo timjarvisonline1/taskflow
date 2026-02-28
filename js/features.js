@@ -149,7 +149,7 @@ function renderFocusOverlay(){
 
   var h='<div class="focus-overlay" id="focus-overlay">';
   h+='<div class="focus-card">';
-  h+='<div class="focus-label">🎯 Focus Mode</div>';
+  h+='<div class="focus-label">'+icon('target',16)+' Focus Mode</div>';
   h+='<div class="focus-task-name">'+esc(task.item)+'</div>';
 
   /* Task detail badges */
@@ -157,10 +157,10 @@ function renderFocusOverlay(){
   h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
   if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
   if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
-  if(task.campaign){var _cpfm=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpfm)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpfm.name)+'</span>'}
-  if(task.opportunity){var _opfm=S.opportunities.find(function(o){return o.id===task.opportunity});if(_opfm)h+='<span class="bg bg-opp">💎 '+esc(_opfm.name)+'</span>'}
+  if(task.campaign){var _cpfm=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpfm)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',12)+' '+esc(_cpfm.name)+'</span>'}
+  if(task.opportunity){var _opfm=S.opportunities.find(function(o){return o.id===task.opportunity});if(_opfm)h+='<span class="bg bg-opp">'+icon('gem',12)+' '+esc(_opfm.name)+'</span>'}
   if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
-  if(task.due)h+='<span class="bg-du">📅 '+fmtDShort(task.due)+'</span>';
+  if(task.due)h+='<span class="bg-du">'+icon('calendar',12)+' '+fmtDShort(task.due)+'</span>';
   h+='</div>';
 
   /* Timer display */
@@ -181,10 +181,10 @@ function renderFocusOverlay(){
 
   /* Actions */
   h+='<div class="focus-actions">';
-  if(focusPaused){h+='<button class="btn btn-p" onclick="TF.resumeFocus()" style="padding:10px 28px">▶ Resume</button>'}
-  else{h+='<button class="btn" onclick="TF.pauseFocus()" style="padding:10px 28px">⏸ Pause</button>'}
+  if(focusPaused){h+='<button class="btn btn-p" onclick="TF.resumeFocus()" style="padding:10px 28px">'+icon('play',14)+' Resume</button>'}
+  else{h+='<button class="btn" onclick="TF.pauseFocus()" style="padding:10px 28px">'+icon('pause',14)+' Pause</button>'}
   h+='<button class="btn btn-p" onclick="TF.doneFocus()" style="padding:10px 28px">'+CK_S+' Complete</button>';
-  h+='<button class="btn btn-d" onclick="TF.closeFocus()" style="padding:10px 20px">✕ Exit</button>';
+  h+='<button class="btn btn-d" onclick="TF.closeFocus()" style="padding:10px 20px">'+icon('x',14)+' Exit</button>';
   h+='</div>';
 
   if(task.notes)h+='<div class="focus-notes">'+esc(task.notes)+'</div>';
@@ -236,25 +236,25 @@ function cmdSearch(q){
   var r=gel('cmd-results');if(!r)return;
   q=q.toLowerCase().trim();var results=[];
   /* Views */
-  VIEWS_FLAT.forEach(function(v){if(!q||v.label.toLowerCase().indexOf(q)>-1)results.push({type:'view',icon:v.icon,label:'Go to '+v.label,action:'TF.nav(\''+v.id+'\');TF.closeCmdPalette()'})});
+  VIEWS_FLAT.forEach(function(v){if(!q||v.label.toLowerCase().indexOf(q)>-1)results.push({type:'view',icon:icon(v.icon,14),label:'Go to '+v.label,action:'TF.nav(\''+v.id+'\');TF.closeCmdPalette()'})});
   /* Actions */
-  var actions=[{icon:'➕',label:'Add New Task',action:'TF.openAddModal();TF.closeCmdPalette()'},
-    {icon:'📋',label:'Daily Summary',action:'TF.openSummary();TF.closeCmdPalette()'},
-    {icon:'📊',label:'Client Report',action:'TF.openClientReport();TF.closeCmdPalette()'},
-    {icon:'🔄',label:'Refresh Data',action:'TF.load();TF.closeCmdPalette()'}];
+  var actions=[{icon:icon('plus',14),label:'Add New Task',action:'TF.openAddModal();TF.closeCmdPalette()'},
+    {icon:icon('file',14),label:'Daily Summary',action:'TF.openSummary();TF.closeCmdPalette()'},
+    {icon:icon('dashboard',14),label:'Client Report',action:'TF.openClientReport();TF.closeCmdPalette()'},
+    {icon:icon('refresh',14),label:'Refresh Data',action:'TF.load();TF.closeCmdPalette()'}];
   actions.forEach(function(a){if(!q||a.label.toLowerCase().indexOf(q)>-1)results.push(a)});
   /* Tasks */
   if(q.length>=2){S.tasks.forEach(function(t){if(t.item.toLowerCase().indexOf(q)>-1||t.client.toLowerCase().indexOf(q)>-1||(t.endClient||'').toLowerCase().indexOf(q)>-1)
-    results.push({type:'task',icon:'📋',label:t.item,sub:t.client+(t.endClient?' → '+t.endClient:''),action:'TF.openDetail(\''+escAttr(t.id)+'\');TF.closeCmdPalette()'})});
+    results.push({type:'task',icon:icon('tasks',14),label:t.item,sub:t.client+(t.endClient?' → '+t.endClient:''),action:'TF.openDetail(\''+escAttr(t.id)+'\');TF.closeCmdPalette()'})});
   /* Campaigns */
   S.campaigns.forEach(function(c){if(c.name.toLowerCase().indexOf(q)>-1||c.partner.toLowerCase().indexOf(q)>-1||(c.endClient||'').toLowerCase().indexOf(q)>-1)
-    results.push({type:'campaign',icon:'🎯',label:c.name,sub:c.partner+(c.endClient?' → '+c.endClient:''),action:'TF.openCampaignDetail(\''+escAttr(c.id)+'\');TF.closeCmdPalette()'})});
+    results.push({type:'campaign',icon:icon('target',14),label:c.name,sub:c.partner+(c.endClient?' → '+c.endClient:''),action:'TF.openCampaignDetail(\''+escAttr(c.id)+'\');TF.closeCmdPalette()'})});
   /* Opportunities */
   S.opportunities.forEach(function(o){if(o.name.toLowerCase().indexOf(q)>-1||(o.client||'').toLowerCase().indexOf(q)>-1||(o.endClient||'').toLowerCase().indexOf(q)>-1)
-    results.push({type:'opportunity',icon:'💎',label:o.name,sub:(o.client||'')+(o.endClient?' → '+o.endClient:''),action:'TF.openOpportunityDetail(\''+escAttr(o.id)+'\');TF.closeCmdPalette()'})});
+    results.push({type:'opportunity',icon:icon('gem',14),label:o.name,sub:(o.client||'')+(o.endClient?' → '+o.endClient:''),action:'TF.openOpportunityDetail(\''+escAttr(o.id)+'\');TF.closeCmdPalette()'})});
   /* Templates */
   S.templates.forEach(function(t,i){if(t.name.toLowerCase().indexOf(q)>-1)
-    results.push({type:'tpl',icon:'📎',label:'Use template: '+t.name,action:'TF.useTpl('+i+');TF.closeCmdPalette()'})})}
+    results.push({type:'tpl',icon:icon('file',14),label:'Use template: '+t.name,action:'TF.useTpl('+i+');TF.closeCmdPalette()'})})}
   var h='';results.slice(0,12).forEach(function(res){
     h+='<div class="cmd-item" onclick="'+res.action+'">';
     h+='<span class="cmd-icon">'+res.icon+'</span>';
@@ -290,7 +290,7 @@ async function processRecurring(){
     if(result){S.tasks.push({id:result.id,item:item,due:now,importance:data.importance,est:data.est,category:data.category,
       client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:'Planned',flag:false,campaign:data.campaign,opportunity:'',project:'',phase:''});
       S.recurrLast[idx]=todayKey;created++}}
-  if(created){save();toast('🔄 Created '+created+' recurring task'+(created>1?'s':''),'ok')}}
+  if(created){save();toast('Created '+created+' recurring task'+(created>1?'s':''),'ok')}}
 
 /* ═══════════ SIGN OUT ═══════════ */
 async function signOut(){

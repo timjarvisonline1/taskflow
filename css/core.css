@@ -49,19 +49,9 @@ body{background:var(--bg);color:var(--t1);font-family:var(--f);font-size:14px;li
 .s-nav-indicator{position:absolute;left:0;width:3px;background:var(--accent);border-radius:0 3px 3px 0;transition:top .3s var(--ease-out),height .3s var(--ease-out);z-index:1}
 .s-item .ico{width:22px;text-align:center;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
 
-/* ── TASK TAB BAR ── */
-.task-tabs{display:flex;gap:2px;margin-bottom:20px;padding:4px;background:var(--bg3);border-radius:var(--r);border:1px solid var(--gborder);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.task-tabs::-webkit-scrollbar{display:none}
-.tt{padding:8px 14px;border:none;background:transparent;color:var(--t3);font-size:12px;font-weight:500;font-family:var(--f);cursor:pointer;border-radius:calc(var(--r) - 2px);white-space:nowrap;transition:all .2s var(--ease);letter-spacing:0.01em;display:flex;align-items:center;gap:4px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-.tt:hover{color:var(--t1);background:rgba(255,255,255,0.04)}
-.tt-on{color:var(--t1);background:var(--glass);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,0.15)}
-.tt-badge{background:var(--pink);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;font-weight:700;min-width:14px;text-align:center;margin-left:2px}
-
-/* ── COMING SOON ITEMS ── */
-.s-item-soon{display:flex;align-items:center;gap:11px;padding:11px 20px;color:var(--t4);font-size:13.5px;font-weight:500;cursor:default;opacity:0.45;user-select:none;letter-spacing:0.01em}
-.s-item-soon .ico{width:22px;text-align:center;font-size:16px;display:inline-flex;align-items:center;justify-content:center;filter:grayscale(0.7)}
-.s-item-soon .s-right{margin-left:auto;display:flex;align-items:center;gap:6px}
-.s-soon-badge{font-size:9px;text-transform:uppercase;letter-spacing:0.06em;color:var(--t4);background:var(--bg4);padding:2px 8px;border-radius:6px;font-weight:600}
+/* ── SVG ICON SIZING ── */
+.s-item .ico svg{width:16px;height:16px}
+.btm-ico svg{width:20px;height:20px}
 
 /* ── SIDEBAR ACTIVE TIMERS ── */
 .s-active{padding:0 14px;border-top:1px solid var(--gborder);max-height:280px;overflow-y:auto}

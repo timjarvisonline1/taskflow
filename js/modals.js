@@ -29,12 +29,12 @@ function openDetail(id){
     /* Quick actions bar */
     h+='<div style="display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--gborder);flex-shrink:0;background:var(--bg1)">';
     if(running){
-      h+='<button class="btn" onclick="TF.pause(\''+eid+'\')" style="flex:1;padding:12px;font-size:13px">⏸ Pause</button>';
+      h+='<button class="btn" onclick="TF.pause(\''+eid+'\')" style="flex:1;padding:12px;font-size:13px">'+icon('pause',12)+' Pause</button>';
     }else{
-      h+='<button class="btn btn-go" onclick="TF.start(\''+eid+'\')" style="flex:1;padding:12px;font-size:13px">▶ Start</button>';
+      h+='<button class="btn btn-go" onclick="TF.start(\''+eid+'\')" style="flex:1;padding:12px;font-size:13px">'+icon('play',12)+' Start</button>';
     }
     h+='<button class="btn btn-p" onclick="TF.markAlreadyCompleted(\''+eid+'\')" style="flex:1;padding:12px;font-size:13px">'+CK_S+' Done</button>';
-    h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="padding:12px;background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">🎯</button>';
+    h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="padding:12px;background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">'+icon('target',12)+'</button>';
     h+='</div>';
 
     /* Scrollable content */
@@ -51,7 +51,7 @@ function openDetail(id){
     h+='<div style="display:flex;gap:4px;flex-wrap:wrap;padding:10px 16px">';
     h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
     if(task.due){var diff=dayDiff(td,task.due);h+='<span class="bg-du'+(diff<0?' od':(diff===0?' td':''))+'">'+dueLabel(task.due,td)+'</span>'}
-    if(task.flag)h+='<span class="bg bg-fl">🚩</span>';
+    if(task.flag)h+='<span class="bg bg-fl">'+icon('flag',12)+'</span>';
     if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
     if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
     if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
@@ -63,7 +63,7 @@ function openDetail(id){
 
     /* Details accordion */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
-    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">📋 Details <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">Details <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
     h+='<div class="ed-grid" style="grid-template-columns:1fr">';
     h+='<div class="ed-fld"><span class="ed-lbl">Due Date</span><input type="datetime-local" class="edf" id="d-due" value="'+(task.due?fmtISO(task.due):'')+'"></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
@@ -79,7 +79,7 @@ function openDetail(id){
     h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
     h+='</div>';
     h+='<div class="flag-row" style="margin:8px 0 12px;flex-direction:column;gap:12px;padding:12px">';
-    h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
+    h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">'+icon('flag',12)+'</span><span class="flag-text">Needs Client Input</span></label>';
     h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
     h+='<div id="d-already-dur-wrap" style="display:none;align-items:center;gap:8px"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-already-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(task.est||30)+'" min="0"></div>';
     h+='</div>';
@@ -87,7 +87,7 @@ function openDetail(id){
 
     /* Activity Log accordion */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
-    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">📋 Activity Log ('+logs.length+') <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">Activity Log ('+logs.length+') <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
     h+='<div class="act-log-input"><input type="text" class="edf" id="d-log-input" placeholder="Add a log entry..." style="font-size:14px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.addLog(\''+eid+'\')}">';
     h+='<button class="act-log-add" onclick="TF.addLog(\''+eid+'\')">+</button></div>';
     if(logs.length){
@@ -104,9 +104,9 @@ function openDetail(id){
 
     /* Bottom bar: Save + Pin + Delete */
     h+='<div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--gborder);flex-shrink:0;background:var(--bg1)">';
-    h+='<button class="btn btn-p" onclick="TF.saveDetail()" style="flex:1;padding:14px;font-size:14px">💾 Save</button>';
-    h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="padding:14px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">📌</button>';
-    h+='<button class="btn btn-d" onclick="TF.confirmDelete()" style="padding:14px">🗑️</button>';
+    h+='<button class="btn btn-p" onclick="TF.saveDetail()" style="flex:1;padding:14px;font-size:14px">'+icon('save',12)+' Save</button>';
+    h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="padding:14px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">'+icon('pin',12)+'</button>';
+    h+='<button class="btn btn-d" onclick="TF.confirmDelete()" style="padding:14px">'+icon('trash',12)+'</button>';
     h+='</div><div id="del-zone" style="padding:0 16px"></div>';
 
     h+='</div>';/* end mobile wrapper */
@@ -116,20 +116,20 @@ function openDetail(id){
     h+='<div class="tf-modal-top">';
     h+='<input type="text" class="edf edf-name" id="d-item" value="'+esc(task.item)+'">';
     h+='<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">';
-    h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="font-size:11px;padding:5px 12px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">📌 '+(isPinned?'Unpin':'Pin')+'</button>';
+    h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="font-size:11px;padding:5px 12px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">'+icon('pin',12)+' '+(isPinned?'Unpin':'Pin')+'</button>';
     h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div></div>';
     h+='<input type="hidden" id="d-id" value="'+esc(task.id)+'">';
 
     h+='<div class="tf-modal-badges">';
     h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
     if(task.due){var diff=dayDiff(td,task.due);h+='<span class="bg-du'+(diff<0?' od':(diff===0?' td':''))+'">'+dueLabel(task.due,td)+'</span>'}
-    if(task.flag)h+='<span class="bg bg-fl">🚩 Needs Client Input</span>';
+    if(task.flag)h+='<span class="bg bg-fl">'+icon('flag',12)+' Needs Client Input</span>';
     if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
     if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
-    if(task.campaign){var _cpdet=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpdet)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpdet.name)+'</span>'}
+    if(task.campaign){var _cpdet=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpdet)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',12)+' '+esc(_cpdet.name)+'</span>'}
     if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
-    if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(255,0,153,0.08);color:var(--purple50)">📅 '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
-    if(isPinned)h+='<span class="bg" style="background:rgba(255,176,48,0.1);color:var(--amber)">📌 Pinned</span>';
+    if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(255,0,153,0.08);color:var(--purple50)">'+icon('calendar',12)+' '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
+    if(isPinned)h+='<span class="bg" style="background:rgba(255,176,48,0.1);color:var(--amber)">'+icon('pin',12)+' Pinned</span>';
     if(hasT){h+='<span class="ed-timer-badge"><span class="dot '+(running?'pulse':'pau')+'"></span><span class="'+(running?'go':'')+'" data-tmr="'+esc(id)+'">'+fmtT(elapsed)+'</span></span>'}
     h+='</div></div>';
 
@@ -152,29 +152,29 @@ function openDetail(id){
     h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
     h+='</div>';
     h+='<div class="flag-row ed-flags-inline">';
-    h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
+    h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">'+icon('flag',12)+'</span><span class="flag-text">Needs Client Input</span></label>';
     h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
     h+='<div id="d-already-dur-wrap" style="display:none;align-items:center;gap:8px;margin-left:auto"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-already-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(task.est||30)+'" min="0"></div>';
     h+='</div>';
     h+='<div class="ed-actions">';
-    h+='<button class="btn btn-p" onclick="TF.saveDetail()">💾 Save</button>';
+    h+='<button class="btn btn-p" onclick="TF.saveDetail()">'+icon('save',12)+' Save</button>';
     if(running){
-      h+='<button class="btn" onclick="TF.pause(\''+eid+'\')">⏸ Pause</button>';
+      h+='<button class="btn" onclick="TF.pause(\''+eid+'\')">'+icon('pause',12)+' Pause</button>';
     }else{
-      h+='<button class="btn btn-go" onclick="TF.start(\''+eid+'\')">▶ Start</button>';
+      h+='<button class="btn btn-go" onclick="TF.start(\''+eid+'\')">'+icon('play',12)+' Start</button>';
     }
     h+='<button class="btn btn-p" onclick="TF.markAlreadyCompleted(\''+eid+'\')">'+CK_S+' Complete</button>';
-    h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">🎯 Focus</button>';
+    h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">'+icon('target',12)+' Focus</button>';
     h+='<span class="spacer"></span>';
-    h+='<button class="btn btn-d" onclick="TF.confirmDelete()">🗑️</button>';
+    h+='<button class="btn btn-d" onclick="TF.confirmDelete()">'+icon('trash',12)+'</button>';
     h+='</div><div id="del-zone"></div>';
     h+='</div>';
 
     h+='<div class="detail-split-right">';
-    h+='<div class="detail-notes-large"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">📝 Notes</span>';
+    h+='<div class="detail-notes-large"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">'+icon('edit',12)+' Notes</span>';
     h+='<textarea class="edf edf-notes" id="d-notes" placeholder="Add notes about your progress, where you left off, what to do next...">'+esc(task.notes)+'</textarea></div>';
     h+='<div class="detail-activity">';
-    h+='<span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">📋 Activity Log</span>';
+    h+='<span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">Activity Log</span>';
     h+='<div class="act-log-input"><input type="text" class="edf" id="d-log-input" placeholder="Add a log entry..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.addLog(\''+eid+'\')}">';
     h+='<button class="act-log-add" onclick="TF.addLog(\''+eid+'\')">+</button></div>';
     if(logs.length){
@@ -197,7 +197,7 @@ function closeModal(){var dm=gel('detail-modal');dm.classList.remove('on');dm.cl
 
 async function saveDetail(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
-  task.item=gel('d-item').value.trim();if(!task.item){toast('⚠ Item name required','warn');return}
+  task.item=gel('d-item').value.trim();if(!task.item){toast('Item name required','warn');return}
   task.due=gel('d-due').value?new Date(gel('d-due').value):null;
   task.importance=gel('d-imp').value;task.category=gel('d-cat').value;
   task.client=gel('d-cli').value||'Internal / N/A';task.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();task.type=gel('d-type').value;
@@ -214,14 +214,14 @@ async function saveDetail(){
   else if(wasFlagged&&!task.flag){task.status='Planned'}
   save();
   await dbEditTask(id,task);
-  toast('💾 Saved: '+task.item,'ok');closeModal();render()}
+  toast(icon('save',12)+' Saved: '+task.item,'ok');closeModal();render()}
 
 async function markAlreadyCompleted(id){
   var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
   var alreadyDone=gel('d-already-done')&&gel('d-already-done').checked;
   if(!alreadyDone){/* Normal complete — use timer done */tmrDone(id);closeModal();return}
   /* Save fields from modal first */
-  task.item=gel('d-item').value.trim();if(!task.item){toast('⚠ Item name required','warn');return}
+  task.item=gel('d-item').value.trim();if(!task.item){toast('Item name required','warn');return}
   task.due=gel('d-due').value?new Date(gel('d-due').value):null;
   task.importance=gel('d-imp').value;task.category=gel('d-cat').value;
   task.client=gel('d-cli').value||'Internal / N/A';task.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();task.type=gel('d-type').value;
@@ -253,12 +253,12 @@ function confirmDelete(){
 async function doDelete(id){var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
   await dbDeleteTask(id);
   S.tasks=S.tasks.filter(function(t){return t.id!==id});delete S.timers[id];save();
-  toast('🗑️ Deleted: '+task.item,'warn');closeModal();render();renderSidebar()}
+  toast(icon('trash',12)+' Deleted: '+task.item,'warn');closeModal();render();renderSidebar()}
 
 /* ═══════════ ADD TASK ═══════════ */
 function openAddModal(){var now=new Date();now.setHours(17,0,0,0);var iso=now.toISOString().slice(0,16);
   var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">➕ New Task</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('plus',12)+' New Task</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   /* ── Item Name ── */
   h+='<div style="padding:6px 0"><input type="text" class="edf" id="f-item" placeholder="What needs doing?" autofocus style="font-size:15px;font-weight:600;padding:11px 14px"></div>';
@@ -284,7 +284,7 @@ function openAddModal(){var now=new Date();now.setHours(17,0,0,0);var iso=now.to
 
   /* ── Options (single row) ── */
   h+='<div class="flag-row ed-flags-inline">';
-  h+='<label class="flag-toggle"><input type="checkbox" id="f-flag"><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
+  h+='<label class="flag-toggle"><input type="checkbox" id="f-flag"><span class="flag-box">'+icon('flag',12)+'</span><span class="flag-text">Needs Client Input</span></label>';
   h+='<label class="flag-toggle"><input type="checkbox" id="f-done" onchange="var c=this.checked;document.getElementById(\'f-done-dur-wrap\').style.display=c?\'flex\':\'none\';document.getElementById(\'f-btn-add\').textContent=c?\'Add \\u0026 Complete\':\'Add Task\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
   h+='<div id="f-done-dur-wrap" style="display:none;align-items:center;gap:8px;margin-left:auto"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="f-done-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="30" min="0"></div>';
   h+='</div>';
@@ -295,14 +295,14 @@ function openAddModal(){var now=new Date();now.setHours(17,0,0,0);var iso=now.to
 
   h+='<div class="ed-actions">';
   h+='<button class="btn btn-p" id="f-btn-add" onclick="TF.addTask()">Add Task</button>';
-  h+='<button class="btn btn-go" id="f-btn-start" onclick="TF.addAndStart()">▶ Add & Start</button>';
-  if(S.templates.length){h+='<select class="per" id="f-tpl" onchange="TF.fillFromTemplate(this.value)"><option value="">📎 Use Template...</option>';
+  h+='<button class="btn btn-go" id="f-btn-start" onclick="TF.addAndStart()">'+icon('play',12)+' Add & Start</button>';
+  if(S.templates.length){h+='<select class="per" id="f-tpl" onchange="TF.fillFromTemplate(this.value)"><option value="">Use Template...</option>';
     S.templates.forEach(function(t,i){h+='<option value="'+i+'">'+esc(t.name)+'</option>'});h+='</select>'}
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
   setTimeout(function(){var fi=gel('f-item');if(fi)fi.focus()},100)}
 
-async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('⚠ Enter a task name','warn');return}
+async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('Enter a task name','warn');return}
   var flagged=gel('f-flag').checked;
   var markDone=gel('f-done')&&gel('f-done').checked;
   var cpVal=(gel('f-campaign')||{}).value||'';
@@ -331,7 +331,7 @@ async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim
     toast('Added: '+data.item,'ok')}
   closeModal();render()}
 
-async function addAndStart(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('⚠ Enter a task name','warn');return}
+async function addAndStart(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('Enter a task name','warn');return}
   var flagged=gel('f-flag').checked;
   var cpVal=(gel('f-campaign')||{}).value||'';
   var ecVal=(gel('f-ec')?gel('f-ec').value:'').trim();
@@ -345,14 +345,14 @@ async function addAndStart(){var item=(gel('f-item')||{}).value;if(!item||!item.
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal2,
     project:projVal2,phase:phaseVal2,opportunity:oppVal2};
   var result=await dbAddTask(data);
-  if(!result){toast('❌ Failed to add task','warn');return}
+  if(!result){toast('Failed to add task','warn');return}
   var id=result.id;
   S.tasks.push({id:id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
     category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
   save();
   /* Start timer + enter Focus Mode */
   var t=tmrGet(id);t.started=Date.now();S.timers[id]=t;save();
-  toast('▶ Added & started: '+data.item,'ok');
+  toast('Added & started: '+data.item,'ok');
   focusReturnView=S.view;focusTaskId=id;focusPaused=false;
   closeModal();render();renderFocusOverlay();startFocusTick()}
 
@@ -363,7 +363,7 @@ function fillFromTemplate(idx){idx=parseInt(idx);if(isNaN(idx))return;var t=S.te
   if(t.endClient&&gel('f-ec'))gel('f-ec').value=t.endClient;if(t.type)gel('f-type').value=t.type;
   if(t.est)gel('f-est').value=t.est;if(t.item)gel('f-item').value=t.item;
   if(t.campaign&&gel('f-campaign'))gel('f-campaign').value=t.campaign;
-  if(t.notes)gel('f-notes').value=t.notes;toast('📎 Template loaded: '+t.name,'ok')}
+  if(t.notes)gel('f-notes').value=t.notes;toast('Template loaded: '+t.name,'ok')}
 
 /* ═══════════ BULK SELECT ═══════════ */
 function toggleBulk(){S.bulkMode=!S.bulkMode;if(!S.bulkMode)S.bulkSelected={};render()}
@@ -398,10 +398,10 @@ function openLogMeetingModal(){
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c==='One-on-One'?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t==='Business'?' selected':'')+'>'+t+'</option>'}).join('');
 
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">📋 Log Meeting</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">Log Meeting</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="tf-modal-badges" style="margin-top:4px">';
-  h+='<span class="bg" style="background:rgba(255,0,153,0.1);color:var(--pink)">📅 '+fmtDShort(e.start)+'</span>';
+  h+='<span class="bg" style="background:rgba(255,0,153,0.1);color:var(--pink)">'+icon('calendar',12)+' '+fmtDShort(e.start)+'</span>';
   h+='<span class="bg" style="background:rgba(255,0,153,0.1);color:var(--purple50)">'+fmtTime(e.start)+' – '+fmtTime(e.end)+'</span>';
   h+='<span class="bg" style="background:rgba(77,166,255,0.1);color:var(--blue)">'+fmtM(dur)+' scheduled</span>';
   h+='</div>';
@@ -428,7 +428,7 @@ function openLogMeetingModal(){
   var linkedTasks=S.tasks.filter(function(t){return t.meetingKey===mKey});
   if(linkedTasks.length){
     h+='<div style="margin:12px 0 8px;padding:12px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,0,153,0.1);border-radius:var(--r)">';
-    h+='<div style="font-size:11px;font-weight:700;color:var(--purple50);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">📋 Linked Tasks ('+linkedTasks.length+')</div>';
+    h+='<div style="font-size:11px;font-weight:700;color:var(--purple50);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Linked Tasks ('+linkedTasks.length+')</div>';
     linkedTasks.forEach(function(lt,i){
       h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;'+(i<linkedTasks.length-1?'border-bottom:1px solid rgba(255,255,255,0.04);':'')+';font-size:12.5px">';
       h+='<input type="checkbox" id="lm-lt-'+i+'" data-task-id="'+escAttr(lt.id)+'" checked>';
@@ -541,21 +541,21 @@ function openTplForm(idx){
   h+='<textarea class="edf edf-notes" id="tpl-notes" rows="2" placeholder="Default notes...">'+esc(t.notes||'')+'</textarea></div>';
 
   h+='<div class="ed-actions">';
-  h+='<button class="btn btn-p" onclick="TF.saveTpl()">'+(editing?'💾 Update Template':'Create Template')+'</button>';
+  h+='<button class="btn btn-p" onclick="TF.saveTpl()">'+(editing?icon('save',12)+' Update Template':'Create Template')+'</button>';
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
-function saveTpl(){var name=(gel('tpl-name')||{}).value;if(!name||!name.trim()){toast('⚠ Enter a template name','warn');return}
+function saveTpl(){var name=(gel('tpl-name')||{}).value;if(!name||!name.trim()){toast('Enter a template name','warn');return}
   var tpl={name:name.trim(),item:(gel('tpl-item')||{}).value||'',importance:gel('tpl-imp').value,category:gel('tpl-cat').value,
     client:gel('tpl-cli').value||'Internal / N/A',endClient:(gel('tpl-ec')?gel('tpl-ec').value:'').trim(),type:gel('tpl-type').value,est:parseInt(gel('tpl-est').value)||0,
     notes:(gel('tpl-notes')||{}).value||'',setName:(gel('tpl-set')||{}).value||'',recurrence:(gel('tpl-recur')||{}).value||''};
   var idx=parseInt(gel('tpl-idx').value);
-  if(idx>=0&&S.templates[idx]){S.templates[idx]=tpl;toast('💾 Updated: '+tpl.name,'ok')}
+  if(idx>=0&&S.templates[idx]){S.templates[idx]=tpl;toast(icon('save',12)+' Updated: '+tpl.name,'ok')}
   else{S.templates.push(tpl);toast('Created: '+tpl.name,'ok')}
   save();closeModal();render()}
 
 function delTpl(idx){if(!S.templates[idx])return;var name=S.templates[idx].name;
-  S.templates.splice(idx,1);save();toast('🗑️ Deleted: '+name,'warn');render()}
+  S.templates.splice(idx,1);save();toast(icon('trash',12)+' Deleted: '+name,'warn');render()}
 
 async function useTpl(idx){var t=S.templates[idx];if(!t)return;
   var now=new Date();now.setHours(17,0,0,0);
@@ -596,10 +596,10 @@ function openDoneDetail(id){
   if(d.completed)h+='<span class="bg-du">'+fmtDFull(d.completed)+'</span>';
   if(d.client&&d.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(d.client)+'</span>';
   if(d.endClient)h+='<span class="bg bg-ec">'+esc(d.endClient)+'</span>';
-  if(d.campaign){var _cpdd=S.campaigns.find(function(c){return c.id===d.campaign});if(_cpdd)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">🎯 '+esc(_cpdd.name)+'</span>'}
-  if(d.opportunity){var _opdd=S.opportunities.find(function(o){return o.id===d.opportunity});if(_opdd)h+='<span class="bg bg-opp">💎 '+esc(_opdd.name)+'</span>'}
+  if(d.campaign){var _cpdd=S.campaigns.find(function(c){return c.id===d.campaign});if(_cpdd)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',12)+' '+esc(_cpdd.name)+'</span>'}
+  if(d.opportunity){var _opdd=S.opportunities.find(function(o){return o.id===d.opportunity});if(_opdd)h+='<span class="bg bg-opp">'+icon('gem',12)+' '+esc(_opdd.name)+'</span>'}
   if(d.category)h+='<span class="bg bg-ca">'+esc(d.category)+'</span>';
-  if(d.duration)h+='<span class="bg-es" style="color:var(--green);font-weight:600">⏱ '+fmtM(d.duration)+'</span>';
+  if(d.duration)h+='<span class="bg-es" style="color:var(--green);font-weight:600">'+fmtM(d.duration)+'</span>';
   h+='</div>';
 
   /* ── Scheduling ── */
@@ -625,9 +625,9 @@ function openDoneDetail(id){
   h+='<textarea class="edf edf-notes" id="d-notes" placeholder="Add notes...">'+esc(d.notes||'')+'</textarea></div>';
 
   h+='<div class="ed-actions">';
-  h+='<button class="btn btn-p" onclick="TF.saveDoneDetail()">💾 Save</button>';
+  h+='<button class="btn btn-p" onclick="TF.saveDoneDetail()">'+icon('save',12)+' Save</button>';
   h+='<span class="spacer"></span>';
-  h+='<button class="btn btn-d" onclick="TF.confirmDeleteDone()">🗑️</button>';
+  h+='<button class="btn btn-d" onclick="TF.confirmDeleteDone()">'+icon('trash',12)+'</button>';
   h+='</div><div id="del-zone"></div>';
 
   gel('detail-body').innerHTML=h;
@@ -635,7 +635,7 @@ function openDoneDetail(id){
 
 async function saveDoneDetail(){
   var id=gel('d-id').value;var d=S.done.find(function(t){return t.id===id});if(!d)return;
-  d.item=gel('d-item').value.trim();if(!d.item){toast('⚠ Item name required','warn');return}
+  d.item=gel('d-item').value.trim();if(!d.item){toast('Item name required','warn');return}
   d.completed=gel('d-completed').value?new Date(gel('d-completed').value):d.completed;
   d.importance=gel('d-imp').value;d.category=gel('d-cat').value;
   d.client=gel('d-cli').value||'Internal / N/A';d.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();d.type=gel('d-type').value;
@@ -645,7 +645,7 @@ async function saveDoneDetail(){
   await _sb.from('done').update({item:d.item,completed:d.completed?d.completed.toISOString():null,
     importance:d.importance,category:d.category,client:d.client,end_client:d.endClient||'',type:d.type,
     duration:d.duration,est:d.est,notes:d.notes,campaign:d.campaign||'',opportunity:d.opportunity||''}).eq('id',id);
-  toast('💾 Saved: '+d.item,'ok');closeModal();render()}
+  toast(icon('save',12)+' Saved: '+d.item,'ok');closeModal();render()}
 
 function confirmDeleteDone(){
   var id=gel('d-id').value;var d=S.done.find(function(t){return t.id===id});if(!d)return;
@@ -654,7 +654,7 @@ function confirmDeleteDone(){
 async function doDeleteDone(id){var d=S.done.find(function(t){return t.id===id});if(!d)return;
   await _sb.from('done').delete().eq('id',id);
   S.done=S.done.filter(function(t){return t.id!==id});
-  toast('🗑️ Deleted: '+d.item,'warn');closeModal();render()}
+  toast(icon('trash',12)+' Deleted: '+d.item,'warn');closeModal();render()}
 
 /* ═══════════ REVIEW MODALS ═══════════ */
 function openReviewAt(idx){
@@ -680,7 +680,7 @@ function openReviewDetail(id){
 
   h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;margin-bottom:8px">';
   h+='<div class="tf-modal-badges" style="border:none;margin:0;padding:0">';
-  var srcIcon=r.source==='Email'?'📧':r.source==='Read.ai'?'🎙':'📥';
+  var srcIcon=r.source==='Email'?icon('mail',12):r.source==='Read.ai'?icon('mic',12):icon('inbox',12);
   var srcLabel=r.source==='Email'?'Email':r.source==='Read.ai'?'Read.ai':'Review';
   var srcBg=r.source==='Email'?'rgba(59,130,246,0.1)':r.source==='Read.ai'?'rgba(16,185,129,0.1)':'rgba(255,0,153,0.1)';
   var srcClr=r.source==='Email'?'#3b82f6':r.source==='Read.ai'?'#10b981':'var(--pink)';
@@ -690,14 +690,14 @@ function openReviewDetail(id){
   h+='</div>';
   if(items.length>1){
     h+='<div style="display:flex;align-items:center;gap:6px">';
-    h+='<button class="ab ab-sm" style="background:var(--bg4);color:var(--t3)'+(curIdx<=0?';opacity:.3;pointer-events:none':'')+'" onclick="TF.reviewPrev()" title="Previous">◀</button>';
+    h+='<button class="ab ab-sm" style="background:var(--bg4);color:var(--t3)'+(curIdx<=0?';opacity:.3;pointer-events:none':'')+'" onclick="TF.reviewPrev()" title="Previous">'+icon('chevron_right',11)+'</button>';
     h+='<span style="font-size:11px;color:var(--t3);min-width:40px;text-align:center;font-family:var(--fd);font-weight:600">'+(curIdx+1)+' / '+items.length+'</span>';
-    h+='<button class="ab ab-sm" style="background:var(--bg4);color:var(--t3)'+(curIdx>=items.length-1?';opacity:.3;pointer-events:none':'')+'" onclick="TF.reviewNext()" title="Next">▶</button>';
+    h+='<button class="ab ab-sm" style="background:var(--bg4);color:var(--t3)'+(curIdx>=items.length-1?';opacity:.3;pointer-events:none':'')+'" onclick="TF.reviewNext()" title="Next">'+icon('play',11)+'</button>';
     h+='</div>'}
   h+='</div>';
 
-  if(r.source==='Email'&&r.notes){h+='<div style="padding:12px 16px;margin:10px 0;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:var(--r);font-size:12px;color:var(--t3);line-height:1.65"><span style="font-size:9px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">📧 Original Email</span>'+esc(r.notes)+'</div>'}
-  if(r.source==='Read.ai'&&r.notes){h+='<div style="padding:12px 16px;margin:10px 0;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:var(--r);font-size:12px;color:var(--t3);line-height:1.65"><span style="font-size:9px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">🎙 Meeting Transcript Notes</span>'+esc(r.notes)+'</div>'}
+  if(r.source==='Email'&&r.notes){h+='<div style="padding:12px 16px;margin:10px 0;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);border-radius:var(--r);font-size:12px;color:var(--t3);line-height:1.65"><span style="font-size:9px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">'+icon('mail',12)+' Original Email</span>'+esc(r.notes)+'</div>'}
+  if(r.source==='Read.ai'&&r.notes){h+='<div style="padding:12px 16px;margin:10px 0;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:var(--r);font-size:12px;color:var(--t3);line-height:1.65"><span style="font-size:9px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">'+icon('mic',12)+' Meeting Transcript Notes</span>'+esc(r.notes)+'</div>'}
 
   /* ── Scheduling ── */
   h+='<div class="ed-grid ed-grid-3">';
@@ -720,7 +720,7 @@ function openReviewDetail(id){
 
   /* ── Options (single row) ── */
   h+='<div class="flag-row ed-flags-inline">';
-  h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"><span class="flag-box">🚩</span><span class="flag-text">Needs Client Input</span></label>';
+  h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"><span class="flag-box">'+icon('flag',12)+'</span><span class="flag-text">Needs Client Input</span></label>';
   h+='<label class="flag-toggle"><input type="checkbox" id="d-done" onchange="var c=this.checked;document.getElementById(\'d-done-dur-wrap\').style.display=c?\'flex\':\'none\';document.getElementById(\'d-btn-add\').textContent=c?\'Add \\u0026 Complete\':\'Add as Task\';document.getElementById(\'d-btn-start\').style.display=c?\'none\':\'\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
   h+='<div id="d-done-dur-wrap" style="display:none;align-items:center;gap:8px;margin-left:auto"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-done-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(r.est||30)+'" min="0"></div>';
   h+='</div>';
@@ -731,9 +731,9 @@ function openReviewDetail(id){
 
   h+='<div class="ed-actions">';
   h+='<button class="btn btn-p" id="d-btn-add" onclick="TF.approveFromModal()">Add as Task</button>';
-  h+='<button class="btn btn-go" id="d-btn-start" onclick="TF.approveAndStart()">▶ Add & Start</button>';
+  h+='<button class="btn btn-go" id="d-btn-start" onclick="TF.approveAndStart()">'+icon('play',12)+' Add & Start</button>';
   h+='<span class="spacer"></span>';
-  h+='<button class="btn btn-d" onclick="TF.dismissFromModal()">✕ Dismiss</button>';
+  h+='<button class="btn btn-d" onclick="TF.dismissFromModal()">'+icon('x',12)+' Dismiss</button>';
   h+='</div>';
 
   gel('detail-body').innerHTML=h;
@@ -753,7 +753,7 @@ async function approveReview(id){
 function reviewGetDue(){var v=gel('d-due').value;if(v)return v;return fmtISO(new Date())}
 async function approveFromModal(){
   var id=gel('d-id').value;var r=S.review.find(function(t){return t.id===id});if(!r)return;
-  var item=gel('d-item').value.trim();if(!item){toast('⚠ Item name required','warn');return}
+  var item=gel('d-item').value.trim();if(!item){toast('Item name required','warn');return}
   var flagged=gel('d-flag').checked;
   var markDone=gel('d-done')&&gel('d-done').checked;
   var dueVal=reviewGetDue();
@@ -786,7 +786,7 @@ async function approveAndStart(){
   /* If already-completed is checked, route through the completed path instead */
   if(gel('d-done')&&gel('d-done').checked){approveFromModal();return}
   var id=gel('d-id').value;var r=S.review.find(function(t){return t.id===id});if(!r)return;
-  var item=gel('d-item').value.trim();if(!item){toast('⚠ Item name required','warn');return}
+  var item=gel('d-item').value.trim();if(!item){toast('Item name required','warn');return}
   var flagged=gel('d-flag').checked;
   var dueVal=reviewGetDue();
   var cpVal3=gel('d-campaign')?gel('d-campaign').value:'';
@@ -804,7 +804,7 @@ async function approveAndStart(){
     category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
   await dbDeleteReview(id);
   S.review=S.review.filter(function(rv){return rv.id!==id});
-  toast('▶ Added & started: '+data.item,'ok');
+  toast('Added & started: '+data.item,'ok');
   /* Start timer on the new task — timer is local only, no DB write needed */
   var t=tmrGet(taskId);t.started=Date.now();S.timers[taskId]=t;save();
   render();
@@ -844,7 +844,7 @@ function openDailySummary(){
   var chaseItems=S.tasks.filter(function(t){return t.flag||t.status==='Need Client Input'});
   var inProg=[];Object.keys(S.timers).forEach(function(id){var tm=S.timers[id];if(tm.started||tm.elapsed>0){var tk=S.tasks.find(function(t){return t.id===id});if(tk)inProg.push(tk)}});
 
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">📋 Daily Summary</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">Daily Summary</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
 
   h+='<div class="summary-date">'+now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</div>';
@@ -860,14 +860,14 @@ function openDailySummary(){
     todayDone.forEach(function(d){h+='<div class="summary-item"><span class="bg '+impCls(d.importance||'Important')+'" style="font-size:10px;padding:2px 7px">'+(d.importance||'I').charAt(0)+'</span> '+esc(d.item)+' <span style="color:var(--green);font-weight:600;font-family:var(--fd)">'+fmtM(d.duration)+'</span></div>'});
     h+='</div>'}
   if(inProg.length){h+='<div class="summary-section"><div class="summary-section-h">In Progress</div>';
-    inProg.forEach(function(t){h+='<div class="summary-item">🟢 '+esc(t.item)+' <span style="color:var(--green);font-family:var(--fd)">'+fmtT(tmrElapsed(t.id))+'</span></div>'});
+    inProg.forEach(function(t){h+='<div class="summary-item">'+esc(t.item)+' <span style="color:var(--green);font-family:var(--fd)">'+fmtT(tmrElapsed(t.id))+'</span></div>'});
     h+='</div>'}
   if(carryOver.length){h+='<div class="summary-section"><div class="summary-section-h">Carrying Over</div>';
     carryOver.slice(0,8).forEach(function(t){var od=t.due&&t.due<td;h+='<div class="summary-item"><span class="bg '+impCls(t.importance)+'" style="font-size:10px;padding:2px 7px">'+(t.importance||'I').charAt(0)+'</span> '+esc(t.item)+(od?' <span style="color:var(--red);font-weight:600">overdue</span>':'')+'</div>'});
     if(carryOver.length>8)h+='<div style="font-size:11px;color:var(--t4);padding:4px 0">+ '+(carryOver.length-8)+' more</div>';
     h+='</div>'}
   if(chaseItems.length){h+='<div class="summary-section"><div class="summary-section-h">Needs Chasing</div>';
-    chaseItems.forEach(function(t){h+='<div class="summary-item">🚩 '+esc(t.item)+(t.client&&t.client!=='Internal / N/A'?' <span style="color:var(--pink50)">'+esc(t.client)+'</span>':'')+(t.endClient?' <span style="color:var(--teal)">EC: '+esc(t.endClient)+'</span>':'')+'</div>'});
+    chaseItems.forEach(function(t){h+='<div class="summary-item">'+icon('flag',12)+' '+esc(t.item)+(t.client&&t.client!=='Internal / N/A'?' <span style="color:var(--pink50)">'+esc(t.client)+'</span>':'')+(t.endClient?' <span style="color:var(--teal)">EC: '+esc(t.endClient)+'</span>':'')+'</div>'});
     h+='</div>'}
 
   /* Copyable text version */
@@ -877,13 +877,13 @@ function openDailySummary(){
   if(carryOver.length){txt+='\nCARRY OVER ('+carryOver.length+'):\n';carryOver.slice(0,8).forEach(function(t){txt+='  - '+t.item+'\n'})}
   if(chaseItems.length){txt+='\nNEEDS CHASING ('+chaseItems.length+'):\n';chaseItems.forEach(function(t){txt+='  - '+t.item+(t.client&&t.client!=='Internal / N/A'?' ['+t.client+']':'')+(t.endClient?' (EC: '+t.endClient+')':'')+'\n'})}
 
-  h+='<div style="margin-top:16px"><button class="btn btn-p" onclick="navigator.clipboard.writeText('+esc(JSON.stringify(txt)).replace(/'/g,"\\'")+');TF.toast(\'Copied to clipboard\',\'ok\')" style="padding:8px 18px;font-size:12px">📋 Copy Summary</button></div>';
+  h+='<div style="margin-top:16px"><button class="btn btn-p" onclick="navigator.clipboard.writeText('+esc(JSON.stringify(txt)).replace(/'/g,"\\'")+');TF.toast(\'Copied to clipboard\',\'ok\')" style="padding:8px 18px;font-size:12px">Copy Summary</button></div>';
 
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 /* ═══════════ CLIENT TIME REPORT ═══════════ */
 function openClientReport(){
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">📊 Client Time Report</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('dashboard',12)+' Client Time Report</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="frm" style="margin-top:8px"><div class="frm-grid">';
   h+='<div class="fld"><label>Client</label><select id="rpt-cli"><option value="">All Clients</option>';
@@ -939,13 +939,13 @@ function genClientReport(){
   catKeys.forEach(function(c){txt+=c+': '+fmtM(catBreak[c])+'\n'});
   txt+='\nDetail:\n';items.forEach(function(d){txt+='  - '+d.item+' ('+fmtM(d.duration)+')\n'});
 
-  h+='<button class="btn btn-p" onclick="navigator.clipboard.writeText('+esc(JSON.stringify(txt)).replace(/'/g,"\\'")+');TF.toast(\'Copied!\',\'ok\')" style="margin-top:12px;padding:8px 18px;font-size:12px">📋 Copy Report</button>';
+  h+='<button class="btn btn-p" onclick="navigator.clipboard.writeText('+esc(JSON.stringify(txt)).replace(/'/g,"\\'")+');TF.toast(\'Copied!\',\'ok\')" style="margin-top:12px;padding:8px 18px;font-size:12px">Copy Report</button>';
   h+='</div>';
   gel('rpt-output').innerHTML=h}
 
 /* ═══════════ CALENDAR SETUP ═══════════ */
 function showCalSetup(){
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">📅 Connect Google Calendar</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('calendar',12)+' Connect Google Calendar</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div style="padding:4px 0;font-size:13px;color:var(--t2);line-height:1.7">';
   h+='<p style="margin-bottom:14px">Connect your Google Calendar to see your busy/free time on the Today view. TaskFlow will automatically calculate your real available capacity.</p>';
@@ -978,7 +978,7 @@ function buildEndClientOptions(currentValue,filterClient){
   var h='<option value="">None</option>';
   ecs.forEach(function(ec){h+='<option value="'+esc(ec)+'"'+(currentValue===ec?' selected':'')+'>'+esc(ec)+'</option>'});
   if(isNew)h+='<option value="'+esc(currentValue)+'" selected>'+esc(currentValue)+'</option>';
-  h+='<option value="__addnew__">➕ Add New...</option>';
+  h+='<option value="__addnew__">'+icon('plus',12)+' Add New...</option>';
   return h}
 
 function buildCampaignOptions(currentValue,filterClient,filterEC){
@@ -1119,8 +1119,8 @@ function openCampaignDetail(id){
     if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
     h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
     if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
-    h+='<span style="font-size:11px;color:var(--green);font-weight:700">💰 '+fmtUSD(st.totalPaid)+'</span>';
-    h+='<span style="font-size:11px;color:var(--amber);font-weight:700">📋 '+st.openCount+' open</span>';
+    h+='<span style="font-size:11px;color:var(--green);font-weight:700"> '+fmtUSD(st.totalPaid)+'</span>';
+    h+='<span style="font-size:11px;color:var(--amber);font-weight:700">'+st.openCount+' open</span>';
     h+='</div>';
 
     /* Notes */
@@ -1128,26 +1128,26 @@ function openCampaignDetail(id){
 
     /* Open Tasks */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)" open>';
-    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">📋 Open Tasks ('+st.openCount+') <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">Open Tasks ('+st.openCount+') <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
     if(st.openTasks.length){st.openTasks.forEach(function(t){h+=miniRow(t,td_)})}
     h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal();setTimeout(function(){var cs=gel(\'f-cli\');if(cs)cs.value=\''+escAttr(cp.partner)+'\';TF.refreshAddCampaigns();var cc=gel(\'f-campaign\');if(cc)cc.value=\''+escAttr(cp.id)+'\';TF.fillFromCampaign()},200)" style="margin:6px 0 12px;font-size:12px;padding:10px 14px;width:100%;text-align:center">+ Add Task</button>';
     h+='</details>';
 
     /* Details */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
-    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">📋 Details <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">Details <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
     h+=cpFieldsHTML('ed-grid');
     h+='</details>';
 
     /* Fees */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
-    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">💰 Fees <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between"> Fees <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
     h+=cpFeesHTML();
     h+='<div style="margin-bottom:12px"></div></details>';
 
     /* Payments */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
-    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">💳 Payments ('+st.payments.length+') <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between"> Payments ('+st.payments.length+') <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
     if(st.payments.length){st.payments.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(p){
       h+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">';
       h+='<span>'+(p.date?fmtDShort(p.date):'')+'</span><span style="color:var(--green);font-weight:700">'+fmtUSD(p.amount)+'</span></div>'})}
@@ -1156,7 +1156,7 @@ function openCampaignDetail(id){
 
     /* Links */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
-    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">🔗 Links <span style="font-size:10px;color:var(--t4)">▼</span></summary>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">'+icon('link',12)+' Links <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
     h+=cpLinksHTML();
     h+='<div style="margin-bottom:12px"></div></details>';
 
@@ -1164,8 +1164,8 @@ function openCampaignDetail(id){
 
     /* Bottom bar */
     h+='<div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--gborder);flex-shrink:0;background:var(--bg1)">';
-    h+='<button class="btn btn-p" onclick="TF.saveCampaign()" style="flex:1;padding:14px;font-size:14px">💾 Save</button>';
-    h+='<button class="btn btn-d" onclick="TF.confirmDeleteCampaign()" style="padding:14px">🗑️</button>';
+    h+='<button class="btn btn-p" onclick="TF.saveCampaign()" style="flex:1;padding:14px;font-size:14px">'+icon('save',12)+' Save</button>';
+    h+='<button class="btn btn-d" onclick="TF.confirmDeleteCampaign()" style="padding:14px">'+icon('trash',12)+'</button>';
     h+='</div><div id="del-zone" style="padding:0 16px"></div>';
 
     h+='</div>';/* end mobile wrapper */
@@ -1182,9 +1182,9 @@ function openCampaignDetail(id){
     if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
     h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
     if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
-    h+='<span class="ed-timer-badge" style="color:var(--green)">💰 Paid: '+fmtUSD(st.totalPaid)+'</span>';
-    h+='<span class="ed-timer-badge" style="color:var(--amber)">📋 '+st.openCount+' open · '+st.doneCount+' done</span>';
-    if(st.totalTime)h+='<span class="ed-timer-badge" style="color:var(--pink)">⏱ '+fmtM(st.totalTime)+'</span>';
+    h+='<span class="ed-timer-badge" style="color:var(--green)"> Paid: '+fmtUSD(st.totalPaid)+'</span>';
+    h+='<span class="ed-timer-badge" style="color:var(--amber)">'+st.openCount+' open · '+st.doneCount+' done</span>';
+    if(st.totalTime)h+='<span class="ed-timer-badge" style="color:var(--pink)">'+fmtM(st.totalTime)+'</span>';
     h+='</div></div>';
 
   /* ── Split pane ── */
@@ -1211,7 +1211,7 @@ function openCampaignDetail(id){
   h+='</div>';
 
   /* Fees */
-  h+='<div style="margin-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">💰 Fees</span>';
+  h+='<div style="margin-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block"> Fees</span>';
   h+='<div class="cp-fees-grid">';
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Strategy Fee</div><input type="number" class="edf" id="cp-strategyFee" value="'+(cp.strategyFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Set-Up Fee</div><input type="number" class="edf" id="cp-setupFee" value="'+(cp.setupFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
@@ -1222,7 +1222,7 @@ function openCampaignDetail(id){
   h+='</div>';
 
   /* Links */
-  h+='<div style="margin-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">🔗 Links</span><div class="cp-links-grid">';
+  h+='<div style="margin-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">'+icon('link',12)+' Links</span><div class="cp-links-grid">';
   var links=[['Proposal','cp-proposalLink',cp.proposalLink],['Monthly Reports','cp-reportsLink',cp.reportsLink],['Video Assets','cp-videoAssetsLink',cp.videoAssetsLink],['Transcripts','cp-transcriptsLink',cp.transcriptsLink],['Contract','cp-contractLink',cp.contractLink],['Awareness LP','cp-awarenessLP',cp.awarenessLP],['Consideration LP','cp-considerationLP',cp.considerationLP],['Decision LP','cp-decisionLP',cp.decisionLP]];
   links.forEach(function(l){
     h+='<div class="cp-link-item"><span class="cp-link-label">'+l[0]+'</span>';
@@ -1233,9 +1233,9 @@ function openCampaignDetail(id){
 
   /* Actions */
   h+='<div class="ed-actions">';
-  h+='<button class="btn btn-p" onclick="TF.saveCampaign()" style="padding:10px 22px">💾 Save Campaign</button>';
+  h+='<button class="btn btn-p" onclick="TF.saveCampaign()" style="padding:10px 22px">'+icon('save',12)+' Save Campaign</button>';
   h+='<span class="spacer"></span>';
-  h+='<button class="btn btn-d" onclick="TF.confirmDeleteCampaign()" style="padding:10px 16px">🗑️ Delete</button>';
+  h+='<button class="btn btn-d" onclick="TF.confirmDeleteCampaign()" style="padding:10px 16px">'+icon('trash',12)+' Delete</button>';
   h+='</div><div id="del-zone"></div>';
   h+='</div>';/* end detail-split-left */
 
@@ -1243,7 +1243,7 @@ function openCampaignDetail(id){
   h+='<div class="detail-split-right">';
 
   /* Payments */
-  h+='<div><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">💳 Payments ('+st.payments.length+')</span>';
+  h+='<div><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block"> Payments ('+st.payments.length+')</span>';
   if(st.payments.length){
     h+='<div class="tb-wrap"><table class="tb"><thead><tr><th>Date</th><th class="r">Amount</th><th>Type</th><th>Notes</th></tr></thead><tbody>';
     st.payments.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(p){
@@ -1253,7 +1253,7 @@ function openCampaignDetail(id){
   h+='<button class="btn" onclick="TF.openAddPayment(\''+escAttr(cp.id)+'\')" style="margin-top:6px;font-size:11px;padding:5px 12px">+ Add Payment</button></div>';
 
   /* Campaign Meetings */
-  h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">🤝 Campaign Meetings ('+st.meetings.length+')</span>';
+  h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">'+icon('mic',12)+' Campaign Meetings ('+st.meetings.length+')</span>';
   if(st.meetings.length){
     h+='<div class="tb-wrap"><table class="tb"><thead><tr><th>Date</th><th>Title</th><th>Recording</th><th>Notes</th></tr></thead><tbody>';
     st.meetings.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(m){
@@ -1262,13 +1262,13 @@ function openCampaignDetail(id){
   h+='<button class="btn" onclick="TF.openAddCampaignMeeting(\''+escAttr(cp.id)+'\')" style="margin-top:6px;font-size:11px;padding:5px 12px">+ Add Meeting</button></div>';
 
   /* Open Tasks */
-  h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">📋 Open Tasks ('+st.openCount+')</span>';
+  h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">Open Tasks ('+st.openCount+')</span>';
   if(st.openTasks.length){st.openTasks.forEach(function(t){h+=miniRow(t,td_)})}
   h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal();setTimeout(function(){var cs=gel(\'f-cli\');if(cs)cs.value=\''+escAttr(cp.partner)+'\';TF.refreshAddCampaigns();var cc=gel(\'f-campaign\');if(cc)cc.value=\''+escAttr(cp.id)+'\';TF.fillFromCampaign()},200)" style="margin-top:6px;font-size:11px;padding:5px 12px">+ Add Task to Campaign</button></div>';
 
   /* Completed Tasks */
   h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">'+CK_S+' Completed Tasks ('+st.doneCount+')</span>';
-  if(st.totalTime)h+='<div style="font-size:12px;color:var(--green);font-weight:700;margin-bottom:8px">⏱ Total Time: '+fmtM(st.totalTime)+'</div>';
+  if(st.totalTime)h+='<div style="font-size:12px;color:var(--green);font-weight:700;margin-bottom:8px">Total Time: '+fmtM(st.totalTime)+'</div>';
   if(st.doneTasks.length){st.doneTasks.slice(0,20).forEach(function(d){
     h+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">';
     h+='<span style="color:var(--green)">'+fmtM(d.duration)+'</span>';
@@ -1278,7 +1278,7 @@ function openCampaignDetail(id){
   h+='</div>';
 
   /* Notes */
-  h+='<div class="detail-notes-large" style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">📝 Notes</span>';
+  h+='<div class="detail-notes-large" style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">'+icon('edit',12)+' Notes</span>';
   h+='<textarea class="edf edf-notes" id="cp-notes" placeholder="Campaign notes, strategy details...">'+esc(cp.notes||'')+'</textarea></div>';
 
   h+='</div>';/* end detail-split-right */
@@ -1290,7 +1290,7 @@ function openCampaignDetail(id){
 
 async function saveCampaign(){
   var id=gel('cp-id').value;var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
-  cp.name=gel('cp-name').value.trim();if(!cp.name){toast('⚠ Campaign name required','warn');return}
+  cp.name=gel('cp-name').value.trim();if(!cp.name){toast('Campaign name required','warn');return}
   cp.partner=gel('cp-partner').value;cp.endClient=(gel('cp-ec')?gel('cp-ec').value:'').trim();
   cp.status=gel('cp-status').value;cp.platform=gel('cp-platform').value;
   cp.campaignTerm=gel('cp-term').value;
@@ -1312,12 +1312,12 @@ async function saveCampaign(){
   cp.decisionLP=(gel('cp-decisionLP')||{}).value||'';
   cp.notes=gel('cp-notes').value;
   await dbEditCampaign(id,cp);
-  toast('💾 Saved: '+cp.name,'ok');closeModal();render()}
+  toast(icon('save',12)+' Saved: '+cp.name,'ok');closeModal();render()}
 
 function openAddCampaign(){
   var PLATFORMS=['Meta','Google Ads','YouTube','LinkedIn','TikTok','Microsoft Ads','Programmatic','Multiple','Other'];
   var TERMS=['1 month','2 months','3 months','4 months','5 months','6 months','7 months','8 months','9 months','10 months','11 months','12 months','18 months','24 months','Ongoing'];
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">🎯 New Campaign</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('target',12)+' New Campaign</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="frm" style="margin-top:8px"><div class="frm-grid">';
   h+='<div class="fld full"><label>Campaign Name *</label><input type="text" id="ncp-name" placeholder="e.g. HonorHealth Ortho Campaign" autofocus></div>';
@@ -1335,12 +1335,12 @@ function openAddCampaign(){
   h+='<div class="fld"><label>Monthly Fee ($)</label><input type="number" id="ncp-monthlyFee" placeholder="0" min="0" step="0.01"></div>';
   h+='<div class="fld"><label>Monthly Ad Spend ($)</label><input type="number" id="ncp-monthlyAdSpend" placeholder="0" min="0" step="0.01"></div>';
   h+='<div class="fld full"><label>Notes</label><textarea id="ncp-notes" rows="2" placeholder="Campaign notes..."></textarea></div>';
-  h+='</div><button class="btn btn-p" onclick="TF.addCampaign()" style="margin-top:12px">🎯 Create Campaign</button></div>';
+  h+='</div><button class="btn btn-p" onclick="TF.addCampaign()" style="margin-top:12px">'+icon('target',12)+' Create Campaign</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
   setTimeout(function(){var fi=gel('ncp-name');if(fi)fi.focus()},100)}
 
 async function addCampaign(){
-  var name=(gel('ncp-name')||{}).value;if(!name||!name.trim()){toast('⚠ Enter a campaign name','warn');return}
+  var name=(gel('ncp-name')||{}).value;if(!name||!name.trim()){toast('Enter a campaign name','warn');return}
   var cp={name:name.trim(),partner:gel('ncp-partner').value||'',endClient:(gel('ncp-ec')?gel('ncp-ec').value:'').trim(),
     status:gel('ncp-status').value||'Setup',platform:gel('ncp-platform').value||'',
     strategyFee:parseFloat(gel('ncp-strategyFee').value)||0,setupFee:parseFloat(gel('ncp-setupFee').value)||0,
@@ -1350,7 +1350,7 @@ async function addCampaign(){
     awarenessLP:'',considerationLP:'',decisionLP:'',contractLink:'',notes:(gel('ncp-notes')||{}).value||''};
   var result=await dbAddCampaign(cp);
   if(result){cp.id=result.id;cp.created=new Date();S.campaigns.push(cp)}
-  toast('🎯 Created: '+cp.name,'ok');closeModal();nav('campaigns');render()}
+  toast('Created: '+cp.name,'ok');closeModal();S.pipelineTab='campaigns';nav('pipeline');render()}
 
 function confirmDeleteCampaign(){
   var id=gel('cp-id').value;var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
@@ -1360,11 +1360,11 @@ async function doDeleteCampaign(id){
   var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
   await dbDeleteCampaign(id);
   S.campaigns=S.campaigns.filter(function(c){return c.id!==id});
-  toast('🗑️ Deleted: '+cp.name,'warn');closeModal();render()}
+  toast(icon('trash',12)+' Deleted: '+cp.name,'warn');closeModal();render()}
 
 /* ═══════════ PAYMENT MODAL ═══════════ */
 function openAddPayment(campaignId){
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">💳 Add Payment</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent"> Add Payment</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="frm" style="margin-top:8px"><div class="frm-grid">';
   h+='<div class="fld full"><label>Campaign *</label><select id="pay-cp">';
@@ -1374,19 +1374,19 @@ function openAddPayment(campaignId){
   h+='<div class="fld"><label>Amount ($)</label><input type="number" id="pay-amount" placeholder="0.00" min="0" step="0.01"></div>';
   h+='<div class="fld"><label>Type</label><select id="pay-type"><option>Strategy</option><option>Set-Up</option><option>Monthly Fee</option><option>Monthly Ad Spend</option><option>Other</option></select></div>';
   h+='<div class="fld full"><label>Notes</label><input type="text" id="pay-notes" placeholder="Optional notes..."></div>';
-  h+='</div><button class="btn btn-p" onclick="TF.addPayment()" style="margin-top:12px">💳 Add Payment</button></div>';
+  h+='</div><button class="btn btn-p" onclick="TF.addPayment()" style="margin-top:12px"> Add Payment</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 async function addPayment(){
-  var cpId=gel('pay-cp').value;if(!cpId){toast('⚠ Select a campaign','warn');return}
-  var amount=parseFloat(gel('pay-amount').value);if(!amount){toast('⚠ Enter an amount','warn');return}
+  var cpId=gel('pay-cp').value;if(!cpId){toast('Select a campaign','warn');return}
+  var amount=parseFloat(gel('pay-amount').value);if(!amount){toast('Enter an amount','warn');return}
   var cp=S.campaigns.find(function(c){return c.id===cpId});if(!cp)return;
   var pay={campaignId:cp.id,date:gel('pay-date').value||new Date().toISOString().slice(0,10),amount:amount,
     type:gel('pay-type').value,notes:(gel('pay-notes')||{}).value||''};
   var result=await dbAddPayment(pay);
   if(result){pay.id=result.id;pay.campaignName=cp.name;pay.partner=cp.partner;pay.endClient=cp.endClient;
     pay.date=pay.date?new Date(pay.date):new Date();S.payments.push(pay)}
-  toast('💳 Payment added: '+fmtUSD(amount),'ok');closeModal();
+  toast(' Payment added: '+fmtUSD(amount),'ok');closeModal();
   /* Refresh campaign detail if it was open */
   if(gel('cp-id')&&gel('cp-id').value===cpId){openCampaignDetail(cpId)}
   render()}
@@ -1458,11 +1458,11 @@ function openOpportunityDetail(id){
   h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'% prob</span>';
   if(st.totalValue)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+fmtUSD(st.totalValue)+'</span>';
   if(st.weightedValue)h+='<span class="bg" style="background:rgba(255,176,48,0.08);color:var(--amber)">'+fmtUSD(st.weightedValue)+' weighted</span>';
-  if(st.openCount)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">📋 '+st.openCount+' tasks</span>';
+  if(st.openCount)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">'+st.openCount+' tasks</span>';
   if(op.client)h+='<span class="bg bg-cl">'+esc(op.client)+'</span>';
   if(op.endClient)h+='<span class="bg bg-ec">'+esc(op.endClient)+'</span>';
   if(op.convertedCampaignId){var cpLink=S.campaigns.find(function(c){return c.id===op.convertedCampaignId});
-    if(cpLink)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openCampaignDetail(\''+escAttr(cpLink.id)+'\')},100)">🎯 '+esc(cpLink.name)+'</span>'}
+    if(cpLink)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openCampaignDetail(\''+escAttr(cpLink.id)+'\')},100)">'+icon('target',12)+' '+esc(cpLink.name)+'</span>'}
   h+='</div></div>';
 
   h+='<div class="detail-split">';
@@ -1492,11 +1492,11 @@ function openOpportunityDetail(id){
 
   /* Actions */
   h+='<div class="ed-actions" style="margin-top:12px">';
-  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">💾 Save</button>';
+  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">'+icon('save',12)+' Save</button>';
   if(!isClosed){
-    h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertOpportunity(\''+eid+'\')">🏆 Convert to Campaign</button>';
-    h+='<button class="btn" style="background:rgba(255,51,88,0.1);color:var(--red);border-color:rgba(255,51,88,0.3)" onclick="TF.closeAsLost(\''+eid+'\')">✕ Close as Lost</button>'}
-  h+='<button class="btn ab-del" style="margin-left:auto" onclick="TF.confirmDeleteOpportunity()">🗑 Delete</button>';
+    h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertOpportunity(\''+eid+'\')"> Convert to Campaign</button>';
+    h+='<button class="btn" style="background:rgba(255,51,88,0.1);color:var(--red);border-color:rgba(255,51,88,0.3)" onclick="TF.closeAsLost(\''+eid+'\')">'+icon('x',12)+' Close as Lost</button>'}
+  h+='<button class="btn ab-del" style="margin-left:auto" onclick="TF.confirmDeleteOpportunity()">'+icon('trash',12)+' Delete</button>';
   h+='</div>';
   h+='</div>';
 
@@ -1537,7 +1537,7 @@ function openOpportunityDetail(id){
 
 async function saveOpportunity(){
   var id=gel('op-id').value;var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
-  op.name=(gel('op-name').value||'').trim();if(!op.name){toast('⚠ Opportunity name required','warn');return}
+  op.name=(gel('op-name').value||'').trim();if(!op.name){toast('Opportunity name required','warn');return}
   op.stage=gel('op-stage').value;
   op.client=gel('op-client').value||'';
   op.endClient=(gel('op-endclient').value||'').trim();
@@ -1556,7 +1556,7 @@ async function saveOpportunity(){
 
 function openAddOpportunity(){
   var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">💎 New Opportunity</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('gem',12)+' New Opportunity</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div style="padding:6px 0"><input type="text" class="edf" id="nop-name" placeholder="Opportunity name..." autofocus style="font-size:15px;font-weight:600;padding:11px 14px"></div>';
   h+='<div class="ed-grid ed-grid-3">';
@@ -1581,12 +1581,12 @@ function openAddOpportunity(){
   h+='</div>';
   h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
   h+='<textarea class="edf edf-notes" id="nop-notes" placeholder="Notes about this opportunity..." rows="2"></textarea></div>';
-  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.addOpportunity()">💎 Create Opportunity</button></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.addOpportunity()">'+icon('gem',12)+' Create Opportunity</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
   setTimeout(function(){var fi=gel('nop-name');if(fi)fi.focus()},100)}
 
 async function addOpportunity(){
-  var name=(gel('nop-name').value||'').trim();if(!name){toast('⚠ Enter opportunity name','warn');return}
+  var name=(gel('nop-name').value||'').trim();if(!name){toast('Enter opportunity name','warn');return}
   var data={name:name,stage:gel('nop-stage').value||'Lead',
     client:gel('nop-client').value||'',endClient:(gel('nop-endclient').value||'').trim(),
     contactName:(gel('nop-contact').value||'').trim(),contactEmail:(gel('nop-email').value||'').trim(),
@@ -1597,7 +1597,7 @@ async function addOpportunity(){
     expectedClose:gel('nop-close').value||null,
     description:(gel('nop-desc').value||'').trim(),notes:gel('nop-notes').value||''};
   var result=await dbAddOpportunity(data);
-  if(!result){toast('❌ Failed to create opportunity','warn');return}
+  if(!result){toast('Failed to create opportunity','warn');return}
   S.opportunities.unshift({id:result.id,name:data.name,description:data.description,stage:data.stage,
     client:data.client,endClient:data.endClient,contactName:data.contactName,contactEmail:data.contactEmail,
     strategyFee:data.strategyFee,setupFee:data.setupFee,monthlyFee:data.monthlyFee,
@@ -1609,7 +1609,7 @@ function confirmDeleteOpportunity(){
   var id=gel('op-id').value;var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
   gel('detail-body').innerHTML='<div style="padding:40px;text-align:center"><h2 style="margin-bottom:16px;color:var(--t1)">Delete Opportunity?</h2>'+
     '<p style="color:var(--t3);margin-bottom:24px">This will permanently delete <strong>'+esc(op.name)+'</strong>. Tasks linked to this opportunity will be unlinked.</p>'+
-    '<button class="btn ab-del" onclick="TF.doDeleteOpportunity(\''+escAttr(id)+'\')">🗑 Delete</button>'+
+    '<button class="btn ab-del" onclick="TF.doDeleteOpportunity(\''+escAttr(id)+'\')">'+icon('trash',12)+' Delete</button>'+
     '<button class="btn" onclick="TF.openOpportunityDetail(\''+escAttr(id)+'\')" style="margin-left:8px">Cancel</button></div>'}
 
 async function doDeleteOpportunity(id){
@@ -1633,7 +1633,7 @@ async function convertOpportunity(id){
     transcriptsLink:'',awarenessLP:'',considerationLP:'',decisionLP:'',
     contractLink:'',notes:op.notes};
   var cpResult=await dbAddCampaign(cpData);
-  if(!cpResult){toast('❌ Failed to create campaign','warn');return}
+  if(!cpResult){toast('Failed to create campaign','warn');return}
 
   /* 2. Update opportunity */
   op.stage='Closed Won';op.closedAt=new Date();op.convertedCampaignId=cpResult.id;
@@ -1660,7 +1660,7 @@ async function convertOpportunity(id){
     awarenessLP:'',considerationLP:'',decisionLP:'',contractLink:'',
     notes:cpData.notes,created:new Date()});
 
-  toast('🏆 Converted to campaign: '+op.name,'ok');closeModal();render()}
+  toast(' Converted to campaign: '+op.name,'ok');closeModal();render()}
 
 async function closeAsLost(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
@@ -1704,9 +1704,9 @@ function openProjectDetail(id){
   h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
   h+='<textarea class="edf edf-notes" id="pj-notes" placeholder="Additional notes...">'+esc(proj.notes)+'</textarea></div>';
   h+='<div class="ed-actions">';
-  h+='<button class="btn btn-p" onclick="TF.saveProject()">💾 Save Project</button>';
+  h+='<button class="btn btn-p" onclick="TF.saveProject()">'+icon('save',12)+' Save Project</button>';
   h+='<span class="spacer"></span>';
-  h+='<button class="btn btn-d" onclick="TF.confirmDeleteProject()">🗑️ Delete</button>';
+  h+='<button class="btn btn-d" onclick="TF.confirmDeleteProject()">'+icon('trash',12)+' Delete</button>';
   h+='</div>';
   h+='<div id="pj-del-zone"></div>';
   h+='</div>';
@@ -1734,7 +1734,7 @@ function openProjectDetail(id){
     h+='<div class="proj-phase-controls" onclick="event.stopPropagation()">';
     if(i>0)h+='<button class="ab ab-mini" onclick="TF.movePhase(\''+phEid+'\',-1)" title="Move Up">↑</button>';
     if(i<st.phases.length-1)h+='<button class="ab ab-mini" onclick="TF.movePhase(\''+phEid+'\',1)" title="Move Down">↓</button>';
-    h+='<button class="ab ab-mini" onclick="TF.editPhaseInline(\''+phEid+'\')" title="Edit">✎</button>';
+    h+='<button class="ab ab-mini" onclick="TF.editPhaseInline(\''+phEid+'\')" title="Edit">'+icon('edit',11)+'</button>';
     h+='<button class="ab ab-del ab-mini" onclick="TF.deletePhase(\''+phEid+'\')" title="Delete">×</button>';
     h+='</div></div>';
 
@@ -1793,7 +1793,7 @@ function openProjectDetail(id){
 
 async function saveProject(){
   var id=gel('pj-id').value;var proj=S.projects.find(function(p){return p.id===id});if(!proj)return;
-  var name=(gel('pj-name')||{}).value;if(!name||!name.trim()){toast('⚠ Project name required','warn');return}
+  var name=(gel('pj-name')||{}).value;if(!name||!name.trim()){toast('Project name required','warn');return}
   proj.name=name.trim();proj.description=(gel('pj-desc')||{}).value||'';
   proj.status=(gel('pj-status')||{}).value||'Planning';proj.color=(gel('pj-color')||{}).value||'#ff0099';
   proj.startDate=gel('pj-start').value?new Date(gel('pj-start').value+'T00:00:00'):null;
@@ -1802,10 +1802,10 @@ async function saveProject(){
   await dbEditProject(id,{name:proj.name,description:proj.description,status:proj.status,color:proj.color,
     startDate:proj.startDate?proj.startDate.toISOString().slice(0,10):null,
     targetDate:proj.targetDate?proj.targetDate.toISOString().slice(0,10):null,notes:proj.notes});
-  toast('💾 Saved: '+proj.name,'ok');closeModal();render()}
+  toast(icon('save',12)+' Saved: '+proj.name,'ok');closeModal();render()}
 
 function openAddProject(){
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">📁 New Project</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('folder',12)+' New Project</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="frm" style="margin-top:8px">';
   h+='<div class="frm-grid">';
@@ -1825,13 +1825,13 @@ function openAddProject(){
   h+='</div>';
   h+='<button class="btn" style="margin-top:6px;padding:4px 12px;font-size:11px" onclick="var c=gel(\'pj-init-phases\');var n=c.children.length+1;var inp=document.createElement(\'input\');inp.type=\'text\';inp.className=\'edf\';inp.placeholder=\'Phase \'+n+\' name\';inp.id=\'pj-ph-\'+n;c.appendChild(inp)">+ Add more</button>';
   h+='</div>';
-  h+='<button class="btn btn-p" onclick="TF.addProject()" style="margin-top:16px">📁 Create Project</button>';
+  h+='<button class="btn btn-p" onclick="TF.addProject()" style="margin-top:16px">'+icon('folder',12)+' Create Project</button>';
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
   setTimeout(function(){var fi=gel('pj-add-name');if(fi)fi.focus()},100)}
 
 async function addProject(){
-  var name=(gel('pj-add-name')||{}).value;if(!name||!name.trim()){toast('⚠ Enter a project name','warn');return}
+  var name=(gel('pj-add-name')||{}).value;if(!name||!name.trim()){toast('Enter a project name','warn');return}
   var data={name:name.trim(),description:(gel('pj-add-desc')||{}).value||'',
     status:(gel('pj-add-status')||{}).value||'Planning',color:(gel('pj-add-color')||{}).value||'#ff0099',
     startDate:gel('pj-add-start').value||null,targetDate:gel('pj-add-target').value||null,
@@ -1854,7 +1854,7 @@ async function addProject(){
         if(phResult){S.phases.push({id:phResult.id,projectId:projId,name:pn,description:'',sortOrder:order,
           startDate:null,endDate:null,status:'Not Started',created:new Date()})}
         order++}}}
-  toast('📁 Created: '+data.name,'ok');closeModal();nav('projects')}
+  toast('Created: '+data.name,'ok');closeModal();S.pipelineTab='projects';nav('pipeline')}
 
 function confirmDeleteProject(){
   var id=gel('pj-id').value;var proj=S.projects.find(function(p){return p.id===id});if(!proj)return;
@@ -1868,7 +1868,7 @@ async function doDeleteProject(id){
   await dbDeleteProject(id);
   S.projects=S.projects.filter(function(p){return p.id!==id});
   S.phases=S.phases.filter(function(ph){return ph.projectId!==id});
-  toast('🗑️ Deleted: '+proj.name,'warn');closeModal();render()}
+  toast(icon('trash',12)+' Deleted: '+proj.name,'warn');closeModal();render()}
 
 /* ═══════════ PHASE CRUD ═══════════ */
 function addPhaseToProject(projectId){
@@ -1888,7 +1888,7 @@ function addPhaseToProject(projectId){
   setTimeout(function(){var ni=gel('np-name');if(ni)ni.focus()},50)}
 
 async function doAddPhase(projectId){
-  var name=(gel('np-name')||{}).value;if(!name||!name.trim()){toast('⚠ Enter a phase name','warn');return}
+  var name=(gel('np-name')||{}).value;if(!name||!name.trim()){toast('Enter a phase name','warn');return}
   var existingPhases=S.phases.filter(function(p){return p.projectId===projectId});
   var maxOrder=existingPhases.reduce(function(m,p){return Math.max(m,p.sortOrder)},0);
   var data={projectId:projectId,name:name.trim(),sortOrder:maxOrder+1,
@@ -1920,14 +1920,14 @@ function editPhaseInline(phaseId){
 
 async function savePhase(phaseId){
   var phase=S.phases.find(function(p){return p.id===phaseId});if(!phase)return;
-  var name=(gel('ep-name')||{}).value;if(!name||!name.trim()){toast('⚠ Phase name required','warn');return}
+  var name=(gel('ep-name')||{}).value;if(!name||!name.trim()){toast('Phase name required','warn');return}
   phase.name=name.trim();phase.status=(gel('ep-status')||{}).value||'Not Started';
   phase.startDate=gel('ep-start').value?new Date(gel('ep-start').value+'T00:00:00'):null;
   phase.endDate=gel('ep-end').value?new Date(gel('ep-end').value+'T00:00:00'):null;
   await dbEditPhase(phaseId,{name:phase.name,description:phase.description,sortOrder:phase.sortOrder,
     startDate:phase.startDate?phase.startDate.toISOString().slice(0,10):null,
     endDate:phase.endDate?phase.endDate.toISOString().slice(0,10):null,status:phase.status});
-  toast('💾 Phase saved','ok');openProjectDetail(phase.projectId)}
+  toast(icon('save',12)+' Phase saved','ok');openProjectDetail(phase.projectId)}
 
 async function deletePhase(phaseId){
   var phase=S.phases.find(function(p){return p.id===phaseId});if(!phase)return;
@@ -1937,7 +1937,7 @@ async function deletePhase(phaseId){
   S.done.forEach(function(d){if(d.phase===phaseId){d.phase=''}});
   await dbDeletePhase(phaseId);
   S.phases=S.phases.filter(function(p){return p.id!==phaseId});
-  toast('🗑️ Phase deleted','warn');openProjectDetail(phase.projectId)}
+  toast(icon('trash',12)+' Phase deleted','warn');openProjectDetail(phase.projectId)}
 
 async function movePhase(phaseId,direction){
   var phase=S.phases.find(function(p){return p.id===phaseId});if(!phase)return;
@@ -1956,7 +1956,7 @@ async function movePhase(phaseId,direction){
   openProjectDetail(phase.projectId)}
 
 function openAddCampaignMeeting(campaignId){
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">🤝 Add Campaign Meeting</span>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('mic',12)+' Add Campaign Meeting</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="frm" style="margin-top:8px"><div class="frm-grid">';
   h+='<div class="fld full"><label>Campaign *</label><select id="cmtg-cp">';
@@ -1966,18 +1966,18 @@ function openAddCampaignMeeting(campaignId){
   h+='<div class="fld"><label>Title *</label><input type="text" id="cmtg-title" placeholder="e.g. Month 2 Review"></div>';
   h+='<div class="fld full"><label>Recording Link</label><input type="url" id="cmtg-link" placeholder="https://..."></div>';
   h+='<div class="fld full"><label>Notes</label><input type="text" id="cmtg-notes" placeholder="Optional notes..."></div>';
-  h+='</div><button class="btn btn-p" onclick="TF.addCampaignMeeting()" style="margin-top:12px">🤝 Add Meeting</button></div>';
+  h+='</div><button class="btn btn-p" onclick="TF.addCampaignMeeting()" style="margin-top:12px">'+icon('mic',12)+' Add Meeting</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 async function addCampaignMeeting(){
-  var cpId=gel('cmtg-cp').value;if(!cpId){toast('⚠ Select a campaign','warn');return}
-  var title=(gel('cmtg-title')||{}).value;if(!title||!title.trim()){toast('⚠ Enter a title','warn');return}
+  var cpId=gel('cmtg-cp').value;if(!cpId){toast('Select a campaign','warn');return}
+  var title=(gel('cmtg-title')||{}).value;if(!title||!title.trim()){toast('Enter a title','warn');return}
   var cp=S.campaigns.find(function(c){return c.id===cpId});if(!cp)return;
   var mtg={campaignId:cp.id,date:gel('cmtg-date').value||new Date().toISOString().slice(0,10),title:title.trim(),
     recordingLink:(gel('cmtg-link')||{}).value||'',notes:(gel('cmtg-notes')||{}).value||''};
   var result=await dbAddCampaignMeeting(mtg);
   if(result){mtg.id=result.id;mtg.campaignName=cp.name;mtg.partner=cp.partner;mtg.endClient=cp.endClient;
     mtg.date=mtg.date?new Date(mtg.date):new Date();S.campaignMeetings.push(mtg)}
-  toast('🤝 Meeting added: '+mtg.title,'ok');closeModal();
+  toast(icon('mic',12)+' Meeting added: '+mtg.title,'ok');closeModal();
   if(gel('cp-id')&&gel('cp-id').value===cpId){openCampaignDetail(cpId)}
   render()}

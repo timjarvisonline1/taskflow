@@ -19,52 +19,33 @@
   <div class="app" id="app">
     <div class="toast-wrap" id="toasts"></div>
     <div class="mob-overlay" id="mob-overlay" onclick="TF.closeMenu()"></div>
-    <!-- Detail/Edit Modal — moved AFTER main content so it never blocks on mobile -->
-    <!-- Generic Modal — moved AFTER main content so it never blocks on mobile -->
     <!-- Sidebar -->
     <nav class="side" id="sidebar">
       <div class="s-logo">
-        <div class="s-logo-icon">⚡</div>
+        <div class="s-logo-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></div>
         <span class="s-logo-text">TaskFlow</span>
       </div>
       <!-- Add Task Button -->
       <div class="s-add-wrap">
-        <button class="s-add-btn" onclick="TF.openAddModal()"><span>➕ Add Task</span></button>
+        <button class="s-add-btn" onclick="TF.openAddModal()"><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Add Task</span></button>
       </div>
       <div class="s-nav" id="s-nav"></div>
       <div class="s-active" id="s-active"></div>
       <div class="s-foot">
-        <button class="s-btn" onclick="TF.load()">🔄 Refresh Data</button>
+        <button class="s-btn" onclick="TF.load()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg> Refresh</button>
         <div style="font-size:10px;color:var(--t4);margin-top:8px;text-align:center;letter-spacing:0.02em" id="last-refresh"></div>
-        <button class="s-btn" style="margin-top:8px;color:var(--red);border-color:rgba(255,51,88,0.15)" onclick="TF.signOut()">🚪 Sign Out</button>
+        <button class="s-btn" style="margin-top:8px;color:var(--red);border-color:rgba(255,51,88,0.15)" onclick="TF.signOut()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg> Sign Out</button>
       </div>
     </nav>
     <!-- Mobile Header -->
     <div class="mob">
       <span style="font-family:var(--fd);font-weight:700;font-size:16px;letter-spacing:-0.01em;color:var(--t1)">TaskFlow</span>
-      <button class="mob-btn" onclick="TF.load()">🔄</button>
+      <button class="mob-btn" onclick="TF.load()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
     </div>
     <!-- Main Content -->
     <main class="main" id="main"></main>
-    <!-- Bottom Nav (mobile) -->
-    <nav class="btm-nav" id="btm-nav">
-      <button class="btm-tab" data-v="overview" onclick="TF.nav('overview')">
-        <span class="btm-ico">⚡</span><span class="btm-lbl">Today</span>
-      </button>
-      <button class="btm-tab" data-v="schedule" onclick="TF.nav('schedule')">
-        <span class="btm-ico">📅</span><span class="btm-lbl">Schedule</span>
-      </button>
-      <button class="btm-tab" data-v="tasks" onclick="TF.nav('tasks')">
-        <span class="btm-ico">📋</span><span class="btm-lbl">Tasks</span>
-      </button>
-      <button class="btm-tab" data-v="review" onclick="TF.nav('review')">
-        <span class="btm-ico">📥</span><span class="btm-lbl">Review</span>
-        <span class="btm-badge" id="btm-badge"></span>
-      </button>
-      <button class="btm-tab" data-v="more" onclick="TF.openMenu()">
-        <span class="btm-ico">☰</span><span class="btm-lbl">More</span>
-      </button>
-    </nav>
+    <!-- Bottom Nav (mobile) — rebuilt dynamically by buildNav() -->
+    <nav class="btm-nav" id="btm-nav"></nav>
     <!-- FAB (mobile) -->
     <button class="fab" id="fab" onclick="TF.openAddModal()">+</button>
     <!-- Detail/Edit Modal -->

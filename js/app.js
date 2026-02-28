@@ -63,5 +63,5 @@ function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterva
 (async function(){
   var sess=await _sb.auth.getSession();
   if(!sess.data.session){window.location.href='/login.html';return}
-  restore();S.view=isMobile()?'mob-add':'schedule';buildNav();await loadData();startAutoRefresh();startMeetingCheck();
+  restore();S.view=isMobile()?'mob-add':'today';buildNav();await loadData();startAutoRefresh();startMeetingCheck();
 })();
