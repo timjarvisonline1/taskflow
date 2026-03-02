@@ -17,7 +17,8 @@ function render(){
   if(S.view==='dashboard')initDashboardCharts();
   if(S.view==='projects')initProjectCharts();
   if(S.view==='opportunities')initOpportunityCharts();
-  if(S.view==='clients')initClientsCharts();renderSidebar()}
+  if(S.view==='clients')initClientsCharts();
+  if(S.view==='finance')initFinanceCharts();renderSidebar()}
 
 
 /* ═══════════ TASK CARD ═══════════ */
@@ -1661,7 +1662,7 @@ function cpCardCompact(cp,td_,idx){
   if(cp.partner)h+='<span class="bg bg-cl" style="font-size:9px;padding:2px 8px">'+esc(cp.partner)+'</span>';
   if(cp.endClient)h+='<span class="bg bg-ec" style="font-size:9px;padding:2px 8px">'+esc(cp.endClient)+'</span>';
   if(st.openCount)h+='<span class="cp-card-compact-stat" style="color:var(--blue)">'+st.openCount+'</span>';
-  if(st.totalPaid)h+='<span class="cp-card-compact-stat" style="color:var(--green)">'+fmtUSD(st.totalPaid)+'</span>';
+  if(st.finRevenue)h+='<span class="cp-card-compact-stat" style="color:var(--green)">'+fmtUSD(st.finRevenue)+'</span>';
   h+='</span></div>';
   return h}
 
@@ -1733,7 +1734,7 @@ function rCampaignList(campaigns,td_){
     h+='<td>'+esc(cp.platform)+'</td>';
     h+='<td class="tc">'+st.openCount+'</td>';
     h+='<td class="nm" style="color:var(--pink)">'+fmtM(st.totalTime)+'</td>';
-    h+='<td class="nm" style="color:var(--green)">'+fmtUSD(st.totalPaid)+'</td>';
+    h+='<td class="nm" style="color:var(--green)">'+fmtUSD(st.finRevenue)+'</td>';
     h+='<td>'+(st.nextDue?fmtDShort(st.nextDue):'—')+'</td>';
     h+='<td>'+(cp.renewalDate?fmtDShort(cp.renewalDate):'—')+'</td>';
     h+='</tr>'});
@@ -2024,21 +2025,138 @@ function rFinance(){
     else if(p.status==='split')splitCount++});
   var filtered=finFilteredPayments();
 
+  /* ── Compute analytics data ── */
+  var now=new Date(),curYear=now.getFullYear(),curMonth=now.getMonth();
+
+  /* Monthly revenue (last 12 months) */
+  var monthLabels=[],monthTotals=[];
+  for(var mi=11;mi>=0;mi--){
+    var mm=new Date(curYear,curMonth-mi,1);
+    var mKey=mm.getFullYear()+'-'+String(mm.getMonth()+1).padStart(2,'0');
+    var mLabel=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mm.getMonth()]+' '+String(mm.getFullYear()).slice(2);
+    monthLabels.push(mLabel);
+    var mTotal=0;
+    fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
+      if(pd.getFullYear()===mm.getFullYear()&&pd.getMonth()===mm.getMonth())mTotal+=p.amount});
+    monthTotals.push(mTotal)}
+
+  /* Cumulative revenue for running total line */
+  var cumTotals=[];var runSum=0;
+  monthTotals.forEach(function(v){runSum+=v;cumTotals.push(runSum)});
+
+  /* Revenue by category */
+  var catRevenue={};
+  fp.forEach(function(p){
+    if(p.status==='split'){
+      var sps=getSplitsForPayment(p.id);
+      sps.forEach(function(sp){var c=sp.category||'Uncategorised';catRevenue[c]=(catRevenue[c]||0)+sp.amount});
+    } else {var c=p.category||'Uncategorised';catRevenue[c]=(catRevenue[c]||0)+p.amount}});
+
+  /* Revenue by source */
+  var srcRevenue={};
+  fp.forEach(function(p){var s=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+    srcRevenue[s]=(srcRevenue[s]||0)+p.amount});
+
+  /* Revenue by client (top 10) */
+  var clientRevenue={};
+  fp.forEach(function(p){var cName=clientNameById(p.clientId)||'Unassigned';
+    clientRevenue[cName]=(clientRevenue[cName]||0)+p.amount});
+
+  /* Monthly by category (stacked) — last 12 months */
+  var catSet={};
+  fp.forEach(function(p){
+    if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){catSet[sp.category||'Uncategorised']=true})}
+    else{catSet[p.category||'Uncategorised']=true}});
+  var catNames=Object.keys(catSet).sort();
+  var stackedData={};catNames.forEach(function(c){stackedData[c]=[]});
+  for(var si=11;si>=0;si--){
+    var sm=new Date(curYear,curMonth-si,1);
+    var catMonth={};catNames.forEach(function(c){catMonth[c]=0});
+    fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
+      if(pd.getFullYear()===sm.getFullYear()&&pd.getMonth()===sm.getMonth()){
+        if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){var c=sp.category||'Uncategorised';catMonth[c]=(catMonth[c]||0)+sp.amount})}
+        else{var c=p.category||'Uncategorised';catMonth[c]=(catMonth[c]||0)+p.amount}}});
+    catNames.forEach(function(c){stackedData[c].push(catMonth[c])})}
+
+  /* Year-over-year comparison */
+  var thisYearRev=0,lastYearRev=0;
+  fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
+    if(pd.getFullYear()===curYear)thisYearRev+=p.amount;
+    if(pd.getFullYear()===curYear-1)lastYearRev+=p.amount});
+  var yoyGrowth=lastYearRev>0?((thisYearRev-lastYearRev)/lastYearRev*100):0;
+
+  /* Average payment size */
+  var avgPayment=fp.length?totalRev/fp.length:0;
+
+  /* Largest payment */
+  var largestPayment=0;fp.forEach(function(p){if(p.amount>largestPayment)largestPayment=p.amount});
+
+  /* This month revenue */
+  var thisMonthRev=monthTotals[monthTotals.length-1]||0;
+  var lastMonthRev=monthTotals.length>=2?monthTotals[monthTotals.length-2]:0;
+  var momGrowth=lastMonthRev>0?((thisMonthRev-lastMonthRev)/lastMonthRev*100):0;
+
   var bulkCount=finBulkCount();
   var h='<div class="pg-head"><h1>'+icon('activity',18)+' Finance</h1>';
-  h+='<div style="display:flex;gap:8px">';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn fin-analytics-toggle'+(S.finShowAnalytics?' btn-p':'')+'" onclick="TF.finToggleAnalytics()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.finShowAnalytics?icon('x',12)+' Hide Analytics':icon('dashboard',12)+' Analytics')+'</button>';
   h+='<button class="btn'+(S.finBulkMode?' btn-p':'')+'" onclick="TF.finToggleBulk()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.finBulkMode?icon('x',12)+' Exit Bulk':'Bulk Edit')+'</button>';
   h+='<button class="btn btn-p" onclick="TF.openAddFinancePayment()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Payment</button>';
   h+='</div></div>';
 
-  /* Metrics */
+  /* Metrics row */
   h+='<div class="cp-dash">';
   h+='<div class="cp-dash-met" style="animation-delay:0s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalRev)+'</div><div class="cp-dash-met-l">Total Revenue</div></div>';
-  h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--t1)">'+fp.length+'</div><div class="cp-dash-met-l">Payments</div></div>';
-  h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:'+(unmatchedCount>0?'var(--amber)':'var(--t4)')+'">'+unmatchedCount+'</div><div class="cp-dash-met-l">Unmatched</div></div>';
-  h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:var(--green)">'+matchedCount+'</div><div class="cp-dash-met-l">Matched</div></div>';
-  if(splitCount>0)h+='<div class="cp-dash-met" style="animation-delay:0.2s"><div class="cp-dash-met-v" style="color:var(--blue)">'+splitCount+'</div><div class="cp-dash-met-l">Split</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(thisMonthRev)+'</div><div class="cp-dash-met-l">This Month'+(momGrowth!==0?' <span style="font-size:10px;color:'+(momGrowth>0?'var(--green)':'var(--red)')+'">'+( momGrowth>0?'▲':'▼')+Math.abs(momGrowth).toFixed(0)+'%</span>':'')+'</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:var(--t1)">'+fp.length+'</div><div class="cp-dash-met-l">Payments</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:var(--blue)">'+fmtUSD(avgPayment)+'</div><div class="cp-dash-met-l">Avg Payment</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.2s"><div class="cp-dash-met-v" style="color:'+(unmatchedCount>0?'var(--amber)':'var(--t4)')+'">'+unmatchedCount+'</div><div class="cp-dash-met-l">Unmatched</div></div>';
+  if(splitCount>0)h+='<div class="cp-dash-met" style="animation-delay:0.25s"><div class="cp-dash-met-v" style="color:var(--blue)">'+splitCount+'</div><div class="cp-dash-met-l">Split</div></div>';
+  if(lastYearRev>0)h+='<div class="cp-dash-met" style="animation-delay:0.3s"><div class="cp-dash-met-v" style="color:'+(yoyGrowth>=0?'var(--green)':'var(--red)')+'">'+(yoyGrowth>=0?'+':'')+yoyGrowth.toFixed(1)+'%</div><div class="cp-dash-met-l">YoY Growth</div></div>';
   h+='</div>';
+
+  /* ── Analytics Section (togglable) ── */
+  if(S.finShowAnalytics){
+    h+='<div class="fin-analytics">';
+
+    /* Row 1: Revenue trend + Cumulative */
+    h+='<div class="fin-chart-grid">';
+    h+='<div class="chart-card fin-chart-lg"><h3>Monthly Revenue (12 months)</h3><div class="chart-wrap" style="height:260px"><canvas id="fin-monthly-chart"></canvas></div></div>';
+    h+='<div class="chart-card fin-chart-lg"><h3>Cumulative Revenue</h3><div class="chart-wrap" style="height:260px"><canvas id="fin-cumulative-chart"></canvas></div></div>';
+    h+='</div>';
+
+    /* Row 2: Category breakdown + Source + Client */
+    h+='<div class="fin-chart-grid fin-chart-grid-3">';
+    h+='<div class="chart-card"><h3>Revenue by Category</h3><div class="chart-wrap" style="height:240px"><canvas id="fin-cat-chart"></canvas></div></div>';
+    h+='<div class="chart-card"><h3>Revenue by Source</h3><div class="chart-wrap" style="height:240px"><canvas id="fin-src-chart"></canvas></div></div>';
+    h+='<div class="chart-card"><h3>Top Clients</h3><div class="chart-wrap" style="height:240px"><canvas id="fin-client-chart"></canvas></div></div>';
+    h+='</div>';
+
+    /* Row 3: Stacked bar — monthly by category */
+    h+='<div class="fin-chart-grid">';
+    h+='<div class="chart-card" style="grid-column:1/-1"><h3>Monthly Revenue by Category</h3><div class="chart-wrap" style="height:300px"><canvas id="fin-stacked-chart"></canvas></div></div>';
+    h+='</div>';
+
+    /* Top payments table */
+    var topPayments=fp.slice().sort(function(a,b){return b.amount-a.amount}).slice(0,10);
+    h+='<div class="chart-card" style="margin-top:16px"><h3>Top 10 Payments</h3>';
+    h+='<div class="tb-wrap" style="max-height:none"><table class="tb fin-tb fin-top-tb">';
+    h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th></tr></thead><tbody>';
+    topPayments.forEach(function(p){
+      var cName=clientNameById(p.clientId)||'—';
+      var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+      h+='<tr class="fin-row" onclick="TF.openFinancePaymentDetail(\''+escAttr(p.id)+'\')" style="cursor:pointer">';
+      h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
+      h+='<td>'+esc(p.payerName||p.payerEmail||'Unknown')+'</td>';
+      h+='<td class="r nm" style="color:var(--green);font-weight:700">'+fmtUSD(p.amount)+'</td>';
+      h+='<td><span class="fin-src fin-src-'+p.source+'">'+esc(srcLabel)+'</span></td>';
+      h+='<td>'+(p.category?'<span class="fin-cat">'+esc(p.category)+'</span>':'—')+'</td>';
+      h+='<td>'+esc(cName)+'</td>';
+      h+='</tr>'});
+    h+='</tbody></table></div></div>';
+
+    h+='</div>'; /* /fin-analytics */
+  }
 
   /* Filter bar */
   h+='<div class="fin-filters">';
@@ -2131,4 +2249,68 @@ function rFinance(){
   });
   h+='</tbody></table></div>';
   return h}
+
+function initFinanceCharts(){
+  if(!S.finShowAnalytics)return;
+  setTimeout(function(){
+    var fp=S.financePayments;
+    var now=new Date(),curYear=now.getFullYear(),curMonth=now.getMonth();
+
+    /* Monthly revenue labels & data */
+    var monthLabels=[],monthTotals=[];
+    for(var mi=11;mi>=0;mi--){
+      var mm=new Date(curYear,curMonth-mi,1);
+      var mLabel=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mm.getMonth()]+' '+String(mm.getFullYear()).slice(2);
+      monthLabels.push(mLabel);
+      var mTotal=0;
+      fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
+        if(pd.getFullYear()===mm.getFullYear()&&pd.getMonth()===mm.getMonth())mTotal+=p.amount});
+      monthTotals.push(mTotal)}
+
+    /* Monthly revenue bar chart */
+    mkLineUSD('fin-monthly-chart',monthLabels,monthTotals,'#3ddc84');
+
+    /* Cumulative */
+    var cumTotals=[];var runSum=0;
+    monthTotals.forEach(function(v){runSum+=v;cumTotals.push(runSum)});
+    mkLineUSD('fin-cumulative-chart',monthLabels,cumTotals,'#4da6ff');
+
+    /* Category donut */
+    var catRevenue={};
+    fp.forEach(function(p){
+      if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){var c=sp.category||'Uncategorised';catRevenue[c]=(catRevenue[c]||0)+sp.amount})}
+      else{var c=p.category||'Uncategorised';catRevenue[c]=(catRevenue[c]||0)+p.amount}});
+    if(Object.keys(catRevenue).length)mkDonutUSD('fin-cat-chart',catRevenue);
+
+    /* Source donut */
+    var srcRevenue={};
+    fp.forEach(function(p){var s=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+      srcRevenue[s]=(srcRevenue[s]||0)+p.amount});
+    if(Object.keys(srcRevenue).length)mkDonutUSD('fin-src-chart',srcRevenue);
+
+    /* Client bar */
+    var clientRevenue={};
+    fp.forEach(function(p){var cName=clientNameById(p.clientId)||'Unassigned';
+      clientRevenue[cName]=(clientRevenue[cName]||0)+p.amount});
+    if(Object.keys(clientRevenue).length)mkHBarUSD('fin-client-chart',clientRevenue);
+
+    /* Stacked monthly by category */
+    var catSet={};
+    fp.forEach(function(p){
+      if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){catSet[sp.category||'Uncategorised']=true})}
+      else{catSet[p.category||'Uncategorised']=true}});
+    var catNames=Object.keys(catSet).sort();
+    var datasets=catNames.map(function(c,ci){
+      var data=[];
+      for(var si=11;si>=0;si--){
+        var sm=new Date(curYear,curMonth-si,1);
+        var mVal=0;
+        fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
+          if(pd.getFullYear()===sm.getFullYear()&&pd.getMonth()===sm.getMonth()){
+            if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){if((sp.category||'Uncategorised')===c)mVal+=sp.amount})}
+            else{if((p.category||'Uncategorised')===c)mVal+=p.amount}}});
+        data.push(mVal)}
+      return{label:c,data:data,backgroundColor:P[ci%P.length]+'88',borderColor:P[ci%P.length],borderWidth:1,borderRadius:4}});
+    if(datasets.length)mkStackedBarUSD('fin-stacked-chart',monthLabels,datasets);
+  },200)}
 

@@ -61,7 +61,7 @@ var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],paymen
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
-  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{}};
+  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finShowAnalytics:true};
 
 var SECTIONS=[
   {id:'today',type:'single',icon:'today',label:'Today',kbd:'1'},
@@ -275,7 +275,26 @@ function mkHBar(id,data){var el=gel(id);if(!el)return;killChart(id);var sorted=O
       scales:{x:{grid:{color:'rgba(255,255,255,0.06)'},ticks:{color:'#52525b',font:{size:10},callback:function(v){return fmtM(v)}}},y:{grid:{display:false},ticks:{color:'#a1a1aa',font:{size:10}}}}}})}
 function mkLine(id,labels,vals,color){var el=gel(id);if(!el)return;killChart(id);
   charts[id]=new Chart(el,{type:'line',data:{labels:labels,datasets:[{data:vals,borderColor:color,backgroundColor:color+'12',fill:true,tension:.4,pointRadius:1.5,pointHoverRadius:6,pointBackgroundColor:color,borderWidth:2}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#52525b',font:{size:9},maxTicksLimit:10}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#52525b',stepSize:1},beginAtZero:true}}}})}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#52525b',font:{size:9},maxTicksLimit:10}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#52525b',stepSize:1},beginAtZero:true}}}})
+}
+/* Currency-formatted chart variants */
+function mkDonutUSD(id,data){var el=gel(id);if(!el)return;killChart(id);var labels=Object.keys(data),vals=labels.map(function(k){return data[k]});var cols=labels.map(function(_,i){return P[i%P.length]});
+  charts[id]=new Chart(el,{type:'doughnut',data:{labels:labels,datasets:[{data:vals,backgroundColor:cols,borderWidth:0,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:'#a1a1aa',font:{family:'Inter',size:11},padding:10,boxWidth:11}},tooltip:{callbacks:{label:function(c){return c.label+': '+fmtUSD(c.parsed)}}}}}})}
+function mkHBarUSD(id,data,color){var el=gel(id);if(!el)return;killChart(id);var sorted=Object.keys(data).sort(function(a,b){return data[b]-data[a]}).slice(0,15);
+  var barCol=color||'rgba(61,220,132,0.5)';var hoverCol=color?color.replace('0.5','0.7'):'rgba(61,220,132,0.7)';
+  charts[id]=new Chart(el,{type:'bar',data:{labels:sorted,datasets:[{data:sorted.map(function(k){return data[k]}),backgroundColor:barCol,hoverBackgroundColor:hoverCol,borderRadius:6,barThickness:18}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return fmtUSD(c.parsed.x)}}}},
+      scales:{x:{grid:{color:'rgba(255,255,255,0.06)'},ticks:{color:'#52525b',font:{size:10},callback:function(v){return fmtUSD(v)}}},y:{grid:{display:false},ticks:{color:'#a1a1aa',font:{size:10}}}}}})}
+function mkLineUSD(id,labels,vals,color){var el=gel(id);if(!el)return;killChart(id);
+  charts[id]=new Chart(el,{type:'line',data:{labels:labels,datasets:[{data:vals,borderColor:color,backgroundColor:color+'22',fill:true,tension:.4,pointRadius:3,pointHoverRadius:7,pointBackgroundColor:color,borderWidth:2.5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return fmtUSD(c.parsed.y)}}}},
+      scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#52525b',font:{size:9},maxTicksLimit:12}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#52525b',font:{size:10},callback:function(v){return fmtUSD(v)}},beginAtZero:true}}}})
+}
+function mkStackedBarUSD(id,labels,datasets){var el=gel(id);if(!el)return;killChart(id);
+  charts[id]=new Chart(el,{type:'bar',data:{labels:labels,datasets:datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#a1a1aa',font:{family:'Inter',size:10},padding:10,boxWidth:10}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+fmtUSD(c.parsed.y)}}}},
+      scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#52525b',font:{size:9},maxTicksLimit:12}},y:{stacked:true,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#52525b',font:{size:10},callback:function(v){return fmtUSD(v)}},beginAtZero:true}}}})}
 
 /* Scoring */
 function taskScore(t){var td_=today(),u=10;
@@ -307,6 +326,7 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var opv=localStorage.getItem('tf_opvw');if(opv)S.opView=opv;
   var opsc=localStorage.getItem('tf_opsc');if(opsc)S.opShowClosed=true;
   var sv=localStorage.getItem('tf_sv');if(sv)S.view=sv;
+  var fsa=localStorage.getItem('tf_fsa');if(fsa!==null)S.finShowAnalytics=fsa==='1';
   /* Migrate old view IDs to new structure */
   var viewMap={overview:'today',schedule:'today',analytics:'tasks',meetings:'today',weekly:'tasks',templates:'tasks',pipeline:'opportunities',review:'tasks'};
   if(viewMap[S.view])S.view=viewMap[S.view]}catch(e){}}
@@ -834,6 +854,7 @@ function finFilteredPayments(){
     fp=fp.filter(function(p){return(p.payerEmail||'').toLowerCase().indexOf(q)!==-1||(p.payerName||'').toLowerCase().indexOf(q)!==-1||(p.description||'').toLowerCase().indexOf(q)!==-1||(p.notes||'').toLowerCase().indexOf(q)!==-1})}
   return fp}
 function setFinSearch(v){S.finSearch=v;render()}
+function finToggleAnalytics(){S.finShowAnalytics=!S.finShowAnalytics;try{localStorage.setItem('tf_fsa',S.finShowAnalytics?'1':'')}catch(e){}render()}
 function finToggleBulk(){S.finBulkMode=!S.finBulkMode;S.finBulkSelected={};render()}
 function finToggleSel(id){if(S.finBulkSelected[id])delete S.finBulkSelected[id];else S.finBulkSelected[id]=true;render()}
 function finSelectAllVisible(){var fp=finFilteredPayments();fp.forEach(function(p){S.finBulkSelected[p.id]=true});render()}

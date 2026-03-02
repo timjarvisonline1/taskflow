@@ -1130,7 +1130,7 @@ function openCampaignDetail(id){
     if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
     h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
     if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
-    h+='<span style="font-size:11px;color:var(--green);font-weight:700"> '+fmtUSD(st.totalPaid)+'</span>';
+    h+='<span style="font-size:11px;color:var(--green);font-weight:700"> '+fmtUSD(st.finRevenue)+'</span>';
     h+='<span style="font-size:11px;color:var(--amber);font-weight:700">'+st.openCount+' open</span>';
     h+='</div>';
 
@@ -1195,7 +1195,7 @@ function openCampaignDetail(id){
     if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
     h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
     if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
-    h+='<span class="ed-timer-badge" style="color:var(--green)"> Paid: '+fmtUSD(st.totalPaid)+'</span>';
+    h+='<span class="ed-timer-badge" style="color:var(--green)"> Paid: '+fmtUSD(st.finRevenue)+'</span>';
     h+='<span class="ed-timer-badge" style="color:var(--amber)">'+st.openCount+' open · '+st.doneCount+' done</span>';
     if(st.totalTime)h+='<span class="ed-timer-badge" style="color:var(--pink)">'+fmtM(st.totalTime)+'</span>';
     h+='</div></div>';
@@ -1231,7 +1231,7 @@ function openCampaignDetail(id){
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Fee</div><input type="number" class="edf" id="cp-monthlyFee" value="'+(cp.monthlyFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Ad Spend</div><input type="number" class="edf" id="cp-monthlyAdSpend" value="'+(cp.monthlyAdSpend||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
   h+='</div>';
-  h+='<div class="cp-fee-total"><div class="cp-fee-total-label">One-off: '+fmtUSD(oneOff)+' · Monthly: '+fmtUSD(monthly)+'</div><div class="cp-fee-total-value">Total Paid: '+fmtUSD(st.totalPaid)+'</div></div>';
+  h+='<div class="cp-fee-total"><div class="cp-fee-total-label">One-off: '+fmtUSD(oneOff)+' · Monthly: '+fmtUSD(monthly)+'</div><div class="cp-fee-total-value">Total Paid: '+fmtUSD(st.finRevenue)+'</div></div>';
   h+='</div>';
 
   /* Links */

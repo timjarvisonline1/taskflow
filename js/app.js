@@ -54,7 +54,7 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
   fpClientChange:fpClientChange,fpEndClientChange:fpEndClientChange,fpCampaignChange:fpCampaignChange,fpSelectAll:fpSelectAll,
   openSplitPayment:openSplitPayment,saveSplits:saveSplits,addSplitRow:addSplitRow,removeSplitRow:removeSplitRow,splitAmtChanged:splitAmtChanged,splitEcChanged:splitEcChanged,unsplitPayment:unsplitPayment,
   openAssociateModal:openAssociateModal,associatePayer:associatePayer,
-  setFinFilter:setFinFilter,setFinSearch:setFinSearch,finToggleBulk:finToggleBulk,finToggleSel:finToggleSel,finSelectAllVisible:finSelectAllVisible,finDeselectAll:finDeselectAll,finBulkApply:finBulkApply,
+  setFinFilter:setFinFilter,setFinSearch:setFinSearch,finToggleAnalytics:finToggleAnalytics,finToggleBulk:finToggleBulk,finToggleSel:finToggleSel,finSelectAllVisible:finSelectAllVisible,finDeselectAll:finDeselectAll,finBulkApply:finBulkApply,
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
   signOut:signOut,
