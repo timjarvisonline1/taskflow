@@ -785,8 +785,19 @@
 .fin-top-tb thead th{position:sticky;top:0;background:var(--glass);z-index:1}
 .fin-analytics-toggle{gap:6px;display:inline-flex;align-items:center}
 
+/* Finance range picker */
+.fin-range-bar{display:flex;gap:2px;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:16px;width:fit-content}
+.fin-range-pill{padding:7px 14px;font-size:12px;font-weight:600;border:none;background:transparent;color:var(--t3);cursor:pointer;border-radius:8px;transition:all .2s var(--ease);white-space:nowrap}
+.fin-range-pill.on{background:var(--bg2);color:var(--t1);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.fin-range-pill:hover:not(.on){color:var(--t2);background:rgba(255,255,255,.03)}
+
 @media(max-width:1100px){.fin-chart-grid-3{grid-template-columns:1fr 1fr}}
-@media(max-width:768px){.fin-chart-grid,.fin-chart-grid-3{grid-template-columns:1fr}}
+@media(max-width:768px){
+  .fin-chart-grid,.fin-chart-grid-3{grid-template-columns:1fr}
+  .fin-range-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;width:100%}
+  .fin-range-bar::-webkit-scrollbar{display:none}
+  .fin-range-pill{padding:6px 10px;font-size:11px}
+}
 
 /* Client status dot */
 .cl-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}

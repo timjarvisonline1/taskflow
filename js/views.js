@@ -2025,76 +2025,19 @@ function rFinance(){
     else if(p.status==='split')splitCount++});
   var filtered=finFilteredPayments();
 
-  /* ── Compute analytics data ── */
-  var now=new Date(),curYear=now.getFullYear(),curMonth=now.getMonth();
+  /* ── Compute analytics data (range-aware) ── */
+  var rangeCfg=finGetRangeConfig(S.finRange);
+  var rfp=finFilterByRange(fp,rangeCfg);
 
-  /* Monthly revenue (last 12 months) */
-  var monthLabels=[],monthTotals=[];
-  for(var mi=11;mi>=0;mi--){
-    var mm=new Date(curYear,curMonth-mi,1);
-    var mKey=mm.getFullYear()+'-'+String(mm.getMonth()+1).padStart(2,'0');
-    var mLabel=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mm.getMonth()]+' '+String(mm.getFullYear()).slice(2);
-    monthLabels.push(mLabel);
-    var mTotal=0;
-    fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
-      if(pd.getFullYear()===mm.getFullYear()&&pd.getMonth()===mm.getMonth())mTotal+=p.amount});
-    monthTotals.push(mTotal)}
+  /* Range metrics */
+  var rangeRev=0;rfp.forEach(function(p){rangeRev+=p.amount});
+  var avgPayment=rfp.length?rangeRev/rfp.length:0;
 
-  /* Cumulative revenue for running total line */
-  var cumTotals=[];var runSum=0;
-  monthTotals.forEach(function(v){runSum+=v;cumTotals.push(runSum)});
-
-  /* Revenue by category */
-  var catRevenue={};
-  fp.forEach(function(p){
-    if(p.status==='split'){
-      var sps=getSplitsForPayment(p.id);
-      sps.forEach(function(sp){var c=sp.category||'Uncategorised';catRevenue[c]=(catRevenue[c]||0)+sp.amount});
-    } else {var c=p.category||'Uncategorised';catRevenue[c]=(catRevenue[c]||0)+p.amount}});
-
-  /* Revenue by source */
-  var srcRevenue={};
-  fp.forEach(function(p){var s=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
-    srcRevenue[s]=(srcRevenue[s]||0)+p.amount});
-
-  /* Revenue by client (top 10) */
-  var clientRevenue={};
-  fp.forEach(function(p){var cName=clientNameById(p.clientId)||'Unassigned';
-    clientRevenue[cName]=(clientRevenue[cName]||0)+p.amount});
-
-  /* Monthly by category (stacked) — last 12 months */
-  var catSet={};
-  fp.forEach(function(p){
-    if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){catSet[sp.category||'Uncategorised']=true})}
-    else{catSet[p.category||'Uncategorised']=true}});
-  var catNames=Object.keys(catSet).sort();
-  var stackedData={};catNames.forEach(function(c){stackedData[c]=[]});
-  for(var si=11;si>=0;si--){
-    var sm=new Date(curYear,curMonth-si,1);
-    var catMonth={};catNames.forEach(function(c){catMonth[c]=0});
-    fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
-      if(pd.getFullYear()===sm.getFullYear()&&pd.getMonth()===sm.getMonth()){
-        if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){var c=sp.category||'Uncategorised';catMonth[c]=(catMonth[c]||0)+sp.amount})}
-        else{var c=p.category||'Uncategorised';catMonth[c]=(catMonth[c]||0)+p.amount}}});
-    catNames.forEach(function(c){stackedData[c].push(catMonth[c])})}
-
-  /* Year-over-year comparison */
-  var thisYearRev=0,lastYearRev=0;
-  fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
-    if(pd.getFullYear()===curYear)thisYearRev+=p.amount;
-    if(pd.getFullYear()===curYear-1)lastYearRev+=p.amount});
-  var yoyGrowth=lastYearRev>0?((thisYearRev-lastYearRev)/lastYearRev*100):0;
-
-  /* Average payment size */
-  var avgPayment=fp.length?totalRev/fp.length:0;
-
-  /* Largest payment */
-  var largestPayment=0;fp.forEach(function(p){if(p.amount>largestPayment)largestPayment=p.amount});
-
-  /* This month revenue */
-  var thisMonthRev=monthTotals[monthTotals.length-1]||0;
-  var lastMonthRev=monthTotals.length>=2?monthTotals[monthTotals.length-2]:0;
-  var momGrowth=lastMonthRev>0?((thisMonthRev-lastMonthRev)/lastMonthRev*100):0;
+  /* Previous period comparison */
+  var prevCfg=finGetPreviousPeriodConfig(rangeCfg);
+  var prevFp=finFilterByRange(fp,prevCfg);
+  var prevRev=0;prevFp.forEach(function(p){prevRev+=p.amount});
+  var periodGrowth=prevRev>0?((rangeRev-prevRev)/prevRev*100):0;
 
   var bulkCount=finBulkCount();
   var h='<div class="pg-head"><h1>'+icon('activity',18)+' Finance</h1>';
@@ -2106,22 +2049,29 @@ function rFinance(){
 
   /* Metrics row */
   h+='<div class="cp-dash">';
-  h+='<div class="cp-dash-met" style="animation-delay:0s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalRev)+'</div><div class="cp-dash-met-l">Total Revenue</div></div>';
-  h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(thisMonthRev)+'</div><div class="cp-dash-met-l">This Month'+(momGrowth!==0?' <span style="font-size:10px;color:'+(momGrowth>0?'var(--green)':'var(--red)')+'">'+( momGrowth>0?'▲':'▼')+Math.abs(momGrowth).toFixed(0)+'%</span>':'')+'</div></div>';
-  h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:var(--t1)">'+fp.length+'</div><div class="cp-dash-met-l">Payments</div></div>';
-  h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:var(--blue)">'+fmtUSD(avgPayment)+'</div><div class="cp-dash-met-l">Avg Payment</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(rangeRev)+'</div><div class="cp-dash-met-l">'+esc(rangeCfg.label)+' Revenue</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--t1)">'+rfp.length+'</div><div class="cp-dash-met-l">Payments</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:var(--blue)">'+fmtUSD(avgPayment)+'</div><div class="cp-dash-met-l">Avg Payment</div></div>';
+  if(prevRev>0)h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:'+(periodGrowth>=0?'var(--green)':'var(--red)')+'">'+(periodGrowth>=0?'+':'')+periodGrowth.toFixed(1)+'%</div><div class="cp-dash-met-l">vs Previous Period</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.2s"><div class="cp-dash-met-v" style="color:'+(unmatchedCount>0?'var(--amber)':'var(--t4)')+'">'+unmatchedCount+'</div><div class="cp-dash-met-l">Unmatched</div></div>';
   if(splitCount>0)h+='<div class="cp-dash-met" style="animation-delay:0.25s"><div class="cp-dash-met-v" style="color:var(--blue)">'+splitCount+'</div><div class="cp-dash-met-l">Split</div></div>';
-  if(lastYearRev>0)h+='<div class="cp-dash-met" style="animation-delay:0.3s"><div class="cp-dash-met-v" style="color:'+(yoyGrowth>=0?'var(--green)':'var(--red)')+'">'+(yoyGrowth>=0?'+':'')+yoyGrowth.toFixed(1)+'%</div><div class="cp-dash-met-l">YoY Growth</div></div>';
   h+='</div>';
 
   /* ── Analytics Section (togglable) ── */
   if(S.finShowAnalytics){
     h+='<div class="fin-analytics">';
 
+    /* Range picker pills */
+    h+='<div class="fin-range-bar">';
+    var ranges=[['all','All Time'],['12m','12 Months'],['6m','6 Months'],['3m','3 Months'],['1m','This Month'],['ytd','This Year'],['ly','Last Year']];
+    ranges.forEach(function(r){
+      h+='<button class="fin-range-pill'+(S.finRange===r[0]?' on':'')+'" onclick="TF.finSetRange(\''+r[0]+'\')">'+r[1]+'</button>'});
+    h+='</div>';
+
     /* Row 1: Revenue trend + Cumulative */
+    var granLabel=rangeCfg.granularity==='weekly'?'Weekly':rangeCfg.granularity==='daily'?'Daily':'Monthly';
     h+='<div class="fin-chart-grid">';
-    h+='<div class="chart-card fin-chart-lg"><h3>Monthly Revenue (12 months)</h3><div class="chart-wrap" style="height:260px"><canvas id="fin-monthly-chart"></canvas></div></div>';
+    h+='<div class="chart-card fin-chart-lg"><h3>'+granLabel+' Revenue</h3><div class="chart-wrap" style="height:260px"><canvas id="fin-monthly-chart"></canvas></div></div>';
     h+='<div class="chart-card fin-chart-lg"><h3>Cumulative Revenue</h3><div class="chart-wrap" style="height:260px"><canvas id="fin-cumulative-chart"></canvas></div></div>';
     h+='</div>';
 
@@ -2132,28 +2082,30 @@ function rFinance(){
     h+='<div class="chart-card"><h3>Top Clients</h3><div class="chart-wrap" style="height:240px"><canvas id="fin-client-chart"></canvas></div></div>';
     h+='</div>';
 
-    /* Row 3: Stacked bar — monthly by category */
+    /* Row 3: Stacked bar by category */
     h+='<div class="fin-chart-grid">';
-    h+='<div class="chart-card" style="grid-column:1/-1"><h3>Monthly Revenue by Category</h3><div class="chart-wrap" style="height:300px"><canvas id="fin-stacked-chart"></canvas></div></div>';
+    h+='<div class="chart-card" style="grid-column:1/-1"><h3>'+granLabel+' Revenue by Category</h3><div class="chart-wrap" style="height:300px"><canvas id="fin-stacked-chart"></canvas></div></div>';
     h+='</div>';
 
-    /* Top payments table */
-    var topPayments=fp.slice().sort(function(a,b){return b.amount-a.amount}).slice(0,10);
-    h+='<div class="chart-card" style="margin-top:16px"><h3>Top 10 Payments</h3>';
-    h+='<div class="tb-wrap" style="max-height:none"><table class="tb fin-tb fin-top-tb">';
-    h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th></tr></thead><tbody>';
-    topPayments.forEach(function(p){
-      var cName=clientNameById(p.clientId)||'—';
-      var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
-      h+='<tr class="fin-row" onclick="TF.openFinancePaymentDetail(\''+escAttr(p.id)+'\')" style="cursor:pointer">';
-      h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
-      h+='<td>'+esc(p.payerName||p.payerEmail||'Unknown')+'</td>';
-      h+='<td class="r nm" style="color:var(--green);font-weight:700">'+fmtUSD(p.amount)+'</td>';
-      h+='<td><span class="fin-src fin-src-'+p.source+'">'+esc(srcLabel)+'</span></td>';
-      h+='<td>'+(p.category?'<span class="fin-cat">'+esc(p.category)+'</span>':'—')+'</td>';
-      h+='<td>'+esc(cName)+'</td>';
-      h+='</tr>'});
-    h+='</tbody></table></div></div>';
+    /* Top payments table (filtered to range) */
+    var topPayments=rfp.slice().sort(function(a,b){return b.amount-a.amount}).slice(0,10);
+    if(topPayments.length){
+      h+='<div class="chart-card" style="margin-top:16px"><h3>Top Payments</h3>';
+      h+='<div class="tb-wrap" style="max-height:none"><table class="tb fin-tb fin-top-tb">';
+      h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th></tr></thead><tbody>';
+      topPayments.forEach(function(p){
+        var cName=clientNameById(p.clientId)||'—';
+        var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+        h+='<tr class="fin-row" onclick="TF.openFinancePaymentDetail(\''+escAttr(p.id)+'\')" style="cursor:pointer">';
+        h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
+        h+='<td>'+esc(p.payerName||p.payerEmail||'Unknown')+'</td>';
+        h+='<td class="r nm" style="color:var(--green);font-weight:700">'+fmtUSD(p.amount)+'</td>';
+        h+='<td><span class="fin-src fin-src-'+p.source+'">'+esc(srcLabel)+'</span></td>';
+        h+='<td>'+(p.category?'<span class="fin-cat">'+esc(p.category)+'</span>':'—')+'</td>';
+        h+='<td>'+esc(cName)+'</td>';
+        h+='</tr>'});
+      h+='</tbody></table></div></div>';
+    }
 
     h+='</div>'; /* /fin-analytics */
   }
@@ -2254,63 +2206,41 @@ function initFinanceCharts(){
   if(!S.finShowAnalytics)return;
   setTimeout(function(){
     var fp=S.financePayments;
-    var now=new Date(),curYear=now.getFullYear(),curMonth=now.getMonth();
+    var rangeCfg=finGetRangeConfig(S.finRange);
+    var rfp=finFilterByRange(fp,rangeCfg);
+    var agg=finAggregateByPeriod(rfp,rangeCfg);
 
-    /* Monthly revenue labels & data */
-    var monthLabels=[],monthTotals=[];
-    for(var mi=11;mi>=0;mi--){
-      var mm=new Date(curYear,curMonth-mi,1);
-      var mLabel=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mm.getMonth()]+' '+String(mm.getFullYear()).slice(2);
-      monthLabels.push(mLabel);
-      var mTotal=0;
-      fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
-        if(pd.getFullYear()===mm.getFullYear()&&pd.getMonth()===mm.getMonth())mTotal+=p.amount});
-      monthTotals.push(mTotal)}
-
-    /* Monthly revenue bar chart */
-    mkLineUSD('fin-monthly-chart',monthLabels,monthTotals,'#3ddc84');
+    /* Revenue trend line */
+    mkLineUSD('fin-monthly-chart',agg.labels,agg.totals,'#3ddc84');
 
     /* Cumulative */
     var cumTotals=[];var runSum=0;
-    monthTotals.forEach(function(v){runSum+=v;cumTotals.push(runSum)});
-    mkLineUSD('fin-cumulative-chart',monthLabels,cumTotals,'#4da6ff');
+    agg.totals.forEach(function(v){runSum+=v;cumTotals.push(runSum)});
+    mkLineUSD('fin-cumulative-chart',agg.labels,cumTotals,'#4da6ff');
 
-    /* Category donut */
+    /* Category donut (filtered to range) */
     var catRevenue={};
-    fp.forEach(function(p){
+    rfp.forEach(function(p){
       if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){var c=sp.category||'Uncategorised';catRevenue[c]=(catRevenue[c]||0)+sp.amount})}
       else{var c=p.category||'Uncategorised';catRevenue[c]=(catRevenue[c]||0)+p.amount}});
     if(Object.keys(catRevenue).length)mkDonutUSD('fin-cat-chart',catRevenue);
 
-    /* Source donut */
+    /* Source donut (filtered to range) */
     var srcRevenue={};
-    fp.forEach(function(p){var s=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+    rfp.forEach(function(p){var s=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
       srcRevenue[s]=(srcRevenue[s]||0)+p.amount});
     if(Object.keys(srcRevenue).length)mkDonutUSD('fin-src-chart',srcRevenue);
 
-    /* Client bar */
+    /* Client bar (filtered to range) */
     var clientRevenue={};
-    fp.forEach(function(p){var cName=clientNameById(p.clientId)||'Unassigned';
+    rfp.forEach(function(p){var cName=clientNameById(p.clientId)||'Unassigned';
       clientRevenue[cName]=(clientRevenue[cName]||0)+p.amount});
     if(Object.keys(clientRevenue).length)mkHBarUSD('fin-client-chart',clientRevenue);
 
-    /* Stacked monthly by category */
-    var catSet={};
-    fp.forEach(function(p){
-      if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){catSet[sp.category||'Uncategorised']=true})}
-      else{catSet[p.category||'Uncategorised']=true}});
-    var catNames=Object.keys(catSet).sort();
-    var datasets=catNames.map(function(c,ci){
-      var data=[];
-      for(var si=11;si>=0;si--){
-        var sm=new Date(curYear,curMonth-si,1);
-        var mVal=0;
-        fp.forEach(function(p){if(!p.date)return;var pd=new Date(p.date);
-          if(pd.getFullYear()===sm.getFullYear()&&pd.getMonth()===sm.getMonth()){
-            if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){if((sp.category||'Uncategorised')===c)mVal+=sp.amount})}
-            else{if((p.category||'Uncategorised')===c)mVal+=p.amount}}});
-        data.push(mVal)}
-      return{label:c,data:data,backgroundColor:P[ci%P.length]+'88',borderColor:P[ci%P.length],borderWidth:1,borderRadius:4}});
-    if(datasets.length)mkStackedBarUSD('fin-stacked-chart',monthLabels,datasets);
+    /* Stacked by category (range-aware) */
+    var catAgg=finAggregateByCatAndPeriod(rfp,rangeCfg);
+    var datasets=catAgg.catNames.map(function(c,ci){
+      return{label:c,data:catAgg.stackedData[c],backgroundColor:P[ci%P.length]+'88',borderColor:P[ci%P.length],borderWidth:1,borderRadius:4}});
+    if(datasets.length)mkStackedBarUSD('fin-stacked-chart',catAgg.labels,datasets);
   },200)}
 

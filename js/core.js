@@ -61,7 +61,7 @@ var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],paymen
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
-  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finShowAnalytics:true};
+  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finShowAnalytics:true,finRange:'12m'};
 
 var SECTIONS=[
   {id:'today',type:'single',icon:'today',label:'Today',kbd:'1'},
@@ -327,6 +327,7 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var opsc=localStorage.getItem('tf_opsc');if(opsc)S.opShowClosed=true;
   var sv=localStorage.getItem('tf_sv');if(sv)S.view=sv;
   var fsa=localStorage.getItem('tf_fsa');if(fsa!==null)S.finShowAnalytics=fsa==='1';
+  var fr=localStorage.getItem('tf_fr');if(fr)S.finRange=fr;
   /* Migrate old view IDs to new structure */
   var viewMap={overview:'today',schedule:'today',analytics:'tasks',meetings:'today',weekly:'tasks',templates:'tasks',pipeline:'opportunities',review:'tasks'};
   if(viewMap[S.view])S.view=viewMap[S.view]}catch(e){}}
@@ -861,6 +862,129 @@ function finSelectAllVisible(){var fp=finFilteredPayments();fp.forEach(function(
 function finDeselectAll(){S.finBulkSelected={};render()}
 function finBulkCount(){return Object.keys(S.finBulkSelected).length}
 function clientNameById(id){if(!id)return'';var c=S.clientRecords.find(function(r){return r.id===id});return c?c.name:''}
+
+/* ═══════════ FINANCE RANGE HELPERS ═══════════ */
+function finSetRange(key){S.finRange=key;try{localStorage.setItem('tf_fr',key)}catch(e){}render()}
+
+function finGetRangeConfig(rangeKey){
+  var now=new Date(),curYear=now.getFullYear(),curMonth=now.getMonth();
+  var cfg={endDate:null,label:'',granularity:'monthly'};
+  switch(rangeKey){
+    case'all':
+      var earliest=null;
+      S.financePayments.forEach(function(p){if(p.date&&(!earliest||p.date<earliest))earliest=p.date});
+      cfg.startDate=earliest?new Date(earliest.getFullYear(),earliest.getMonth(),1):new Date(curYear-1,0,1);
+      cfg.label='All Time';cfg.granularity='monthly';break;
+    case'6m':
+      cfg.startDate=new Date(curYear,curMonth-5,1);
+      cfg.label='Last 6 Months';cfg.granularity='monthly';break;
+    case'3m':
+      cfg.startDate=new Date(curYear,curMonth-2,1);
+      cfg.label='Last 3 Months';cfg.granularity='weekly';break;
+    case'1m':
+      cfg.startDate=new Date(curYear,curMonth,1);
+      cfg.label='This Month';cfg.granularity='daily';break;
+    case'ytd':
+      cfg.startDate=new Date(curYear,0,1);
+      cfg.label='This Year';cfg.granularity='monthly';break;
+    case'ly':
+      cfg.startDate=new Date(curYear-1,0,1);
+      cfg.endDate=new Date(curYear-1,11,31,23,59,59);
+      cfg.label='Last Year';cfg.granularity='monthly';break;
+    default:/* 12m */
+      cfg.startDate=new Date(curYear,curMonth-11,1);
+      cfg.label='Last 12 Months';cfg.granularity='monthly';
+  }
+  return cfg}
+
+function finFilterByRange(payments,cfg){
+  return payments.filter(function(p){
+    if(!p.date)return false;
+    if(p.date<cfg.startDate)return false;
+    if(cfg.endDate&&p.date>cfg.endDate)return false;
+    return true})}
+
+function finAggregateByPeriod(payments,cfg){
+  var labels=[],totals=[],buckets=[];
+  var now=new Date(),end=cfg.endDate||now;
+  var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  if(cfg.granularity==='monthly'){
+    var d=new Date(cfg.startDate.getFullYear(),cfg.startDate.getMonth(),1);
+    while(d<=end){
+      labels.push(MN[d.getMonth()]+' '+String(d.getFullYear()).slice(2));
+      buckets.push({y:d.getFullYear(),m:d.getMonth()});
+      totals.push(0);
+      d=new Date(d.getFullYear(),d.getMonth()+1,1)}
+    payments.forEach(function(p){if(!p.date)return;
+      var py=p.date.getFullYear(),pm=p.date.getMonth();
+      for(var i=0;i<buckets.length;i++){
+        if(buckets[i].y===py&&buckets[i].m===pm){totals[i]+=p.amount;break}}});
+
+  }else if(cfg.granularity==='weekly'){
+    var ws=new Date(cfg.startDate);
+    var dow=ws.getDay();ws.setDate(ws.getDate()-(dow===0?6:dow-1));/* align to Monday */
+    while(ws<=end){
+      var we=new Date(ws);we.setDate(we.getDate()+6);
+      labels.push((ws.getMonth()+1)+'/'+ws.getDate()+' – '+(we.getMonth()+1)+'/'+we.getDate());
+      buckets.push({s:new Date(ws),e:new Date(we.getFullYear(),we.getMonth(),we.getDate(),23,59,59)});
+      totals.push(0);
+      ws=new Date(ws);ws.setDate(ws.getDate()+7)}
+    payments.forEach(function(p){if(!p.date)return;
+      for(var i=0;i<buckets.length;i++){
+        if(p.date>=buckets[i].s&&p.date<=buckets[i].e){totals[i]+=p.amount;break}}});
+
+  }else if(cfg.granularity==='daily'){
+    var dd=new Date(cfg.startDate);
+    var DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    while(dd<=end){
+      labels.push(DN[dd.getDay()]+' '+dd.getDate());
+      buckets.push({y:dd.getFullYear(),m:dd.getMonth(),d:dd.getDate()});
+      totals.push(0);
+      dd=new Date(dd.getFullYear(),dd.getMonth(),dd.getDate()+1)}
+    payments.forEach(function(p){if(!p.date)return;
+      var py=p.date.getFullYear(),pm=p.date.getMonth(),pd=p.date.getDate();
+      for(var i=0;i<buckets.length;i++){
+        if(buckets[i].y===py&&buckets[i].m===pm&&buckets[i].d===pd){totals[i]+=p.amount;break}}});
+  }
+  return{labels:labels,totals:totals,buckets:buckets}}
+
+function _finBucketIndex(date,buckets,granularity){
+  if(granularity==='monthly'){
+    var py=date.getFullYear(),pm=date.getMonth();
+    for(var i=0;i<buckets.length;i++){if(buckets[i].y===py&&buckets[i].m===pm)return i}
+  }else if(granularity==='weekly'){
+    for(var i=0;i<buckets.length;i++){if(date>=buckets[i].s&&date<=buckets[i].e)return i}
+  }else if(granularity==='daily'){
+    var py=date.getFullYear(),pm=date.getMonth(),pd=date.getDate();
+    for(var i=0;i<buckets.length;i++){if(buckets[i].y===py&&buckets[i].m===pm&&buckets[i].d===pd)return i}
+  }
+  return-1}
+
+function finAggregateByCatAndPeriod(payments,cfg){
+  var base=finAggregateByPeriod([],cfg);/* get empty bucket structure */
+  var catSet={};
+  payments.forEach(function(p){
+    if(p.status==='split'){getSplitsForPayment(p.id).forEach(function(sp){catSet[sp.category||'Uncategorised']=true})}
+    else{catSet[p.category||'Uncategorised']=true}});
+  var catNames=Object.keys(catSet).sort();
+  var stackedData={};catNames.forEach(function(c){
+    stackedData[c]=[];for(var i=0;i<base.labels.length;i++)stackedData[c].push(0)});
+  payments.forEach(function(p){if(!p.date)return;
+    var idx=_finBucketIndex(p.date,base.buckets,cfg.granularity);if(idx===-1)return;
+    if(p.status==='split'){
+      getSplitsForPayment(p.id).forEach(function(sp){
+        var c=sp.category||'Uncategorised';if(stackedData[c])stackedData[c][idx]+=sp.amount});
+    }else{
+      var c=p.category||'Uncategorised';if(stackedData[c])stackedData[c][idx]+=p.amount}});
+  return{labels:base.labels,catNames:catNames,stackedData:stackedData}}
+
+function finGetPreviousPeriodConfig(cfg){
+  var end=cfg.endDate||new Date();
+  var duration=end.getTime()-cfg.startDate.getTime();
+  var prevEnd=new Date(cfg.startDate.getTime()-1);
+  var prevStart=new Date(prevEnd.getTime()-duration);
+  return{startDate:prevStart,endDate:prevEnd,granularity:cfg.granularity,label:'Previous Period'}}
 
 /* ═══════════ NAV ═══════════ */
 function nav(id){
