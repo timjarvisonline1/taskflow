@@ -35,13 +35,14 @@ async function syncBrex(userId) {
       let hasMore = true;
 
       while (hasMore) {
-        let url = BREX_BASE + '/v2/transactions/cash/' + acct.id + '?posted_at_start=' + encodeURIComponent(since);
-        if (cursor) url += '&cursor=' + encodeURIComponent(cursor);
+        let url = BREX_BASE + '/v2/transactions/cash/' + acct.id;
+        if (since) url += '?posted_at_start=' + encodeURIComponent(since);
+        if (cursor) url += (since ? '&' : '?') + 'cursor=' + encodeURIComponent(cursor);
 
         const txResp = await fetch(url, { headers });
         if (!txResp.ok) {
           const txErr = await txResp.text();
-          throw new Error('Brex transactions API ' + txResp.status + ': ' + txErr.substring(0, 300));
+          throw new Error('Brex txns ' + txResp.status + ' (acct=' + acct.id + ', url_date=' + since + '): ' + txErr.substring(0, 200));
         }
         const txData = await txResp.json();
         const items = txData.items || [];
