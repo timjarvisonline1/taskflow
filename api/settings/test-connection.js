@@ -1,4 +1,4 @@
-const { getServiceClient, verifyUserToken, cors } = require('../_lib/supabase');
+const { getServiceClient, verifyUserToken, cors, getCredentials } = require('../_lib/supabase');
 const { exchangeZohoCode, refreshZohoToken } = require('../_lib/zoho-auth');
 
 module.exports = async function handler(req, res) {
@@ -12,15 +12,31 @@ module.exports = async function handler(req, res) {
   const { platform, credentials, config } = req.body || {};
   if (!platform) return res.status(400).json({ error: 'platform is required' });
 
+  // Merge form fields with stored credentials (form fields override stored ones when non-empty)
+  let mergedCreds = credentials || {};
+  let mergedConfig = config || {};
+  const stored = await getCredentials(userId, platform);
+  if (stored) {
+    const storedCreds = stored.credentials || {};
+    const storedConfig = stored.config || {};
+    // For each stored key, use it as fallback if form didn't provide a value
+    Object.keys(storedCreds).forEach(k => {
+      if (!mergedCreds[k]) mergedCreds[k] = storedCreds[k];
+    });
+    Object.keys(storedConfig).forEach(k => {
+      if (!mergedConfig[k]) mergedConfig[k] = storedConfig[k];
+    });
+  }
+
   try {
     if (platform === 'brex') {
-      return await testBrex(res, credentials);
+      return await testBrex(res, mergedCreds);
     } else if (platform === 'mercury') {
-      return await testMercury(res, credentials);
+      return await testMercury(res, mergedCreds);
     } else if (platform === 'zoho_books') {
-      return await testZohoBooks(res, userId, credentials, config);
+      return await testZohoBooks(res, userId, mergedCreds, mergedConfig);
     } else if (platform === 'zoho_payments') {
-      return await testZohoPayments(res, userId, credentials, config);
+      return await testZohoPayments(res, userId, mergedCreds, mergedConfig);
     } else {
       return res.status(400).json({ error: 'Unknown platform: ' + platform });
     }
