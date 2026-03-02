@@ -320,10 +320,19 @@ function renderActiveWidget(){
 /* Widget minimize toggle */
 function atToggleMin(){
   var w=gel('at-widget');if(!w)return;
+  var isMin=!w.classList.contains('minimized');
   w.classList.toggle('minimized');
   var btn=gel('at-min-btn');
-  if(btn)btn.textContent=w.classList.contains('minimized')?'+':'\u2212';
-  try{localStorage.setItem('tf_atmin',w.classList.contains('minimized')?'1':'0')}catch(e){}
+  if(btn)btn.textContent=isMin?'+':'\u2212';
+  if(isMin){
+    /* Save current position, snap to bottom-right */
+    w._savedPos={left:w.style.left,top:w.style.top,right:w.style.right,bottom:w.style.bottom};
+    w.style.left='auto';w.style.top='auto';w.style.right='20px';w.style.bottom='20px';
+  }else{
+    /* Restore dragged position */
+    if(w._savedPos){w.style.left=w._savedPos.left;w.style.top=w._savedPos.top;w.style.right=w._savedPos.right;w.style.bottom=w._savedPos.bottom}
+  }
+  try{localStorage.setItem('tf_atmin',isMin?'1':'0')}catch(e){}
   renderActiveWidget()}
 
 /* Widget drag */
@@ -332,10 +341,16 @@ function atToggleMin(){
   function initDrag(){
     w=gel('at-widget');hdr=gel('at-header');if(!w||!hdr)return setTimeout(initDrag,500);
     /* Restore minimized state */
-    try{if(localStorage.getItem('tf_atmin')==='1'){w.classList.add('minimized');var btn=gel('at-min-btn');if(btn)btn.textContent='+'}}catch(e){}
-    /* Restore position */
-    try{var pos=JSON.parse(localStorage.getItem('tf_atpos'));
-      if(pos&&typeof pos.x==='number'){w.style.right='auto';w.style.bottom='auto';w.style.left=Math.min(pos.x,window.innerWidth-100)+'px';w.style.top=Math.min(pos.y,window.innerHeight-50)+'px'}}catch(e){}
+    var isMin=false;
+    try{isMin=localStorage.getItem('tf_atmin')==='1'}catch(e){}
+    if(isMin){w.classList.add('minimized');var btn=gel('at-min-btn');if(btn)btn.textContent='+';
+      /* Keep at bottom-right when minimized */
+      w.style.left='auto';w.style.top='auto';w.style.right='20px';w.style.bottom='20px';
+    }else{
+      /* Restore dragged position only when expanded */
+      try{var pos=JSON.parse(localStorage.getItem('tf_atpos'));
+        if(pos&&typeof pos.x==='number'){w.style.right='auto';w.style.bottom='auto';w.style.left=Math.min(pos.x,window.innerWidth-100)+'px';w.style.top=Math.min(pos.y,window.innerHeight-50)+'px'}}catch(e){}
+    }
     hdr.addEventListener('mousedown',function(e){
       if(e.target.closest('.at-min-btn'))return;
       dragging=true;var rect=w.getBoundingClientRect();offX=e.clientX-rect.left;offY=e.clientY-rect.top;
