@@ -2625,39 +2625,36 @@ function rFinanceOverview(){
   }).reduce(function(s,p){return s+p.amount},0);
   var unreconciledExp=S.financePayments.filter(function(p){return p.direction==='outflow'&&p.type!=='transfer'&&!p.scheduledItemId&&p.status!=='excluded'}).length;
 
-  /* Calculate unsettled card spend — card transactions not yet swept from cash account.
-     Brex settles card charges daily, so today's card transactions haven't been deducted yet. */
-  var todayStr=new Date().toISOString().split('T')[0];
-  var unsettledCardSpend=S.financePayments.filter(function(p){
-    var meta=typeof p.metadata==='string'?JSON.parse(p.metadata||'{}'):p.metadata||{};
-    if(meta.brex_type!=='card'||p.status==='excluded')return false;
-    if(!p.date)return false;
-    var pDate=p.date instanceof Date?p.date.toISOString().split('T')[0]:p.date;
-    return pDate>=todayStr;
-  }).reduce(function(s,p){return s+p.amount},0);
-
-  /* Row 1 — Balance cards */
+  /* Row 1 — Balance cards
+     For Brex: use availableBalance (reflects pending card authorizations)
+     For others: use currentBalance (no pending concept) */
   var balCols=2+platKeys.length+(unreconciledExp>0?1:0);
   h+='<div style="display:grid;grid-template-columns:repeat('+Math.min(balCols,4)+',1fr);gap:16px;margin-bottom:20px">';
+
+  /* Combined balance: use availableBalance for Brex, currentBalance for others */
+  var combinedAvail=S.accountBalances.reduce(function(s,a){
+    return s+(a.platform==='brex'&&a.availableBalance?a.availableBalance:a.currentBalance)},0);
   h+='<div class="chart-card" style="text-align:center;padding:24px;background:linear-gradient(135deg,var(--card) 0%,rgba(61,220,132,0.05) 100%);border:1px solid rgba(61,220,132,0.2)">';
   h+='<div style="font-size:12px;opacity:0.6;margin-bottom:4px">Combined Balance</div>';
-  h+='<div style="font-size:28px;font-weight:700;color:var(--green)">'+fmtUSD(bal-unsettledCardSpend)+'</div>';
+  h+='<div style="font-size:28px;font-weight:700;color:var(--green)">'+fmtUSD(combinedAvail)+'</div>';
   if(lastSync)h+='<div style="font-size:10px;opacity:0.4;margin-top:6px">Last synced '+fmtRelative(lastSync)+'</div>';
   h+='</div>';
 
   platKeys.forEach(function(pk){
     var p=byPlat[pk];
     p.accounts.forEach(function(a){
-      var isPrimaryBrex=pk==='brex'&&(a.accountName||'').toLowerCase().indexOf('primary')>=0;
-      var displayBal=isPrimaryBrex?a.currentBalance-unsettledCardSpend:a.currentBalance;
+      /* Brex: show availableBalance (includes pending card charge deductions) */
+      var isBrex=pk==='brex';
+      var displayBal=isBrex&&a.availableBalance?a.availableBalance:a.currentBalance;
+      var pendingHold=isBrex?a.currentBalance-a.availableBalance:0;
       h+='<div class="chart-card" style="text-align:center;padding:20px">';
       h+='<div style="font-size:11px;opacity:0.6;margin-bottom:4px">'+esc(a.accountName||a.platform)+'</div>';
       h+='<div style="font-size:20px;font-weight:600">'+fmtUSD(displayBal)+'</div>';
       h+='<div style="font-size:10px;opacity:0.4;margin-top:4px">'+esc(a.platform)+' • '+esc(a.accountType)+'</div>';
-      if(isPrimaryBrex&&unsettledCardSpend>0){
-        h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">Pending card spend: -'+fmtUSD(unsettledCardSpend)+'</div>'}
-      else if(pk==='brex'&&recentCardSpend>0){
-        h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">Card spend (7d): -'+fmtUSD(recentCardSpend)+'</div>'}
+      if(isBrex&&pendingHold>1){
+        h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">Pending holds: -'+fmtUSD(pendingHold)+'</div>'}
+      else if(isBrex&&recentCardSpend>0){
+        h+='<div style="font-size:11px;color:var(--t4);margin-top:6px">Card spend (7d): -'+fmtUSD(recentCardSpend)+'</div>'}
       h+='</div>'})});
   /* Unreconciled expenses CTA */
   if(unreconciledExp>0){
