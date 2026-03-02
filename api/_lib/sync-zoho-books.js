@@ -44,7 +44,7 @@ async function syncZohoBooks(userId) {
         payer_name: inv.customer_name || '',
         description: (inv.invoice_number || '') + (inv.reference_number ? ' - ' + inv.reference_number : ''),
         external_status: (inv.status || '').toLowerCase(),
-        pending_amount: (inv.status === 'sent' || inv.status === 'overdue') ? (parseFloat(inv.balance) || 0) : 0,
+        pending_amount: (inv.status === 'sent' || inv.status === 'overdue' || inv.status === 'unpaid' || inv.status === 'partially_paid') ? (parseFloat(inv.balance) || 0) : 0,
         metadata: JSON.stringify({ zoho_customer_id: inv.customer_id, invoice_number: inv.invoice_number })
       })
     });
@@ -59,18 +59,24 @@ async function syncZohoBooks(userId) {
       idField: 'payment_id',
       direction: 'inflow',
       type: 'payment',
-      transform: (pay) => ({
-        date: pay.date || null,
-        amount: parseFloat(pay.amount) || 0,
-        fee: 0,
-        net: parseFloat(pay.amount) || 0,
-        payer_email: pay.email || '',
-        payer_name: pay.customer_name || '',
-        description: pay.payment_number || pay.reference_number || '',
-        external_status: '',
-        pending_amount: 0,
-        metadata: JSON.stringify({ zoho_customer_id: pay.customer_id, payment_mode: pay.payment_mode })
-      })
+      transform: (pay) => {
+        // Capture which invoices this payment covers (Zoho returns invoice refs)
+        const invoiceRefs = (pay.invoices || []).map(function(inv) {
+          return { invoice_id: inv.invoice_id, invoice_number: inv.invoice_number, amount_applied: inv.amount_applied };
+        });
+        return {
+          date: pay.date || null,
+          amount: parseFloat(pay.amount) || 0,
+          fee: 0,
+          net: parseFloat(pay.amount) || 0,
+          payer_email: pay.email || '',
+          payer_name: pay.customer_name || '',
+          description: (pay.payment_number || pay.reference_number || '') + (invoiceRefs.length ? ' (Inv: ' + invoiceRefs.map(function(r) { return r.invoice_number }).filter(Boolean).join(', ') + ')' : ''),
+          external_status: '',
+          pending_amount: 0,
+          metadata: JSON.stringify({ zoho_customer_id: pay.customer_id, payment_mode: pay.payment_mode, invoices: invoiceRefs })
+        };
+      }
     });
 
     // Vendor payments, bills, and expenses are NOT synced — they duplicate bank/card transactions.

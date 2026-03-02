@@ -2329,7 +2329,7 @@ function rFinanceDashboard(){
   var fp=S.financePayments.filter(function(p){return p.status!=='excluded'});
   /* Revenue = inflow payments only (not invoices, payouts, bills, expenses) */
   var revPayments=fp.filter(function(p){return p.direction==='inflow'&&p.type==='payment'});
-  var outPayments=fp.filter(function(p){return p.direction==='outflow'});
+  var outPayments=fp.filter(function(p){return p.direction==='outflow'&&p.type!=='transfer'});
   var totalRev=0,totalOut=0,unmatchedCount=0,matchedCount=0,splitCount=0;
   revPayments.forEach(function(p){totalRev+=p.amount});
   outPayments.forEach(function(p){totalOut+=p.amount});
@@ -2435,27 +2435,55 @@ function rFinanceDashboard(){
 function rFinanceInvoices(){
   var invoices=S.financePayments.filter(function(p){return p.status!=='excluded'&&p.type==='invoice'});
   invoices.sort(function(a,b){return(b.date||0)-(a.date||0)});
-  var totalAmt=0,totalPending=0;
-  invoices.forEach(function(p){totalAmt+=p.amount;totalPending+=p.pendingAmount||0});
   var now=new Date();
-  var overdueCount=invoices.filter(function(p){
-    if(!p.pendingAmount||p.pendingAmount<=0)return false;
+
+  /* Split into outstanding and paid */
+  var outstanding=invoices.filter(function(p){return p.pendingAmount>0});
+  var paid=invoices.filter(function(p){return!p.pendingAmount||p.pendingAmount<=0});
+
+  var totalAmt=0,totalPending=0,totalPaid=0;
+  invoices.forEach(function(p){totalAmt+=p.amount});
+  outstanding.forEach(function(p){totalPending+=p.pendingAmount||0});
+  paid.forEach(function(p){totalPaid+=p.amount});
+
+  var overdueList=outstanding.filter(function(p){
     var expDate=p.expectedPaymentDate?new Date(p.expectedPaymentDate+'T00:00:00'):null;
     if(!expDate&&p.date){expDate=new Date(p.date);expDate.setDate(expDate.getDate()+30)}
-    return expDate&&expDate<now}).length;
+    return expDate&&expDate<now});
+
+  /* Find corresponding customer payments for paid invoices */
+  var customerPayments=S.financePayments.filter(function(p){return p.source==='zoho_books'&&p.type==='payment'&&p.status!=='excluded'});
 
   var h='';
+  /* Metrics */
   h+='<div class="cp-dash">';
-  h+=dashMet('Total Invoices',invoices.length,'var(--t1)');
-  h+=dashMet('Total Value',fmtUSD(totalAmt),'var(--green)');
-  h+=dashMet('Pending',fmtUSD(totalPending),totalPending>0?'var(--amber)':'var(--muted)');
-  h+=dashMet('Overdue',overdueCount,overdueCount>0?'var(--red)':'var(--green)');
+  h+=dashMet('Outstanding',outstanding.length+' ('+fmtUSD(totalPending)+')',outstanding.length>0?'var(--amber)':'var(--green)');
+  h+=dashMet('Overdue',overdueList.length,overdueList.length>0?'var(--red)':'var(--green)');
+  h+=dashMet('Paid',paid.length+' ('+fmtUSD(totalPaid)+')',paid.length>0?'var(--green)':'var(--muted)');
+  h+=dashMet('Total Invoiced',fmtUSD(totalAmt),'var(--t1)');
   h+='</div>';
 
-  if(!invoices.length){return h+'<div style="text-align:center;padding:60px 20px;color:var(--t4)">No invoices found</div>'}
+  if(!invoices.length){return h+'<div style="text-align:center;padding:60px 20px;color:var(--t4)">No invoices found.<br><span style="font-size:12px;opacity:0.5">Invoices sync from Zoho Books automatically.</span></div>'}
 
-  h+='<div class="tb-wrap"><table class="tb fin-tb">';
-  h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th class="r">Pending</th><th>Expected Pay</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th>Status</th></tr></thead>';
+  /* Outstanding invoices section */
+  if(outstanding.length){
+    h+='<h3 style="margin:20px 0 10px;font-size:14px;color:var(--amber)">'+icon('alert',14)+' Outstanding ('+outstanding.length+')</h3>';
+    h+=rInvoiceTable(outstanding,now,true);
+  }
+
+  /* Paid invoices section */
+  if(paid.length){
+    h+='<h3 style="margin:20px 0 10px;font-size:14px;color:var(--green)">'+icon('check',14)+' Paid ('+paid.length+')</h3>';
+    h+=rInvoiceTable(paid,now,false);
+  }
+
+  return h}
+
+function rInvoiceTable(invoices,now,showOverdue){
+  var h='<div class="tb-wrap"><table class="tb fin-tb">';
+  h+='<thead><tr><th>Date</th><th>Customer</th><th>Invoice #</th><th class="r">Amount</th>';
+  if(showOverdue)h+='<th class="r">Outstanding</th><th>Due</th>';
+  h+='<th>Client</th><th>Status</th></tr></thead>';
   h+='<tbody>';
   invoices.forEach(function(p){
     var eid=escAttr(p.id);
@@ -2463,35 +2491,37 @@ function rFinanceInvoices(){
     var isPending=p.pendingAmount>0;
     var expDate=p.expectedPaymentDate||'';
     var isOverdue=false;
-    if(isPending){
+    if(isPending&&showOverdue){
       var ed=expDate?new Date(expDate+'T00:00:00'):null;
       if(!ed&&p.date){ed=new Date(p.date);ed.setDate(ed.getDate()+30)}
       isOverdue=ed&&ed<now}
+
+    /* Parse invoice number from description */
+    var invNum=(p.description||'').split(' - ')[0]||p.description||'';
+
     h+='<tr class="fin-row'+(isOverdue?' fin-unmatched':'')+'" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
     h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
     h+='<td>'+esc(p.payerName||p.payerEmail||'Unknown')+'</td>';
+    h+='<td style="font-family:monospace;font-size:12px">'+esc(invNum)+'</td>';
     h+='<td class="r nm" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</td>';
-    h+='<td class="r nm">';
-    if(isPending)h+='<span style="color:var(--amber);font-weight:600">'+fmtUSD(p.pendingAmount)+'</span>';
-    else h+='<span style="color:var(--green)">Paid</span>';
-    h+='</td>';
-    h+='<td class="fin-date">';
-    if(expDate)h+=expDate;
-    else if(isPending)h+='<span style="opacity:0.4;font-size:11px">Not set</span>';
-    else h+='—';
-    if(isOverdue)h+=' <span style="color:var(--red);font-size:10px;font-weight:600">OVERDUE</span>';
-    h+='</td>';
-    h+='<td><span class="fin-src fin-src-'+p.source+'">'+esc(srcLabel(p.source))+'</span></td>';
-    h+='<td>'+(p.category?'<span class="fin-cat">'+esc(p.category)+'</span>':'—')+'</td>';
+    if(showOverdue){
+      h+='<td class="r nm"><span style="color:var(--amber);font-weight:600">'+fmtUSD(p.pendingAmount)+'</span></td>';
+      h+='<td class="fin-date">';
+      if(expDate)h+=expDate;
+      else h+='<span style="opacity:0.4;font-size:11px">~30 days</span>';
+      if(isOverdue)h+=' <span style="color:var(--red);font-size:10px;font-weight:600">OVERDUE</span>';
+      h+='</td>';
+    }
     h+='<td>'+(clientName?'<span class="fin-client-name">'+esc(clientName)+'</span>':'—')+'</td>';
-    h+='<td class="fin-desc">'+esc((p.description||'').substring(0,60))+'</td>';
-    h+='<td><span class="fin-status fin-status-'+p.status+'">'+esc(p.status)+'</span></td>';
+    var statusLabel=p.externalStatus||p.status||'';
+    var statusColor=statusLabel==='paid'?'var(--green)':statusLabel==='overdue'?'var(--red)':statusLabel==='sent'||statusLabel==='unpaid'||statusLabel==='partially_paid'?'var(--amber)':'var(--t3)';
+    h+='<td><span style="font-size:11px;font-weight:500;color:'+statusColor+';text-transform:capitalize">'+esc(statusLabel)+'</span></td>';
     h+='</tr>'});
   h+='</tbody></table></div>';
   return h}
 
 function rFinanceCashFlow(){
-  var fp=S.financePayments.filter(function(p){return p.status!=='excluded'});
+  var fp=S.financePayments.filter(function(p){return p.status!=='excluded'&&p.type!=='transfer'&&p.type!=='invoice'&&p.type!=='bill'});
   var rangeCfg=finGetRangeConfig(S.finRange);
   var rfp=finFilterByRange(fp,rangeCfg);
 
@@ -2572,7 +2602,7 @@ function initFinanceDashboardCharts(){
 
 function initFinanceCashFlowCharts(){
   setTimeout(function(){
-    var fp=S.financePayments.filter(function(p){return p.status!=='excluded'});
+    var fp=S.financePayments.filter(function(p){return p.status!=='excluded'&&p.type!=='transfer'&&p.type!=='invoice'&&p.type!=='bill'});
     var rangeCfg=finGetRangeConfig(S.finRange);
     var rfp=finFilterByRange(fp,rangeCfg);
     var agg=finAggregateByPeriod(rfp,rangeCfg);

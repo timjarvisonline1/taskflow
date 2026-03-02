@@ -127,6 +127,28 @@ async function upsertPayment(userId, source, sourceId, paymentData) {
     }
   }
 
+  // Within-source duplicate check: skip if a record from the SAME source
+  // already exists with same date + amount + direction + type (prevents double-sync duplicates)
+  if (paymentData.date && paymentData.amount !== undefined && paymentData.direction && paymentData.type) {
+    const amt = parseFloat(paymentData.amount) || 0;
+    const { data: sameSrcDup } = await client
+      .from('finance_payments')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('source', source)
+      .eq('date', paymentData.date)
+      .eq('direction', paymentData.direction)
+      .eq('type', paymentData.type)
+      .gte('amount', amt - 0.01)
+      .lte('amount', amt + 0.01)
+      .limit(1)
+      .maybeSingle();
+
+    if (sameSrcDup) {
+      return { action: 'skipped', id: sameSrcDup.id };
+    }
+  }
+
   // Apply payer_client_map auto-matching
   const match = await applyPayerMap(userId, paymentData.payer_email, paymentData.payer_name);
   if (match) {
