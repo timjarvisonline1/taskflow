@@ -17,10 +17,11 @@ async function syncZohoBooks(userId) {
   const headers = { 'Authorization': 'Zoho-oauthtoken ' + accessToken };
   const stats = { fetched: 0, inserted: 0, updated: 0, error: '' };
 
-  // Use last_sync_at or default to 90 days ago
-  const since = cred.last_sync_at
-    ? new Date(cred.last_sync_at).toISOString().split('T')[0]
-    : new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+  // For incremental syncs use last_sync_at; for first sync fetch everything
+  const isFirstSync = !cred.last_sync_at;
+  const since = isFirstSync
+    ? null
+    : new Date(cred.last_sync_at).toISOString().split('T')[0];
 
   try {
     // 1. Invoices (inflow — represents money owed to us)
@@ -129,7 +130,7 @@ async function syncZohoBooks(userId) {
       direction: 'outflow',
       type: 'expense',
       sortColumn: 'date',
-      dateFilter: 'date_start=' + since + '&date_end=' + new Date().toISOString().split('T')[0],
+      dateFilter: since ? ('date_start=' + since + '&date_end=' + new Date().toISOString().split('T')[0]) : null,
       transform: (exp) => ({
         date: exp.date || null,
         amount: parseFloat(exp.total) || 0,
@@ -162,9 +163,12 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
 
   while (hasMore) {
     const sortCol = cfg.sortColumn || 'last_modified_time';
-    const dateFilterPart = cfg.dateFilter
-      ? '&' + cfg.dateFilter
-      : '&last_modified_time=' + encodeURIComponent(since + 'T00:00:00+0000');
+    let dateFilterPart = '';
+    if (since) {
+      dateFilterPart = cfg.dateFilter
+        ? '&' + cfg.dateFilter
+        : '&last_modified_time=' + encodeURIComponent(since + 'T00:00:00+0000');
+    }
     const url = ZOHO_BOOKS_BASE + cfg.endpoint
       + '?organization_id=' + orgId
       + '&sort_column=' + sortCol + '&sort_order=D'
