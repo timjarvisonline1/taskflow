@@ -83,13 +83,21 @@ async function upsertPayment(userId, source, sourceId, paymentData) {
       .maybeSingle();
 
     if (existing) {
-      // Update existing record (only mutable fields)
+      // Update existing record — sync-safe fields only (NEVER overwrite status/client_id)
       const updateRow = {};
       if (paymentData.external_status !== undefined) updateRow.external_status = paymentData.external_status;
       if (paymentData.pending_amount !== undefined) updateRow.pending_amount = paymentData.pending_amount;
       if (paymentData.metadata !== undefined) updateRow.metadata = paymentData.metadata;
-      if (paymentData.status !== undefined) updateRow.status = paymentData.status;
       if (paymentData.date !== undefined) updateRow.date = paymentData.date;
+      if (paymentData.amount !== undefined) updateRow.amount = paymentData.amount;
+      if (paymentData.fee !== undefined) updateRow.fee = paymentData.fee;
+      if (paymentData.net !== undefined) updateRow.net = paymentData.net;
+      if (paymentData.payer_name !== undefined) updateRow.payer_name = paymentData.payer_name;
+      if (paymentData.payer_email !== undefined) updateRow.payer_email = paymentData.payer_email;
+      if (paymentData.description !== undefined) updateRow.description = paymentData.description;
+      if (paymentData.direction !== undefined) updateRow.direction = paymentData.direction;
+      if (paymentData.type !== undefined) updateRow.type = paymentData.type;
+      // NOTE: status and client_id are NOT updated — preserves user's matched/unmatched state
 
       if (Object.keys(updateRow).length > 0) {
         await client.from('finance_payments').update(updateRow).eq('id', existing.id);

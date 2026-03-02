@@ -37,9 +37,9 @@ async function syncZohoPayments(userId) {
 
         const result = await upsertPayment(userId, 'zoho_payments', pay.payment_id, {
           date: pay.created_time ? pay.created_time.split('T')[0] : null,
-          amount: amount / 100,  // Zoho Payments amounts may be in cents
-          fee: fee / 100,
-          net: (amount - fee) / 100,
+          amount: amount,
+          fee: fee,
+          net: amount - fee,
           direction: 'inflow',
           type: 'payment',
           payer_email: pay.receipt_email || pay.email || '',
@@ -97,9 +97,9 @@ async function syncZohoPayments(userId) {
 
           const result = await upsertPayment(userId, 'zoho_payments', sourceId, {
             date: po.arrival_date || po.created_time ? (po.arrival_date || po.created_time.split('T')[0]) : null,
-            amount: amount / 100,
+            amount: amount,
             fee: 0,
-            net: amount / 100,
+            net: amount,
             direction: 'inflow',
             type: 'payout',
             payer_email: '',
@@ -107,7 +107,7 @@ async function syncZohoPayments(userId) {
             description: 'Payout ' + (po.payout_id || ''),
             category: '',
             external_status: poStatus,
-            pending_amount: isPending ? (amount / 100) : 0,
+            pending_amount: isPending ? amount : 0,
             metadata: JSON.stringify({
               payout_id: po.payout_id,
               arrival_date: po.arrival_date || '',
@@ -153,9 +153,9 @@ async function processZohoPaymentWebhook(userId, event) {
 
     const result = await upsertPayment(userId, 'zoho_payments', pay.payment_id, {
       date: pay.created_time ? pay.created_time.split('T')[0] : null,
-      amount: amount / 100,
-      fee: fee / 100,
-      net: (amount - fee) / 100,
+      amount: amount,
+      fee: fee,
+      net: amount - fee,
       direction: 'inflow',
       type: 'payment',
       payer_email: pay.receipt_email || pay.email || '',
@@ -179,16 +179,16 @@ async function processZohoPaymentWebhook(userId, event) {
 
     const result = await upsertPayment(userId, 'zoho_payments', sourceId, {
       date: po.arrival_date || null,
-      amount: amount / 100,
+      amount: amount,
       fee: 0,
-      net: amount / 100,
+      net: amount,
       direction: 'inflow',
       type: 'payout',
       payer_email: '',
       payer_name: 'Zoho Payments Payout',
       description: 'Payout ' + (po.payout_id || ''),
       external_status: poStatus,
-      pending_amount: isPending ? (amount / 100) : 0,
+      pending_amount: isPending ? amount : 0,
       metadata: JSON.stringify({ payout_id: po.payout_id, arrival_date: po.arrival_date || '', webhook_event: eventType }),
       status: 'unmatched'
     });

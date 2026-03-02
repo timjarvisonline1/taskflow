@@ -147,8 +147,7 @@ async function syncZohoBooks(userId) {
       })
     });
 
-    const syncMode = since ? 'since=' + since : 'full';
-    const msg = stats.inserted + ' new, ' + stats.updated + ' updated (' + syncMode + ' orgId=' + orgId + ' ' + stats.debug.trim() + ')';
+    const msg = stats.inserted + ' new, ' + stats.updated + ' updated';
     await updateSyncStatus(userId, 'zoho_books', 'ok', msg);
     await logSync(userId, 'zoho_books', 'poll', stats);
     return stats;
