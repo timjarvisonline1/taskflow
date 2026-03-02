@@ -2,6 +2,7 @@ const { getCredentials, updateSyncStatus, logSync, upsertPayment } = require('./
 const { refreshZohoToken } = require('./zoho-auth');
 
 const ZOHO_BOOKS_BASE = 'https://www.zohoapis.com/books/v3';
+const CSV_CUTOFF = '2026-02-28'; // All data before this date was imported via CSV — never re-sync
 
 /* Delay helper for rate limiting (Zoho Books: 100 req/min) */
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -194,6 +195,9 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
     for (const item of items) {
       const sourceId = cfg.entityPrefix + '_' + item[cfg.idField];
       const transformed = cfg.transform(item);
+
+      // Skip records before CSV cutoff
+      if (transformed.date && transformed.date < CSV_CUTOFF) { stats.skipped++; continue; }
 
       const result = await upsertPayment(userId, 'zoho_books', sourceId, {
         ...transformed,

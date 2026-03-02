@@ -21,7 +21,7 @@ module.exports = async function handler(req, res) {
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const client = getServiceClient();
-  const stats = { deleted: 0, excluded: 0, statusRestored: 0, crossSourceDups: 0, errors: [] };
+  const stats = { deleted: 0, excluded: 0, statusRestored: 0, crossSourceDups: 0, zohoPaymentsDeleted: 0, mercuryInflowsDeleted: 0, errors: [] };
   const CUTOFF = '2026-02-28';
 
   try {
@@ -48,14 +48,14 @@ module.exports = async function handler(req, res) {
     }
 
     // 3. Cross-source duplicate removal (ANY date, not just pre-cutoff).
-    //    Build an index of CSV/existing records by date+amount.
+    //    Build an index of CSV/existing records by date+amount+direction.
     //    If a live-source record matches, it's a duplicate — delete the live-source version.
     const csvByDateAmt = {};
     for (const rec of allPayments) {
       if (!csvSources.includes(rec.source)) continue;
       if (!rec.date) continue;
       const amt = Math.abs(parseFloat(rec.amount) || 0).toFixed(2);
-      const key = rec.date + '|' + amt;
+      const key = rec.date + '|' + amt + '|' + (rec.direction || '');
       if (!csvByDateAmt[key]) csvByDateAmt[key] = [];
       csvByDateAmt[key].push(rec);
     }
@@ -65,7 +65,7 @@ module.exports = async function handler(req, res) {
       if (toDelete.has(rec.id)) continue; // already marked for deletion
       if (!rec.date) continue;
       const amt = Math.abs(parseFloat(rec.amount) || 0).toFixed(2);
-      const key = rec.date + '|' + amt;
+      const key = rec.date + '|' + amt + '|' + (rec.direction || '');
       if (csvByDateAmt[key] && csvByDateAmt[key].length > 0) {
         toDelete.add(rec.id);
         stats.crossSourceDups++;
@@ -170,10 +170,54 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // 9. Deactivate Zoho Payments integration (all records duplicate Zoho Books)
+    await client
+      .from('integration_credentials')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('platform', 'zoho_payments');
+
+    // 10. Delete ALL zoho_payments records (every one is a duplicate of Zoho Books)
+    const { data: zpRecs } = await client
+      .from('finance_payments')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('source', 'zoho_payments');
+
+    if (zpRecs && zpRecs.length > 0) {
+      const zpIds = zpRecs.map(r => r.id);
+      for (let i = 0; i < zpIds.length; i += 50) {
+        const batch = zpIds.slice(i, i + 50);
+        const { error: zpDelErr } = await client.from('finance_payments').delete().in('id', batch);
+        if (zpDelErr) stats.errors.push('ZP delete error: ' + zpDelErr.message);
+        else { stats.deleted += batch.length; stats.zohoPaymentsDeleted += batch.length; }
+      }
+    }
+
+    // 11. Delete ALL Mercury inflow records (they duplicate Zoho Books customer payments)
+    const { data: mercInflows } = await client
+      .from('finance_payments')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('source', 'mercury')
+      .eq('direction', 'inflow');
+
+    if (mercInflows && mercInflows.length > 0) {
+      const miIds = mercInflows.map(r => r.id);
+      for (let i = 0; i < miIds.length; i += 50) {
+        const batch = miIds.slice(i, i + 50);
+        const { error: miDelErr } = await client.from('finance_payments').delete().in('id', batch);
+        if (miDelErr) stats.errors.push('Mercury inflow delete error: ' + miDelErr.message);
+        else { stats.deleted += batch.length; stats.mercuryInflowsDeleted += batch.length; }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       deleted: stats.deleted,
       crossSourceDups: stats.crossSourceDups,
+      zohoPaymentsDeleted: stats.zohoPaymentsDeleted,
+      mercuryInflowsDeleted: stats.mercuryInflowsDeleted,
       excluded: stats.excluded,
       statusRestored: stats.statusRestored,
       errors: stats.errors

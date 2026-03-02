@@ -2876,9 +2876,6 @@ var INTG_PLATFORMS=[
   {id:'zoho_books',label:'Zoho Books',color:'#2196f3',desc:'Accounting (Film&Content LLC)',
     fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'},{key:'refresh_token',label:'Refresh Token',type:'password'},{key:'code',label:'Auth Code (first-time only)',type:'text'}],
     configFields:[{key:'organization_id',label:'Organization ID',type:'text'}]},
-  {id:'zoho_payments',label:'Zoho Payments',color:'#ff9800',desc:'Payment Processor (Film&Content LLC)',
-    fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'},{key:'refresh_token',label:'Refresh Token',type:'password'},{key:'code',label:'Auth Code (first-time only)',type:'text'}],
-    configFields:[{key:'account_id',label:'Account ID',type:'text'}]}
 ];
 
 /* ═══════════ SCHEDULED ITEM MODALS ═══════════ */

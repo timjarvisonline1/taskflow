@@ -107,14 +107,15 @@ async function upsertPayment(userId, source, sourceId, paymentData) {
   }
 
   // Cross-source duplicate check: skip if a record from another source
-  // already exists with the same date + amount (prevents CSV import duplicates)
-  if (paymentData.date && paymentData.amount !== undefined) {
+  // already exists with the same date + amount + direction (prevents CSV import duplicates)
+  if (paymentData.date && paymentData.amount !== undefined && paymentData.direction) {
     const amt = parseFloat(paymentData.amount) || 0;
     const { data: crossDup } = await client
       .from('finance_payments')
       .select('id')
       .eq('user_id', userId)
       .eq('date', paymentData.date)
+      .eq('direction', paymentData.direction)
       .neq('source', source)
       .gte('amount', amt - 0.01)
       .lte('amount', amt + 0.01)

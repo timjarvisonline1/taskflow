@@ -1,6 +1,7 @@
 const { getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountBalance, getServiceClient } = require('./supabase');
 
 const MERCURY_BASE = 'https://api.mercury.com/api/v1';
+const CSV_CUTOFF = '2026-02-28'; // All data before this date was imported via CSV — never re-sync
 
 async function syncMercury(userId) {
   const cred = await getCredentials(userId, 'mercury');
@@ -42,10 +43,11 @@ async function syncMercury(userId) {
       });
     }
 
-    // Use last_sync_at or default to 90 days ago
-    const since = cred.last_sync_at
+    // Use last_sync_at or default to 90 days ago, but never before CSV cutoff
+    let since = cred.last_sync_at
       ? new Date(cred.last_sync_at).toISOString().split('T')[0]
       : new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+    if (since < CSV_CUTOFF) since = CSV_CUTOFF;
 
     // 2. Fetch transactions for each account
     for (const acct of accounts) {
@@ -64,12 +66,19 @@ async function syncMercury(userId) {
         for (const tx of items) {
           const rawAmount = parseFloat(tx.amount) || 0;
           const direction = rawAmount >= 0 ? 'inflow' : 'outflow';
+
+          // Skip inflows — Zoho Books is source of truth for Film&Content LLC inflows
+          if (direction === 'inflow') { stats.skipped++; continue; }
+
           const amount = Math.abs(rawAmount);
 
           // Determine date — use postedAt (settled) or createdAt (pending)
           const txDate = tx.postedAt
             ? tx.postedAt.split('T')[0]
             : (tx.createdAt ? tx.createdAt.split('T')[0] : null);
+
+          // Skip records before CSV cutoff
+          if (txDate && txDate < CSV_CUTOFF) { stats.skipped++; continue; }
 
           const result = await upsertPayment(userId, 'mercury', tx.id, {
             date: txDate,
@@ -138,8 +147,15 @@ async function processMercuryWebhook(userId, event) {
 
   const rawAmount = parseFloat(fullTx.amount) || 0;
   const direction = rawAmount >= 0 ? 'inflow' : 'outflow';
+
+  // Skip inflows — Zoho Books is source of truth for Film&Content LLC inflows
+  if (direction === 'inflow') return { action: 'skipped' };
+
   const amount = Math.abs(rawAmount);
   const txDate = fullTx.postedAt ? fullTx.postedAt.split('T')[0] : (fullTx.createdAt ? fullTx.createdAt.split('T')[0] : null);
+
+  // Skip records before CSV cutoff
+  if (txDate && txDate < CSV_CUTOFF) return { action: 'skipped' };
 
   const result = await upsertPayment(userId, 'mercury', fullTx.id, {
     date: txDate,

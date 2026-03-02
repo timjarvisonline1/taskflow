@@ -2320,21 +2320,25 @@ function rFinancePayments(){
 
 function rFinanceDashboard(){
   var fp=S.financePayments.filter(function(p){return p.status!=='excluded'});
+  /* Revenue = inflow payments only (not invoices, payouts, bills, expenses) */
+  var revPayments=fp.filter(function(p){return p.direction==='inflow'&&p.type==='payment'});
+  var outPayments=fp.filter(function(p){return p.direction==='outflow'});
   var totalRev=0,totalOut=0,unmatchedCount=0,matchedCount=0,splitCount=0;
+  revPayments.forEach(function(p){totalRev+=p.amount});
+  outPayments.forEach(function(p){totalOut+=p.amount});
   fp.forEach(function(p){
-    if(p.direction==='outflow')totalOut+=p.amount;else totalRev+=p.amount;
     if(p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment'&&p.source!=='zoho_books'&&p.source!=='brex')unmatchedCount++;
     else if(p.status==='matched')matchedCount++;
     else if(p.status==='split')splitCount++});
 
   var rangeCfg=finGetRangeConfig(S.finRange);
-  var rfp=finFilterByAnalyticsFilters(finFilterByRange(fp,rangeCfg));
+  var rfp=finFilterByAnalyticsFilters(finFilterByRange(revPayments,rangeCfg));
   var rangeRev=0;rfp.forEach(function(p){rangeRev+=p.amount});
   var avgPayment=rfp.length?rangeRev/rfp.length:0;
   var undatedCount=0,undatedRev=0;
-  fp.forEach(function(p){if(!p.date){undatedCount++;undatedRev+=p.amount}});
+  revPayments.forEach(function(p){if(!p.date){undatedCount++;undatedRev+=p.amount}});
   var prevCfg=finGetPreviousPeriodConfig(rangeCfg);
-  var prevFp=finFilterByAnalyticsFilters(finFilterByRange(fp,prevCfg));
+  var prevFp=finFilterByAnalyticsFilters(finFilterByRange(revPayments,prevCfg));
   var prevRev=0;prevFp.forEach(function(p){prevRev+=p.amount});
   var periodGrowth=prevRev>0?((rangeRev-prevRev)/prevRev*100):0;
 
@@ -2525,7 +2529,8 @@ function initFinanceCharts(){
 
 function initFinanceDashboardCharts(){
   setTimeout(function(){
-    var fp=S.financePayments;
+    /* Revenue = inflow payments only, excluding excluded records */
+    var fp=S.financePayments.filter(function(p){return p.status!=='excluded'&&p.direction==='inflow'&&p.type==='payment'});
     var rangeCfg=finGetRangeConfig(S.finRange);
     var rfp=finFilterByAnalyticsFilters(finFilterByRange(fp,rangeCfg));
     var agg=finAggregateByPeriod(rfp,rangeCfg);

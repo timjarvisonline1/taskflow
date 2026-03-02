@@ -1,6 +1,7 @@
 const { getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountBalance } = require('./supabase');
 
 const BREX_BASE = 'https://platform.brexapis.com';
+const CSV_CUTOFF = '2026-02-28'; // All data before this date was imported via CSV — never re-sync
 
 async function syncBrex(userId) {
   const cred = await getCredentials(userId, 'brex');
@@ -59,9 +60,13 @@ async function syncBrex(userId) {
           const rawAmount = (tx.amount && tx.amount.amount) ? parseFloat(tx.amount.amount) / 100 : 0;
           const direction = rawAmount >= 0 ? 'inflow' : 'outflow';
           const amount = Math.abs(rawAmount);
+          const txDate = tx.posted_at_date || tx.initiated_at_date || null;
+
+          // Skip records before CSV cutoff
+          if (txDate && txDate < CSV_CUTOFF) { stats.skipped++; continue; }
 
           const result = await upsertPayment(userId, 'brex', tx.id, {
-            date: tx.posted_at_date || tx.initiated_at_date || null,
+            date: txDate,
             amount: amount,
             fee: 0,
             net: amount,
@@ -110,9 +115,13 @@ async function syncBrex(userId) {
         const rawAmount = (tx.amount && tx.amount.amount) ? parseFloat(tx.amount.amount) / 100 : 0;
         const amount = Math.abs(rawAmount);
         const merchantDesc = (tx.merchant && tx.merchant.raw_descriptor) ? tx.merchant.raw_descriptor : (tx.description || '');
+        const cardTxDate = tx.posted_at_date || tx.initiated_at_date || null;
+
+        // Skip records before CSV cutoff
+        if (cardTxDate && cardTxDate < CSV_CUTOFF) { stats.skipped++; continue; }
 
         const result = await upsertPayment(userId, 'brex', tx.id, {
-          date: tx.posted_at_date || tx.initiated_at_date || null,
+          date: cardTxDate,
           amount: amount,
           fee: 0,
           net: amount,

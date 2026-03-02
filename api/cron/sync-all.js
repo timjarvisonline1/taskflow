@@ -2,13 +2,11 @@ const { getServiceClient } = require('../_lib/supabase');
 const { syncBrex } = require('../_lib/sync-brex');
 const { syncMercury } = require('../_lib/sync-mercury');
 const { syncZohoBooks } = require('../_lib/sync-zoho-books');
-const { syncZohoPayments } = require('../_lib/sync-zoho-payments');
 
 const SYNC_FNS = {
   brex: syncBrex,
   mercury: syncMercury,
-  zoho_books: syncZohoBooks,
-  zoho_payments: syncZohoPayments
+  zoho_books: syncZohoBooks
 };
 
 module.exports = async function handler(req, res) {
