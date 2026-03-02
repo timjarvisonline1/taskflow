@@ -2833,6 +2833,11 @@ function openIntegrationsModal(){
     h+='</div>';
   });
 
+  h+='<div style="margin-top:16px;padding:16px;border-top:1px solid var(--gborder)">';
+  h+='<button class="btn" onclick="TF.cleanupDuplicates()" style="font-size:12px;padding:6px 14px;color:var(--t2)">'+icon('refresh',11)+' Remove Duplicate Records</button>';
+  h+='<span style="font-size:11px;color:var(--t4);margin-left:8px">Removes records created by live sync that duplicate CSV imports</span>';
+  h+='</div>';
+
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
 }

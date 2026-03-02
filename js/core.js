@@ -583,6 +583,23 @@ async function triggerSync(platform){
     }
   }catch(e){console.error('Sync error:',e);toast('Sync error: '+e.message,'warn')}}
 
+async function cleanupDuplicates(){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    toast('Cleaning up duplicates...','info');
+    var resp=await fetch('/api/sync/cleanup-duplicates',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
+    var result=await resp.json();
+    if(result.success){
+      toast('Cleanup done: '+result.duplicatesRemoved+' duplicates removed, '+result.statusRestored+' statuses restored','ok');
+      await loadFinancePayments();render();
+    }else{
+      toast('Cleanup failed: '+(result.error||'Unknown'),'warn');
+    }
+  }catch(e){console.error('Cleanup error:',e);toast('Cleanup error: '+e.message,'warn')}}
+
 async function saveIntegrationCredentials(platform,credentials,config){
   try{
     var sess=await _sb.auth.getSession();
