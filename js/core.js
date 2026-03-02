@@ -61,7 +61,7 @@ var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],paymen
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
-  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finShowAnalytics:true,finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:''};
+  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finShowAnalytics:true,finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[]};
 
 var SECTIONS=[
   {id:'today',type:'single',icon:'today',label:'Today',kbd:'1'},
@@ -464,7 +464,10 @@ async function loadFinancePayments(){
       fee:parseFloat(r.fee)||0,net:parseFloat(r.net)||0,source:r.source||'',sourceId:r.source_id||'',
       payerEmail:r.payer_email||'',payerName:r.payer_name||'',description:r.description||'',
       category:r.category||'',clientId:r.client_id||'',campaignId:r.campaign_id||'',
-      endClient:r.end_client||'',notes:r.notes||'',status:r.status||'unmatched'}})}
+      endClient:r.end_client||'',notes:r.notes||'',status:r.status||'unmatched',
+      direction:r.direction||'inflow',type:r.type||'payment',externalStatus:r.external_status||'',
+      linkedTransactionId:r.linked_transaction_id||'',pendingAmount:parseFloat(r.pending_amount)||0,
+      metadata:r.metadata||{}}})}
 
 async function loadClientRecords(){
   var res=await _sb.from('clients').select('*').order('name');
@@ -546,6 +549,72 @@ async function dbDeleteFinancePaymentSplit(id){
 function getSplitsForPayment(paymentId){
   return S.financePaymentSplits.filter(function(s){return s.paymentId===paymentId})}
 
+/* ── Integration helpers ── */
+async function loadIntegrations(){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/settings/credentials',{headers:{'Authorization':'Bearer '+token}});
+    if(!resp.ok)return;
+    var data=await resp.json();
+    S.integrations=data.integrations||[];
+  }catch(e){console.error('loadIntegrations:',e)}}
+
+async function triggerSync(platform){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    toast('Syncing '+platform+'...','info');
+    var resp=await fetch('/api/sync/'+platform,{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
+    var result=await resp.json();
+    if(result.success){
+      toast(platform+' synced: '+result.inserted+' new, '+result.updated+' updated','ok');
+      await loadFinancePayments();await loadIntegrations();render();
+    }else{toast(platform+' sync failed: '+(result.error||'Unknown error'),'warn')}
+  }catch(e){toast('Sync error: '+e.message,'warn')}}
+
+async function saveIntegrationCredentials(platform,credentials,config){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return false;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/settings/credentials',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({platform:platform,credentials:credentials,config:config})});
+    var result=await resp.json();
+    if(result.success){await loadIntegrations();return true}
+    else{toast('Save failed: '+(result.error||''),'warn');return false}
+  }catch(e){toast('Save error: '+e.message,'warn');return false}}
+
+async function testIntegrationConnection(platform,credentials,config){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return null;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/settings/test-connection',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({platform:platform,credentials:credentials,config:config})});
+    return await resp.json();
+  }catch(e){return{success:false,error:e.message}}}
+
+async function deleteIntegration(platform){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return false;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/settings/credentials',{method:'DELETE',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({platform:platform})});
+    var result=await resp.json();
+    if(result.success){await loadIntegrations();return true}
+    return false;
+  }catch(e){return false}}
+
+function setFinDirection(v){S.finDirection=v;render()}
+
 async function dbEditClient(id,data){
   var row={name:data.name,status:data.status||'active',email:data.email||'',
     company:data.company||'',notes:data.notes||''};
@@ -576,7 +645,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -860,6 +929,7 @@ function finFilteredPayments(){
   if(S.finFilter==='unmatched')fp=fp.filter(function(p){return p.status==='unmatched'});
   else if(S.finFilter==='matched')fp=fp.filter(function(p){return p.status==='matched'});
   else if(S.finFilter==='split')fp=fp.filter(function(p){return p.status==='split'});
+  if(S.finDirection)fp=fp.filter(function(p){return p.direction===S.finDirection});
   if(S.finSearch){var q=S.finSearch.toLowerCase();
     fp=fp.filter(function(p){return(p.payerEmail||'').toLowerCase().indexOf(q)!==-1||(p.payerName||'').toLowerCase().indexOf(q)!==-1||(p.description||'').toLowerCase().indexOf(q)!==-1||(p.notes||'').toLowerCase().indexOf(q)!==-1})}
   return fp}

@@ -2754,3 +2754,129 @@ async function unsplitPayment(){
   S.financePaymentSplits=S.financePaymentSplits.filter(function(s){return s.paymentId!==pid});
 
   toast('Payment restored to single','ok');closeModal();render()}
+
+/* ═══════════ INTEGRATIONS MODAL ═══════════ */
+var INTG_PLATFORMS=[
+  {id:'brex',label:'Brex',color:'#f5a623',desc:'Banking (Tim Jarvis Online LLC)',
+    fields:[{key:'api_key',label:'API Key',type:'password'}],
+    configFields:[{key:'cash_account_id',label:'Cash Account ID (leave blank to auto-detect)',type:'text'}]},
+  {id:'mercury',label:'Mercury',color:'#6c5ce7',desc:'Banking (Film&Content LLC)',
+    fields:[{key:'api_key',label:'API Key',type:'password'}],
+    configFields:[]},
+  {id:'zoho_books',label:'Zoho Books',color:'#2196f3',desc:'Accounting (Film&Content LLC)',
+    fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'},{key:'refresh_token',label:'Refresh Token',type:'password'},{key:'code',label:'Auth Code (first-time only)',type:'text'}],
+    configFields:[{key:'organization_id',label:'Organization ID',type:'text'}]},
+  {id:'zoho_payments',label:'Zoho Payments',color:'#ff9800',desc:'Payment Processor (Film&Content LLC)',
+    fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'},{key:'refresh_token',label:'Refresh Token',type:'password'},{key:'code',label:'Auth Code (first-time only)',type:'text'}],
+    configFields:[{key:'account_id',label:'Account ID',type:'text'}]}
+];
+
+function openIntegrationsModal(){
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('link',14)+' Integrations</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="intg-modal">';
+
+  INTG_PLATFORMS.forEach(function(plat){
+    var existing=S.integrations.find(function(i){return i.platform===plat.id});
+    var isConnected=existing&&existing.is_active;
+    var lastSync=existing?existing.last_sync_at:null;
+    var syncStatus=existing?existing.last_sync_status:'never';
+    var syncMsg=existing?existing.last_sync_message:'';
+
+    h+='<div class="intg-card" id="intg-card-'+plat.id+'">';
+    h+='<div class="intg-card-head">';
+    h+='<div class="intg-card-title" style="border-left:3px solid '+plat.color+';padding-left:10px">';
+    h+='<strong>'+esc(plat.label)+'</strong>';
+    h+='<span class="intg-card-desc">'+esc(plat.desc)+'</span>';
+    h+='</div>';
+    h+='<span class="intg-status intg-status-'+(isConnected?'ok':(syncStatus==='error'?'err':'off'))+'">'+
+      (isConnected?'Connected':(syncStatus==='error'?'Error':'Not Connected'))+'</span>';
+    h+='</div>';
+
+    /* Last sync info */
+    if(lastSync){
+      h+='<div class="intg-sync-info">';
+      h+='<span>Last sync: '+new Date(lastSync).toLocaleString()+'</span>';
+      if(syncMsg)h+='<span class="intg-sync-msg'+(syncStatus==='error'?' intg-sync-err':'')+'">'+esc(syncMsg)+'</span>';
+      h+='</div>';
+    }
+
+    /* Credential fields */
+    h+='<div class="intg-fields" id="intg-fields-'+plat.id+'">';
+    plat.fields.forEach(function(f){
+      var val=existing&&existing.credentials&&existing.credentials[f.key]?existing.credentials[f.key]:'';
+      h+='<label class="intg-label">'+esc(f.label);
+      h+='<input type="'+f.type+'" class="intg-input" id="intg-'+plat.id+'-'+f.key+'" value="'+esc(val)+'" placeholder="'+esc(f.label)+'">';
+      h+='</label>';
+    });
+    plat.configFields.forEach(function(f){
+      var val=existing&&existing.config&&existing.config[f.key]?existing.config[f.key]:'';
+      h+='<label class="intg-label">'+esc(f.label);
+      h+='<input type="'+f.type+'" class="intg-input" id="intg-cfg-'+plat.id+'-'+f.key+'" value="'+esc(val)+'" placeholder="'+esc(f.label)+'">';
+      h+='</label>';
+    });
+    h+='</div>';
+
+    /* Action buttons */
+    h+='<div class="intg-actions">';
+    h+='<button class="btn" onclick="TF.testIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px">Test Connection</button>';
+    h+='<button class="btn btn-p" onclick="TF.saveIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px">Save</button>';
+    if(isConnected){
+      h+='<button class="btn btn-go" onclick="TF.triggerSync(\''+plat.id.replace(/_/g,'-')+'\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Now</button>';
+      h+='<button class="btn" onclick="TF.deleteIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:rgba(255,0,0,0.2)">Disconnect</button>';
+    }
+    h+='</div>';
+
+    /* Test result area */
+    h+='<div class="intg-test-result" id="intg-result-'+plat.id+'"></div>';
+
+    h+='</div>';
+  });
+
+  h+='</div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+}
+
+function intgGetFields(platformId){
+  var plat=INTG_PLATFORMS.find(function(p){return p.id===platformId});
+  if(!plat)return{credentials:{},config:{}};
+  var creds={},config={};
+  plat.fields.forEach(function(f){
+    var el=gel('intg-'+platformId+'-'+f.key);
+    if(el&&el.value)creds[f.key]=el.value;
+  });
+  plat.configFields.forEach(function(f){
+    var el=gel('intg-cfg-'+platformId+'-'+f.key);
+    if(el&&el.value)config[f.key]=el.value;
+  });
+  return{credentials:creds,config:config};
+}
+
+async function testIntegrationBtn(platformId){
+  var vals=intgGetFields(platformId);
+  var resultEl=gel('intg-result-'+platformId);
+  if(resultEl)resultEl.innerHTML='<span style="color:var(--t3)">Testing...</span>';
+  var result=await testIntegrationConnection(platformId,vals.credentials,vals.config);
+  if(!resultEl)return;
+  if(result&&result.success){
+    var msg='Connection successful!';
+    if(result.accounts)msg+=' Found '+result.accounts.length+' account(s).';
+    if(result.organization)msg+=' Org: '+result.organization;
+    resultEl.innerHTML='<span style="color:var(--green)">'+esc(msg)+'</span>';
+  }else{
+    resultEl.innerHTML='<span style="color:var(--red)">Failed: '+esc((result&&result.error)||'Unknown error')+'</span>';
+  }
+}
+
+async function saveIntegrationBtn(platformId){
+  var vals=intgGetFields(platformId);
+  if(!Object.keys(vals.credentials).length){toast('Enter credentials first','warn');return}
+  var ok=await saveIntegrationCredentials(platformId,vals.credentials,vals.config);
+  if(ok){toast(platformId+' credentials saved','ok');openIntegrationsModal()}
+}
+
+async function deleteIntegrationBtn(platformId){
+  if(!confirm('Disconnect '+platformId+'? This will remove stored credentials.'))return;
+  var ok=await deleteIntegration(platformId);
+  if(ok){toast(platformId+' disconnected','ok');openIntegrationsModal()}
+}

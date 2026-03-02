@@ -2016,10 +2016,15 @@ function mobTaskRow(t,td){
   h+='</div></div>';return h}
 
 /* ═══════════ FINANCE VIEW ═══════════ */
+var SRC_LABELS={stripe:'Stripe',stripe2:'Stripe 2',zoho:'Zoho',brex:'Brex',mercury:'Mercury',zoho_books:'Zoho Books',zoho_payments:'Zoho Pay'};
+var TYPE_LABELS={payment:'Payment',invoice:'Invoice',bill:'Bill',expense:'Expense',transfer:'Transfer',payout:'Payout'};
+function srcLabel(s){return SRC_LABELS[s]||s.charAt(0).toUpperCase()+s.slice(1)}
+
 function rFinance(){
   var fp=S.financePayments;
-  var totalRev=0,unmatchedCount=0,matchedCount=0,splitCount=0;
-  fp.forEach(function(p){totalRev+=p.amount;
+  var totalRev=0,totalOut=0,unmatchedCount=0,matchedCount=0,splitCount=0;
+  fp.forEach(function(p){
+    if(p.direction==='outflow')totalOut+=p.amount;else totalRev+=p.amount;
     if(p.status==='unmatched')unmatchedCount++;
     else if(p.status==='matched')matchedCount++;
     else if(p.status==='split')splitCount++});
@@ -2044,6 +2049,7 @@ function rFinance(){
   var bulkCount=finBulkCount();
   var h='<div class="pg-head"><h1>'+icon('activity',18)+' Finance</h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn" onclick="TF.openIntegrationsModal()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('link',12)+' Integrations</button>';
   h+='<button class="btn fin-analytics-toggle'+(S.finShowAnalytics?' btn-p':'')+'" onclick="TF.finToggleAnalytics()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.finShowAnalytics?icon('x',12)+' Hide Analytics':icon('dashboard',12)+' Analytics')+'</button>';
   h+='<button class="btn'+(S.finBulkMode?' btn-p':'')+'" onclick="TF.finToggleBulk()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.finBulkMode?icon('x',12)+' Exit Bulk':'Bulk Edit')+'</button>';
   h+='<button class="btn btn-p" onclick="TF.openAddFinancePayment()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Payment</button>';
@@ -2055,6 +2061,7 @@ function rFinance(){
   h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--t1)">'+rfp.length+'</div><div class="cp-dash-met-l">Payments</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:var(--blue)">'+fmtUSD(avgPayment)+'</div><div class="cp-dash-met-l">Avg Payment</div></div>';
   if(prevRev>0)h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:'+(periodGrowth>=0?'var(--green)':'var(--red)')+'">'+(periodGrowth>=0?'+':'')+periodGrowth.toFixed(1)+'%</div><div class="cp-dash-met-l">vs Previous Period</div></div>';
+  if(totalOut>0)h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:var(--red)">'+fmtUSD(totalOut)+'</div><div class="cp-dash-met-l">Total Outflows</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.2s"><div class="cp-dash-met-v" style="color:'+(unmatchedCount>0?'var(--amber)':'var(--t4)')+'">'+unmatchedCount+'</div><div class="cp-dash-met-l">Unmatched</div></div>';
   if(splitCount>0)h+='<div class="cp-dash-met" style="animation-delay:0.25s"><div class="cp-dash-met-v" style="color:var(--blue)">'+splitCount+'</div><div class="cp-dash-met-l">Split</div></div>';
   if(undatedCount>0&&S.finRange!=='all')h+='<div class="cp-dash-met" style="animation-delay:0.3s"><div class="cp-dash-met-v" style="color:var(--t3);font-size:16px">'+undatedCount+'</div><div class="cp-dash-met-l">Undated ('+fmtUSD(undatedRev)+')</div></div>';
@@ -2124,15 +2131,17 @@ function rFinance(){
     if(topPayments.length){
       h+='<div class="chart-card" style="margin-top:16px"><h3>Top Payments</h3>';
       h+='<div class="tb-wrap" style="max-height:none"><table class="tb fin-tb fin-top-tb">';
-      h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th></tr></thead><tbody>';
+      h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Type</th><th>Source</th><th>Category</th><th>Client</th></tr></thead><tbody>';
       topPayments.forEach(function(p){
         var cName=clientNameById(p.clientId)||'—';
-        var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+        var amtColor=p.direction==='outflow'?'var(--red)':'var(--green)';
+        var amtPrefix=p.direction==='outflow'?'-':'';
         h+='<tr class="fin-row" onclick="TF.openFinancePaymentDetail(\''+escAttr(p.id)+'\')" style="cursor:pointer">';
         h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
         h+='<td>'+esc(p.payerName||p.payerEmail||'Unknown')+'</td>';
-        h+='<td class="r nm" style="color:var(--green);font-weight:700">'+fmtUSD(p.amount)+'</td>';
-        h+='<td><span class="fin-src fin-src-'+p.source+'">'+esc(srcLabel)+'</span></td>';
+        h+='<td class="r nm" style="color:'+amtColor+';font-weight:700">'+amtPrefix+fmtUSD(p.amount)+'</td>';
+        h+='<td><span class="fin-type fin-type-'+p.type+'">'+(TYPE_LABELS[p.type]||p.type)+'</span></td>';
+        h+='<td><span class="fin-src fin-src-'+p.source+'">'+esc(srcLabel(p.source))+'</span></td>';
         h+='<td>'+(p.category?'<span class="fin-cat">'+esc(p.category)+'</span>':'—')+'</td>';
         h+='<td>'+esc(cName)+'</td>';
         h+='</tr>'});
@@ -2151,6 +2160,12 @@ function rFinance(){
     h+='<button class="fin-tab'+(S.finFilter===t[0]?' on':'')+'" onclick="TF.setFinFilter(\''+t[0]+'\')">'+t[1];
     if(cnt>0)h+=' <span class="fin-tab-count">'+cnt+'</span>';
     h+='</button>'});
+  h+='</div>';
+  /* Direction filter */
+  h+='<div class="fin-dir-tabs">';
+  h+='<button class="fin-dir-tab'+(S.finDirection===''?' on':'')+'" onclick="TF.setFinDirection(\'\')">All</button>';
+  h+='<button class="fin-dir-tab fin-dir-in'+(S.finDirection==='inflow'?' on':'')+'" onclick="TF.setFinDirection(\'inflow\')">Inflows</button>';
+  h+='<button class="fin-dir-tab fin-dir-out'+(S.finDirection==='outflow'?' on':'')+'" onclick="TF.setFinDirection(\'outflow\')">Outflows</button>';
   h+='</div>';
   h+='<input class="fl fl-s" placeholder="Search payments..." value="'+esc(S.finSearch||'')+'" oninput="TF.setFinSearch(this.value)" style="max-width:260px">';
   h+='</div>';
@@ -2180,15 +2195,17 @@ function rFinance(){
   h+='<div class="tb-wrap"><table class="tb fin-tb">';
   h+='<thead><tr>';
   if(S.finBulkMode)h+='<th style="width:30px"><input type="checkbox" onclick="TF.finSelectAllVisible()" '+(bulkCount===filtered.length&&bulkCount>0?'checked':'')+' style="accent-color:var(--pink);cursor:pointer"></th>';
-  h+='<th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th></th></tr></thead>';
+  h+='<th>Date</th><th>Payer</th><th class="r">Amount</th><th>Type</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th></th></tr></thead>';
   h+='<tbody>';
   filtered.forEach(function(p,idx){
     var eid=escAttr(p.id);
     var clientName=clientNameById(p.clientId);
     var srcCls='fin-src fin-src-'+p.source;
-    var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
     var splits=p.status==='split'?getSplitsForPayment(p.id):[];
     var rowCls='fin-row'+(p.status==='unmatched'?' fin-unmatched':'')+(p.status==='split'?' fin-split-parent':'');
+    var isOut=p.direction==='outflow';
+    var amtColor=isOut?'var(--red)':'var(--green)';
+    var amtPrefix=isOut?'-':'';
 
     var rowClick=S.finBulkMode?'TF.finToggleSel(\''+eid+'\')':'TF.openFinancePaymentDetail(\''+eid+'\')';
     h+='<tr class="'+rowCls+(S.finBulkSelected[p.id]?' fin-bulk-sel':'')+'" onclick="'+rowClick+'">';
@@ -2197,8 +2214,9 @@ function rFinance(){
     h+='<td class="fin-payer"><span class="fin-payer-name">'+esc(p.payerName||p.payerEmail||'Unknown')+'</span>';
     if(p.payerEmail&&p.payerName)h+='<span class="fin-payer-email">'+esc(p.payerEmail)+'</span>';
     h+='</td>';
-    h+='<td class="r nm" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</td>';
-    h+='<td><span class="'+srcCls+'">'+esc(srcLabel)+'</span></td>';
+    h+='<td class="r nm" style="color:'+amtColor+';font-weight:600">'+amtPrefix+fmtUSD(p.amount)+'</td>';
+    h+='<td><span class="fin-type fin-type-'+p.type+'">'+(TYPE_LABELS[p.type]||p.type)+'</span></td>';
+    h+='<td><span class="'+srcCls+'">'+esc(srcLabel(p.source))+'</span></td>';
     /* Category: show split count if split, or normal category */
     h+='<td>';
     if(p.status==='split')h+='<span class="fin-cat fin-cat-split">Split ('+splits.length+')</span>';
@@ -2224,7 +2242,7 @@ function rFinance(){
         h+='<tr class="fin-split-row" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
         h+='<td></td><td class="fin-split-indent">↳</td>';
         h+='<td class="r nm" style="color:var(--green)">'+fmtUSD(sp.amount)+'</td>';
-        h+='<td></td>';
+        h+='<td></td><td></td>';
         h+='<td>'+(sp.category?'<span class="fin-cat">'+esc(sp.category)+'</span>':'')+'</td>';
         h+='<td style="font-size:11px;color:var(--t3)">'+(sp.endClient?esc(sp.endClient):'')+(sp.endClient&&cpName?' / ':'')+(cpName?esc(cpName):'')+'</td>';
         h+='<td colspan="2" class="fin-desc" style="font-size:11px">'+esc(sp.notes||'')+'</td>';

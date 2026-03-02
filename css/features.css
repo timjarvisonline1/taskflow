@@ -834,3 +834,52 @@
 .cl-edit-btn{display:inline-flex;align-items:center;opacity:0;margin-left:6px;cursor:pointer;color:var(--t4);transition:opacity .15s,color .15s}
 .cl-edit-btn:hover{color:var(--blue)}
 .cl-row:hover .cl-edit-btn{opacity:1}
+
+/* ── New source badges ── */
+.fin-src-mercury{background:rgba(108,92,231,.15);color:#6c5ce7}
+.fin-src-zoho_books{background:rgba(33,150,243,.15);color:#2196f3}
+.fin-src-zoho_payments{background:rgba(255,152,0,.15);color:#ff9800}
+
+/* ── Type badges ── */
+.fin-type{display:inline-flex;align-items:center;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;letter-spacing:.3px}
+.fin-type-payment{background:rgba(61,220,132,.08);color:var(--green)}
+.fin-type-invoice{background:rgba(77,166,255,.08);color:var(--blue)}
+.fin-type-bill{background:rgba(255,51,88,.08);color:var(--red)}
+.fin-type-expense{background:rgba(255,152,0,.08);color:var(--amber)}
+.fin-type-transfer{background:rgba(161,161,170,.08);color:var(--t3)}
+.fin-type-payout{background:rgba(168,85,247,.08);color:#a855f7}
+
+/* ── Direction filter tabs ── */
+.fin-dir-tabs{display:flex;gap:2px;background:var(--bg1);border-radius:8px;padding:2px}
+.fin-dir-tab{padding:5px 12px;border-radius:6px;border:none;background:transparent;color:var(--t3);font-size:11px;font-weight:600;font-family:var(--f);cursor:pointer;transition:all .2s var(--ease)}
+.fin-dir-tab.on{background:var(--glass);color:var(--t1);box-shadow:var(--shadow-sm)}
+.fin-dir-tab:hover:not(.on){color:var(--t1)}
+.fin-dir-in.on{color:var(--green)}
+.fin-dir-out.on{color:var(--red)}
+
+/* ── Integrations Modal ── */
+.intg-modal{display:flex;flex-direction:column;gap:16px;padding:4px 0;max-height:70vh;overflow-y:auto}
+.intg-card{background:var(--glass);border:1px solid var(--gborder);border-radius:12px;padding:18px 20px;transition:border-color .2s var(--ease)}
+.intg-card:hover{border-color:rgba(255,255,255,.08)}
+.intg-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.intg-card-title{display:flex;flex-direction:column;gap:2px}
+.intg-card-title strong{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.01em}
+.intg-card-desc{font-size:11px;color:var(--t4);letter-spacing:.01em}
+.intg-status{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:6px;white-space:nowrap}
+.intg-status-ok{background:rgba(61,220,132,.12);color:var(--green)}
+.intg-status-err{background:rgba(255,51,88,.12);color:var(--red)}
+.intg-status-off{background:rgba(161,161,170,.1);color:var(--t4)}
+.intg-sync-info{font-size:11px;color:var(--t3);margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap}
+.intg-sync-msg{font-weight:500}
+.intg-sync-err{color:var(--red)}
+.intg-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.intg-label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--t3);letter-spacing:.02em}
+.intg-input{padding:8px 10px;border-radius:8px;border:1px solid var(--gborder);background:var(--bg1);color:var(--t1);font-size:12px;font-family:var(--fd);transition:border-color .2s}
+.intg-input:focus{outline:none;border-color:var(--pink)}
+.intg-actions{display:flex;gap:8px;flex-wrap:wrap}
+.intg-test-result{margin-top:8px;font-size:12px;min-height:18px}
+
+@media(max-width:768px){
+  .intg-fields{grid-template-columns:1fr}
+  .fin-dir-tabs{margin-top:8px}
+}
