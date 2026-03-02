@@ -2,9 +2,12 @@ const { getServiceClient, verifyUserToken, cors } = require('../_lib/supabase');
 
 /**
  * POST /api/sync/cleanup-duplicates
- * One-time cleanup: removes duplicate records created by live sync
- * that already exist from CSV imports, and restores matched status
- * on Brex records that got overwritten.
+ * Cleanup:
+ * 1. All records dated BEFORE 2026-02-28 were already handled via CSV.
+ *    - Delete any new-source duplicates (zoho_books, zoho_payments, mercury)
+ *    - For brex: deduplicate keeping the matched version
+ *    - Mark remaining pre-Feb-28 unmatched records as 'excluded'
+ * 2. Restore 'matched' status on any record that has client_id but status='unmatched'
  */
 module.exports = async function handler(req, res) {
   cors(res);
@@ -15,63 +18,61 @@ module.exports = async function handler(req, res) {
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const client = getServiceClient();
-  const stats = { duplicatesRemoved: 0, statusRestored: 0, errors: [] };
+  const stats = { deleted: 0, excluded: 0, statusRestored: 0, errors: [] };
+  const CUTOFF = '2026-02-28';
 
   try {
     // 1. Get all finance payments for this user
     const { data: allPayments, error: fetchErr } = await client
       .from('finance_payments')
-      .select('id, source, source_id, date, amount, payer_email, payer_name, status, client_id, category, campaign_id, end_client, notes')
+      .select('id, source, source_id, date, amount, payer_email, payer_name, status, client_id')
       .eq('user_id', userId)
       .order('date', { ascending: false });
 
     if (fetchErr) throw fetchErr;
 
-    // Separate old (CSV) records from new (live sync) records
-    const oldSources = ['stripe', 'stripe2', 'zoho', 'brex'];
-    const newSources = ['zoho_books', 'zoho_payments', 'mercury'];
+    const toDelete = new Set();
 
-    const oldRecords = allPayments.filter(p => oldSources.includes(p.source));
-    const newRecords = allPayments.filter(p => newSources.includes(p.source));
+    // Sources from live sync vs CSV imports
+    const liveSources = ['zoho_books', 'zoho_payments', 'mercury'];
+    const csvSources = ['stripe', 'stripe2', 'zoho', 'brex'];
 
-    // Also check for Brex records that were overwritten (same source, status changed to unmatched)
-    // These would have client_id null/empty but were previously matched
-    const brexOldMatched = oldRecords.filter(p => p.source === 'brex' && p.status === 'matched');
-    const brexNewUnmatched = allPayments.filter(p => p.source === 'brex' && p.status === 'unmatched');
-
-    // 2. Build lookup index from old records: key = date + amount (rounded to 2 dp)
-    const oldIndex = {};
-    for (const old of oldRecords) {
-      if (!old.date) continue;
-      const key = old.date + '|' + Math.abs(parseFloat(old.amount) || 0).toFixed(2);
-      if (!oldIndex[key]) oldIndex[key] = [];
-      oldIndex[key].push(old);
-    }
-
-    // 3. Find new records that duplicate old ones (same date + amount)
-    const toDelete = [];
-    for (const rec of newRecords) {
-      if (!rec.date) continue;
-      const key = rec.date + '|' + Math.abs(parseFloat(rec.amount) || 0).toFixed(2);
-      const matches = oldIndex[key];
-      if (matches && matches.length > 0) {
-        toDelete.push(rec.id);
+    // 2. Delete ALL live-source records dated before cutoff (these are duplicates of CSV data)
+    for (const rec of allPayments) {
+      if (liveSources.includes(rec.source) && rec.date && rec.date < CUTOFF) {
+        toDelete.add(rec.id);
       }
     }
 
-    // 4. Also check Brex duplicates (same source='brex', different source_id, same date+amount)
-    const brexIndex = {};
+    // 3. Also delete live-source records with NO date that are duplicates
+    //    (Zoho Payments records with null dates — match by amount to CSV records)
+    const csvIndex = {};
     for (const rec of allPayments) {
-      if (rec.source !== 'brex') continue;
-      const key = rec.date + '|' + Math.abs(parseFloat(rec.amount) || 0).toFixed(2);
-      if (!brexIndex[key]) brexIndex[key] = [];
-      brexIndex[key].push(rec);
+      if (!csvSources.includes(rec.source)) continue;
+      const amt = Math.abs(parseFloat(rec.amount) || 0).toFixed(2);
+      if (!csvIndex[amt]) csvIndex[amt] = 0;
+      csvIndex[amt]++;
     }
-    // For Brex duplicates, keep the one with matched status (or the first one), delete the rest
-    for (const key of Object.keys(brexIndex)) {
-      const group = brexIndex[key];
+    for (const rec of allPayments) {
+      if (!liveSources.includes(rec.source)) continue;
+      if (rec.date) continue; // already handled above if before cutoff
+      const amt = Math.abs(parseFloat(rec.amount) || 0).toFixed(2);
+      if (csvIndex[amt]) {
+        toDelete.add(rec.id);
+      }
+    }
+
+    // 4. Deduplicate Brex records (same date + amount, keep matched version)
+    const brexByKey = {};
+    for (const rec of allPayments) {
+      if (rec.source !== 'brex' || toDelete.has(rec.id)) continue;
+      const key = (rec.date || 'nodate') + '|' + Math.abs(parseFloat(rec.amount) || 0).toFixed(2);
+      if (!brexByKey[key]) brexByKey[key] = [];
+      brexByKey[key].push(rec);
+    }
+    for (const key of Object.keys(brexByKey)) {
+      const group = brexByKey[key];
       if (group.length <= 1) continue;
-      // Sort: matched first, then by whether it has client_id
       group.sort((a, b) => {
         if (a.status === 'matched' && b.status !== 'matched') return -1;
         if (b.status === 'matched' && a.status !== 'matched') return 1;
@@ -79,30 +80,46 @@ module.exports = async function handler(req, res) {
         if (b.client_id && !a.client_id) return 1;
         return 0;
       });
-      // Keep first (best), delete rest
       for (let i = 1; i < group.length; i++) {
-        if (!toDelete.includes(group[i].id)) {
-          toDelete.push(group[i].id);
-        }
+        toDelete.add(group[i].id);
       }
     }
 
-    // 5. Delete duplicates in batches
-    if (toDelete.length > 0) {
-      // Delete in batches of 50
-      for (let i = 0; i < toDelete.length; i += 50) {
-        const batch = toDelete.slice(i, i + 50);
-        const { error: delErr } = await client
+    // 5. Delete in batches
+    const deleteIds = Array.from(toDelete);
+    for (let i = 0; i < deleteIds.length; i += 50) {
+      const batch = deleteIds.slice(i, i + 50);
+      const { error: delErr } = await client
+        .from('finance_payments')
+        .delete()
+        .in('id', batch);
+      if (delErr) stats.errors.push('Delete error: ' + delErr.message);
+      else stats.deleted += batch.length;
+    }
+
+    // 6. Mark remaining unmatched records before cutoff as 'excluded'
+    //    (These are CSV records that were already processed)
+    const { data: preExisting, error: peErr } = await client
+      .from('finance_payments')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'unmatched')
+      .lt('date', CUTOFF);
+
+    if (!peErr && preExisting && preExisting.length > 0) {
+      const ids = preExisting.map(r => r.id);
+      for (let i = 0; i < ids.length; i += 50) {
+        const batch = ids.slice(i, i + 50);
+        const { error: upErr } = await client
           .from('finance_payments')
-          .delete()
+          .update({ status: 'excluded' })
           .in('id', batch);
-        if (delErr) stats.errors.push('Delete batch error: ' + delErr.message);
-        else stats.duplicatesRemoved += batch.length;
+        if (upErr) stats.errors.push('Exclude error: ' + upErr.message);
+        else stats.excluded += batch.length;
       }
     }
 
-    // 6. Restore matched status on records that were overwritten
-    // Find records with client_id set but status='unmatched' (shouldn't happen)
+    // 7. Restore 'matched' on records that have client_id but status='unmatched'
     const { data: wrongStatus, error: wsErr } = await client
       .from('finance_payments')
       .select('id')
@@ -126,7 +143,8 @@ module.exports = async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      duplicatesRemoved: stats.duplicatesRemoved,
+      deleted: stats.deleted,
+      excluded: stats.excluded,
       statusRestored: stats.statusRestored,
       errors: stats.errors
     });

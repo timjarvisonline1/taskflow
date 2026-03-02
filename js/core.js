@@ -593,7 +593,7 @@ async function cleanupDuplicates(){
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
     var result=await resp.json();
     if(result.success){
-      toast('Cleanup done: '+result.duplicatesRemoved+' duplicates removed, '+result.statusRestored+' statuses restored','ok');
+      toast('Cleanup: '+(result.deleted||0)+' deleted, '+(result.excluded||0)+' excluded, '+(result.statusRestored||0)+' restored','ok');
       await loadFinancePayments();render();
     }else{
       toast('Cleanup failed: '+(result.error||'Unknown'),'warn');

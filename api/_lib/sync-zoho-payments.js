@@ -14,7 +14,7 @@ async function syncZohoPayments(userId) {
 
   const accessToken = await refreshZohoToken(cred, 'zoho_payments');
   const headers = { 'Authorization': 'Zoho-oauthtoken ' + accessToken };
-  const stats = { fetched: 0, inserted: 0, updated: 0, error: '' };
+  const stats = { fetched: 0, inserted: 0, updated: 0, error: '', debug: '' };
 
   try {
     // 1. Sync Payments (money received via credit card/ACH)
@@ -31,12 +31,25 @@ async function syncZohoPayments(userId) {
       const payments = (data.data || data.payments || []);
       stats.fetched += payments.length;
 
+      // Log first record's keys for debugging date field
+      if (page === 1 && payments.length > 0) {
+        const sample = payments[0];
+        const dateFields = Object.keys(sample).filter(k =>
+          k.includes('date') || k.includes('time') || k.includes('created') || k.includes('paid')
+        );
+        stats.debug = 'date_fields:[' + dateFields.map(k => k + '=' + (sample[k] || 'null')).join(', ') + ']';
+      }
+
       for (const pay of payments) {
         const amount = parseFloat(pay.amount) || 0;
         const fee = parseFloat(pay.fee_amount || pay.fee || 0);
 
+        // Try multiple date field names
+        const payDate = pay.date || pay.payment_date || pay.paid_at || pay.created_time || pay.created_date || null;
+        const dateStr = payDate ? (payDate.length > 10 ? payDate.split('T')[0] : payDate) : null;
+
         const result = await upsertPayment(userId, 'zoho_payments', pay.payment_id, {
-          date: pay.created_time ? pay.created_time.split('T')[0] : null,
+          date: dateStr,
           amount: amount,
           fee: fee,
           net: amount - fee,
@@ -95,8 +108,11 @@ async function syncZohoPayments(userId) {
           const poStatus = (po.status || '').toLowerCase();
           const isPending = (poStatus === 'initiated' || poStatus === 'in_transit');
 
+          const poDate = po.arrival_date || po.date || po.payout_date || po.created_time || po.created_date || null;
+          const poDateStr = poDate ? (poDate.length > 10 ? poDate.split('T')[0] : poDate) : null;
+
           const result = await upsertPayment(userId, 'zoho_payments', sourceId, {
-            date: po.arrival_date || po.created_time ? (po.arrival_date || po.created_time.split('T')[0]) : null,
+            date: poDateStr,
             amount: amount,
             fee: 0,
             net: amount,
@@ -129,7 +145,8 @@ async function syncZohoPayments(userId) {
       console.log('Payouts sync skipped: ' + payoutErr.message);
     }
 
-    await updateSyncStatus(userId, 'zoho_payments', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated');
+    const msg = stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.debug ? ' | ' + stats.debug : '');
+    await updateSyncStatus(userId, 'zoho_payments', 'ok', msg);
     await logSync(userId, 'zoho_payments', 'poll', stats);
     return stats;
   } catch (e) {
