@@ -232,8 +232,19 @@ Sources eligible for client matching: `zoho_payments`, `mercury`, `stripe`, `str
 
 In `api/_lib/supabase.js`, the `upsertPayment` function:
 1. Checks for existing record by `source + source_id`
-2. If exists: updates amount, fee, date, status fields — but **never** overwrites `status` or `client_id` (preserves user's matched state)
-3. If new: checks `payer_client_map` for auto-matching, then inserts
+2. If exists: updates sync-safe fields (amount, fee, date, external_status, etc.) — but **never** overwrites `status` or `client_id` (preserves user's matched state)
+3. **Cross-source duplicate check**: before inserting, checks if a record with the same `date + amount` (±$0.01) already exists from a **different** source. If so, returns `{ action: 'skipped' }` — this prevents Zoho Payments from re-creating records already imported via CSV (where `source='zoho'` vs `source='zoho_payments'`)
+4. If new: checks `payer_client_map` for auto-matching, then inserts
+
+### Cleanup Endpoint
+
+`POST /api/sync/cleanup-duplicates` — one-time cleanup tool (button in Integrations modal):
+1. Deletes all live-source records (zoho_books, zoho_payments, mercury) dated before 2026-02-28 (CSV cutoff)
+2. Cross-source duplicate removal: deletes live-source records matching CSV records by date+amount (any date)
+3. Deletes null-date live-source records matching CSV records by amount alone
+4. Deduplicates Brex records (same date+amount), keeping the matched version
+5. Marks remaining pre-cutoff unmatched records as 'excluded'
+6. Restores 'matched' status on records that have client_id but status='unmatched'
 
 ### API Integration Details
 
@@ -263,7 +274,8 @@ In `api/_lib/supabase.js`, the `upsertPayment` function:
 - Auth: `Authorization: Zoho-oauthtoken {access_token}` + `?account_id={id}`
 - Scope prefix: `ZohoPay` (not `ZohoPayments`)
 - Scopes: `ZohoPay.payments.READ,ZohoPay.payouts.READ`
-- Amounts in **dollars** (not cents)
+- Amounts in **dollars** (not cents — do NOT divide by 100)
+- Date fields may return Unix timestamps (epoch seconds like `1772277589`) — use `parseDate()` helper in sync-zoho-payments.js to handle all formats
 
 **Zoho OAuth (both):**
 - Token endpoint: `https://accounts.zoho.com/oauth/v2/token`
@@ -340,11 +352,49 @@ All tables have RLS policies: users can only read/write their own data.
 4. Add platform config in `INTG_PLATFORMS` array in `modals.js`
 5. Add source badge color in `css/features.css`
 
+## Sync Behavior
+
+### Incremental vs Full Sync
+- **Zoho Books**: Uses `last_sync_at` for date filtering. If `last_sync_message` starts with "0 new, 0 updated", treats as first sync (no date filter) to recover from failed initial syncs
+- **Zoho Payments**: Always fetches all records, relies on upsert dedup + cross-source skip
+- **Brex**: Always fetches all records, relies on upsert dedup (no `posted_at_start` — causes 400)
+- **Mercury**: Uses `last_sync_at` or defaults to 90 days ago
+
+### Cross-Source Deduplication
+A single real-world payment creates records in multiple sources. The system handles this at two levels:
+1. **upsertPayment** prevents future duplicates by checking date+amount across sources before insert
+2. **cleanup-duplicates** endpoint removes existing duplicates retroactively
+3. **Unmatched view** excludes `zoho_books` and `brex` sources entirely (only shows `zoho_payments`, `mercury`, and legacy CSV sources)
+
+### CSV Data Cutoff
+All CSV-imported data covers up to 2026-02-28. Live sync data starts from this date. The cleanup endpoint uses this cutoff to identify and remove duplicates.
+
 ## Known Quirks
 
 - Brex `posted_at_start` parameter causes 400 errors — removed entirely
-- Zoho Books `/expenses` doesn't support `sort_column=last_modified_time`
+- Zoho Books `/expenses` doesn't support `sort_column=last_modified_time` — use `date` instead
+- Zoho Payments date fields return Unix timestamps (epoch seconds) — `parseDate()` helper handles conversion
 - Zoho's Self Client generates a ONE-TIME auth code — must be exchanged within 10 minutes
+- Test Connection endpoint merges stored credentials with form fields — no need to re-enter everything
 - Toast messages last 8s for errors, 3.2s for success
 - `vercel.json` maxDuration only applies to `api/sync/*.js` (60s)
 - CSV-imported records use source names `stripe`, `stripe2`, `zoho`, `brex` while live sync uses `zoho_books`, `zoho_payments`, `mercury`, `brex`
+
+## Current Status (as of 2026-03-02)
+
+### Integrations
+- **Brex**: Connected, syncing ~308 transactions
+- **Mercury**: Connected, syncing
+- **Zoho Books**: Connected, syncing (orgId 899890816 — Film&Content LLC)
+- **Zoho Payments**: Connected, syncing ~69 records
+
+### What's Working
+- All four platforms sync via "Sync Now" buttons
+- Cross-source duplicate prevention on insert
+- Unmatched view filters to only actionable customer payments
+- Cleanup endpoint removes historical duplicates
+- Test Connection works without re-entering stored credentials
+
+### Next Steps
+- Set up external cron scheduler (cron-job.org) for automatic 15-minute syncs
+- Build cash flow forecasting feature using all synced financial data
