@@ -335,7 +335,7 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   /* Migrate old view IDs to new structure */
   var viewMap={overview:'today',schedule:'today',analytics:'tasks',meetings:'today',weekly:'tasks',templates:'tasks',pipeline:'opportunities',review:'tasks'};
   if(viewMap[S.view])S.view=viewMap[S.view]}catch(e){}}
-function toast(msg,type){var t=cel('div','toast toast-'+(type||'ok'),msg);gel('toasts').appendChild(t);setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t)},3200)}
+function toast(msg,type){var t=cel('div','toast toast-'+(type||'ok'),msg);gel('toasts').appendChild(t);var dur=(type==='warn'||type==='err')?8000:3200;setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t)},dur)}
 
 /* ═══════════ DATA — Supabase queries ═══════════ */
 /* Helper to get current user ID */
@@ -567,14 +567,21 @@ async function triggerSync(platform){
     if(!sess.data.session)return;
     var token=sess.data.session.access_token;
     toast('Syncing '+platform+'...','info');
+    var platId=platform.replace(/-/g,'_');
     var resp=await fetch('/api/sync/'+platform,{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
     var result=await resp.json();
     if(result.success){
       toast(platform+' synced: '+result.inserted+' new, '+result.updated+' updated','ok');
       await loadFinancePayments();await loadIntegrations();render();
-    }else{toast(platform+' sync failed: '+(result.error||'Unknown error'),'warn')}
-  }catch(e){toast('Sync error: '+e.message,'warn')}}
+    }else{
+      var errMsg=result.error||'Unknown error';
+      console.error(platform+' sync error:',errMsg);
+      toast(platform+' sync failed. Check Integrations modal for details.','warn');
+      var el=gel('intg-result-'+platId);
+      if(el)el.innerHTML='<span style="color:var(--red);white-space:pre-wrap;word-break:break-all">Sync failed: '+esc(errMsg)+'</span>';
+    }
+  }catch(e){console.error('Sync error:',e);toast('Sync error: '+e.message,'warn')}}
 
 async function saveIntegrationCredentials(platform,credentials,config){
   try{
