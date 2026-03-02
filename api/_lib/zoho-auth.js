@@ -69,9 +69,16 @@ async function exchangeZohoCode(clientId, clientSecret, code) {
     body: params
   });
 
-  const data = await resp.json();
+  const text = await resp.text();
+  let data;
+  try { data = JSON.parse(text); } catch (e) {
+    throw new Error('Zoho returned non-JSON (HTTP ' + resp.status + '): ' + text.substring(0, 200));
+  }
   if (data.error) {
     throw new Error('Zoho code exchange failed: ' + (data.error_description || data.error));
+  }
+  if (!data.access_token) {
+    throw new Error('Zoho returned no access_token: ' + JSON.stringify(data).substring(0, 200));
   }
 
   return {

@@ -73,7 +73,10 @@ async function testZohoBooks(res, userId, creds, config) {
   const resp = await fetch('https://www.zohoapis.com/books/v3/organizations', {
     headers: { 'Authorization': 'Zoho-oauthtoken ' + accessToken }
   });
-  if (!resp.ok) throw new Error('Zoho Books API returned ' + resp.status);
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error('Zoho Books API returned ' + resp.status + ': ' + errText.substring(0, 200));
+  }
   const data = await resp.json();
   const orgs = data.organizations || [];
 
