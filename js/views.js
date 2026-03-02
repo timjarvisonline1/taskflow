@@ -2613,6 +2613,7 @@ function rFinanceOverview(){
   var h='<div class="fin-analytics">';
   var bal=getCombinedBalance();
   var byPlat=getBalanceByPlatform();
+  var platKeys=Object.keys(byPlat);
   var lastSync=S.accountBalances.length?S.accountBalances[0].capturedAt:null;
 
   /* Recent card spending (last 7 days) */
@@ -2631,7 +2632,6 @@ function rFinanceOverview(){
   h+='<div style="font-size:28px;font-weight:700;color:var(--green)">'+fmtUSD(bal)+'</div>';
   if(lastSync)h+='<div style="font-size:10px;opacity:0.4;margin-top:6px">Last synced '+fmtRelative(lastSync)+'</div>';
   h+='</div>';
-  var platKeys=Object.keys(byPlat);
   platKeys.forEach(function(pk){
     var p=byPlat[pk];
     p.accounts.forEach(function(a){

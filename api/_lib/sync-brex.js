@@ -47,7 +47,7 @@ async function syncBrex(userId) {
       let hasMore = true;
 
       while (hasMore) {
-        const params = ['posted_at_start=' + encodeURIComponent(since)];
+        const params = ['posted_at_start=' + since];
         if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
         const url = BREX_BASE + '/v2/transactions/cash/' + encodeURIComponent(acct.id) + '?' + params.join('&');
 
@@ -100,7 +100,7 @@ async function syncBrex(userId) {
     let cardHasMore = true;
 
     while (cardHasMore) {
-      const cardParams = ['posted_at_start=' + encodeURIComponent(since)];
+      const cardParams = ['posted_at_start=' + since];
       if (cardCursor) cardParams.push('cursor=' + encodeURIComponent(cardCursor));
       const cardUrl = BREX_BASE + '/v2/transactions/card/primary?' + cardParams.join('&');
 
