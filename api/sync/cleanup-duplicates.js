@@ -114,6 +114,29 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // 5b. Deduplicate Zoho Books records (same source, same date+amount+direction, keep matched)
+    const zohoByKey = {};
+    for (const rec of allPayments) {
+      if (rec.source !== 'zoho_books' || toDelete.has(rec.id)) continue;
+      const key = (rec.date || 'nodate') + '|' + Math.abs(parseFloat(rec.amount) || 0).toFixed(2) + '|' + (rec.direction || '');
+      if (!zohoByKey[key]) zohoByKey[key] = [];
+      zohoByKey[key].push(rec);
+    }
+    for (const key of Object.keys(zohoByKey)) {
+      const group = zohoByKey[key];
+      if (group.length <= 1) continue;
+      group.sort((a, b) => {
+        if (a.status === 'matched' && b.status !== 'matched') return -1;
+        if (b.status === 'matched' && a.status !== 'matched') return 1;
+        if (a.client_id && !b.client_id) return -1;
+        if (b.client_id && !a.client_id) return 1;
+        return 0;
+      });
+      for (let i = 1; i < group.length; i++) {
+        toDelete.add(group[i].id);
+      }
+    }
+
     // 6. Delete in batches
     const deleteIds = Array.from(toDelete);
     for (let i = 0; i < deleteIds.length; i += 50) {

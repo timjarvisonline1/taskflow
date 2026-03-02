@@ -40,12 +40,6 @@ async function syncBrex(userId) {
     //    internal transfer between Brex sub-accounts — skip it entirely.
     const acctNames = accounts.map(function(a) { return (a.name || '').toLowerCase(); }).filter(Boolean);
 
-    // 3. Compute incremental sync start date (ISO 8601 format required by Brex API)
-    //    posted_at_start parameter needs full ISO 8601: 2026-02-28T00:00:00Z
-    const cutoffISO = CSV_CUTOFF + 'T00:00:00Z';
-    let since = cred.last_sync_at ? new Date(cred.last_sync_at).toISOString() : cutoffISO;
-    if (since < cutoffISO) since = cutoffISO;
-
     // Helper: detect internal transfers + balance clears
     function isInternalOrNoise(desc) {
       const d = (desc || '').toLowerCase();
@@ -116,14 +110,15 @@ async function syncBrex(userId) {
       }
     }
 
-    // 4. Fetch card transactions from primary card account (incremental)
+    // 4. Fetch card transactions from primary card account
+    //    Card endpoint also returns 400 with posted_at_start, so fetch all + filter client-side.
     let cardCursor = null;
     let cardHasMore = true;
 
     while (cardHasMore) {
-      const cardParams = ['posted_at_start=' + since];
+      const cardParams = [];
       if (cardCursor) cardParams.push('cursor=' + encodeURIComponent(cardCursor));
-      const cardUrl = BREX_BASE + '/v2/transactions/card/primary?' + cardParams.join('&');
+      const cardUrl = BREX_BASE + '/v2/transactions/card/primary' + (cardParams.length ? '?' + cardParams.join('&') : '');
 
       const cardResp = await fetch(cardUrl, { headers });
       if (!cardResp.ok) {
