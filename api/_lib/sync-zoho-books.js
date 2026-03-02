@@ -17,11 +17,13 @@ async function syncZohoBooks(userId) {
   const headers = { 'Authorization': 'Zoho-oauthtoken ' + accessToken };
   const stats = { fetched: 0, inserted: 0, updated: 0, error: '', debug: '' };
 
-  // For incremental syncs use last_sync_at; for first sync fetch everything
-  const isFirstSync = !cred.last_sync_at;
-  const since = isFirstSync
-    ? null
-    : new Date(cred.last_sync_at).toISOString().split('T')[0];
+  // For incremental syncs use last_sync_at; for first sync fetch everything.
+  // Also treat it as a first sync if last sync found nothing (last_sync_message starts with '0 new')
+  const lastMsg = cred.last_sync_message || '';
+  const hadData = cred.last_sync_at && !lastMsg.startsWith('0 new, 0 updated');
+  const since = hadData
+    ? new Date(cred.last_sync_at).toISOString().split('T')[0]
+    : null;
 
   try {
     // 1. Invoices (inflow — represents money owed to us)
@@ -145,7 +147,8 @@ async function syncZohoBooks(userId) {
       })
     });
 
-    const msg = stats.inserted + ' new, ' + stats.updated + ' updated (orgId=' + orgId + ' ' + stats.debug.trim() + ')';
+    const syncMode = since ? 'since=' + since : 'full';
+    const msg = stats.inserted + ' new, ' + stats.updated + ' updated (' + syncMode + ' orgId=' + orgId + ' ' + stats.debug.trim() + ')';
     await updateSyncStatus(userId, 'zoho_books', 'ok', msg);
     await logSync(userId, 'zoho_books', 'poll', stats);
     return stats;
