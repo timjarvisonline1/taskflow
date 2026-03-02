@@ -9,20 +9,25 @@ async function syncBrex(userId) {
   const apiKey = cred.credentials.api_key;
   if (!apiKey) throw new Error('Brex API key missing');
 
-  const headers = { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' };
+  const headers = { 'Authorization': 'Bearer ' + apiKey };
   const stats = { fetched: 0, inserted: 0, updated: 0, error: '' };
 
   try {
     // 1. Get cash accounts
     const acctResp = await fetch(BREX_BASE + '/v2/accounts/cash', { headers });
-    if (!acctResp.ok) throw new Error('Brex accounts API: ' + acctResp.status);
+    if (!acctResp.ok) {
+      const errText = await acctResp.text();
+      throw new Error('Brex accounts API ' + acctResp.status + ': ' + errText.substring(0, 300));
+    }
     const acctData = await acctResp.json();
     const accounts = acctData.items || [];
 
     // Use last_sync_at or default to 90 days ago
-    const since = cred.last_sync_at
-      ? new Date(cred.last_sync_at).toISOString()
-      : new Date(Date.now() - 90 * 86400000).toISOString();
+    // Brex expects ISO 8601 without milliseconds: YYYY-MM-DDTHH:MM:SSZ
+    const sinceDate = cred.last_sync_at
+      ? new Date(cred.last_sync_at)
+      : new Date(Date.now() - 90 * 86400000);
+    const since = sinceDate.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
     // 2. Fetch transactions for each cash account
     for (const acct of accounts) {
@@ -34,7 +39,10 @@ async function syncBrex(userId) {
         if (cursor) url += '&cursor=' + encodeURIComponent(cursor);
 
         const txResp = await fetch(url, { headers });
-        if (!txResp.ok) throw new Error('Brex transactions API: ' + txResp.status);
+        if (!txResp.ok) {
+          const txErr = await txResp.text();
+          throw new Error('Brex transactions API ' + txResp.status + ': ' + txErr.substring(0, 300));
+        }
         const txData = await txResp.json();
         const items = txData.items || [];
         stats.fetched += items.length;
