@@ -1,10 +1,10 @@
 {
   "functions": {
     "api/sync/*.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/cron/*.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "rewrites": [

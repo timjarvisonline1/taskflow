@@ -1,4 +1,4 @@
-const { getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountBalance } = require('./supabase');
+const { getServiceClient, getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountBalance } = require('./supabase');
 
 const BREX_BASE = 'https://platform.brexapis.com';
 const CSV_CUTOFF = '2026-02-28'; // All data before this date was imported via CSV — never re-sync
@@ -36,25 +36,41 @@ async function syncBrex(userId) {
     }
 
     // 2. Build set of account names for internal transfer detection
-    //    Any transaction whose description starts with a known account name is an
-    //    internal transfer between Brex sub-accounts — skip it entirely.
     const acctNames = accounts.map(function(a) { return (a.name || '').toLowerCase(); }).filter(Boolean);
 
-    // Helper: detect internal transfers + balance clears
     function isInternalOrNoise(desc) {
       const d = (desc || '').toLowerCase();
-      // Balance clearing payments (credit card payoff from cash account)
       if (d.includes('payment') && d.includes('thank you')) return true;
-      // Description starts with a known Brex account name → internal transfer
       for (let i = 0; i < acctNames.length; i++) {
         if (d.startsWith(acctNames[i])) return true;
       }
       return false;
     }
 
+    // 3. Pre-fetch ALL existing Brex source_ids in one query.
+    //    This lets us skip already-synced records instantly (no DB round-trip per record).
+    //    Critical for performance: Brex API returns ALL history (no date filtering),
+    //    so without this, 7000+ records × 3-4 DB queries each = 504 timeout.
+    const client = getServiceClient();
+    const existingIds = new Set();
+    let offset = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data: rows } = await client
+        .from('finance_payments')
+        .select('source_id')
+        .eq('user_id', userId)
+        .eq('source', 'brex')
+        .range(offset, offset + PAGE - 1);
+      if (!rows || rows.length === 0) break;
+      rows.forEach(function(r) { if (r.source_id) existingIds.add(r.source_id); });
+      if (rows.length < PAGE) break;
+      offset += PAGE;
+    }
+
     // 4. Fetch cash transactions for each account
-    //    Cash endpoint doesn't reliably support posted_at_start (returns 400),
-    //    so we fetch all and filter client-side. Cash txns are low-volume (wires, ACH).
+    //    Brex API doesn't support posted_at_start on cash (returns 400),
+    //    so we fetch all and skip already-synced records via existingIds.
     for (const acct of accounts) {
       let cursor = null;
       let hasMore = true;
@@ -74,16 +90,19 @@ async function syncBrex(userId) {
         stats.fetched += items.length;
 
         for (const tx of items) {
+          // Fast skip: already synced (no DB call needed)
+          if (existingIds.has(tx.id)) { stats.skipped++; continue; }
+
           const rawAmount = (tx.amount && tx.amount.amount) ? parseFloat(tx.amount.amount) / 100 : 0;
           const direction = rawAmount >= 0 ? 'inflow' : 'outflow';
           const amount = Math.abs(rawAmount);
           const txDate = tx.posted_at_date || tx.initiated_at_date || null;
 
-          // Skip records before CSV cutoff (belt-and-suspenders with API filter)
+          // Skip records before CSV cutoff
           if (txDate && txDate < CSV_CUTOFF) { stats.skipped++; continue; }
-          // Skip internal transfers (account-to-account moves — noise)
+          // Skip internal transfers (account-to-account moves)
           if (tx.type === 'TRANSFER') { stats.skipped++; continue; }
-          // Skip card settlement sweeps (daily aggregate debits like "Brex Card -$6,040.64")
+          // Skip card settlement sweeps
           const txDesc = (tx.description || '').toLowerCase();
           if (txDesc === 'brex card' || txDesc.startsWith('brex card ')) { stats.skipped++; continue; }
           // Skip internal transfers (description matches account name) + balance clears
@@ -110,8 +129,9 @@ async function syncBrex(userId) {
       }
     }
 
-    // 4. Fetch card transactions from primary card account
-    //    Card endpoint also returns 400 with posted_at_start, so fetch all + filter client-side.
+    // 5. Fetch card transactions from primary card account
+    //    Brex API also returns 400 with posted_at_start on cards,
+    //    so we fetch all and skip already-synced records via existingIds.
     let cardCursor = null;
     let cardHasMore = true;
 
@@ -133,6 +153,9 @@ async function syncBrex(userId) {
       stats.fetched += cardItems.length;
 
       for (const tx of cardItems) {
+        // Fast skip: already synced (no DB call needed)
+        if (existingIds.has(tx.id)) { stats.skipped++; continue; }
+
         const rawAmount = (tx.amount && tx.amount.amount) ? parseFloat(tx.amount.amount) / 100 : 0;
         const amount = Math.abs(rawAmount);
         const merchantDesc = (tx.merchant && tx.merchant.raw_descriptor) ? tx.merchant.raw_descriptor : (tx.description || '');
