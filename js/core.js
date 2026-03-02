@@ -950,7 +950,13 @@ function applyFilters(items,useDate){var f=S.filters;return items.filter(functio
 function setFinFilter(v){S.finFilter=v;render()}
 function finFilteredPayments(){
   var fp=S.financePayments.slice();
-  if(S.finFilter==='unmatched')fp=fp.filter(function(p){return p.status==='unmatched'});
+  /* Always exclude 'excluded' records */
+  fp=fp.filter(function(p){return p.status!=='excluded'});
+  if(S.finFilter==='unmatched'){
+    /* Unmatched: only inflow payments needing client matching.
+       Excludes invoices, payouts, outflows, transfers, bills, expenses */
+    fp=fp.filter(function(p){return p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment'});
+  }
   else if(S.finFilter==='matched')fp=fp.filter(function(p){return p.status==='matched'});
   else if(S.finFilter==='split')fp=fp.filter(function(p){return p.status==='split'});
   if(S.finDirection)fp=fp.filter(function(p){return p.direction===S.finDirection});
