@@ -56,6 +56,7 @@ var ICONS={
 function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"')}return s}
 
 var PAY_CATS=['Products','Retain Live','F&C Campaign Set-Up','F&C Strategy','F&C Monthly Fees','Other'];
+var EXPENSE_CATS=['Software & SaaS','Advertising & Marketing','Travel','Food & Dining','Office & Supplies','Professional Services','Subscriptions','Insurance','Taxes & Fees','Personal','Uncategorised'];
 
 var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],timers:{},view:'today',subView:'',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
@@ -1043,6 +1044,12 @@ function autoReconcile(){
   render()}
 
 /* ── Expense Reconciliation ── */
+async function setExpenseCategory(paymentId,category){
+  await dbEditFinancePayment(paymentId,{category:category});
+  var p=S.financePayments.find(function(fp){return fp.id===paymentId});
+  if(p)p.category=category;
+  toast('Category set to '+(category||'none'),'ok')}
+
 async function linkExpenseToScheduled(paymentId,scheduledItemId){
   var ok=await dbEditFinancePayment(paymentId,{scheduledItemId:scheduledItemId,status:'matched'});
   if(!ok)return;

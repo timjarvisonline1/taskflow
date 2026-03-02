@@ -2276,7 +2276,8 @@ function rFinancePayments(){
     var amtColor=isOut?'var(--red)':'var(--green)';
     var amtPrefix=isOut?'-':'';
 
-    var rowClick=S.finBulkMode?'TF.finToggleSel(\''+eid+'\')':'TF.openFinancePaymentDetail(\''+eid+'\')';
+    var isExpenseRow=S.finFilter==='expenses'&&p.direction==='outflow'&&p.type!=='transfer';
+    var rowClick=S.finBulkMode?'TF.finToggleSel(\''+eid+'\')':(isExpenseRow?'TF.openExpenseReconcileModal(\''+eid+'\')':'TF.openFinancePaymentDetail(\''+eid+'\')');
     h+='<tr class="'+rowCls+(S.finBulkSelected[p.id]?' fin-bulk-sel':'')+'" onclick="'+rowClick+'">';
     if(S.finBulkMode)h+='<td onclick="event.stopPropagation();TF.finToggleSel(\''+eid+'\')"><input type="checkbox" '+(S.finBulkSelected[p.id]?'checked':'')+' style="accent-color:var(--pink);cursor:pointer"></td>';
     h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
@@ -2624,22 +2625,38 @@ function rFinanceOverview(){
   }).reduce(function(s,p){return s+p.amount},0);
   var unreconciledExp=S.financePayments.filter(function(p){return p.direction==='outflow'&&p.type!=='transfer'&&!p.scheduledItemId&&p.status!=='excluded'}).length;
 
+  /* Calculate unsettled card spend — card transactions not yet swept from cash account.
+     Brex settles card charges daily, so today's card transactions haven't been deducted yet. */
+  var todayStr=new Date().toISOString().split('T')[0];
+  var unsettledCardSpend=S.financePayments.filter(function(p){
+    var meta=typeof p.metadata==='string'?JSON.parse(p.metadata||'{}'):p.metadata||{};
+    if(meta.brex_type!=='card'||p.status==='excluded')return false;
+    if(!p.date)return false;
+    var pDate=p.date instanceof Date?p.date.toISOString().split('T')[0]:p.date;
+    return pDate>=todayStr;
+  }).reduce(function(s,p){return s+p.amount},0);
+
   /* Row 1 — Balance cards */
   var balCols=2+platKeys.length+(unreconciledExp>0?1:0);
   h+='<div style="display:grid;grid-template-columns:repeat('+Math.min(balCols,4)+',1fr);gap:16px;margin-bottom:20px">';
   h+='<div class="chart-card" style="text-align:center;padding:24px;background:linear-gradient(135deg,var(--card) 0%,rgba(61,220,132,0.05) 100%);border:1px solid rgba(61,220,132,0.2)">';
   h+='<div style="font-size:12px;opacity:0.6;margin-bottom:4px">Combined Balance</div>';
-  h+='<div style="font-size:28px;font-weight:700;color:var(--green)">'+fmtUSD(bal)+'</div>';
+  h+='<div style="font-size:28px;font-weight:700;color:var(--green)">'+fmtUSD(bal-unsettledCardSpend)+'</div>';
   if(lastSync)h+='<div style="font-size:10px;opacity:0.4;margin-top:6px">Last synced '+fmtRelative(lastSync)+'</div>';
   h+='</div>';
+
   platKeys.forEach(function(pk){
     var p=byPlat[pk];
     p.accounts.forEach(function(a){
+      var isPrimaryBrex=pk==='brex'&&(a.accountName||'').toLowerCase().indexOf('primary')>=0;
+      var displayBal=isPrimaryBrex?a.currentBalance-unsettledCardSpend:a.currentBalance;
       h+='<div class="chart-card" style="text-align:center;padding:20px">';
       h+='<div style="font-size:11px;opacity:0.6;margin-bottom:4px">'+esc(a.accountName||a.platform)+'</div>';
-      h+='<div style="font-size:20px;font-weight:600">'+fmtUSD(a.currentBalance)+'</div>';
+      h+='<div style="font-size:20px;font-weight:600">'+fmtUSD(displayBal)+'</div>';
       h+='<div style="font-size:10px;opacity:0.4;margin-top:4px">'+esc(a.platform)+' • '+esc(a.accountType)+'</div>';
-      if(pk==='brex'&&recentCardSpend>0){
+      if(isPrimaryBrex&&unsettledCardSpend>0){
+        h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">Pending card spend: -'+fmtUSD(unsettledCardSpend)+'</div>'}
+      else if(pk==='brex'&&recentCardSpend>0){
         h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">Card spend (7d): -'+fmtUSD(recentCardSpend)+'</div>'}
       h+='</div>'})});
   /* Unreconciled expenses CTA */

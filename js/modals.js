@@ -2258,10 +2258,18 @@ function openFinancePaymentDetail(id){
     h+='</div>';}
 
   /* Other payments from same payer — with checkboxes */
+  /* Exclude likely cross-source duplicates (same date ±1 day, same amount, different source) */
   var payerKey=p.payerEmail||p.payerName;
   if(payerKey){
     var related=S.financePayments.filter(function(fp){
-      return fp.id!==p.id&&((p.payerEmail&&fp.payerEmail===p.payerEmail)||(p.payerName&&fp.payerName===p.payerName))});
+      if(fp.id===p.id)return false;
+      if(!(p.payerEmail&&fp.payerEmail===p.payerEmail)&&!(p.payerName&&fp.payerName===p.payerName))return false;
+      /* Filter out cross-source duplicates (same amount, close date, different source) */
+      if(fp.source!==p.source&&Math.abs(fp.amount-p.amount)<0.02){
+        if(!fp.date||!p.date)return false;
+        var dayDiff=Math.abs((fp.date instanceof Date?fp.date:new Date(fp.date))-(p.date instanceof Date?p.date:new Date(p.date)));
+        if(dayDiff<=86400000*2)return false} /* Within 2 days = likely duplicate */
+      return true});
     if(related.length){
       var unmatchedRelated=related.filter(function(rp){return rp.status==='unmatched'});
       h+='<div class="ed-section" style="margin-top:16px">';
@@ -2566,6 +2574,15 @@ function openExpenseReconcileModal(paymentId){
   h+='</div>';
   h+='<div style="font-size:22px;font-weight:700;color:var(--red)">-'+fmtUSD(p.amount)+'</div>';
   h+='</div></div>';
+
+  /* Category selector for one-off / uncategorised expenses */
+  h+='<div style="margin-bottom:16px">';
+  h+='<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Expense Category</div>';
+  h+='<select class="edf" id="recon-category" onchange="TF.setExpenseCategory(\''+escAttr(p.id)+'\',this.value)" style="width:100%">';
+  h+='<option value="">— Select Category —</option>';
+  EXPENSE_CATS.forEach(function(c){h+='<option value="'+esc(c)+'"'+(p.category===c?' selected':'')+'>'+esc(c)+'</option>'});
+  h+='</select>';
+  h+='</div>';
 
   /* Already linked? */
   if(p.scheduledItemId){

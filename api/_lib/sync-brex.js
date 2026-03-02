@@ -141,7 +141,8 @@ async function syncBrex(userId) {
         const rawAmount = (tx.amount && tx.amount.amount) ? parseFloat(tx.amount.amount) / 100 : 0;
         const amount = Math.abs(rawAmount);
         const merchantDesc = (tx.merchant && tx.merchant.raw_descriptor) ? tx.merchant.raw_descriptor : (tx.description || '');
-        const cardTxDate = tx.posted_at_date || tx.initiated_at_date || null;
+        // Prefer initiated_at_date (actual transaction date) over posted_at_date (settlement, +1 day)
+        const cardTxDate = tx.initiated_at_date || tx.posted_at_date || null;
 
         // Skip records before CSV cutoff
         if (cardTxDate && cardTxDate < CSV_CUTOFF) { stats.skipped++; continue; }
