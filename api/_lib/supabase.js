@@ -107,8 +107,13 @@ async function upsertPayment(userId, source, sourceId, paymentData) {
   }
 
   // Cross-source duplicate check: skip if a record from another source
-  // already exists with the same date + amount + direction (prevents CSV import duplicates)
-  if (paymentData.date && paymentData.amount !== undefined && paymentData.direction) {
+  // already exists with the same date + amount + direction (prevents CSV import duplicates).
+  // EXCEPTION: zoho_books customer payments are the canonical record for client payments —
+  // never skip them. They have rich metadata (invoice refs, customer_id) and are what
+  // the user matches to clients. Bank-side duplicates (Brex/Mercury deposits) are handled
+  // separately by cleanup-duplicates.
+  const isCanonicalPayment = source === 'zoho_books' && paymentData.type === 'payment';
+  if (!isCanonicalPayment && paymentData.date && paymentData.amount !== undefined && paymentData.direction) {
     const amt = parseFloat(paymentData.amount) || 0;
     const { data: crossDup } = await client
       .from('finance_payments')
@@ -124,28 +129,6 @@ async function upsertPayment(userId, source, sourceId, paymentData) {
 
     if (crossDup) {
       return { action: 'skipped', id: crossDup.id };
-    }
-  }
-
-  // Within-source duplicate check: skip if a record from the SAME source
-  // already exists with same date + amount + direction + type (prevents double-sync duplicates)
-  if (paymentData.date && paymentData.amount !== undefined && paymentData.direction && paymentData.type) {
-    const amt = parseFloat(paymentData.amount) || 0;
-    const { data: sameSrcDup } = await client
-      .from('finance_payments')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('source', source)
-      .eq('date', paymentData.date)
-      .eq('direction', paymentData.direction)
-      .eq('type', paymentData.type)
-      .gte('amount', amt - 0.01)
-      .lte('amount', amt + 0.01)
-      .limit(1)
-      .maybeSingle();
-
-    if (sameSrcDup) {
-      return { action: 'skipped', id: sameSrcDup.id };
     }
   }
 

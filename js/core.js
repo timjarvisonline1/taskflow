@@ -1119,7 +1119,8 @@ async function triggerSync(platform){
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
     var result=await resp.json();
     if(result.success){
-      toast(platform+' synced: '+result.inserted+' new, '+result.updated+' updated','ok');
+      toast(platform+' synced: '+result.inserted+' new, '+result.updated+' updated'+(result.skipped?' ('+result.skipped+' skipped)':''),'ok');
+      if(result.debug&&result.debug.length){console.group(platform+' sync debug');result.debug.forEach(function(d){console.log(d)});console.groupEnd()}
       await loadFinancePayments();await loadAccountBalances();await loadIntegrations();render();
     }else{
       var errMsg=result.error||'Unknown error';

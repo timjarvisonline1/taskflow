@@ -16,7 +16,7 @@ async function syncZohoBooks(userId) {
 
   const accessToken = await refreshZohoToken(cred, 'zoho_books');
   const headers = { 'Authorization': 'Zoho-oauthtoken ' + accessToken };
-  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '' };
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '', debug: [] };
 
   // For incremental syncs use last_sync_at; for first sync fetch everything.
   // Also treat it as a first sync if last sync found nothing (last_sync_message starts with '0 new')
@@ -25,6 +25,8 @@ async function syncZohoBooks(userId) {
   const since = hadData
     ? new Date(cred.last_sync_at).toISOString().split('T')[0]
     : null;
+
+  stats.debug.push('since=' + (since || 'FULL_SYNC') + ', lastSync=' + (cred.last_sync_at || 'never') + ', lastMsg=' + lastMsg);
 
   try {
     // 1. Invoices (inflow — represents money owed to us)
@@ -126,13 +128,16 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
     const data = await resp.json();
     const items = data[cfg.listKey] || [];
     stats.fetched += items.length;
+    stats.debug.push(cfg.endpoint + ' page ' + page + ': ' + items.length + ' items from Zoho' + (data.page_context ? ' (has_more=' + data.page_context.has_more_page + ')' : ''));
 
     for (const item of items) {
       const sourceId = cfg.entityPrefix + '_' + item[cfg.idField];
       const transformed = cfg.transform(item);
 
-      // Skip records before CSV cutoff
-      if (transformed.date && transformed.date < CSV_CUTOFF) { stats.skipped++; continue; }
+      // Skip records before CSV cutoff — but NEVER skip outstanding invoices
+      // (the user needs to see ALL unpaid invoices regardless of date)
+      const isOutstandingInvoice = cfg.type === 'invoice' && transformed.pending_amount > 0;
+      if (!isOutstandingInvoice && transformed.date && transformed.date < CSV_CUTOFF) { stats.skipped++; continue; }
 
       const result = await upsertPayment(userId, 'zoho_books', sourceId, {
         ...transformed,
@@ -141,6 +146,9 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
         category: '',
         status: 'unmatched'
       });
+
+      // Log each record's outcome for debugging
+      stats.debug.push(cfg.type + ' ' + sourceId + ': ' + result.action + ' | ' + (transformed.payer_name || '').substring(0, 25) + ' | $' + (transformed.amount || 0) + ' | ' + (transformed.date || 'no-date') + (isOutstandingInvoice ? ' [OUTSTANDING]' : '') + (transformed.external_status ? ' [' + transformed.external_status + ']' : ''));
 
       if (result.action === 'inserted') stats.inserted++;
       else if (result.action === 'updated') stats.updated++;

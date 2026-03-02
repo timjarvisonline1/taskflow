@@ -40,9 +40,14 @@ module.exports = async function handler(req, res) {
     const liveSources = ['zoho_books', 'zoho_payments', 'mercury'];
     const csvSources = ['stripe', 'stripe2', 'zoho', 'brex'];
 
-    // 2. Delete ALL live-source records dated before cutoff (these are duplicates of CSV data)
+    // 2. Delete live-source records dated before cutoff (duplicates of CSV data).
+    //    EXCEPTION: zoho_books customer payments (type=payment) are the canonical record
+    //    for client payments — never delete them. They have invoice refs and are what
+    //    the user matches to clients in the Unmatched tab.
     for (const rec of allPayments) {
       if (liveSources.includes(rec.source) && rec.date && rec.date < CUTOFF) {
+        // Preserve zoho_books customer payments — they're canonical
+        if (rec.source === 'zoho_books' && rec.type === 'payment') continue;
         toDelete.add(rec.id);
       }
     }
@@ -50,6 +55,7 @@ module.exports = async function handler(req, res) {
     // 3. Cross-source duplicate removal (ANY date, not just pre-cutoff).
     //    Build an index of CSV/existing records by date+amount+direction.
     //    If a live-source record matches, it's a duplicate — delete the live-source version.
+    //    EXCEPTION: zoho_books customer payments are canonical — never delete them.
     const csvByDateAmt = {};
     for (const rec of allPayments) {
       if (!csvSources.includes(rec.source)) continue;
@@ -63,6 +69,8 @@ module.exports = async function handler(req, res) {
     for (const rec of allPayments) {
       if (!liveSources.includes(rec.source)) continue;
       if (toDelete.has(rec.id)) continue; // already marked for deletion
+      // Preserve zoho_books customer payments — they're canonical
+      if (rec.source === 'zoho_books' && rec.type === 'payment') continue;
       if (!rec.date) continue;
       const amt = Math.abs(parseFloat(rec.amount) || 0).toFixed(2);
       const key = rec.date + '|' + amt + '|' + (rec.direction || '');
