@@ -1,7 +1,7 @@
 'use strict';
 
 /* ═══════════ PUBLIC API ═══════════ */
-window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addTask:addTask,quickAdd:quickAdd,openAddModal:openAddModal,
+window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addTask:addTask,quickAdd:quickAdd,openAddModal:openAddModal,
   openDetail:openDetail,saveDetail:saveDetail,markAlreadyCompleted:markAlreadyCompleted,closeModal:closeModal,confirmDelete:confirmDelete,doDelete:doDelete,
   openDoneDetail:openDoneDetail,saveDoneDetail:saveDoneDetail,confirmDeleteDone:confirmDeleteDone,doDeleteDone:doDeleteDone,
   approveReview:approveReview,approveFromModal:approveFromModal,approveAndStart:approveAndStart,openReviewDetail:openReviewDetail,openReviewAt:openReviewAt,dismissReview:dismissReview,dismissFromModal:dismissFromModal,reviewPrev:reviewPrev,reviewNext:reviewNext,
@@ -38,13 +38,13 @@ window.TF={nav:nav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addT
   confirmDeleteProject:confirmDeleteProject,doDeleteProject:doDeleteProject,
   addPhaseToProject:addPhaseToProject,doAddPhase:doAddPhase,editPhaseInline:editPhaseInline,savePhase:savePhase,deletePhase:deletePhase,movePhase:movePhase,
   refreshAddPhases:refreshAddPhases,refreshDetailPhases:refreshDetailPhases,onProjectChange:onProjectChange,
-  setProjView:function(v){S.projView=v;save();render()},
+  setProjView:function(v){subNav(v)},
   /* Opportunities */
   openOpportunityDetail:openOpportunityDetail,saveOpportunity:saveOpportunity,
   openAddOpportunity:openAddOpportunity,addOpportunity:addOpportunity,
   confirmDeleteOpportunity:confirmDeleteOpportunity,doDeleteOpportunity:doDeleteOpportunity,
   convertOpportunity:convertOpportunity,closeAsLost:closeAsLost,
-  setOpView:function(v){S.opView=v;save();render()},
+  setOpView:function(v){subNav(v)},
   toggleOpShowClosed:function(){S.opShowClosed=!S.opShowClosed;save();render()},
   /* Finance */
   openFinancePaymentDetail:openFinancePaymentDetail,saveFinancePayment:saveFinancePayment,

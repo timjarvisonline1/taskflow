@@ -104,7 +104,7 @@ async function addLog(id){var input=gel('d-log-input');if(!input)return;var text
   save();input.value='';openDetail(id)}
 
 /* ═══════════ FEATURE: TASK MODE TOGGLE ═══════════ */
-function setTaskMode(m){S.taskMode=m;save();render()}
+function setTaskMode(m){subNav(m)}
 function setDoneSort(v){S.doneSort=v;save();render()}
 
 /* ═══════════ FEATURE: AUTO MEETING TRACKING ═══════════ */
@@ -236,7 +236,9 @@ function cmdSearch(q){
   var r=gel('cmd-results');if(!r)return;
   q=q.toLowerCase().trim();var results=[];
   /* Views */
-  VIEWS_FLAT.forEach(function(v){if(v.soon)return;if(!q||v.label.toLowerCase().indexOf(q)>-1)results.push({type:'view',icon:icon(v.icon,14),label:'Go to '+v.label,action:'TF.nav(\''+v.id+'\');TF.closeCmdPalette()'})});
+  VIEWS_FLAT.forEach(function(v){if(v.soon)return;if(!q||v.label.toLowerCase().indexOf(q)>-1){
+    var act=v.subId?'TF.nav(\''+v.id+'\',\''+v.subId+'\');TF.closeCmdPalette()':'TF.nav(\''+v.id+'\');TF.closeCmdPalette()';
+    results.push({type:'view',icon:icon(v.icon,14),label:'Go to '+v.label,action:act})}});
   /* Actions */
   var actions=[{icon:icon('plus',14),label:'Add New Task',action:'TF.openAddModal();TF.closeCmdPalette()'},
     {icon:icon('file',14),label:'Daily Summary',action:'TF.openSummary();TF.closeCmdPalette()'},
