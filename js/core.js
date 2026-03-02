@@ -898,8 +898,9 @@ function finGetRangeConfig(rangeKey){
   return cfg}
 
 function finFilterByRange(payments,cfg){
+  var includeNullDates=(cfg.label==='All Time');
   return payments.filter(function(p){
-    if(!p.date)return false;
+    if(!p.date)return includeNullDates;
     if(p.date<cfg.startDate)return false;
     if(cfg.endDate&&p.date>cfg.endDate)return false;
     return true})}

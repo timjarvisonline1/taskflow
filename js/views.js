@@ -2032,6 +2032,8 @@ function rFinance(){
   /* Range metrics */
   var rangeRev=0;rfp.forEach(function(p){rangeRev+=p.amount});
   var avgPayment=rfp.length?rangeRev/rfp.length:0;
+  var undatedCount=0,undatedRev=0;
+  fp.forEach(function(p){if(!p.date){undatedCount++;undatedRev+=p.amount}});
 
   /* Previous period comparison */
   var prevCfg=finGetPreviousPeriodConfig(rangeCfg);
@@ -2055,6 +2057,7 @@ function rFinance(){
   if(prevRev>0)h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:'+(periodGrowth>=0?'var(--green)':'var(--red)')+'">'+(periodGrowth>=0?'+':'')+periodGrowth.toFixed(1)+'%</div><div class="cp-dash-met-l">vs Previous Period</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.2s"><div class="cp-dash-met-v" style="color:'+(unmatchedCount>0?'var(--amber)':'var(--t4)')+'">'+unmatchedCount+'</div><div class="cp-dash-met-l">Unmatched</div></div>';
   if(splitCount>0)h+='<div class="cp-dash-met" style="animation-delay:0.25s"><div class="cp-dash-met-v" style="color:var(--blue)">'+splitCount+'</div><div class="cp-dash-met-l">Split</div></div>';
+  if(undatedCount>0&&S.finRange!=='all')h+='<div class="cp-dash-met" style="animation-delay:0.3s"><div class="cp-dash-met-v" style="color:var(--t3);font-size:16px">'+undatedCount+'</div><div class="cp-dash-met-l">Undated ('+fmtUSD(undatedRev)+')</div></div>';
   h+='</div>';
 
   /* ── Analytics Section (togglable) ── */
