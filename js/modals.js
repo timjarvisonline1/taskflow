@@ -244,7 +244,7 @@ async function markAlreadyCompleted(id){
       duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||''});
     save();
     toast('Completed: '+task.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
-  closeModal();render();renderSidebar()}
+  closeModal();render();renderSidebar();renderActiveWidget()}
 
 function confirmDelete(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
@@ -253,7 +253,7 @@ function confirmDelete(){
 async function doDelete(id){var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
   await dbDeleteTask(id);
   S.tasks=S.tasks.filter(function(t){return t.id!==id});delete S.timers[id];save();
-  toast(icon('trash',12)+' Deleted: '+task.item,'warn');closeModal();render();renderSidebar()}
+  toast(icon('trash',12)+' Deleted: '+task.item,'warn');closeModal();render();renderSidebar();renderActiveWidget()}
 
 /* ═══════════ ADD TASK ═══════════ */
 function openAddModal(){var now=new Date();now.setHours(17,0,0,0);var iso=now.toISOString().slice(0,16);
@@ -385,7 +385,7 @@ async function bulkComplete(){var ids=Object.keys(S.bulkSelected);if(!ids.length
       delete S.timers[id];count++}}
   S.tasks=S.tasks.filter(function(t){return!S.bulkSelected[t.id]});
   S.bulkSelected={};S.bulkMode=false;save();
-  toast('Completed '+count+' tasks','ok');render();renderSidebar()}
+  toast('Completed '+count+' tasks','ok');render();renderSidebar();renderActiveWidget()}
 
 /* ═══════════ LOG ENDED MEETING MODAL ═══════════ */
 var _logMtgEvent=null;
@@ -506,7 +506,7 @@ async function logMeeting(){
 
   mtgPrompted[pk]='confirmed';saveMtgPrompted();save();
   toast('Logged: '+item+' ('+fmtM(mins)+')','ok');
-  _logMtgEvent=null;closeModal();render();renderSidebar()}
+  _logMtgEvent=null;closeModal();render();renderSidebar();renderActiveWidget()}
 
 /* ═══════════ TEMPLATES ═══════════ */
 function openTplForm(idx){

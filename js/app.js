@@ -58,6 +58,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openIntegrationsModal:openIntegrationsModal,triggerSync:triggerSync,cleanupDuplicates:cleanupDuplicates,saveIntegrationBtn:saveIntegrationBtn,testIntegrationBtn:testIntegrationBtn,deleteIntegrationBtn:deleteIntegrationBtn,setFinDirection:setFinDirection,
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
+  atToggleMin:atToggleMin,
   signOut:signOut,
   toast:toast,
   /* Mobile */

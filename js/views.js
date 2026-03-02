@@ -8,7 +8,7 @@ function render(){
     if(mobIds.indexOf(S.view)===-1)S.view='mob-add';
     switch(S.view){case'mob-add':html=rMobAdd();break;case'today':html=rMobToday();break;case'tasks':html=rMobTasks();break;case'opportunities':html=rMobOpportunities();break}
     m.innerHTML='<section class="vw on">'+html+'</section>';
-    renderSidebar();return}
+    renderSidebar();renderActiveWidget();return}
   /* Desktop: 8-view experience */
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
@@ -21,7 +21,7 @@ function render(){
   if(S.view==='clients')initClientsCharts();
   if(S.view==='finance')initFinanceCharts();
   if(S.view==='campaigns'&&S.subView==='performance')initCampaignPerformanceCharts();
-  renderSidebar()}
+  renderSidebar();renderActiveWidget()}
 
 
 /* ═══════════ TASK CARD ═══════════ */

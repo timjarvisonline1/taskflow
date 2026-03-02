@@ -27,7 +27,7 @@
       </div>
       <!-- Add Task Button -->
       <div class="s-add-wrap">
-        <button class="s-add-btn" onclick="TF.openAddModal()"><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Add Task</span></button>
+        <button class="s-add-btn" onclick="TF.openAddModal()"><span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span class="s-add-text"> Add Task</span></span></button>
       </div>
       <div class="s-nav" id="s-nav"></div>
       <div class="s-active" id="s-active"></div>
@@ -61,6 +61,15 @@
       <div class="tf-modal" onclick="event.stopPropagation()">
         <div id="m-body"></div>
       </div>
+    </div>
+    <!-- Floating Active Tasks Widget -->
+    <div class="at-widget hidden" id="at-widget">
+      <div class="at-header" id="at-header">
+        <span class="dot pulse" style="margin:0"></span>
+        <span class="at-title" id="at-title">Active</span>
+        <button class="at-min-btn" id="at-min-btn" onclick="TF.atToggleMin()">−</button>
+      </div>
+      <div class="at-body" id="at-body"></div>
     </div>
   </div>
 
