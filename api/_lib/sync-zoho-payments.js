@@ -69,53 +69,64 @@ async function syncZohoPayments(userId) {
     await delay(500);
 
     // 2. Sync Payouts (funds disbursed to bank account)
-    page = 1;
-    hasMore = true;
+    // Note: Payouts require a separate scope that may not be available.
+    // If the API returns 401/403, skip payouts gracefully.
+    try {
+      page = 1;
+      hasMore = true;
 
-    while (hasMore) {
-      const url = ZOHO_PAY_BASE + '/payouts?account_id=' + accountId
-        + '&per_page=200&page=' + page;
+      while (hasMore) {
+        const url = ZOHO_PAY_BASE + '/payouts?account_id=' + accountId
+          + '&per_page=200&page=' + page;
 
-      const resp = await fetch(url, { headers });
-      if (!resp.ok) throw new Error('Zoho Payouts API: ' + resp.status);
-      const data = await resp.json();
-      const payouts = (data.data || data.payouts || []);
-      stats.fetched += payouts.length;
+        const resp = await fetch(url, { headers });
+        if (resp.status === 401 || resp.status === 403) {
+          // No payouts scope — skip silently
+          break;
+        }
+        if (!resp.ok) throw new Error('Zoho Payouts API: ' + resp.status);
+        const data = await resp.json();
+        const payouts = (data.data || data.payouts || []);
+        stats.fetched += payouts.length;
 
-      for (const po of payouts) {
-        const amount = parseFloat(po.amount) || 0;
-        const sourceId = 'payout_' + po.payout_id;
-        const poStatus = (po.status || '').toLowerCase();
-        const isPending = (poStatus === 'initiated' || poStatus === 'in_transit');
+        for (const po of payouts) {
+          const amount = parseFloat(po.amount) || 0;
+          const sourceId = 'payout_' + po.payout_id;
+          const poStatus = (po.status || '').toLowerCase();
+          const isPending = (poStatus === 'initiated' || poStatus === 'in_transit');
 
-        const result = await upsertPayment(userId, 'zoho_payments', sourceId, {
-          date: po.arrival_date || po.created_time ? (po.arrival_date || po.created_time.split('T')[0]) : null,
-          amount: amount / 100,
-          fee: 0,
-          net: amount / 100,
-          direction: 'inflow',
-          type: 'payout',
-          payer_email: '',
-          payer_name: 'Zoho Payments Payout',
-          description: 'Payout ' + (po.payout_id || ''),
-          category: '',
-          external_status: poStatus,
-          pending_amount: isPending ? (amount / 100) : 0,
-          metadata: JSON.stringify({
-            payout_id: po.payout_id,
-            arrival_date: po.arrival_date || '',
-            payment_count: po.payment_count || 0
-          }),
-          status: 'unmatched'
-        });
+          const result = await upsertPayment(userId, 'zoho_payments', sourceId, {
+            date: po.arrival_date || po.created_time ? (po.arrival_date || po.created_time.split('T')[0]) : null,
+            amount: amount / 100,
+            fee: 0,
+            net: amount / 100,
+            direction: 'inflow',
+            type: 'payout',
+            payer_email: '',
+            payer_name: 'Zoho Payments Payout',
+            description: 'Payout ' + (po.payout_id || ''),
+            category: '',
+            external_status: poStatus,
+            pending_amount: isPending ? (amount / 100) : 0,
+            metadata: JSON.stringify({
+              payout_id: po.payout_id,
+              arrival_date: po.arrival_date || '',
+              payment_count: po.payment_count || 0
+            }),
+            status: 'unmatched'
+          });
 
-        if (result.action === 'inserted') stats.inserted++;
-        else if (result.action === 'updated') stats.updated++;
+          if (result.action === 'inserted') stats.inserted++;
+          else if (result.action === 'updated') stats.updated++;
+        }
+
+        hasMore = payouts.length === 200;
+        page++;
+        if (hasMore) await delay(200);
       }
-
-      hasMore = payouts.length === 200;
-      page++;
-      if (hasMore) await delay(200);
+    } catch (payoutErr) {
+      // Log but don't fail the entire sync if payouts can't be fetched
+      console.log('Payouts sync skipped: ' + payoutErr.message);
     }
 
     await updateSyncStatus(userId, 'zoho_payments', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated');
