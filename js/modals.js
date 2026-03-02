@@ -2044,9 +2044,9 @@ function openFinancePaymentDetail(id){
   h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">F&C Details</span></div>';
   h+='<div class="ed-grid">';
   h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="fp-endclient" onchange="TF.fpEndClientChange()">'+ecOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="fp-campaign">'+cpOpts+'</select></div>';
-  h+='<div class="ed-fld" id="fp-newcampaign-row"><span class="ed-lbl">Or Create New Campaign</span><input type="text" class="edf" id="fp-newcampaign" placeholder="New campaign name..."></div>';
-  h+='<div class="ed-fld" id="fp-newcpstatus-row"><span class="ed-lbl">Campaign Status</span><select class="edf" id="fp-newcpstatus"><option>Setup</option><option>Active</option><option>Paused</option><option>Completed</option><option>Archived</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="fp-campaign" onchange="TF.fpCampaignChange()">'+cpOpts+'</select></div>';
+  h+='<div class="ed-fld" id="fp-newcampaign-row"'+(p.campaignId?' style="display:none"':'')+'><span class="ed-lbl">Or Create New Campaign</span><input type="text" class="edf" id="fp-newcampaign" placeholder="New campaign name..."></div>';
+  h+='<div class="ed-fld" id="fp-newcpstatus-row"'+(p.campaignId?' style="display:none"':'')+'><span class="ed-lbl">Campaign Status</span><select class="edf" id="fp-newcpstatus"><option>Setup</option><option>Active</option><option>Paused</option><option>Completed</option><option>Archived</option></select></div>';
   h+='</div></div>';
 
   /* Section 4: Notes */
@@ -2128,7 +2128,12 @@ function fpEndClientChange(){
   var ec=(gel('fp-endclient')||{}).value||'';
   if(ec==='__addnew__'){ecAddNew('fp-endclient');return}
   var cpSel=gel('fp-campaign');
-  if(cpSel)cpSel.innerHTML=buildCampaignOptions('',clientName,ec)}
+  if(cpSel){cpSel.innerHTML=buildCampaignOptions('',clientName,ec);fpCampaignChange()}}
+
+function fpCampaignChange(){
+  var cpId=(gel('fp-campaign')||{}).value||'';
+  var ncpRow=gel('fp-newcampaign-row');if(ncpRow)ncpRow.style.display=cpId?'none':'';
+  var ncsRow=gel('fp-newcpstatus-row');if(ncsRow)ncsRow.style.display=cpId?'none':''}
 
 function fpSelectAll(){
   var cbs=document.querySelectorAll('.fp-batch-cb');
