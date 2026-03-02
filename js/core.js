@@ -492,9 +492,14 @@ async function dbAddFinancePayment(data){
   return res.data}
 
 async function dbEditFinancePayment(id,data){
-  var row={date:data.date||null,category:data.category||'',client_id:data.clientId||null,
-    campaign_id:data.campaignId||null,end_client:data.endClient||'',notes:data.notes||'',
-    status:data.status||'unmatched'};
+  var row={};
+  if('date' in data)row.date=data.date||null;
+  if('category' in data)row.category=data.category||'';
+  if('clientId' in data)row.client_id=data.clientId||null;
+  if('campaignId' in data)row.campaign_id=data.campaignId||null;
+  if('endClient' in data)row.end_client=data.endClient||'';
+  if('notes' in data)row.notes=data.notes||'';
+  if('status' in data)row.status=data.status||'unmatched';
   var res=await _sb.from('finance_payments').update(row).eq('id',id);
   if(res.error){toast('Payment update failed: '+res.error.message,'warn');return false}
   return true}
