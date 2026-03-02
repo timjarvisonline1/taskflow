@@ -41,15 +41,17 @@ async function syncBrex(userId) {
     let since = cred.last_sync_at ? new Date(cred.last_sync_at).toISOString() : cutoffISO;
     if (since < cutoffISO) since = cutoffISO;
 
-    // 3. Fetch cash transactions for each account (incremental — only new since last sync)
+    // 3. Fetch cash transactions for each account
+    //    Cash endpoint doesn't reliably support posted_at_start (returns 400),
+    //    so we fetch all and filter client-side. Cash txns are low-volume (wires, ACH).
     for (const acct of accounts) {
       let cursor = null;
       let hasMore = true;
 
       while (hasMore) {
-        const params = ['posted_at_start=' + since];
+        const params = [];
         if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
-        const url = BREX_BASE + '/v2/transactions/cash/' + encodeURIComponent(acct.id) + '?' + params.join('&');
+        const url = BREX_BASE + '/v2/transactions/cash/' + encodeURIComponent(acct.id) + (params.length ? '?' + params.join('&') : '');
 
         const txResp = await fetch(url, { headers });
         if (!txResp.ok) {
