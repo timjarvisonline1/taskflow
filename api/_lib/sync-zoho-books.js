@@ -15,7 +15,7 @@ async function syncZohoBooks(userId) {
 
   const accessToken = await refreshZohoToken(cred, 'zoho_books');
   const headers = { 'Authorization': 'Zoho-oauthtoken ' + accessToken };
-  const stats = { fetched: 0, inserted: 0, updated: 0, error: '' };
+  const stats = { fetched: 0, inserted: 0, updated: 0, error: '', debug: '' };
 
   // For incremental syncs use last_sync_at; for first sync fetch everything
   const isFirstSync = !cred.last_sync_at;
@@ -145,7 +145,8 @@ async function syncZohoBooks(userId) {
       })
     });
 
-    await updateSyncStatus(userId, 'zoho_books', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated');
+    const msg = stats.inserted + ' new, ' + stats.updated + ' updated (orgId=' + orgId + ' ' + stats.debug.trim() + ')';
+    await updateSyncStatus(userId, 'zoho_books', 'ok', msg);
     await logSync(userId, 'zoho_books', 'poll', stats);
     return stats;
   } catch (e) {
@@ -183,6 +184,10 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
 
     const data = await resp.json();
     const items = data[cfg.listKey] || [];
+    // Log response details for debugging
+    if (page === 1) {
+      stats.debug += cfg.endpoint + ':' + items.length + ' ';
+    }
     stats.fetched += items.length;
 
     for (const item of items) {
