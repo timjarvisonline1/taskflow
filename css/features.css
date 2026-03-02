@@ -723,6 +723,13 @@
 .fin-status-matched{background:rgba(61,220,132,.12);color:var(--green)}
 .fin-status-excluded{background:rgba(161,161,170,.1);color:var(--t4)}
 
+/* Expense reconciliation */
+.fin-recon-suggestion{padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .15s var(--ease);border:1px solid transparent;margin-bottom:4px}
+.fin-recon-suggestion:hover{background:rgba(255,255,255,.06);border-color:var(--gborder)}
+.fin-recon-suggestion.exact{border-left:3px solid var(--green)}
+.fin-recon-suggestion.close{border-left:3px solid var(--amber)}
+.fin-recon-linked{background:rgba(61,220,132,.05);border:1px solid rgba(61,220,132,.15);border-radius:8px;padding:8px 12px;margin-top:8px}
+
 /* Category badges */
 .fin-cat{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:500;background:rgba(255,0,153,.1);color:var(--pink)}
 

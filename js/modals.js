@@ -2242,6 +2242,21 @@ function openFinancePaymentDetail(id){
   if(p.description)h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Description</span><div class="edf" style="font-size:12px">'+esc(p.description)+'</div></div>';
   h+='</div>';
 
+  /* Expense reconciliation section */
+  if(p.direction==='outflow'&&p.type!=='transfer'){
+    h+='<div class="ed-section" style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Expense Reconciliation</div>';
+    if(p.scheduledItemId){
+      var li=S.scheduledItems.find(function(si){return si.id===p.scheduledItemId});
+      h+='<div class="fin-recon-linked" style="padding:10px;margin-bottom:8px">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+      h+='<span style="color:var(--green);font-weight:600;font-size:13px">'+icon('link',12)+' '+(li?esc(li.name):'Linked')+'</span>';
+      h+='<button class="btn" onclick="TF.unlinkExpenseFromScheduled(\''+esc(p.id)+'\')" style="font-size:10px;padding:3px 10px">Unlink</button>';
+      h+='</div></div>';
+    }else{
+      h+='<button class="btn" onclick="TF.openExpenseReconcileModal(\''+esc(p.id)+'\')" style="width:100%;padding:8px;font-size:12px;color:var(--amber);border-color:rgba(255,152,0,.3)">'+icon('link',12)+' Reconcile to Recurring Item</button>';
+    }
+    h+='</div>';}
+
   /* Other payments from same payer — with checkboxes */
   var payerKey=p.payerEmail||p.payerName;
   if(payerKey){
@@ -2521,6 +2536,93 @@ async function associatePayer(){
     await loadFinancePayments();await loadPayerMap();
     var clientName=clientNameById(clientId);
     toast('Associated to '+clientName,'ok');closeModal();render()}}
+
+/* ─── Expense Reconciliation ─── */
+function openExpenseReconcileModal(paymentId){
+  var p=S.financePayments.find(function(fp){return fp.id===paymentId});
+  if(!p)return;
+  var meta=typeof p.metadata==='string'?JSON.parse(p.metadata||'{}'):p.metadata||{};
+  var acct=getExpenseAccount(p);
+  var srcLabel=srcLabelFull?srcLabelFull(p):(p.source||'');
+  var isOut=p.direction==='outflow';
+
+  /* Score and rank scheduled item suggestions */
+  var suggestions=[];
+  S.scheduledItems.forEach(function(item){
+    var score=scoreExpenseMatch(p,item);
+    if(score>=0)suggestions.push({item:item,score:score})});
+  suggestions.sort(function(a,b){return a.score-b.score});
+
+  var h='<div class="tf-modal-top"><h2>Reconcile Expense</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:0 20px 20px">';
+
+  /* Expense summary */
+  h+='<div style="padding:16px;background:rgba(255,255,255,.03);border:1px solid var(--gborder);border-radius:10px;margin-bottom:16px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+  h+='<div>';
+  h+='<div style="font-weight:600;font-size:15px">'+esc(p.payerName||p.description||'Unknown')+'</div>';
+  if(p.description&&p.description!==p.payerName)h+='<div style="color:var(--t3);font-size:12px;margin-top:2px">'+esc(p.description.substring(0,80))+'</div>';
+  h+='<div style="margin-top:4px;font-size:12px;color:var(--t4)">'+(p.date?fmtDShort(p.date):'No date')+' • <span class="'+srcClsFull(p)+'" style="font-size:11px;padding:2px 6px">'+esc(srcLabel)+'</span></div>';
+  h+='</div>';
+  h+='<div style="font-size:22px;font-weight:700;color:var(--red)">-'+fmtUSD(p.amount)+'</div>';
+  h+='</div></div>';
+
+  /* Already linked? */
+  if(p.scheduledItemId){
+    var linked=S.scheduledItems.find(function(si){return si.id===p.scheduledItemId});
+    h+='<div class="fin-recon-linked" style="padding:12px;background:rgba(61,220,132,.05);border:1px solid rgba(61,220,132,.15);border-radius:8px;margin-bottom:16px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+    h+='<span style="color:var(--green);font-weight:600">'+icon('link',12)+' Linked to: '+(linked?esc(linked.name):'Unknown')+'</span>';
+    h+='<button class="btn" onclick="TF.unlinkExpenseFromScheduled(\''+escAttr(p.id)+'\')" style="font-size:11px;padding:4px 12px">Unlink</button>';
+    h+='</div></div>'}
+
+  /* Suggestions */
+  if(suggestions.length>0&&!p.scheduledItemId){
+    h+='<div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--t2)">Match to Recurring Item</div>';
+    suggestions.slice(0,8).forEach(function(s){
+      var item=s.item;
+      var isExact=Math.abs(p.amount-item.amount)/Math.max(item.amount,0.01)<0.005;
+      var cls='fin-recon-suggestion'+(isExact?' exact':s.score<30?' close':'');
+      h+='<div class="'+cls+'" onclick="TF.linkExpenseToScheduled(\''+escAttr(p.id)+'\',\''+escAttr(item.id)+'\')">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+      h+='<div>';
+      h+='<div style="font-weight:600;font-size:14px">'+esc(item.name)+'</div>';
+      h+='<div style="font-size:11px;color:var(--t4)">'+esc(item.frequency)+' • '+(item.account||'Any account');
+      if(isExact)h+=' • <span style="color:var(--green)">Exact match</span>';
+      h+='</div></div>';
+      h+='<div style="font-size:16px;font-weight:600;color:var(--red)">-'+fmtUSD(item.amount)+'</div>';
+      h+='</div></div>'});
+  }else if(!p.scheduledItemId){
+    h+='<div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--t2)">No Matching Recurring Items</div>';
+    h+='<div style="font-size:12px;color:var(--t4);margin-bottom:12px">Create a new recurring item to track this expense.</div>'}
+
+  /* Create new recurring item button */
+  if(!p.scheduledItemId){
+    h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gborder)">';
+    h+='<button class="btn" onclick="TF.createScheduledFromExpense(\''+escAttr(p.id)+'\')" style="width:100%;padding:10px;font-size:13px;color:var(--blue);border-color:rgba(79,172,254,.3)">';
+    h+=icon('plus',14)+' Create New Recurring Item from This Expense</button>';
+    h+='</div>'}
+
+  h+='</div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+function createScheduledFromExpense(paymentId){
+  var p=S.financePayments.find(function(fp){return fp.id===paymentId});
+  if(!p)return;
+  var acct=getExpenseAccount(p);
+  /* Open the scheduled item modal */
+  openAddScheduledItem();
+  /* Pre-fill after DOM renders */
+  setTimeout(function(){
+    if(gel('si-name'))gel('si-name').value=p.payerName||p.description||'';
+    if(gel('si-amount'))gel('si-amount').value=p.amount;
+    if(gel('si-direction'))gel('si-direction').value='outflow';
+    if(gel('si-account'))gel('si-account').value=acct||'';
+    if(gel('si-type'))gel('si-type').value='subscription';
+    /* Store payment ID for auto-link after save */
+    var hidden=document.createElement('input');
+    hidden.type='hidden';hidden.id='si-link-payment';hidden.value=paymentId;
+    if(gel('si-name'))gel('si-name').parentNode.appendChild(hidden)},50)}
 
 /* ─── Add Manual Payment ─── */
 function openAddFinancePayment(){
@@ -2957,13 +3059,19 @@ async function saveScheduledItem(){
   if(!data.name){toast('Name is required','warn');return}
   if(!data.amount){toast('Amount is required','warn');return}
 
+  var linkPaymentId=gel('si-link-payment')?gel('si-link-payment').value:'';
   if(id){
     var ok=await dbEditScheduledItem(id,data);
     if(ok)toast('Scheduled item updated','ok');
   }else{
     var newId=await dbAddScheduledItem(data);
-    if(newId)toast('Scheduled item added','ok');
-  }
+    if(newId){
+      toast('Scheduled item added','ok');
+      /* Auto-link expense to the newly created scheduled item */
+      if(linkPaymentId&&newId.id){
+        await loadScheduledItems();
+        await linkExpenseToScheduled(linkPaymentId,newId.id);
+        return /* linkExpenseToScheduled handles reload+render */}}}
   await loadScheduledItems();closeModal();render()}
 
 function confirmDeleteScheduledItem(id){

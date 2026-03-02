@@ -625,7 +625,8 @@ async function loadFinancePayments(){
       endClient:r.end_client||'',notes:r.notes||'',status:r.status||'unmatched',
       direction:r.direction||'inflow',type:r.type||'payment',externalStatus:r.external_status||'',
       linkedTransactionId:r.linked_transaction_id||'',pendingAmount:parseFloat(r.pending_amount)||0,
-      metadata:r.metadata||{},expectedPaymentDate:r.expected_payment_date||null}})}
+      metadata:r.metadata||{},expectedPaymentDate:r.expected_payment_date||null,
+      scheduledItemId:r.scheduled_item_id||null}})}
 
 async function loadClientRecords(){
   var res=await _sb.from('clients').select('*').order('name');
@@ -665,6 +666,7 @@ async function dbEditFinancePayment(id,data){
   if('notes' in data)row.notes=data.notes||'';
   if('status' in data)row.status=data.status||'unmatched';
   if('expectedPaymentDate' in data)row.expected_payment_date=data.expectedPaymentDate||null;
+  if('scheduledItemId' in data)row.scheduled_item_id=data.scheduledItemId||null;
   var res=await _sb.from('finance_payments').update(row).eq('id',id);
   if(res.error){toast('Payment update failed: '+res.error.message,'warn');return false}
   return true}
@@ -1005,7 +1007,8 @@ function autoReconcile(){
     /* Search for matching transaction */
     var match=null;var matchScore=Infinity;
     S.financePayments.forEach(function(p){
-      if(p.direction!==item.direction||p.status==='excluded')return;
+      if(p.direction!==item.direction||p.status==='excluded'||p.type==='transfer')return;
+      if(p.scheduledItemId)return; /* Already linked to a scheduled item */
       if(!p.date)return;
       var pd=p.date instanceof Date?p.date:new Date(p.date+'T00:00:00');
       /* Within 7 days of next_due */
@@ -1030,10 +1033,61 @@ function autoReconcile(){
         var nxt=getNextOccurrence(item,nextDueDate);
         if(nxt)item.nextDue=nxt.toISOString().split('T')[0]}
       dbEditScheduledItem(item.id,{lastPaidDate:item.lastPaidDate,nextDue:item.nextDue});
+      /* Link the payment to this scheduled item */
+      match.scheduledItemId=item.id;
+      match.status='matched';
+      dbEditFinancePayment(match.id,{scheduledItemId:item.id,status:'matched'});
       count++}});
   if(count>0)toast(count+' item'+(count>1?'s':'')+' reconciled','ok');
   else toast('No new matches found','info');
   render()}
+
+/* ── Expense Reconciliation ── */
+async function linkExpenseToScheduled(paymentId,scheduledItemId){
+  var ok=await dbEditFinancePayment(paymentId,{scheduledItemId:scheduledItemId,status:'matched'});
+  if(!ok)return;
+  var p=S.financePayments.find(function(fp){return fp.id===paymentId});
+  if(p&&p.date){
+    var dateStr=p.date instanceof Date?p.date.toISOString().split('T')[0]:p.date;
+    await dbEditScheduledItem(scheduledItemId,{lastPaidDate:dateStr});
+    var item=S.scheduledItems.find(function(i){return i.id===scheduledItemId});
+    if(item&&item.frequency!=='once'&&item.nextDue){
+      var nd=new Date(item.nextDue+'T00:00:00');
+      var nxt=getNextOccurrence(item,nd);
+      if(nxt)await dbEditScheduledItem(scheduledItemId,{nextDue:nxt.toISOString().split('T')[0]})}}
+  await loadFinancePayments();
+  await loadScheduledItems();
+  var itemName=(S.scheduledItems.find(function(i){return i.id===scheduledItemId})||{}).name||'item';
+  toast('Linked to '+itemName,'ok');
+  closeModal();render()}
+
+async function unlinkExpenseFromScheduled(paymentId){
+  await dbEditFinancePayment(paymentId,{scheduledItemId:null,status:'unmatched'});
+  await loadFinancePayments();
+  toast('Link removed','ok');
+  closeModal();render()}
+
+function getExpenseAccount(p){
+  var meta=typeof p.metadata==='string'?JSON.parse(p.metadata||'{}'):p.metadata||{};
+  if(meta.brex_type==='card')return'brex_card';
+  if(meta.brex_type==='cash')return'brex_cash';
+  if(p.source==='mercury')return'mercury';
+  return''}
+
+function scoreExpenseMatch(p,item){
+  if(item.direction!=='outflow')return-1;
+  if(!item.isActive)return-1;
+  /* Amount match: exact=0, close=proportional, >30% off=reject */
+  var amtDiff=Math.abs(p.amount-item.amount)/Math.max(item.amount,0.01);
+  if(amtDiff>0.30)return-1;
+  var score=amtDiff*100;
+  /* Account match bonus */
+  var acct=getExpenseAccount(p);
+  if(item.account&&acct&&item.account===acct)score-=20;
+  else if(item.account&&acct&&item.account!==acct)score+=30;
+  /* Exact amount match bonus */
+  if(amtDiff<0.005)score-=50;
+  return score}
 
 /* ── Integration helpers ── */
 async function loadIntegrations(){
@@ -1450,8 +1504,9 @@ function finFilteredPayments(){
       return true;
     });
   }
-  else if(S.finFilter==='matched')fp=fp.filter(function(p){return p.status==='matched'});
-  else if(S.finFilter==='split')fp=fp.filter(function(p){return p.status==='split'});
+  else if(S.finFilter==='matched')fp=fp.filter(function(p){return p.status==='matched'&&p.type!=='transfer'});
+  else if(S.finFilter==='split')fp=fp.filter(function(p){return p.status==='split'&&p.type!=='transfer'});
+  else if(S.finFilter==='expenses')fp=fp.filter(function(p){return p.direction==='outflow'&&p.type!=='transfer'});
   if(S.finDirection)fp=fp.filter(function(p){return p.direction===S.finDirection});
   if(S.finSearch){var q=S.finSearch.toLowerCase();
     fp=fp.filter(function(p){return(p.payerEmail||'').toLowerCase().indexOf(q)!==-1||(p.payerName||'').toLowerCase().indexOf(q)!==-1||(p.description||'').toLowerCase().indexOf(q)!==-1||(p.notes||'').toLowerCase().indexOf(q)!==-1})}

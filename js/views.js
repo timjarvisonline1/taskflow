@@ -128,7 +128,7 @@ function rDashboard(){
   /* Campaign metrics */
   var activeCampaigns=S.campaigns.filter(function(c){return c.status==='Active'});
   var monthlyRecurring=0;activeCampaigns.forEach(function(c){monthlyRecurring+=(c.monthlyFee||0)+(c.monthlyAdSpend||0)});
-  var totalRevenue=0;S.financePayments.forEach(function(p){if(p.status!=='excluded')totalRevenue+=p.amount});
+  var totalRevenue=0;S.financePayments.forEach(function(p){if(p.status!=='excluded'&&p.type!=='transfer'&&p.direction==='inflow'&&p.type==='payment')totalRevenue+=p.amount});
   var unmatchedPayments=S.financePayments.filter(function(p){return p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment'}).length;
 
   /* Opportunity metrics */
@@ -204,12 +204,12 @@ function initDashboardCharts(){
       var cl=d.client||'';clientData[cl]=(clientData[cl]||0)+(d.duration||0)});
     if(Object.keys(clientData).length)mkHBar('dash-client-chart',clientData);
     /* Revenue by source donut */
-    var srcData={};S.financePayments.forEach(function(fp){if(fp.status==='excluded')return;
+    var srcData={};S.financePayments.forEach(function(fp){if(fp.status==='excluded'||fp.type==='transfer')return;if(fp.direction!=='inflow'||fp.type!=='payment')return;
       var s=fp.source==='stripe2'?'Stripe 2':fp.source.charAt(0).toUpperCase()+fp.source.slice(1);
       srcData[s]=(srcData[s]||0)+fp.amount});
     if(Object.keys(srcData).length)mkDonut('dash-revenue-source-chart',srcData);
     /* Revenue by client bar */
-    var revClientData={};S.financePayments.forEach(function(fp){if(fp.status==='excluded')return;
+    var revClientData={};S.financePayments.forEach(function(fp){if(fp.status==='excluded'||fp.type==='transfer')return;if(fp.direction!=='inflow'||fp.type!=='payment')return;
       var cName=clientNameById(fp.clientId)||'Unassigned';
       revClientData[cName]=(revClientData[cName]||0)+fp.amount});
     if(Object.keys(revClientData).length)mkHBar('dash-revenue-client-chart',revClientData);
@@ -2210,10 +2210,11 @@ function rFinanceMobileSubs(sub){
 
 function rFinancePayments(){
   var fp=S.financePayments.filter(function(p){return p.status!=='excluded'});
-  var unmatchedCount=0,splitCount=0;
+  var unmatchedCount=0,splitCount=0,unreconciledCount=0;
   fp.forEach(function(p){
     if(p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment')unmatchedCount++;
-    else if(p.status==='split')splitCount++});
+    else if(p.status==='split')splitCount++;
+    if(p.direction==='outflow'&&p.type!=='transfer'&&!p.scheduledItemId)unreconciledCount++});
   var filtered=finFilteredPayments();
   var bulkCount=finBulkCount();
 
@@ -2221,9 +2222,9 @@ function rFinancePayments(){
   /* Filter bar */
   h+='<div class="fin-filters">';
   h+='<div class="fin-tabs">';
-  var tabs=[['all','All'],['unmatched','Unmatched'],['matched','Matched'],['split','Split']];
+  var tabs=[['all','All'],['unmatched','Unmatched'],['expenses','Expenses'],['matched','Matched'],['split','Split']];
   tabs.forEach(function(t){
-    var cnt=t[0]==='unmatched'?unmatchedCount:t[0]==='split'?splitCount:0;
+    var cnt=t[0]==='unmatched'?unmatchedCount:t[0]==='split'?splitCount:t[0]==='expenses'?unreconciledCount:0;
     h+='<button class="fin-tab'+(S.finFilter===t[0]?' on':'')+'" onclick="TF.setFinFilter(\''+t[0]+'\')">'+t[1];
     if(cnt>0)h+=' <span class="fin-tab-count">'+cnt+'</span>';
     h+='</button>'});
@@ -2296,7 +2297,12 @@ function rFinancePayments(){
     h+='</td>';
     h+='<td class="fin-desc">'+esc((p.description||'').substring(0,60))+(p.description&&p.description.length>60?'...':'')+'</td>';
     h+='<td>';
-    if(p.status==='unmatched')h+='<span class="fin-status fin-status-unmatched">Unmatched</span>';
+    if(p.direction==='outflow'&&p.scheduledItemId){
+      var li=S.scheduledItems.find(function(si){return si.id===p.scheduledItemId});
+      h+='<span class="fin-status fin-status-matched" title="Linked to: '+(li?esc(li.name):'')+'">'+icon('link',10)+' '+(li?esc(li.name.length>18?li.name.substring(0,18)+'…':li.name):'Linked')+'</span>';
+    }else if(p.direction==='outflow'&&p.type!=='transfer'&&S.finFilter==='expenses'){
+      h+='<button class="btn fin-recon-btn" onclick="event.stopPropagation();TF.openExpenseReconcileModal(\''+eid+'\')" style="font-size:10px;padding:3px 10px;color:var(--amber);border-color:rgba(255,152,0,.3)">'+icon('link',10)+' Reconcile</button>';
+    }else if(p.status==='unmatched')h+='<span class="fin-status fin-status-unmatched">Unmatched</span>';
     else if(p.status==='split')h+='<span class="fin-status fin-status-split">Split</span>';
     else h+='<span class="fin-status fin-status-matched">Matched</span>';
     h+='</td>';
@@ -2609,8 +2615,17 @@ function rFinanceOverview(){
   var byPlat=getBalanceByPlatform();
   var lastSync=S.accountBalances.length?S.accountBalances[0].capturedAt:null;
 
+  /* Recent card spending (last 7 days) */
+  var weekAgo=new Date(Date.now()-7*86400000);
+  var recentCardSpend=S.financePayments.filter(function(p){
+    var meta=typeof p.metadata==='string'?JSON.parse(p.metadata||'{}'):p.metadata||{};
+    return meta.brex_type==='card'&&p.status!=='excluded'&&p.date&&p.date>=weekAgo;
+  }).reduce(function(s,p){return s+p.amount},0);
+  var unreconciledExp=S.financePayments.filter(function(p){return p.direction==='outflow'&&p.type!=='transfer'&&!p.scheduledItemId&&p.status!=='excluded'}).length;
+
   /* Row 1 — Balance cards */
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">';
+  var balCols=2+platKeys.length+(unreconciledExp>0?1:0);
+  h+='<div style="display:grid;grid-template-columns:repeat('+Math.min(balCols,4)+',1fr);gap:16px;margin-bottom:20px">';
   h+='<div class="chart-card" style="text-align:center;padding:24px;background:linear-gradient(135deg,var(--card) 0%,rgba(61,220,132,0.05) 100%);border:1px solid rgba(61,220,132,0.2)">';
   h+='<div style="font-size:12px;opacity:0.6;margin-bottom:4px">Combined Balance</div>';
   h+='<div style="font-size:28px;font-weight:700;color:var(--green)">'+fmtUSD(bal)+'</div>';
@@ -2624,7 +2639,16 @@ function rFinanceOverview(){
       h+='<div style="font-size:11px;opacity:0.6;margin-bottom:4px">'+esc(a.accountName||a.platform)+'</div>';
       h+='<div style="font-size:20px;font-weight:600">'+fmtUSD(a.currentBalance)+'</div>';
       h+='<div style="font-size:10px;opacity:0.4;margin-top:4px">'+esc(a.platform)+' • '+esc(a.accountType)+'</div>';
+      if(pk==='brex'&&recentCardSpend>0){
+        h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">Card spend (7d): -'+fmtUSD(recentCardSpend)+'</div>'}
       h+='</div>'})});
+  /* Unreconciled expenses CTA */
+  if(unreconciledExp>0){
+    h+='<div class="chart-card" style="text-align:center;padding:20px;cursor:pointer;border:1px solid rgba(255,152,0,.2)" onclick="TF.setFinFilter(\'expenses\');TF.subNav(\'payments\')">';
+    h+='<div style="font-size:24px;font-weight:700;color:var(--amber)">'+unreconciledExp+'</div>';
+    h+='<div style="font-size:12px;opacity:0.6">Unreconciled Expenses</div>';
+    h+='<div style="font-size:10px;color:var(--amber);margin-top:4px">Click to reconcile →</div>';
+    h+='</div>'}
   h+='</div>';
 
   /* Row 2 — Key metrics */
@@ -2670,7 +2694,7 @@ function rFinanceOverview(){
   /* Recent transactions */
   h+='<div class="chart-card">';
   h+='<h3 style="margin-bottom:12px">Recent Transactions</h3>';
-  var recent=S.financePayments.filter(function(p){return p.status!=='excluded'}).slice(0,10);
+  var recent=S.financePayments.filter(function(p){return p.status!=='excluded'&&p.type!=='transfer'&&p.type!=='bill'}).slice(0,10);
   if(!recent.length)h+='<div style="opacity:0.5;font-size:13px">No transactions yet</div>';
   else{
     recent.forEach(function(p){

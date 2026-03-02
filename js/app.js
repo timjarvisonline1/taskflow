@@ -65,6 +65,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   setForecastHorizon:setForecastHorizon,setForecastScenario:setForecastScenario,
   /* Reconciliation */
   autoReconcile:autoReconcile,
+  openExpenseReconcileModal:openExpenseReconcileModal,createScheduledFromExpense:createScheduledFromExpense,
+  linkExpenseToScheduled:linkExpenseToScheduled,unlinkExpenseFromScheduled:unlinkExpenseFromScheduled,
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
   atToggleMin:atToggleMin,modalToggle:modalToggle,
