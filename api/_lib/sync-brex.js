@@ -22,61 +22,20 @@ async function syncBrex(userId) {
     const acctData = await acctResp.json();
     const accounts = acctData.items || [];
 
-    // Use last_sync_at or default to 90 days ago
-    // Brex expects ISO 8601 without milliseconds: YYYY-MM-DDTHH:MM:SSZ
-    const sinceDate = cred.last_sync_at
-      ? new Date(cred.last_sync_at)
-      : new Date(Date.now() - 90 * 86400000);
-    const since = sinceDate.toISOString().replace(/\.\d{3}Z$/, 'Z');
-
     // 2. Fetch transactions for each cash account
+    // Note: Brex posted_at_start filter returns 400, so we fetch all and rely on upsert deduplication
     for (const acct of accounts) {
       let cursor = null;
       let hasMore = true;
 
       while (hasMore) {
-        let params = [];
-        if (since) params.push('posted_at_start=' + encodeURIComponent(since));
-        if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
         let url = BREX_BASE + '/v2/transactions/cash/' + encodeURIComponent(acct.id);
-        if (params.length) url += '?' + params.join('&');
+        if (cursor) url += '?cursor=' + encodeURIComponent(cursor);
 
         const txResp = await fetch(url, { headers });
         if (!txResp.ok) {
           const txErr = await txResp.text();
-          // If 400, retry once without the date filter in case that's the issue
-          if (txResp.status === 400 && since) {
-            const retryUrl = BREX_BASE + '/v2/transactions/cash/' + encodeURIComponent(acct.id);
-            const retryResp = await fetch(retryUrl, { headers });
-            if (!retryResp.ok) {
-              const retryErr = await retryResp.text();
-              throw new Error('Brex txns retry ' + retryResp.status + ' (acct=' + acct.id + '): ' + retryErr.substring(0, 200));
-            }
-            // If retry without date works, just process those and skip date filtering
-            const retryData = await retryResp.json();
-            const retryItems = retryData.items || [];
-            stats.fetched += retryItems.length;
-            for (const tx of retryItems) {
-              const rawAmt = (tx.amount && tx.amount.amount) ? parseFloat(tx.amount.amount) / 100 : 0;
-              const dir = rawAmt >= 0 ? 'inflow' : 'outflow';
-              const amt = Math.abs(rawAmt);
-              const result = await upsertPayment(userId, 'brex', tx.id, {
-                date: tx.posted_at_date || tx.initiated_at_date || null,
-                amount: amt, fee: 0, net: amt, direction: dir,
-                type: tx.type === 'TRANSFER' ? 'transfer' : 'payment',
-                payer_email: '', payer_name: tx.description || '',
-                description: tx.memo || tx.description || '', category: '',
-                external_status: (tx.status || '').toLowerCase(), pending_amount: 0,
-                metadata: JSON.stringify({ brex_type: tx.type, brex_account_id: acct.id }),
-                status: 'unmatched'
-              });
-              if (result.action === 'inserted') stats.inserted++;
-              else if (result.action === 'updated') stats.updated++;
-            }
-            hasMore = false;
-            continue;
-          }
-          throw new Error('Brex txns ' + txResp.status + ' (acct=' + acct.id + ', date=' + since + '): ' + txErr.substring(0, 200));
+          throw new Error('Brex txns ' + txResp.status + ' (acct=' + acct.id + '): ' + txErr.substring(0, 200));
         }
         const txData = await txResp.json();
         const items = txData.items || [];
