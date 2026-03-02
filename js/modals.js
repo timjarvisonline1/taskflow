@@ -2022,11 +2022,13 @@ function openFinancePaymentDetail(id){
   /* Left pane: edit fields */
   h+='<div class="detail-split-left">';
 
+  var isSplit=p.status==='split';
+
   /* Section 1: Payment Details */
   h+='<div style="margin-bottom:4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Payment Details</span></div>';
   h+='<div class="ed-grid">';
   h+='<div class="ed-fld"><span class="ed-lbl">Date</span><input type="date" class="edf" id="fp-date" value="'+(p.date?p.date.toISOString().slice(0,10):'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="fp-category" onchange="TF.fpCatChange()">'+catOpts+'</select></div>';
+  if(!isSplit){h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="fp-category" onchange="TF.fpCatChange()">'+catOpts+'</select></div>'}
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><div class="edf" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</div></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Fee</span><div class="edf" style="color:var(--t4)">'+fmtUSD(p.fee)+'</div></div>';
   h+='</div>';
@@ -2039,7 +2041,8 @@ function openFinancePaymentDetail(id){
   h+='<div class="ed-fld" id="fp-newstatus-row"'+(p.clientId?' style="display:none"':'')+'><span class="ed-lbl">Status</span><select class="edf" id="fp-newstatus"><option value="active">Active</option><option value="lapsed">Lapsed</option></select></div>';
   h+='</div>';
 
-  /* Section 3: F&C Details (End Client + Campaign) */
+  if(!isSplit){
+  /* Section 3: F&C Details (End Client + Campaign) — hidden in split mode */
   h+='<div id="fp-fc-section" style="'+(isFcCat?'':'display:none')+'">';
   h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">F&C Details</span></div>';
   h+='<div class="ed-grid">';
@@ -2048,6 +2051,7 @@ function openFinancePaymentDetail(id){
   h+='<div class="ed-fld" id="fp-newcampaign-row"'+(p.campaignId?' style="display:none"':'')+'><span class="ed-lbl">Or Create New Campaign</span><input type="text" class="edf" id="fp-newcampaign" placeholder="New campaign name..."></div>';
   h+='<div class="ed-fld" id="fp-newcpstatus-row"'+(p.campaignId?' style="display:none"':'')+'><span class="ed-lbl">Campaign Status</span><select class="edf" id="fp-newcpstatus"><option>Setup</option><option>Active</option><option>Paused</option><option>Completed</option><option>Archived</option></select></div>';
   h+='</div></div>';
+  }
 
   /* Section 4: Notes */
   h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Notes</span></div>';
@@ -2056,9 +2060,9 @@ function openFinancePaymentDetail(id){
   h+='</div>';
 
   /* Section 5: Split Payment Editor (only when status==='split') */
-  var splits=p.status==='split'?getSplitsForPayment(p.id):[];
-  if(p.status==='split'){
-    h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Payment Splits</span></div>';
+  var splits=isSplit?getSplitsForPayment(p.id):[];
+  if(isSplit){
+    h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Payment Splits <span style="font-weight:400;color:var(--t4)">(set category, end client &amp; campaign per split)</span></span></div>';
     h+='<div id="fp-splits-editor">';
     h+=renderSplitEditorRows(splits,p);
     h+='</div>';
@@ -2132,10 +2136,16 @@ function fpClientChange(){
   /* Show/hide create-new fields */
   var ncRow=gel('fp-newclient-row');if(ncRow)ncRow.style.display=clientId?'none':'';
   var nsRow=gel('fp-newstatus-row');if(nsRow)nsRow.style.display=clientId?'none':'';
-  /* Cascade end client */
+  /* Cascade end client (non-split mode) */
   var ecSel=gel('fp-endclient');
-  if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',clientName);
-  fpEndClientChange()}
+  if(ecSel&&ecSel.tagName==='SELECT'){ecSel.innerHTML=buildEndClientOptions('',clientName);fpEndClientChange()}
+  /* In split mode, refresh split editor dropdowns for the new client */
+  var pid=(gel('fp-id')||{}).value;if(!pid)return;
+  var p=S.financePayments.find(function(fp){return fp.id===pid});
+  if(p&&p.status==='split'){
+    _readSplitForm();
+    var editor=gel('fp-splits-editor');
+    if(editor)editor.innerHTML=renderSplitEditorRows(_splitRows,p)}}
 
 function fpEndClientChange(){
   var clientId=(gel('fp-client')||{}).value||'';
@@ -2201,7 +2211,7 @@ async function saveFinancePayment(){
       toast('Campaign created: '+newCpName.trim(),'ok')}
     else{return}}
 
-  var newStatus=clientId?'matched':p.status;
+  var newStatus=clientId?'matched':(cat==='Products'?'matched':p.status);
   var data={date:(gel('fp-date')||{}).value||null,category:cat,
     clientId:clientId,campaignId:campaignId,
     endClient:endClient,notes:(gel('fp-notes')||{}).value||'',
@@ -2220,7 +2230,7 @@ async function saveFinancePayment(){
     var bp=S.financePayments.find(function(fp){return fp.id===bId});
     if(!bp)continue;
     var bData={category:cat,clientId:clientId,campaignId:campaignId,
-      endClient:endClient,status:clientId?'matched':'unmatched'};
+      endClient:endClient,status:clientId?'matched':(cat==='Products'?'matched':'unmatched')};
     var bok=await dbEditFinancePayment(bId,bData);
     if(bok){
       bp.category=cat;bp.clientId=clientId;bp.campaignId=campaignId;
@@ -2426,8 +2436,9 @@ function renderSplitEditorRows(splits,p){
   var catOptsBase='<option value="">— None —</option>';
   PAY_CATS.forEach(function(c){catOptsBase+='<option>'+esc(c)+'</option>'});
 
-  /* Get client name from parent */
-  var clientName=clientNameById(p.clientId);
+  /* Get client name — prefer live form value over stored p.clientId */
+  var formClientId=(gel('fp-client')||{}).value||p.clientId||'';
+  var clientName=clientNameById(formClientId);
 
   var totalSplit=0;
   _splitRows=splits.map(function(sp){return{id:sp.id||'',amount:sp.amount||0,category:sp.category||'',endClient:sp.endClient||'',campaignId:sp.campaignId||'',notes:sp.notes||''}});
@@ -2486,7 +2497,8 @@ function splitAmtChanged(){
 function splitEcChanged(idx){
   var pid=(gel('fp-id')||{}).value;if(!pid)return;
   var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
-  var clientName=clientNameById(p.clientId);
+  var formClientId=(gel('fp-client')||{}).value||p.clientId||'';
+  var clientName=clientNameById(formClientId);
   var ecEl=gel('sp-ec-'+idx);
   var ec=ecEl?ecEl.value:'';
   if(ec==='__addnew__'){ecAddNew('sp-ec-'+idx);return}
@@ -2550,6 +2562,25 @@ async function openSplitPayment(){
 async function saveSplits(){
   var pid=(gel('fp-id')||{}).value;if(!pid)return;
   var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
+
+  /* Save client from the parent form */
+  var clientId=(gel('fp-client')||{}).value||null;
+  var newName=(gel('fp-newclient')||{}).value||'';
+  if(newName.trim()&&!clientId){
+    var newClStatus=(gel('fp-newstatus')||{}).value||'active';
+    var cOk=await dbAddClient(newName.trim(),newClStatus);
+    if(!cOk)return;
+    await loadClientRecords();
+    var newCl=S.clientRecords.find(function(c){return c.name===newName.trim()});
+    if(newCl)clientId=newCl.id;
+    else{toast('Could not find created client','warn');return}}
+
+  /* Update parent payment with client */
+  var parentData={status:'split',category:'',endClient:'',campaignId:null,
+    clientId:clientId,notes:(gel('fp-notes')||{}).value||'',
+    date:p.date?p.date.toISOString().slice(0,10):null};
+  var pOk=await dbEditFinancePayment(pid,parentData);
+  if(pOk){p.clientId=clientId;p.notes=parentData.notes}
 
   /* Read form */
   _readSplitForm();
