@@ -1,4 +1,4 @@
-const { getCredentials, updateSyncStatus, logSync, upsertPayment } = require('./supabase');
+const { getCredentials, getServiceClient, updateSyncStatus, logSync, upsertPayment } = require('./supabase');
 const { refreshZohoToken } = require('./zoho-auth');
 
 const ZOHO_BOOKS_BASE = 'https://www.zohoapis.com/books/v3';
@@ -29,9 +29,9 @@ async function syncZohoBooks(userId) {
   stats.debug.push('since=' + (since || 'FULL_SYNC') + ', lastSync=' + (cred.last_sync_at || 'never') + ', lastMsg=' + lastMsg);
 
   try {
-    // 1. Invoices (inflow — represents money owed to us)
-    // ALWAYS full-fetch invoices (pass null instead of since) — only ~40 records
-    // and we need to catch status/balance changes on older invoices (e.g. part-paid)
+    // 1. Invoices — only fetch outstanding (sent/overdue/unpaid/partially_paid)
+    // No need to sync paid invoices — the funds are already received and matched.
+    stats.invoiceFetchedIds = [];
     await syncEntity(userId, headers, orgId, null, stats, {
       endpoint: '/invoices',
       listKey: 'invoices',
@@ -39,6 +39,7 @@ async function syncZohoBooks(userId) {
       idField: 'invoice_id',
       direction: 'inflow',
       type: 'invoice',
+      extraParams: 'status=sent,overdue,unpaid,partially_paid',
       transform: (inv) => ({
         date: inv.date || null,
         amount: parseFloat(inv.total) || 0,
@@ -48,10 +49,34 @@ async function syncZohoBooks(userId) {
         payer_name: inv.customer_name || '',
         description: (inv.invoice_number || '') + (inv.reference_number ? ' - ' + inv.reference_number : ''),
         external_status: (inv.status || '').toLowerCase(),
-        pending_amount: (inv.status === 'sent' || inv.status === 'overdue' || inv.status === 'unpaid' || inv.status === 'partially_paid') ? (parseFloat(inv.balance) || 0) : 0,
+        pending_amount: parseFloat(inv.balance) || 0,
         metadata: JSON.stringify({ zoho_customer_id: inv.customer_id, invoice_number: inv.invoice_number })
       })
     });
+
+    // Cleanup: mark local outstanding invoices that Zoho no longer returns as paid
+    // (they were paid/voided since our last sync)
+    const svc = getServiceClient();
+    const { data: localOutstanding } = await svc
+      .from('finance_payments')
+      .select('id, source_id')
+      .eq('user_id', userId)
+      .eq('source', 'zoho_books')
+      .eq('type', 'invoice')
+      .gt('pending_amount', 0);
+
+    if (localOutstanding && localOutstanding.length > 0) {
+      const fetchedSet = new Set(stats.invoiceFetchedIds);
+      for (const rec of localOutstanding) {
+        if (!fetchedSet.has(rec.source_id)) {
+          await svc.from('finance_payments')
+            .update({ external_status: 'paid', pending_amount: 0 })
+            .eq('id', rec.id);
+          stats.updated++;
+          stats.debug.push('invoice ' + rec.source_id + ': marked paid (no longer outstanding in Zoho)');
+        }
+      }
+    }
 
     await delay(700);
 
@@ -115,10 +140,12 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
         ? '&' + cfg.dateFilter
         : '&last_modified_time=' + encodeURIComponent(since + 'T00:00:00+0000');
     }
+    const extraPart = cfg.extraParams ? '&' + cfg.extraParams : '';
     const url = ZOHO_BOOKS_BASE + cfg.endpoint
       + '?organization_id=' + orgId
       + sortPart
       + dateFilterPart
+      + extraPart
       + '&page=' + page + '&per_page=200';
 
     const resp = await fetch(url, { headers });
@@ -134,6 +161,9 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
 
     for (const item of items) {
       const sourceId = cfg.entityPrefix + '_' + item[cfg.idField];
+      if (cfg.type === 'invoice' && stats.invoiceFetchedIds) {
+        stats.invoiceFetchedIds.push(sourceId);
+      }
       const transformed = cfg.transform(item);
 
       // Skip records before CSV cutoff — but NEVER skip outstanding invoices

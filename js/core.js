@@ -672,6 +672,16 @@ async function dbEditFinancePayment(id,data){
   if(res.error){toast('Payment update failed: '+res.error.message,'warn');return false}
   return true}
 
+/* Quick inline update of expected payment date for invoices */
+async function setInvExpDate(paymentId,dateVal){
+  var p=S.financePayments.find(function(fp){return fp.id===paymentId});
+  if(!p)return;
+  var ok=await dbEditFinancePayment(paymentId,{expectedPaymentDate:dateVal||null});
+  if(!ok)return;
+  p.expectedPaymentDate=dateVal||null;
+  toast('Expected payment date updated','ok');
+  render()}
+
 async function dbDeleteFinancePayment(id){
   var res=await _sb.from('finance_payments').delete().eq('id',id);
   if(res.error){toast('Payment delete failed: '+res.error.message,'warn');return false}

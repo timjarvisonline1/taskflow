@@ -48,7 +48,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   setOpView:function(v){subNav(v)},
   toggleOpShowClosed:function(){S.opShowClosed=!S.opShowClosed;save();render()},
   /* Finance */
-  openFinancePaymentDetail:openFinancePaymentDetail,saveFinancePayment:saveFinancePayment,
+  openFinancePaymentDetail:openFinancePaymentDetail,saveFinancePayment:saveFinancePayment,setInvExpDate:setInvExpDate,
   openAddFinancePayment:openAddFinancePayment,addFinancePayment:addFinancePayment,
   confirmDeleteFinancePayment:confirmDeleteFinancePayment,doDeleteFinancePayment:doDeleteFinancePayment,
   excludeFinancePayment:excludeFinancePayment,fpCatChange:fpCatChange,
