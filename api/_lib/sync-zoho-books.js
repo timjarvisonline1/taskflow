@@ -15,7 +15,7 @@ async function syncZohoBooks(userId) {
 
   const accessToken = await refreshZohoToken(cred, 'zoho_books');
   const headers = { 'Authorization': 'Zoho-oauthtoken ' + accessToken };
-  const stats = { fetched: 0, inserted: 0, updated: 0, error: '', debug: '' };
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '' };
 
   // For incremental syncs use last_sync_at; for first sync fetch everything.
   // Also treat it as a first sync if last sync found nothing (last_sync_message starts with '0 new')
@@ -147,7 +147,7 @@ async function syncZohoBooks(userId) {
       })
     });
 
-    const msg = stats.inserted + ' new, ' + stats.updated + ' updated';
+    const msg = stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : '');
     await updateSyncStatus(userId, 'zoho_books', 'ok', msg);
     await logSync(userId, 'zoho_books', 'poll', stats);
     return stats;
@@ -189,12 +189,6 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
 
     const data = await resp.json();
     const items = data[cfg.listKey] || [];
-    // Log response details for debugging
-    if (page === 1) {
-      const total = (data.page_context && data.page_context.total) ? data.page_context.total : items.length;
-      const code = data.code !== undefined ? data.code : '?';
-      stats.debug += cfg.endpoint + ':' + total + '(c' + code + ') ';
-    }
     stats.fetched += items.length;
 
     for (const item of items) {
@@ -211,6 +205,7 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
 
       if (result.action === 'inserted') stats.inserted++;
       else if (result.action === 'updated') stats.updated++;
+      else if (result.action === 'skipped') stats.skipped++;
     }
 
     hasMore = data.page_context ? data.page_context.has_more_page : false;

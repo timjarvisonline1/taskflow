@@ -10,7 +10,7 @@ async function syncBrex(userId) {
   if (!apiKey) throw new Error('Brex API key missing');
 
   const headers = { 'Authorization': 'Bearer ' + apiKey };
-  const stats = { fetched: 0, inserted: 0, updated: 0, error: '' };
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '' };
 
   try {
     // 1. Get cash accounts
@@ -66,6 +66,7 @@ async function syncBrex(userId) {
 
           if (result.action === 'inserted') stats.inserted++;
           else if (result.action === 'updated') stats.updated++;
+          else if (result.action === 'skipped') stats.skipped++;
         }
 
         cursor = txData.next_cursor || null;
@@ -73,7 +74,7 @@ async function syncBrex(userId) {
       }
     }
 
-    await updateSyncStatus(userId, 'brex', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated');
+    await updateSyncStatus(userId, 'brex', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : ''));
     await logSync(userId, 'brex', 'poll', stats);
     return stats;
   } catch (e) {

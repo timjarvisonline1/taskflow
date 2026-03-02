@@ -33,7 +33,7 @@ async function syncZohoPayments(userId) {
 
   const accessToken = await refreshZohoToken(cred, 'zoho_payments');
   const headers = { 'Authorization': 'Zoho-oauthtoken ' + accessToken };
-  const stats = { fetched: 0, inserted: 0, updated: 0, error: '', debug: '' };
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '' };
 
   try {
     // 1. Sync Payments (money received via credit card/ACH)
@@ -49,15 +49,6 @@ async function syncZohoPayments(userId) {
       const data = await resp.json();
       const payments = (data.data || data.payments || []);
       stats.fetched += payments.length;
-
-      // Log first record's keys for debugging date field
-      if (page === 1 && payments.length > 0) {
-        const sample = payments[0];
-        const dateFields = Object.keys(sample).filter(k =>
-          k.includes('date') || k.includes('time') || k.includes('created') || k.includes('paid')
-        );
-        stats.debug = 'date_fields:[' + dateFields.map(k => k + '=' + (sample[k] || 'null')).join(', ') + ']';
-      }
 
       for (const pay of payments) {
         const amount = parseFloat(pay.amount) || 0;
@@ -90,6 +81,7 @@ async function syncZohoPayments(userId) {
 
         if (result.action === 'inserted') stats.inserted++;
         else if (result.action === 'updated') stats.updated++;
+        else if (result.action === 'skipped') stats.skipped++;
       }
 
       // Check pagination — Zoho Payments uses page_context or simple page count
@@ -153,6 +145,7 @@ async function syncZohoPayments(userId) {
 
           if (result.action === 'inserted') stats.inserted++;
           else if (result.action === 'updated') stats.updated++;
+          else if (result.action === 'skipped') stats.skipped++;
         }
 
         hasMore = payouts.length === 200;
@@ -164,7 +157,7 @@ async function syncZohoPayments(userId) {
       console.log('Payouts sync skipped: ' + payoutErr.message);
     }
 
-    const msg = stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.debug ? ' | ' + stats.debug : '');
+    const msg = stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped (cross-source dups)' : '');
     await updateSyncStatus(userId, 'zoho_payments', 'ok', msg);
     await logSync(userId, 'zoho_payments', 'poll', stats);
     return stats;

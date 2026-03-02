@@ -10,7 +10,7 @@ async function syncMercury(userId) {
   if (!apiKey) throw new Error('Mercury API key missing');
 
   const headers = { 'Authorization': 'Bearer secret-token:' + apiKey, 'Content-Type': 'application/json' };
-  const stats = { fetched: 0, inserted: 0, updated: 0, error: '' };
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '' };
 
   try {
     // 1. Get accounts
@@ -80,6 +80,7 @@ async function syncMercury(userId) {
 
           if (result.action === 'inserted') stats.inserted++;
           else if (result.action === 'updated') stats.updated++;
+          else if (result.action === 'skipped') stats.skipped++;
         }
 
         hasMore = items.length === limit;
@@ -87,7 +88,7 @@ async function syncMercury(userId) {
       }
     }
 
-    await updateSyncStatus(userId, 'mercury', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated');
+    await updateSyncStatus(userId, 'mercury', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : ''));
     await logSync(userId, 'mercury', 'poll', stats);
     return stats;
   } catch (e) {
