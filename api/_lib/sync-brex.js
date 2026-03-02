@@ -2,6 +2,7 @@ const { getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountB
 
 const BREX_BASE = 'https://platform.brexapis.com';
 const CSV_CUTOFF = '2026-02-28'; // All data before this date was imported via CSV — never re-sync
+const PARALLEL_BATCH = 5; // Process this many upserts concurrently
 
 async function syncBrex(userId) {
   const cred = await getCredentials(userId, 'brex');
@@ -38,10 +39,8 @@ async function syncBrex(userId) {
 
     // 2. Pre-fetch all existing Brex source_ids in ONE query.
     //    Brex API doesn't support date filtering, so every sync fetches the full
-    //    transaction history. Without this pre-fetch, each of the ~300+ records
-    //    would trigger 3-4 Supabase queries via upsertPayment(), easily exceeding
-    //    the 60-second Vercel function timeout. By checking locally, subsequent
-    //    syncs only hit the DB for genuinely new transactions.
+    //    transaction history. By checking locally, we skip already-synced records
+    //    without any DB round-trips.
     const dbClient = getServiceClient();
     const { data: existingRecs } = await dbClient
       .from('finance_payments')
@@ -50,8 +49,8 @@ async function syncBrex(userId) {
       .eq('source', 'brex');
     const existingIds = new Set((existingRecs || []).map(r => r.source_id));
 
-    // 3. Fetch transactions for each cash account
-    // Note: Brex posted_at_start filter returns 400, so we fetch all and filter client-side
+    // 3. Fetch cash transactions — collect new ones for batch processing
+    const pendingCash = [];
     for (const acct of accounts) {
       let cursor = null;
       let hasMore = true;
@@ -70,7 +69,6 @@ async function syncBrex(userId) {
         stats.fetched += items.length;
 
         for (const tx of items) {
-          // Brex amounts are in cents
           const rawAmount = (tx.amount && tx.amount.amount) ? parseFloat(tx.amount.amount) / 100 : 0;
           const direction = rawAmount >= 0 ? 'inflow' : 'outflow';
           const amount = Math.abs(rawAmount);
@@ -78,38 +76,27 @@ async function syncBrex(userId) {
 
           // Skip records before CSV cutoff
           if (txDate && txDate < CSV_CUTOFF) { stats.skipped++; continue; }
-
           // Skip internal transfers (account-to-account moves — noise)
           if (tx.type === 'TRANSFER') { stats.skipped++; continue; }
-
           // Skip card settlement sweeps (daily aggregate debits like "Brex Card -$6,040.64")
-          // Individual card transactions are tracked via the card endpoint
           const txDesc = (tx.description || '').toLowerCase();
           if (txDesc === 'brex card' || txDesc.startsWith('brex card ')) { stats.skipped++; continue; }
-
-          // Fast-path: skip if we already have this record (avoids 3-4 DB queries per record)
+          // Fast-path: skip if we already have this record
           if (existingIds.has(tx.id)) { stats.skipped++; continue; }
 
-          const result = await upsertPayment(userId, 'brex', tx.id, {
-            date: txDate,
-            amount: amount,
-            fee: 0,
-            net: amount,
-            direction: direction,
-            type: 'payment',
-            payer_email: '',
-            payer_name: tx.description || '',
-            description: tx.memo || tx.description || '',
-            category: '',
-            external_status: (tx.status || '').toLowerCase(),
-            pending_amount: 0,
-            metadata: JSON.stringify({ brex_type: 'cash', brex_account_id: acct.id }),
-            status: 'unmatched'
+          pendingCash.push({
+            sourceId: tx.id,
+            data: {
+              date: txDate, amount: amount, fee: 0, net: amount,
+              direction: direction, type: 'payment',
+              payer_email: '', payer_name: tx.description || '',
+              description: tx.memo || tx.description || '', category: '',
+              external_status: (tx.status || '').toLowerCase(),
+              pending_amount: 0,
+              metadata: JSON.stringify({ brex_type: 'cash', brex_account_id: acct.id }),
+              status: 'unmatched'
+            }
           });
-
-          if (result.action === 'inserted') { stats.inserted++; existingIds.add(tx.id); }
-          else if (result.action === 'updated') stats.updated++;
-          else if (result.action === 'skipped') stats.skipped++;
         }
 
         cursor = txData.next_cursor || null;
@@ -117,7 +104,8 @@ async function syncBrex(userId) {
       }
     }
 
-    // 3. Fetch card transactions from primary card account
+    // 4. Fetch card transactions — collect new ones for batch processing
+    const pendingCard = [];
     let cardCursor = null;
     let cardHasMore = true;
 
@@ -127,7 +115,6 @@ async function syncBrex(userId) {
 
       const cardResp = await fetch(cardUrl, { headers });
       if (!cardResp.ok) {
-        // Card endpoint may not be available — warn but don't fail the entire sync
         const cardErr = await cardResp.text();
         const cardErrMsg = 'Card sync failed (' + cardResp.status + '): ' + cardErr.substring(0, 100);
         console.log('Brex: ' + cardErrMsg);
@@ -146,38 +133,45 @@ async function syncBrex(userId) {
 
         // Skip records before CSV cutoff
         if (cardTxDate && cardTxDate < CSV_CUTOFF) { stats.skipped++; continue; }
-
         // Fast-path: skip if we already have this record
         if (existingIds.has(tx.id)) { stats.skipped++; continue; }
 
-        const result = await upsertPayment(userId, 'brex', tx.id, {
-          date: cardTxDate,
-          amount: amount,
-          fee: 0,
-          net: amount,
-          direction: 'outflow',
-          type: 'expense',
-          payer_email: '',
-          payer_name: merchantDesc,
-          description: merchantDesc,
-          category: '',
-          external_status: (tx.status || '').toLowerCase(),
-          pending_amount: 0,
-          metadata: JSON.stringify({
-            brex_type: 'card',
-            card_id: tx.card_id || '',
-            merchant: tx.merchant || {}
-          }),
-          status: 'unmatched'
+        pendingCard.push({
+          sourceId: tx.id,
+          data: {
+            date: cardTxDate, amount: amount, fee: 0, net: amount,
+            direction: 'outflow', type: 'expense',
+            payer_email: '', payer_name: merchantDesc,
+            description: merchantDesc, category: '',
+            external_status: (tx.status || '').toLowerCase(),
+            pending_amount: 0,
+            metadata: JSON.stringify({
+              brex_type: 'card', card_id: tx.card_id || '',
+              merchant: tx.merchant || {}
+            }),
+            status: 'unmatched'
+          }
         });
-
-        if (result.action === 'inserted') { stats.inserted++; existingIds.add(tx.id); }
-        else if (result.action === 'updated') stats.updated++;
-        else if (result.action === 'skipped') stats.skipped++;
       }
 
       cardCursor = cardData.next_cursor || null;
       cardHasMore = !!cardCursor;
+    }
+
+    // 5. Process all new records in parallel batches (5 at a time)
+    //    This is ~5x faster than sequential processing and avoids the timeout
+    //    that occurs when inserting ~100+ records one at a time.
+    const allPending = pendingCash.concat(pendingCard);
+    for (let i = 0; i < allPending.length; i += PARALLEL_BATCH) {
+      const batch = allPending.slice(i, i + PARALLEL_BATCH);
+      const results = await Promise.all(batch.map(function(item) {
+        return upsertPayment(userId, 'brex', item.sourceId, item.data);
+      }));
+      for (let j = 0; j < results.length; j++) {
+        if (results[j].action === 'inserted') { stats.inserted++; existingIds.add(batch[j].sourceId); }
+        else if (results[j].action === 'updated') stats.updated++;
+        else if (results[j].action === 'skipped') stats.skipped++;
+      }
     }
 
     const cardNote = stats.cardError ? ' ⚠ ' + stats.cardError : '';
