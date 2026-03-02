@@ -1,4 +1,5 @@
 const { getServiceClient, verifyUserToken, cors } = require('../_lib/supabase');
+const { exchangeZohoCode } = require('../_lib/zoho-auth');
 
 module.exports = async function handler(req, res) {
   cors(res);
@@ -34,10 +35,27 @@ module.exports = async function handler(req, res) {
     const { platform, credentials, config } = req.body || {};
     if (!platform) return res.status(400).json({ error: 'platform is required' });
 
+    let creds = credentials || {};
+
+    // For Zoho platforms: if auth code is present but no refresh_token, exchange it
+    if ((platform === 'zoho_books' || platform === 'zoho_payments') && creds.client_id && creds.client_secret) {
+      const authCode = creds.code || creds.auth_code;
+      if (authCode && !creds.refresh_token) {
+        try {
+          const tokens = await exchangeZohoCode(creds.client_id, creds.client_secret, authCode);
+          creds = { ...creds, ...tokens };
+          delete creds.code;
+          delete creds.auth_code;
+        } catch (e) {
+          return res.status(200).json({ success: false, error: 'Code exchange failed: ' + e.message });
+        }
+      }
+    }
+
     const row = {
       user_id: userId,
       platform: platform,
-      credentials: credentials || {},
+      credentials: creds,
       config: config || {},
       is_active: true,
       updated_at: new Date().toISOString()

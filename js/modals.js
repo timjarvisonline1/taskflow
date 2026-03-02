@@ -2863,6 +2863,14 @@ async function testIntegrationBtn(platformId){
     if(result.accounts)msg+=' Found '+result.accounts.length+' account(s).';
     if(result.organization)msg+=' Org: '+result.organization;
     resultEl.innerHTML='<span style="color:var(--green)">'+esc(msg)+'</span>';
+    /* If test returned a refresh_token (Zoho code exchange), populate it into the form */
+    if(result.refresh_token){
+      var rtEl=gel('intg-'+platformId+'-refresh_token');
+      if(rtEl)rtEl.value=result.refresh_token;
+      /* Clear the auth code field since it's been used */
+      var codeEl=gel('intg-'+platformId+'-code');
+      if(codeEl)codeEl.value='';
+    }
   }else{
     resultEl.innerHTML='<span style="color:var(--red)">Failed: '+esc((result&&result.error)||'Unknown error')+'</span>';
   }
