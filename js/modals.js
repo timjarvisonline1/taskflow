@@ -2067,6 +2067,7 @@ function openFinancePaymentDetail(id){
   h+='<div class="ed-actions" style="margin-top:16px">';
   if(p.status==='split'){
     h+='<button class="btn btn-p" onclick="TF.saveSplits()" style="gap:6px">'+icon('save',14)+' Save Splits</button>';
+    h+='<button class="btn" onclick="TF.unsplitPayment()" style="color:var(--amber);border-color:rgba(255,176,48,.3)">'+icon('refresh',14)+' Unsplit</button>';
   }else{
     h+='<button class="btn btn-p" onclick="TF.saveFinancePayment()" style="gap:6px">'+icon('save',14)+' Save</button>';
     h+='<button class="btn" onclick="TF.openSplitPayment()" style="color:var(--blue);border-color:rgba(77,166,255,.3)">'+icon('activity',14)+' Split Payment</button>';
@@ -2592,3 +2593,26 @@ async function saveSplits(){
     S.financePaymentSplits=S.financePaymentSplits.filter(function(s){return s.id!==toDelete[j]})}
 
   toast('Splits saved','ok');closeModal();render()}
+
+async function unsplitPayment(){
+  var pid=(gel('fp-id')||{}).value;if(!pid)return;
+  var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
+  var splits=getSplitsForPayment(pid);
+
+  /* Restore first split's details back to the parent */
+  var first=splits[0]||{};
+  var data={status:first.category||first.campaignId?'matched':'unmatched',
+    category:first.category||'',endClient:first.endClient||'',
+    campaignId:first.campaignId||null,notes:p.notes||'',
+    date:p.date?p.date.toISOString().slice(0,10):null,
+    clientId:p.clientId||null};
+  var ok=await dbEditFinancePayment(pid,data);
+  if(!ok){toast('Could not unsplit payment','warn');return}
+  p.status=data.status;p.category=data.category;p.endClient=data.endClient;p.campaignId=data.campaignId;
+
+  /* Delete all splits from DB */
+  for(var i=0;i<splits.length;i++){
+    await dbDeleteFinancePaymentSplit(splits[i].id)}
+  S.financePaymentSplits=S.financePaymentSplits.filter(function(s){return s.paymentId!==pid});
+
+  toast('Payment restored to single','ok');closeModal();render()}
