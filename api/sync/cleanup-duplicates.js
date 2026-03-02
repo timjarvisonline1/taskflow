@@ -21,14 +21,14 @@ module.exports = async function handler(req, res) {
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const client = getServiceClient();
-  const stats = { deleted: 0, excluded: 0, statusRestored: 0, crossSourceDups: 0, zohoPaymentsDeleted: 0, mercuryInflowsDeleted: 0, errors: [] };
+  const stats = { deleted: 0, excluded: 0, statusRestored: 0, crossSourceDups: 0, zohoPaymentsDeleted: 0, mercuryInflowsDeleted: 0, brexTransfersDeleted: 0, brexSettlementsDeleted: 0, zohoVendorPaymentsDeleted: 0, zohoBillsDeleted: 0, zohoExpensesDeleted: 0, mercuryTransfersDeleted: 0, errors: [] };
   const CUTOFF = '2026-02-28';
 
   try {
     // 1. Get all finance payments for this user
     const { data: allPayments, error: fetchErr } = await client
       .from('finance_payments')
-      .select('id, source, source_id, date, amount, payer_email, payer_name, status, client_id, type, direction')
+      .select('id, source, source_id, date, amount, payer_email, payer_name, status, client_id, type, direction, metadata, description')
       .eq('user_id', userId)
       .order('date', { ascending: false });
 
@@ -212,12 +212,78 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // 12-17. Delete noise records (transfers, settlements, vendor payments, bills, expenses)
+    // Safety: skip records the user has already acted on (matched, split, or assigned to client)
+    const noiseToDelete = new Set();
+
+    for (const rec of allPayments) {
+      if (rec.status === 'matched' || rec.status === 'split' || rec.client_id) continue;
+
+      // 12. Brex internal transfers (both directions)
+      if (rec.source === 'brex' && rec.type === 'transfer') {
+        noiseToDelete.add(rec.id);
+        stats.brexTransfersDeleted++;
+      }
+
+      // 13. Brex card settlement sweeps (daily aggregate debits like "Brex Card -$6,040.64")
+      if (rec.source === 'brex' && rec.direction === 'outflow') {
+        let meta = {};
+        try { meta = typeof rec.metadata === 'string' ? JSON.parse(rec.metadata || '{}') : (rec.metadata || {}); } catch(e) {}
+        if (meta.brex_type === 'cash') {
+          const desc = (rec.description || rec.payer_name || '').toLowerCase();
+          if (desc === 'brex card' || desc.startsWith('brex card ')) {
+            noiseToDelete.add(rec.id);
+            stats.brexSettlementsDeleted++;
+          }
+        }
+      }
+
+      // 14. Zoho Books vendor payments (duplicate bank outflows)
+      if (rec.source === 'zoho_books' && rec.type === 'payment' && rec.direction === 'outflow') {
+        noiseToDelete.add(rec.id);
+        stats.zohoVendorPaymentsDeleted++;
+      }
+
+      // 15. Zoho Books bills (documents, not transactions)
+      if (rec.source === 'zoho_books' && rec.type === 'bill') {
+        noiseToDelete.add(rec.id);
+        stats.zohoBillsDeleted++;
+      }
+
+      // 16. Zoho Books expenses (duplicate card/bank transactions)
+      if (rec.source === 'zoho_books' && rec.type === 'expense') {
+        noiseToDelete.add(rec.id);
+        stats.zohoExpensesDeleted++;
+      }
+
+      // 17. Mercury internal transfers
+      if (rec.source === 'mercury' && rec.type === 'transfer') {
+        noiseToDelete.add(rec.id);
+        stats.mercuryTransfersDeleted++;
+      }
+    }
+
+    // Delete noise records in batches
+    const noiseIds = Array.from(noiseToDelete);
+    for (let i = 0; i < noiseIds.length; i += 50) {
+      const batch = noiseIds.slice(i, i + 50);
+      const { error: noiseDelErr } = await client.from('finance_payments').delete().in('id', batch);
+      if (noiseDelErr) stats.errors.push('Noise delete error: ' + noiseDelErr.message);
+      else stats.deleted += batch.length;
+    }
+
     return res.status(200).json({
       success: true,
       deleted: stats.deleted,
       crossSourceDups: stats.crossSourceDups,
       zohoPaymentsDeleted: stats.zohoPaymentsDeleted,
       mercuryInflowsDeleted: stats.mercuryInflowsDeleted,
+      brexTransfersDeleted: stats.brexTransfersDeleted,
+      brexSettlementsDeleted: stats.brexSettlementsDeleted,
+      zohoVendorPaymentsDeleted: stats.zohoVendorPaymentsDeleted,
+      zohoBillsDeleted: stats.zohoBillsDeleted,
+      zohoExpensesDeleted: stats.zohoExpensesDeleted,
+      mercuryTransfersDeleted: stats.mercuryTransfersDeleted,
       excluded: stats.excluded,
       statusRestored: stats.statusRestored,
       errors: stats.errors

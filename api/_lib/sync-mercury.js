@@ -70,6 +70,9 @@ async function syncMercury(userId) {
           // Skip inflows — Zoho Books is source of truth for Film&Content LLC inflows
           if (direction === 'inflow') { stats.skipped++; continue; }
 
+          // Skip internal transfers — noise (account-to-account moves)
+          if (tx.kind === 'internalTransfer') { stats.skipped++; continue; }
+
           const amount = Math.abs(rawAmount);
 
           // Determine date — use postedAt (settled) or createdAt (pending)
@@ -150,6 +153,9 @@ async function processMercuryWebhook(userId, event) {
 
   // Skip inflows — Zoho Books is source of truth for Film&Content LLC inflows
   if (direction === 'inflow') return { action: 'skipped' };
+
+  // Skip internal transfers — noise (account-to-account moves)
+  if (fullTx.kind === 'internalTransfer') return { action: 'skipped' };
 
   const amount = Math.abs(rawAmount);
   const txDate = fullTx.postedAt ? fullTx.postedAt.split('T')[0] : (fullTx.createdAt ? fullTx.createdAt.split('T')[0] : null);

@@ -73,80 +73,9 @@ async function syncZohoBooks(userId) {
       })
     });
 
-    await delay(700);
-
-    // 3. Vendor Payments (outflow — money paid to vendors)
-    await syncEntity(userId, headers, orgId, since, stats, {
-      endpoint: '/vendorpayments',
-      listKey: 'vendorpayments',
-      entityPrefix: 'vpay',
-      idField: 'payment_id',
-      direction: 'outflow',
-      type: 'payment',
-      transform: (pay) => ({
-        date: pay.date || null,
-        amount: parseFloat(pay.amount) || 0,
-        fee: 0,
-        net: parseFloat(pay.amount) || 0,
-        payer_email: '',
-        payer_name: pay.vendor_name || '',
-        description: pay.payment_number || pay.reference_number || '',
-        external_status: '',
-        pending_amount: 0,
-        metadata: JSON.stringify({ zoho_vendor_id: pay.vendor_id, payment_mode: pay.payment_mode })
-      })
-    });
-
-    await delay(700);
-
-    // 4. Bills (outflow — money owed to vendors)
-    await syncEntity(userId, headers, orgId, since, stats, {
-      endpoint: '/bills',
-      listKey: 'bills',
-      entityPrefix: 'bill',
-      idField: 'bill_id',
-      direction: 'outflow',
-      type: 'bill',
-      transform: (bill) => ({
-        date: bill.date || null,
-        amount: parseFloat(bill.total) || 0,
-        fee: 0,
-        net: parseFloat(bill.total) || 0,
-        payer_email: '',
-        payer_name: bill.vendor_name || '',
-        description: (bill.bill_number || '') + (bill.reference_number ? ' - ' + bill.reference_number : ''),
-        external_status: (bill.status || '').toLowerCase(),
-        pending_amount: (bill.status === 'open' || bill.status === 'overdue') ? (parseFloat(bill.balance) || 0) : 0,
-        metadata: JSON.stringify({ zoho_vendor_id: bill.vendor_id, bill_number: bill.bill_number })
-      })
-    });
-
-    await delay(700);
-
-    // 5. Expenses (outflow — direct expenses)
-    // Note: expenses endpoint doesn't support sort_column=last_modified_time
-    await syncEntity(userId, headers, orgId, since, stats, {
-      endpoint: '/expenses',
-      listKey: 'expenses',
-      entityPrefix: 'exp',
-      idField: 'expense_id',
-      direction: 'outflow',
-      type: 'expense',
-      sortColumn: 'date',
-      dateFilter: since ? ('date_start=' + since + '&date_end=' + new Date().toISOString().split('T')[0]) : null,
-      transform: (exp) => ({
-        date: exp.date || null,
-        amount: parseFloat(exp.total) || 0,
-        fee: 0,
-        net: parseFloat(exp.total) || 0,
-        payer_email: '',
-        payer_name: exp.vendor_name || exp.merchant_name || '',
-        description: exp.description || exp.reference_number || '',
-        external_status: (exp.status || '').toLowerCase(),
-        pending_amount: 0,
-        metadata: JSON.stringify({ expense_type: exp.expense_type, account_name: exp.account_name })
-      })
-    });
+    // Vendor payments, bills, and expenses are NOT synced — they duplicate bank/card transactions.
+    // Revenue source of truth: Zoho Books invoices + customer payments.
+    // Expense source of truth: Brex card transactions + Mercury/Brex bank outflows.
 
     const msg = stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : '');
     await updateSyncStatus(userId, 'zoho_books', 'ok', msg);

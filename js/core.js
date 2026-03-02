@@ -1438,18 +1438,15 @@ function finFilteredPayments(){
   var fp=S.financePayments.slice();
   /* Always exclude 'excluded' records */
   fp=fp.filter(function(p){return p.status!=='excluded'});
+  /* In the default/all tab, exclude types that have their own views or are noise */
+  if(!S.finFilter||S.finFilter==='all'||S.finFilter===''){
+    fp=fp.filter(function(p){return p.type!=='invoice'&&p.type!=='transfer'&&p.type!=='bill'})}
   if(S.finFilter==='unmatched'){
-    /* Unmatched: only actual customer payments needing client matching.
-       - zoho_payments: credit card payments received (authoritative)
-       - mercury: bank transfers received (authoritative)
-       - stripe/stripe2/zoho: legacy CSV imports
-       - brex: only non-transfer payments
-       Excludes zoho_books (always duplicates zoho_payments or mercury),
-       outflows, invoices, bills, expenses, payouts, and transfers */
+    /* Unmatched: actual customer payments needing client matching.
+       All inflow payments from any source — Brex (clean: no transfers/settlements),
+       Zoho Books (customer payments only), and legacy CSV imports. */
     fp=fp.filter(function(p){
       if(p.status!=='unmatched'||p.direction!=='inflow'||p.type!=='payment')return false;
-      if(p.source==='zoho_books')return false;
-      if(p.source==='brex')return false;
       return true;
     });
   }

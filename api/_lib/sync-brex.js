@@ -65,13 +65,21 @@ async function syncBrex(userId) {
           // Skip records before CSV cutoff
           if (txDate && txDate < CSV_CUTOFF) { stats.skipped++; continue; }
 
+          // Skip internal transfers (account-to-account moves — noise)
+          if (tx.type === 'TRANSFER') { stats.skipped++; continue; }
+
+          // Skip card settlement sweeps (daily aggregate debits like "Brex Card -$6,040.64")
+          // Individual card transactions are tracked via the card endpoint
+          const txDesc = (tx.description || '').toLowerCase();
+          if (txDesc === 'brex card' || txDesc.startsWith('brex card ')) { stats.skipped++; continue; }
+
           const result = await upsertPayment(userId, 'brex', tx.id, {
             date: txDate,
             amount: amount,
             fee: 0,
             net: amount,
             direction: direction,
-            type: tx.type === 'TRANSFER' ? 'transfer' : 'payment',
+            type: 'payment',
             payer_email: '',
             payer_name: tx.description || '',
             description: tx.memo || tx.description || '',
@@ -102,9 +110,11 @@ async function syncBrex(userId) {
 
       const cardResp = await fetch(cardUrl, { headers });
       if (!cardResp.ok) {
-        // Card endpoint may not be available for all accounts — log but don't fail
+        // Card endpoint may not be available — warn but don't fail the entire sync
         const cardErr = await cardResp.text();
-        console.log('Brex card txns ' + cardResp.status + ': ' + cardErr.substring(0, 200));
+        const cardErrMsg = 'Card sync failed (' + cardResp.status + '): ' + cardErr.substring(0, 100);
+        console.log('Brex: ' + cardErrMsg);
+        stats.cardError = cardErrMsg;
         break;
       }
       const cardData = await cardResp.json();
@@ -150,7 +160,8 @@ async function syncBrex(userId) {
       cardHasMore = !!cardCursor;
     }
 
-    await updateSyncStatus(userId, 'brex', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : ''));
+    const cardNote = stats.cardError ? ' ⚠ ' + stats.cardError : '';
+    await updateSyncStatus(userId, 'brex', stats.cardError ? 'warning' : 'ok', stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : '') + cardNote);
     await logSync(userId, 'brex', 'poll', stats);
     return stats;
   } catch (e) {
