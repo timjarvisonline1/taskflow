@@ -60,18 +60,12 @@ async function testMercury(res, creds) {
 async function testZohoBooks(res, userId, creds, config) {
   // If auth_code is provided, exchange it for refresh token first
   let tokenCreds = { ...creds };
-  if (creds.auth_code && !creds.refresh_token) {
-    const tokens = await exchangeZohoCode(creds.client_id, creds.client_secret, creds.auth_code);
+  const authCode = creds.code || creds.auth_code;
+  if (authCode && !creds.refresh_token) {
+    const tokens = await exchangeZohoCode(creds.client_id, creds.client_secret, authCode);
     tokenCreds = { ...creds, ...tokens };
+    delete tokenCreds.code;
     delete tokenCreds.auth_code;
-
-    // Save the refresh token back to the database
-    const client = getServiceClient();
-    await client
-      .from('integration_credentials')
-      .update({ credentials: tokenCreds, updated_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('platform', 'zoho_books');
   }
 
   // Test the connection by listing organizations
@@ -87,23 +81,18 @@ async function testZohoBooks(res, userId, creds, config) {
     success: true,
     details: orgs.length + ' organization(s) found',
     organizations: orgs.map(o => ({ id: o.organization_id, name: o.name })),
-    credentials_updated: !!creds.auth_code // Signal to client that refresh token was obtained
+    refresh_token: tokenCreds.refresh_token || null
   });
 }
 
 async function testZohoPayments(res, userId, creds, config) {
   let tokenCreds = { ...creds };
-  if (creds.auth_code && !creds.refresh_token) {
-    const tokens = await exchangeZohoCode(creds.client_id, creds.client_secret, creds.auth_code);
+  const authCode = creds.code || creds.auth_code;
+  if (authCode && !creds.refresh_token) {
+    const tokens = await exchangeZohoCode(creds.client_id, creds.client_secret, authCode);
     tokenCreds = { ...creds, ...tokens };
+    delete tokenCreds.code;
     delete tokenCreds.auth_code;
-
-    const client = getServiceClient();
-    await client
-      .from('integration_credentials')
-      .update({ credentials: tokenCreds, updated_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('platform', 'zoho_payments');
   }
 
   const accountId = (config || {}).account_id || '';
@@ -122,6 +111,6 @@ async function testZohoPayments(res, userId, creds, config) {
   return res.status(200).json({
     success: true,
     details: 'Connection successful',
-    credentials_updated: !!creds.auth_code
+    refresh_token: tokenCreds.refresh_token || null
   });
 }
