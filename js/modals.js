@@ -2033,13 +2033,15 @@ function openFinancePaymentDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Fee</span><div class="edf" style="color:var(--t4)">'+fmtUSD(p.fee)+'</div></div>';
   h+='</div>';
 
-  /* Section 2: Client */
+  /* Section 2: Client — hidden for Products */
+  var isProducts=p.category==='Products';
+  h+='<div id="fp-client-section" style="'+(isProducts&&!isSplit?'display:none':'')+'">';
   h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Client</span></div>';
   h+='<div class="ed-grid">';
   h+='<div class="ed-fld"><span class="ed-lbl">Select Client</span><select class="edf" id="fp-client" onchange="TF.fpClientChange()">'+clOpts+'</select></div>';
   h+='<div class="ed-fld" id="fp-newclient-row"'+(p.clientId?' style="display:none"':'')+'><span class="ed-lbl">Or Create New</span><input type="text" class="edf" id="fp-newclient" placeholder="New client name..."></div>';
   h+='<div class="ed-fld" id="fp-newstatus-row"'+(p.clientId?' style="display:none"':'')+'><span class="ed-lbl">Status</span><select class="edf" id="fp-newstatus"><option value="active">Active</option><option value="lapsed">Lapsed</option></select></div>';
-  h+='</div>';
+  h+='</div></div>';
 
   if(!isSplit){
   /* Section 3: F&C Details (End Client + Campaign) — hidden in split mode */
@@ -2128,7 +2130,9 @@ function openFinancePaymentDetail(id){
 function fpCatChange(){
   var cat=(gel('fp-category')||{}).value||'';
   var isFc=cat.indexOf('F&C')===0;
-  var fcSec=gel('fp-fc-section');if(fcSec)fcSec.style.display=isFc?'':'none'}
+  var fcSec=gel('fp-fc-section');if(fcSec)fcSec.style.display=isFc?'':'none';
+  /* Hide client section for Products */
+  var clSec=gel('fp-client-section');if(clSec)clSec.style.display=cat==='Products'?'none':''}
 
 function fpClientChange(){
   var clientId=(gel('fp-client')||{}).value||'';
@@ -2182,6 +2186,9 @@ async function saveFinancePayment(){
 
   var cat=(gel('fp-category')||{}).value||'';
   var isFc=cat.indexOf('F&C')===0;
+
+  /* Products don't need a client */
+  if(cat==='Products'){clientId=null}
 
   /* Resolve end client value (dropdown or typed-in text input) */
   var ecEl=gel('fp-endclient');
@@ -2530,7 +2537,8 @@ function _readSplitForm(){
   _splitRows.forEach(function(sp,idx){
     var amtEl=gel('sp-amt-'+idx);if(amtEl)sp.amount=parseFloat(amtEl.value)||0;
     var catEl=gel('sp-cat-'+idx);if(catEl)sp.category=catEl.value||'';
-    var ecEl=gel('sp-ec-'+idx);if(ecEl)sp.endClient=ecEl.value||'';
+    var ecEl=gel('sp-ec-'+idx);
+    if(ecEl){var ecVal=ecEl.value||'';sp.endClient=(ecVal==='__addnew__'?'':ecVal)}
     var cpEl=gel('sp-cp-'+idx);if(cpEl)sp.campaignId=cpEl.value||'';
     var ntEl=gel('sp-notes-'+idx);if(ntEl)sp.notes=ntEl.value||''})}
 
@@ -2538,25 +2546,46 @@ async function openSplitPayment(){
   var pid=(gel('fp-id')||{}).value;if(!pid)return;
   var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
 
-  /* Pre-populate first split from existing payment fields */
-  var firstSplit={id:'',amount:p.amount,category:p.category||'',endClient:p.endClient||'',campaignId:p.campaignId||'',notes:''};
+  /* Read current form values — user may have set client/category before clicking Split */
+  var formClientId=(gel('fp-client')||{}).value||null;
+  var formCat=(gel('fp-category')||{}).value||'';
+  var formDate=(gel('fp-date')||{}).value||null;
+  var formNotes=(gel('fp-notes')||{}).value||'';
+  var formEc='';var ecEl=gel('fp-endclient');
+  if(ecEl)formEc=(ecEl.value==='__addnew__'?'':ecEl.value)||'';
+  var formCpId=(gel('fp-campaign')||{}).value||null;
 
-  /* Update payment status to 'split' */
-  var ok=await dbEditFinancePayment(pid,{status:'split',category:'',endClient:'',campaignId:null,notes:p.notes||'',date:p.date?p.date.toISOString().slice(0,10):null,clientId:p.clientId||null});
+  /* Handle new client creation if needed */
+  var newName=(gel('fp-newclient')||{}).value||'';
+  if(newName.trim()&&!formClientId){
+    var newClStatus=(gel('fp-newstatus')||{}).value||'active';
+    var cOk=await dbAddClient(newName.trim(),newClStatus);
+    if(!cOk)return;
+    await loadClientRecords();
+    var newCl=S.clientRecords.find(function(c){return c.name===newName.trim()});
+    if(newCl)formClientId=newCl.id}
+
+  /* Pre-populate first split from form fields */
+  var firstSplit={id:'',amount:p.amount,category:formCat,endClient:formEc,campaignId:formCpId||'',notes:''};
+
+  /* Update parent payment — status to split, clear category/ec/campaign (those live on splits now) */
+  var ok=await dbEditFinancePayment(pid,{status:'split',category:'',endClient:'',campaignId:null,
+    notes:formNotes,date:formDate,clientId:formClientId});
   if(!ok){toast('Could not switch to split mode','warn');return}
   p.status='split';p.category='';p.endClient='';p.campaignId='';
+  p.clientId=formClientId;p.notes=formNotes;
+  if(formDate)p.date=new Date(formDate+'T00:00:00');
 
   /* Save the first split row */
   var res=await dbAddFinancePaymentSplit({paymentId:pid,amount:firstSplit.amount,
     category:firstSplit.category,endClient:firstSplit.endClient,
     campaignId:firstSplit.campaignId||null,notes:firstSplit.notes});
   if(res){
-    var newSp={id:res.id,paymentId:pid,amount:firstSplit.amount,category:firstSplit.category,
-      endClient:firstSplit.endClient,campaignId:firstSplit.campaign_id||firstSplit.campaignId||'',notes:firstSplit.notes};
-    S.financePaymentSplits.push(newSp)}
+    S.financePaymentSplits.push({id:res.id,paymentId:pid,amount:firstSplit.amount,
+      category:firstSplit.category,endClient:firstSplit.endClient,
+      campaignId:firstSplit.campaignId||'',notes:firstSplit.notes})}
 
   toast('Payment converted to split mode','ok');
-  /* Re-open the detail to show the split editor */
   openFinancePaymentDetail(pid)}
 
 async function saveSplits(){
@@ -2578,7 +2607,7 @@ async function saveSplits(){
   /* Update parent payment with client */
   var parentData={status:'split',category:'',endClient:'',campaignId:null,
     clientId:clientId,notes:(gel('fp-notes')||{}).value||'',
-    date:p.date?p.date.toISOString().slice(0,10):null};
+    date:(gel('fp-date')||{}).value||null};
   var pOk=await dbEditFinancePayment(pid,parentData);
   if(pOk){p.clientId=clientId;p.notes=parentData.notes}
 
