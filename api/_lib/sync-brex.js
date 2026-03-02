@@ -1,4 +1,4 @@
-const { getCredentials, updateSyncStatus, logSync, upsertPayment } = require('./supabase');
+const { getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountBalance } = require('./supabase');
 
 const BREX_BASE = 'https://platform.brexapis.com';
 
@@ -13,7 +13,7 @@ async function syncBrex(userId) {
   const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '' };
 
   try {
-    // 1. Get cash accounts
+    // 1. Get cash accounts + capture balances
     const acctResp = await fetch(BREX_BASE + '/v2/accounts/cash', { headers });
     if (!acctResp.ok) {
       const errText = await acctResp.text();
@@ -21,6 +21,19 @@ async function syncBrex(userId) {
     }
     const acctData = await acctResp.json();
     const accounts = acctData.items || [];
+
+    // Capture account balances
+    for (const acct of accounts) {
+      const curBal = (acct.current_balance && acct.current_balance.amount) ? parseFloat(acct.current_balance.amount) / 100 : 0;
+      const availBal = (acct.available_balance && acct.available_balance.amount) ? parseFloat(acct.available_balance.amount) / 100 : 0;
+      await upsertAccountBalance(userId, 'brex', acct.id, {
+        accountName: acct.name || 'Brex Cash',
+        accountType: 'checking',
+        currentBalance: curBal,
+        availableBalance: availBal,
+        currency: (acct.current_balance && acct.current_balance.currency) || 'USD'
+      });
+    }
 
     // 2. Fetch transactions for each cash account
     // Note: Brex posted_at_start filter returns 400, so we fetch all and rely on upsert deduplication
@@ -60,7 +73,7 @@ async function syncBrex(userId) {
             category: '',
             external_status: (tx.status || '').toLowerCase(),
             pending_amount: 0,
-            metadata: JSON.stringify({ brex_type: tx.type, brex_account_id: acct.id }),
+            metadata: JSON.stringify({ brex_type: 'cash', brex_account_id: acct.id }),
             status: 'unmatched'
           });
 
@@ -72,6 +85,60 @@ async function syncBrex(userId) {
         cursor = txData.next_cursor || null;
         hasMore = !!cursor;
       }
+    }
+
+    // 3. Fetch card transactions from primary card account
+    let cardCursor = null;
+    let cardHasMore = true;
+
+    while (cardHasMore) {
+      let cardUrl = BREX_BASE + '/v2/transactions/card/primary';
+      if (cardCursor) cardUrl += '?cursor=' + encodeURIComponent(cardCursor);
+
+      const cardResp = await fetch(cardUrl, { headers });
+      if (!cardResp.ok) {
+        // Card endpoint may not be available for all accounts — log but don't fail
+        const cardErr = await cardResp.text();
+        console.log('Brex card txns ' + cardResp.status + ': ' + cardErr.substring(0, 200));
+        break;
+      }
+      const cardData = await cardResp.json();
+      const cardItems = cardData.items || [];
+      stats.fetched += cardItems.length;
+
+      for (const tx of cardItems) {
+        const rawAmount = (tx.amount && tx.amount.amount) ? parseFloat(tx.amount.amount) / 100 : 0;
+        const amount = Math.abs(rawAmount);
+        const merchantDesc = (tx.merchant && tx.merchant.raw_descriptor) ? tx.merchant.raw_descriptor : (tx.description || '');
+
+        const result = await upsertPayment(userId, 'brex', tx.id, {
+          date: tx.posted_at_date || tx.initiated_at_date || null,
+          amount: amount,
+          fee: 0,
+          net: amount,
+          direction: 'outflow',
+          type: 'expense',
+          payer_email: '',
+          payer_name: merchantDesc,
+          description: merchantDesc,
+          category: '',
+          external_status: (tx.status || '').toLowerCase(),
+          pending_amount: 0,
+          metadata: JSON.stringify({
+            brex_type: 'card',
+            card_id: tx.card_id || '',
+            merchant: tx.merchant || {}
+          }),
+          status: 'unmatched'
+        });
+
+        if (result.action === 'inserted') stats.inserted++;
+        else if (result.action === 'updated') stats.updated++;
+        else if (result.action === 'skipped') stats.skipped++;
+      }
+
+      cardCursor = cardData.next_cursor || null;
+      cardHasMore = !!cardCursor;
     }
 
     await updateSyncStatus(userId, 'brex', 'ok', stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : ''));

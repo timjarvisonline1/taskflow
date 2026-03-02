@@ -714,6 +714,7 @@
 .fin-src-stripe,.fin-src-stripe2{background:rgba(99,91,255,.15);color:#7c6bff}
 .fin-src-zoho{background:rgba(77,166,255,.15);color:var(--blue)}
 .fin-src-brex{background:rgba(61,220,132,.15);color:var(--green)}
+.fin-src-brex-card{background:rgba(245,166,35,.15);color:#f5a623}
 .fin-src-manual{background:rgba(161,161,170,.15);color:var(--t3)}
 
 /* Status badges */

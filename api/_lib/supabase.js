@@ -171,6 +171,51 @@ async function applyPayerMap(userId, payerEmail, payerName) {
   return data ? { clientId: data.client_id, status: 'matched' } : null;
 }
 
+/* Upsert an account balance snapshot — one row per account, updated each sync */
+async function upsertAccountBalance(userId, platform, accountId, balanceData) {
+  const client = getServiceClient();
+  const row = {
+    user_id: userId,
+    platform: platform,
+    account_id: accountId,
+    account_name: balanceData.accountName || '',
+    account_type: balanceData.accountType || 'checking',
+    current_balance: balanceData.currentBalance || 0,
+    available_balance: balanceData.availableBalance || 0,
+    currency: balanceData.currency || 'USD',
+    captured_at: new Date().toISOString()
+  };
+
+  // Try update first (by unique constraint: user_id + platform + account_id)
+  const { data: existing } = await client
+    .from('account_balances')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('platform', platform)
+    .eq('account_id', accountId)
+    .maybeSingle();
+
+  if (existing) {
+    await client.from('account_balances').update({
+      account_name: row.account_name,
+      account_type: row.account_type,
+      current_balance: row.current_balance,
+      available_balance: row.available_balance,
+      currency: row.currency,
+      captured_at: row.captured_at
+    }).eq('id', existing.id);
+    return { action: 'updated', id: existing.id };
+  }
+
+  const { data, error } = await client
+    .from('account_balances')
+    .insert(row)
+    .select('id')
+    .single();
+  if (error) throw error;
+  return { action: 'inserted', id: data.id };
+}
+
 /* CORS headers for API responses */
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -186,6 +231,7 @@ module.exports = {
   updateSyncStatus,
   logSync,
   upsertPayment,
+  upsertAccountBalance,
   applyPayerMap,
   cors
 };

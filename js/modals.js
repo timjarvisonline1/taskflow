@@ -2152,13 +2152,14 @@ function openFinancePaymentDetail(id){
   var ecOpts=buildEndClientOptions(p.endClient,clientName);
   var cpOpts=buildCampaignOptions(p.campaignId,clientName,p.endClient);
 
-  var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
+  var srcLbl=srcLabelFull(p);
+  var srcClass=srcClsFull(p);
   var isFcCat=p.category&&p.category.indexOf('F&C')===0;
 
   var h='<div class="detail-full-header">';
   h+='<div class="tf-modal-top">';
   h+='<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">';
-  h+='<span class="fin-src fin-src-'+p.source+'" style="flex-shrink:0">'+esc(srcLabel)+'</span>';
+  h+='<span class="'+srcClass+'" style="flex-shrink:0">'+esc(srcLbl)+'</span>';
   h+='<span style="font-size:20px;font-weight:700;color:var(--green)">'+fmtUSD(p.amount)+'</span>';
   h+='</div>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
@@ -2179,6 +2180,7 @@ function openFinancePaymentDetail(id){
   if(!isSplit){h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="fp-category" onchange="TF.fpCatChange()">'+catOpts+'</select></div>'}
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><div class="edf" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</div></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Fee</span><div class="edf" style="color:var(--t4)">'+fmtUSD(p.fee)+'</div></div>';
+  if(p.type==='invoice'){h+='<div class="ed-fld"><span class="ed-lbl">Expected Payment</span><input type="date" class="edf" id="fp-expected-date" value="'+(p.expectedPaymentDate||'')+'"></div>'}
   h+='</div>';
 
   /* Section 2: Client — hidden for Products */
@@ -2367,15 +2369,18 @@ async function saveFinancePayment(){
     else{return}}
 
   var newStatus=clientId?'matched':(cat==='Products'?'matched':p.status);
+  var expDateEl=gel('fp-expected-date');
   var data={date:(gel('fp-date')||{}).value||null,category:cat,
     clientId:clientId,campaignId:campaignId,
     endClient:endClient,notes:(gel('fp-notes')||{}).value||'',
     status:newStatus};
+  if(expDateEl)data.expectedPaymentDate=expDateEl.value||null;
   var ok2=await dbEditFinancePayment(id,data);
   if(!ok2)return;
   p.date=data.date?new Date(data.date+'T00:00:00'):null;p.category=cat;
   p.clientId=clientId;p.campaignId=campaignId;p.endClient=endClient;
   p.notes=data.notes;p.status=newStatus;
+  if('expectedPaymentDate' in data)p.expectedPaymentDate=data.expectedPaymentDate;
 
   /* Batch update checked related payments */
   var cbs=document.querySelectorAll('.fp-batch-cb:checked');
@@ -2875,6 +2880,186 @@ var INTG_PLATFORMS=[
     fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'},{key:'refresh_token',label:'Refresh Token',type:'password'},{key:'code',label:'Auth Code (first-time only)',type:'text'}],
     configFields:[{key:'account_id',label:'Account ID',type:'text'}]}
 ];
+
+/* ═══════════ SCHEDULED ITEM MODALS ═══════════ */
+function openAddScheduledItem(){
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('refresh',14)+' Add Scheduled Item</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="edf-body" style="padding:16px">';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-f"><label>Name</label><input id="si-name" class="ed-in" placeholder="e.g. Office Rent"></div>';
+  h+='<div class="ed-f"><label>Amount ($)</label><input id="si-amount" class="ed-in" type="number" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-f"><label>Direction</label><select id="si-direction" class="ed-in"><option value="outflow">Outflow</option><option value="inflow">Inflow</option></select></div>';
+  h+='<div class="ed-f"><label>Frequency</label><select id="si-frequency" class="ed-in"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="once">One-time</option></select></div>';
+  h+='<div class="ed-f"><label>Day of Month</label><input id="si-dom" class="ed-in" type="number" min="1" max="31" placeholder="1"></div>';
+  h+='<div class="ed-f"><label>Next Due Date</label><input id="si-nextdue" class="ed-in" type="date"></div>';
+  h+='<div class="ed-f"><label>Type</label><select id="si-type" class="ed-in"><option value="expense">Expense</option><option value="subscription">Subscription</option><option value="salary">Salary</option><option value="tax">Tax</option><option value="loan">Loan</option><option value="income">Income</option></select></div>';
+  h+='<div class="ed-f"><label>Account</label><select id="si-account" class="ed-in"><option value="">Any</option><option value="brex_card">Brex Card</option><option value="brex_cash">Brex Cash</option><option value="mercury">Mercury</option></select></div>';
+  h+='<div class="ed-f"><label>Category</label><select id="si-category" class="ed-in"><option value="">—</option>';
+  PAY_CATS.forEach(function(c){h+='<option>'+c+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-f"><label>Notes</label><input id="si-notes" class="ed-in" placeholder="Optional notes"></div>';
+  h+='</div>';
+  h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveScheduledItem()">Add Item</button></div>';
+  h+='</div>';
+  gel('modal-body').innerHTML=h;gel('modal').classList.add('on')}
+
+function openEditScheduledItem(id){
+  var item=S.scheduledItems.find(function(i){return i.id===id});
+  if(!item)return;
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('refresh',14)+' Edit Scheduled Item</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="si-id" value="'+item.id+'">';
+  h+='<div class="edf-body" style="padding:16px">';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-f"><label>Name</label><input id="si-name" class="ed-in" value="'+esc(item.name)+'"></div>';
+  h+='<div class="ed-f"><label>Amount ($)</label><input id="si-amount" class="ed-in" type="number" step="0.01" value="'+item.amount+'"></div>';
+  h+='<div class="ed-f"><label>Direction</label><select id="si-direction" class="ed-in"><option value="outflow"'+(item.direction==='outflow'?' selected':'')+'>Outflow</option><option value="inflow"'+(item.direction==='inflow'?' selected':'')+'>Inflow</option></select></div>';
+  h+='<div class="ed-f"><label>Frequency</label><select id="si-frequency" class="ed-in">';
+  ['monthly','weekly','biweekly','quarterly','annually','once'].forEach(function(f){
+    h+='<option value="'+f+'"'+(item.frequency===f?' selected':'')+'>'+f.charAt(0).toUpperCase()+f.slice(1)+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-f"><label>Day of Month</label><input id="si-dom" class="ed-in" type="number" min="1" max="31" value="'+(item.dayOfMonth||'')+'"></div>';
+  h+='<div class="ed-f"><label>Next Due Date</label><input id="si-nextdue" class="ed-in" type="date" value="'+(item.nextDue||'')+'"></div>';
+  h+='<div class="ed-f"><label>Type</label><select id="si-type" class="ed-in">';
+  ['expense','subscription','salary','tax','loan','income'].forEach(function(t){
+    h+='<option value="'+t+'"'+(item.type===t?' selected':'')+'>'+t.charAt(0).toUpperCase()+t.slice(1)+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-f"><label>Account</label><select id="si-account" class="ed-in">';
+  [['','Any'],['brex_card','Brex Card'],['brex_cash','Brex Cash'],['mercury','Mercury']].forEach(function(a){
+    h+='<option value="'+a[0]+'"'+(item.account===a[0]?' selected':'')+'>'+a[1]+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-f"><label>Category</label><select id="si-category" class="ed-in"><option value="">—</option>';
+  PAY_CATS.forEach(function(c){h+='<option'+(item.category===c?' selected':'')+'>'+c+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-f"><label>Active</label><select id="si-active" class="ed-in"><option value="1"'+(item.isActive?' selected':'')+'>Active</option><option value="0"'+(!item.isActive?' selected':'')+'>Inactive</option></select></div>';
+  h+='<div class="ed-f" style="grid-column:span 2"><label>Notes</label><input id="si-notes" class="ed-in" value="'+esc(item.notes)+'"></div>';
+  h+='</div>';
+  h+='<div class="edf-actions" style="margin-top:16px;display:flex;gap:8px">';
+  h+='<button class="btn btn-p" onclick="TF.saveScheduledItem()">Save</button>';
+  h+='<button class="btn" onclick="TF.confirmDeleteScheduledItem(\''+item.id+'\')" style="color:var(--red)">Delete</button>';
+  h+='</div>';
+  h+='</div>';
+  gel('modal-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function saveScheduledItem(){
+  var id=gel('si-id')?gel('si-id').value:'';
+  var data={
+    name:(gel('si-name').value||'').trim(),
+    amount:parseFloat(gel('si-amount').value)||0,
+    direction:gel('si-direction').value||'outflow',
+    frequency:gel('si-frequency').value||'monthly',
+    dayOfMonth:parseInt(gel('si-dom').value)||null,
+    nextDue:gel('si-nextdue').value||null,
+    type:gel('si-type').value||'expense',
+    account:gel('si-account').value||'',
+    category:gel('si-category').value||'',
+    notes:(gel('si-notes').value||'').trim()
+  };
+  if(gel('si-active'))data.isActive=gel('si-active').value==='1';
+  if(!data.name){toast('Name is required','warn');return}
+  if(!data.amount){toast('Amount is required','warn');return}
+
+  if(id){
+    var ok=await dbEditScheduledItem(id,data);
+    if(ok)toast('Scheduled item updated','ok');
+  }else{
+    var newId=await dbAddScheduledItem(data);
+    if(newId)toast('Scheduled item added','ok');
+  }
+  await loadScheduledItems();closeModal();render()}
+
+function confirmDeleteScheduledItem(id){
+  if(confirm('Delete this scheduled item?'))doDeleteScheduledItem(id)}
+
+async function doDeleteScheduledItem(id){
+  var ok=await dbDeleteScheduledItem(id);
+  if(ok){
+    S.scheduledItems=S.scheduledItems.filter(function(i){return i.id!==id});
+    toast('Item deleted','ok');closeModal();render()}}
+
+/* ═══════════ TEAM MEMBER MODALS ═══════════ */
+function openAddTeamMember(){
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('clients',14)+' Add Team Member</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="edf-body" style="padding:16px">';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-f"><label>Name</label><input id="tm-name" class="ed-in" placeholder="Full name"></div>';
+  h+='<div class="ed-f"><label>Role</label><input id="tm-role" class="ed-in" placeholder="e.g. Account Manager"></div>';
+  h+='<div class="ed-f"><label>Monthly Salary ($)</label><input id="tm-salary" class="ed-in" type="number" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-f"><label>Pay Frequency</label><select id="tm-payfreq" class="ed-in"><option value="monthly">Monthly</option><option value="biweekly">Bi-weekly</option></select></div>';
+  h+='<div class="ed-f"><label>Pay Day</label><input id="tm-payday" class="ed-in" type="number" min="1" max="31" value="1" placeholder="1"></div>';
+  h+='<div class="ed-f"><label>Commission Rate (%)</label><input id="tm-commrate" class="ed-in" type="number" step="0.1" placeholder="0"></div>';
+  h+='<div class="ed-f"><label>Commission Basis</label><select id="tm-commbasis" class="ed-in"><option value="">None</option><option value="revenue">% of Revenue</option><option value="profit">% of Profit</option><option value="per_deal">Per Deal (flat)</option></select></div>';
+  h+='<div class="ed-f"><label>Start Date</label><input id="tm-start" class="ed-in" type="date"></div>';
+  h+='<div class="ed-f" style="grid-column:span 2"><label>Notes</label><input id="tm-notes" class="ed-in" placeholder="Optional notes"></div>';
+  h+='</div>';
+  h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveTeamMember()">Add Member</button></div>';
+  h+='</div>';
+  gel('modal-body').innerHTML=h;gel('modal').classList.add('on')}
+
+function openEditTeamMember(id){
+  var m=S.teamMembers.find(function(t){return t.id===id});
+  if(!m)return;
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('clients',14)+' Edit Team Member</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="tm-id" value="'+m.id+'">';
+  h+='<div class="edf-body" style="padding:16px">';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-f"><label>Name</label><input id="tm-name" class="ed-in" value="'+esc(m.name)+'"></div>';
+  h+='<div class="ed-f"><label>Role</label><input id="tm-role" class="ed-in" value="'+esc(m.role)+'"></div>';
+  h+='<div class="ed-f"><label>Monthly Salary ($)</label><input id="tm-salary" class="ed-in" type="number" step="0.01" value="'+m.salary+'"></div>';
+  h+='<div class="ed-f"><label>Pay Frequency</label><select id="tm-payfreq" class="ed-in"><option value="monthly"'+(m.payFrequency==='monthly'?' selected':'')+'>Monthly</option><option value="biweekly"'+(m.payFrequency==='biweekly'?' selected':'')+'>Bi-weekly</option></select></div>';
+  h+='<div class="ed-f"><label>Pay Day</label><input id="tm-payday" class="ed-in" type="number" min="1" max="31" value="'+m.payDay+'"></div>';
+  h+='<div class="ed-f"><label>Commission Rate (%)</label><input id="tm-commrate" class="ed-in" type="number" step="0.1" value="'+m.commissionRate+'"></div>';
+  h+='<div class="ed-f"><label>Commission Basis</label><select id="tm-commbasis" class="ed-in">';
+  [['','None'],['revenue','% of Revenue'],['profit','% of Profit'],['per_deal','Per Deal (flat)']].forEach(function(b){
+    h+='<option value="'+b[0]+'"'+(m.commissionBasis===b[0]?' selected':'')+'>'+b[1]+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-f"><label>Start Date</label><input id="tm-start" class="ed-in" type="date" value="'+(m.startDate||'')+'"></div>';
+  h+='<div class="ed-f"><label>Active</label><select id="tm-active" class="ed-in"><option value="1"'+(m.isActive?' selected':'')+'>Active</option><option value="0"'+(!m.isActive?' selected':'')+'>Inactive</option></select></div>';
+  h+='<div class="ed-f"><label>Notes</label><input id="tm-notes" class="ed-in" value="'+esc(m.notes)+'"></div>';
+  h+='</div>';
+  h+='<div class="edf-actions" style="margin-top:16px;display:flex;gap:8px">';
+  h+='<button class="btn btn-p" onclick="TF.saveTeamMember()">Save</button>';
+  h+='<button class="btn" onclick="TF.confirmDeleteTeamMember(\''+m.id+'\')" style="color:var(--red)">Delete</button>';
+  h+='</div>';
+  h+='</div>';
+  gel('modal-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function saveTeamMember(){
+  var id=gel('tm-id')?gel('tm-id').value:'';
+  var data={
+    name:(gel('tm-name').value||'').trim(),
+    role:(gel('tm-role').value||'').trim(),
+    salary:parseFloat(gel('tm-salary').value)||0,
+    payFrequency:gel('tm-payfreq').value||'monthly',
+    payDay:parseInt(gel('tm-payday').value)||1,
+    commissionRate:parseFloat(gel('tm-commrate').value)||0,
+    commissionBasis:gel('tm-commbasis').value||'',
+    startDate:gel('tm-start').value||null,
+    notes:(gel('tm-notes').value||'').trim()
+  };
+  if(gel('tm-active'))data.isActive=gel('tm-active').value==='1';
+  if(!data.name){toast('Name is required','warn');return}
+
+  if(id){
+    var ok=await dbEditTeamMember(id,data);
+    if(ok)toast('Team member updated','ok');
+  }else{
+    var newId=await dbAddTeamMember(data);
+    if(newId)toast('Team member added','ok');
+  }
+  await loadTeamMembers();closeModal();render()}
+
+function confirmDeleteTeamMember(id){
+  if(confirm('Delete this team member?'))doDeleteTeamMember(id)}
+
+async function doDeleteTeamMember(id){
+  var ok=await dbDeleteTeamMember(id);
+  if(ok){
+    S.teamMembers=S.teamMembers.filter(function(t){return t.id!==id});
+    toast('Team member deleted','ok');closeModal();render()}}
 
 function openIntegrationsModal(){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('link',14)+' Integrations</span>';

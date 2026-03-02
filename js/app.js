@@ -57,6 +57,14 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openAssociateModal:openAssociateModal,associatePayer:associatePayer,
   setFinFilter:setFinFilter,setFinSearch:setFinSearch,finToggleAnalytics:finToggleAnalytics,finSetRange:finSetRange,finSetCategory:finSetCategory,finSetClient:finSetClient,finSetCustomRange:finSetCustomRange,finClearFilters:finClearFilters,finToggleBulk:finToggleBulk,finToggleSel:finToggleSel,finSelectAllVisible:finSelectAllVisible,finDeselectAll:finDeselectAll,finBulkApply:finBulkApply,
   openIntegrationsModal:openIntegrationsModal,triggerSync:triggerSync,cleanupDuplicates:cleanupDuplicates,saveIntegrationBtn:saveIntegrationBtn,testIntegrationBtn:testIntegrationBtn,deleteIntegrationBtn:deleteIntegrationBtn,setFinDirection:setFinDirection,
+  /* Scheduled Items */
+  openAddScheduledItem:openAddScheduledItem,openEditScheduledItem:openEditScheduledItem,saveScheduledItem:saveScheduledItem,confirmDeleteScheduledItem:confirmDeleteScheduledItem,doDeleteScheduledItem:doDeleteScheduledItem,
+  /* Team */
+  openAddTeamMember:openAddTeamMember,openEditTeamMember:openEditTeamMember,saveTeamMember:saveTeamMember,confirmDeleteTeamMember:confirmDeleteTeamMember,doDeleteTeamMember:doDeleteTeamMember,
+  /* Forecast */
+  setForecastHorizon:setForecastHorizon,setForecastScenario:setForecastScenario,
+  /* Reconciliation */
+  autoReconcile:autoReconcile,
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
   atToggleMin:atToggleMin,modalToggle:modalToggle,

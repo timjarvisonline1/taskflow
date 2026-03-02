@@ -1,4 +1,4 @@
-const { getCredentials, updateSyncStatus, logSync, upsertPayment, getServiceClient } = require('./supabase');
+const { getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountBalance, getServiceClient } = require('./supabase');
 
 const MERCURY_BASE = 'https://api.mercury.com/api/v1';
 
@@ -13,7 +13,7 @@ async function syncMercury(userId) {
   const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '' };
 
   try {
-    // 1. Get accounts
+    // 1. Get accounts + capture balances
     const acctResp = await fetch(MERCURY_BASE + '/accounts', { headers });
     if (!acctResp.ok) throw new Error('Mercury accounts API: ' + acctResp.status);
     const acctData = await acctResp.json();
@@ -26,6 +26,20 @@ async function syncMercury(userId) {
         .from('integration_credentials')
         .update({ config: { ...cred.config, account_ids: accounts.map(a => a.id) }, updated_at: new Date().toISOString() })
         .eq('id', cred.id);
+    }
+
+    // Capture account balances
+    for (const acct of accounts) {
+      const curBal = parseFloat(acct.currentBalance) || 0;
+      const availBal = parseFloat(acct.availableBalance) || 0;
+      const acctType = (acct.type || 'checking').toLowerCase();
+      await upsertAccountBalance(userId, 'mercury', acct.id, {
+        accountName: acct.name || 'Mercury ' + acctType,
+        accountType: acctType === 'savings' ? 'savings' : 'checking',
+        currentBalance: curBal,
+        availableBalance: availBal,
+        currency: 'USD'
+      });
     }
 
     // Use last_sync_at or default to 90 days ago

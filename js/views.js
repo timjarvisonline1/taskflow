@@ -2170,27 +2170,41 @@ function mobTaskRow(t,td){
   h+='</div></div>';return h}
 
 /* ═══════════ FINANCE VIEW ═══════════ */
-var SRC_LABELS={stripe:'Stripe',stripe2:'Stripe 2',zoho:'Zoho',brex:'Brex',mercury:'Mercury',zoho_books:'Zoho Books',zoho_payments:'Zoho Pay'};
+var SRC_LABELS={stripe:'Stripe',stripe2:'Stripe 2',zoho:'Zoho',brex:'Brex',mercury:'Mercury',zoho_books:'Zoho Books',zoho_payments:'Zoho Pay',manual:'Manual'};
 var TYPE_LABELS={payment:'Payment',invoice:'Invoice',bill:'Bill',expense:'Expense',transfer:'Transfer',payout:'Payout'};
 function srcLabel(s){return SRC_LABELS[s]||s.charAt(0).toUpperCase()+s.slice(1)}
+function srcLabelFull(p){
+  if(p.source==='brex'){
+    var meta=typeof p.metadata==='string'?JSON.parse(p.metadata||'{}'):p.metadata||{};
+    return meta.brex_type==='card'?'Brex Card':'Brex Cash'}
+  return srcLabel(p.source)}
+function srcClsFull(p){
+  if(p.source==='brex'){
+    var meta=typeof p.metadata==='string'?JSON.parse(p.metadata||'{}'):p.metadata||{};
+    return meta.brex_type==='card'?'fin-src fin-src-brex-card':'fin-src fin-src-brex'}
+  return'fin-src fin-src-'+p.source}
 
 function rFinance(){
-  var sub=S.subView||'payments';
+  var sub=S.subView||'overview';
   var h='<div class="pg-head"><h1>'+icon('activity',18)+' Finance</h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
   h+='<button class="btn" onclick="TF.openIntegrationsModal()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('link',12)+' Integrations</button>';
-  h+='<button class="btn btn-p" onclick="TF.openAddFinancePayment()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Payment</button>';
+  if(sub==='payments')h+='<button class="btn btn-p" onclick="TF.openAddFinancePayment()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Payment</button>';
+  if(sub==='recurring')h+='<button class="btn btn-p" onclick="TF.openAddScheduledItem()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Item</button>';
+  if(sub==='team')h+='<button class="btn btn-p" onclick="TF.openAddTeamMember()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Member</button>';
   h+='</div></div>';
   if(isMobile()){h+=rFinanceMobileSubs(sub)}
-  if(sub==='payments')h+=rFinancePayments();
-  else if(sub==='dashboard')h+=rFinanceDashboard();
+  if(sub==='overview')h+=rFinanceOverview();
+  else if(sub==='payments')h+=rFinancePayments();
   else if(sub==='invoices')h+=rFinanceInvoices();
-  else if(sub==='cashflow')h+=rFinanceCashFlow();
+  else if(sub==='recurring')h+=rFinanceRecurring();
+  else if(sub==='forecast')h+=rFinanceForecast();
+  else if(sub==='team')h+=rFinanceTeam();
   return h}
 
 function rFinanceMobileSubs(sub){
   var h='<div class="task-mode-toggle" style="margin-bottom:16px">';
-  var subs=[['payments','Payments'],['dashboard','Dashboard'],['invoices','Invoices'],['cashflow','Cash Flow']];
+  var subs=[['overview','Overview'],['payments','Transactions'],['invoices','Invoices'],['recurring','Recurring'],['forecast','Forecast'],['team','Team']];
   subs.forEach(function(s){h+='<button class="tm-btn'+(sub===s[0]?' on':'')+'" onclick="TF.subNav(\''+s[0]+'\')">'+s[1]+'</button>'});
   return h+'</div>'}
 
@@ -2254,7 +2268,7 @@ function rFinancePayments(){
   filtered.forEach(function(p,idx){
     var eid=escAttr(p.id);
     var clientName=clientNameById(p.clientId);
-    var srcCls='fin-src fin-src-'+p.source;
+    var srcCls=srcClsFull(p);
     var splits=p.status==='split'?getSplitsForPayment(p.id):[];
     var rowCls='fin-row'+(p.status==='unmatched'?' fin-unmatched':'')+(p.status==='split'?' fin-split-parent':'');
     var isOut=p.direction==='outflow';
@@ -2270,7 +2284,7 @@ function rFinancePayments(){
     h+='</td>';
     h+='<td class="r nm" style="color:'+amtColor+';font-weight:600">'+amtPrefix+fmtUSD(p.amount)+'</td>';
     h+='<td><span class="fin-type fin-type-'+p.type+'">'+(TYPE_LABELS[p.type]||p.type)+'</span></td>';
-    h+='<td><span class="'+srcCls+'">'+esc(srcLabel(p.source))+'</span></td>';
+    h+='<td><span class="'+srcCls+'">'+esc(srcLabelFull(p))+'</span></td>';
     h+='<td>';
     if(p.status==='split')h+='<span class="fin-cat fin-cat-split">Split ('+splits.length+')</span>';
     else if(p.category)h+='<span class="fin-cat">'+esc(p.category)+'</span>';
@@ -2410,26 +2424,52 @@ function rFinanceDashboard(){
 function rFinanceInvoices(){
   var invoices=S.financePayments.filter(function(p){return p.status!=='excluded'&&p.type==='invoice'});
   invoices.sort(function(a,b){return(b.date||0)-(a.date||0)});
-  var totalAmt=0;invoices.forEach(function(p){totalAmt+=p.amount});
+  var totalAmt=0,totalPending=0;
+  invoices.forEach(function(p){totalAmt+=p.amount;totalPending+=p.pendingAmount||0});
+  var now=new Date();
+  var overdueCount=invoices.filter(function(p){
+    if(!p.pendingAmount||p.pendingAmount<=0)return false;
+    var expDate=p.expectedPaymentDate?new Date(p.expectedPaymentDate+'T00:00:00'):null;
+    if(!expDate&&p.date){expDate=new Date(p.date);expDate.setDate(expDate.getDate()+30)}
+    return expDate&&expDate<now}).length;
 
   var h='';
   h+='<div class="cp-dash">';
-  h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--t1)">'+invoices.length+'</div><div class="cp-dash-met-l">Invoices</div></div>';
-  h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalAmt)+'</div><div class="cp-dash-met-l">Total Value</div></div>';
+  h+=dashMet('Total Invoices',invoices.length,'var(--t1)');
+  h+=dashMet('Total Value',fmtUSD(totalAmt),'var(--green)');
+  h+=dashMet('Pending',fmtUSD(totalPending),totalPending>0?'var(--amber)':'var(--muted)');
+  h+=dashMet('Overdue',overdueCount,overdueCount>0?'var(--red)':'var(--green)');
   h+='</div>';
 
   if(!invoices.length){return h+'<div style="text-align:center;padding:60px 20px;color:var(--t4)">No invoices found</div>'}
 
   h+='<div class="tb-wrap"><table class="tb fin-tb">';
-  h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th>Status</th></tr></thead>';
+  h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th class="r">Pending</th><th>Expected Pay</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th>Status</th></tr></thead>';
   h+='<tbody>';
   invoices.forEach(function(p){
     var eid=escAttr(p.id);
     var clientName=clientNameById(p.clientId);
-    h+='<tr class="fin-row" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
+    var isPending=p.pendingAmount>0;
+    var expDate=p.expectedPaymentDate||'';
+    var isOverdue=false;
+    if(isPending){
+      var ed=expDate?new Date(expDate+'T00:00:00'):null;
+      if(!ed&&p.date){ed=new Date(p.date);ed.setDate(ed.getDate()+30)}
+      isOverdue=ed&&ed<now}
+    h+='<tr class="fin-row'+(isOverdue?' fin-unmatched':'')+'" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
     h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
     h+='<td>'+esc(p.payerName||p.payerEmail||'Unknown')+'</td>';
     h+='<td class="r nm" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</td>';
+    h+='<td class="r nm">';
+    if(isPending)h+='<span style="color:var(--amber);font-weight:600">'+fmtUSD(p.pendingAmount)+'</span>';
+    else h+='<span style="color:var(--green)">Paid</span>';
+    h+='</td>';
+    h+='<td class="fin-date">';
+    if(expDate)h+=expDate;
+    else if(isPending)h+='<span style="opacity:0.4;font-size:11px">Not set</span>';
+    else h+='—';
+    if(isOverdue)h+=' <span style="color:var(--red);font-size:10px;font-weight:600">OVERDUE</span>';
+    h+='</td>';
     h+='<td><span class="fin-src fin-src-'+p.source+'">'+esc(srcLabel(p.source))+'</span></td>';
     h+='<td>'+(p.category?'<span class="fin-cat">'+esc(p.category)+'</span>':'—')+'</td>';
     h+='<td>'+(clientName?'<span class="fin-client-name">'+esc(clientName)+'</span>':'—')+'</td>';
@@ -2479,9 +2519,9 @@ function rFinanceCashFlow(){
   return h}
 
 function initFinanceCharts(){
-  var sub=S.subView||'payments';
-  if(sub==='dashboard')initFinanceDashboardCharts();
-  else if(sub==='cashflow')initFinanceCashFlowCharts()}
+  var sub=S.subView||'overview';
+  if(sub==='overview')initFinanceOverviewCharts();
+  else if(sub==='forecast')initForecastCharts()}
 
 function initFinanceDashboardCharts(){
   setTimeout(function(){
@@ -2556,4 +2596,460 @@ function initFinanceCashFlowCharts(){
     var outCat={};outflows.forEach(function(p){var c=p.category||'Uncategorised';outCat[c]=(outCat[c]||0)+p.amount});
     if(Object.keys(outCat).length)mkDonutUSD('fin-outflow-cat-chart',outCat);
   },200)}
+
+/* ═══════════ FINANCE: OVERVIEW ═══════════ */
+function rFinanceOverview(){
+  var h='<div class="fin-analytics">';
+  var bal=getCombinedBalance();
+  var byPlat=getBalanceByPlatform();
+  var lastSync=S.accountBalances.length?S.accountBalances[0].capturedAt:null;
+
+  /* Row 1 — Balance cards */
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">';
+  h+='<div class="chart-card" style="text-align:center;padding:24px;background:linear-gradient(135deg,var(--card) 0%,rgba(61,220,132,0.05) 100%);border:1px solid rgba(61,220,132,0.2)">';
+  h+='<div style="font-size:12px;opacity:0.6;margin-bottom:4px">Combined Balance</div>';
+  h+='<div style="font-size:28px;font-weight:700;color:var(--green)">'+fmtUSD(bal)+'</div>';
+  if(lastSync)h+='<div style="font-size:10px;opacity:0.4;margin-top:6px">Last synced '+fmtRelative(lastSync)+'</div>';
+  h+='</div>';
+  var platKeys=Object.keys(byPlat);
+  platKeys.forEach(function(pk){
+    var p=byPlat[pk];
+    p.accounts.forEach(function(a){
+      h+='<div class="chart-card" style="text-align:center;padding:20px">';
+      h+='<div style="font-size:11px;opacity:0.6;margin-bottom:4px">'+esc(a.accountName||a.platform)+'</div>';
+      h+='<div style="font-size:20px;font-weight:600">'+fmtUSD(a.currentBalance)+'</div>';
+      h+='<div style="font-size:10px;opacity:0.4;margin-top:4px">'+esc(a.platform)+' • '+esc(a.accountType)+'</div>';
+      h+='</div>'})});
+  h+='</div>';
+
+  /* Row 2 — Key metrics */
+  var fc=buildForecast(90,'expected');
+  var metrics=getForecastMetrics(fc);
+  var activeScheduled=S.scheduledItems.filter(function(i){return i.isActive});
+  var monthlyOut=activeScheduled.filter(function(i){return i.direction==='outflow'}).reduce(function(s,i){
+    if(i.frequency==='monthly')return s+i.amount;
+    if(i.frequency==='weekly')return s+i.amount*4.33;
+    if(i.frequency==='biweekly')return s+i.amount*2.17;
+    if(i.frequency==='quarterly')return s+i.amount/3;
+    if(i.frequency==='annually')return s+i.amount/12;
+    return s},0);
+  var teamMonthly=S.teamMembers.filter(function(m){return m.isActive}).reduce(function(s,m){return s+m.salary},0);
+  var burnRate=monthlyOut+teamMonthly;
+  var runway=burnRate>0?Math.floor(bal/burnRate):999;
+  var unmatchedCount=S.financePayments.filter(function(p){return p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment'}).length;
+  var pendingInv=S.financePayments.filter(function(p){return p.type==='invoice'&&p.pendingAmount>0&&p.status!=='excluded'});
+  var pendingTotal=pendingInv.reduce(function(s,p){return s+p.pendingAmount},0);
+  var overdueItems=activeScheduled.filter(function(i){
+    if(!i.nextDue)return false;
+    var nd=new Date(i.nextDue+'T00:00:00');
+    return nd<new Date()&&(!i.lastPaidDate||new Date(i.lastPaidDate+'T00:00:00')<nd)});
+
+  h+='<div class="cp-dash" style="margin-bottom:20px">';
+  h+=dashMet('Monthly Burn',fmtUSD(burnRate),'var(--red)');
+  h+=dashMet('Runway',runway>=999?'∞':runway+' months',runway<3?'var(--red)':runway<6?'var(--amber)':'var(--green)');
+  h+=dashMet('30-Day Net',fmtUSD(metrics.day30-bal),(metrics.day30-bal)>=0?'var(--green)':'var(--red)');
+  h+=dashMet('Unmatched',unmatchedCount,unmatchedCount>0?'var(--amber)':'var(--muted)');
+  h+=dashMet('Pending Invoices',pendingInv.length+' ('+fmtUSD(pendingTotal)+')',pendingInv.length>0?'var(--blue)':'var(--muted)');
+  h+=dashMet('Overdue Items',overdueItems.length,overdueItems.length>0?'var(--red)':'var(--green)');
+  h+='</div>';
+
+  /* Row 3 — Mini forecast chart */
+  h+='<div class="chart-card" style="margin-bottom:20px;cursor:pointer" onclick="TF.subNav(\'forecast\')">';
+  h+='<h3 style="margin-bottom:12px">90-Day Forecast <span style="font-size:11px;opacity:0.5;font-weight:400">→ Click for full forecast</span></h3>';
+  h+='<div class="chart-wrap" style="height:200px"><canvas id="fin-overview-forecast"></canvas></div>';
+  h+='</div>';
+
+  /* Row 4 — Recent activity + Upcoming */
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">';
+
+  /* Recent transactions */
+  h+='<div class="chart-card">';
+  h+='<h3 style="margin-bottom:12px">Recent Transactions</h3>';
+  var recent=S.financePayments.filter(function(p){return p.status!=='excluded'}).slice(0,10);
+  if(!recent.length)h+='<div style="opacity:0.5;font-size:13px">No transactions yet</div>';
+  else{
+    recent.forEach(function(p){
+      var col=p.direction==='inflow'?'var(--green)':'var(--red)';
+      var sign=p.direction==='inflow'?'+':'-';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(p.payerName||p.description||'Unknown')+'</div>';
+      h+='<div style="font-size:11px;opacity:0.5">'+(p.date?fmtDate(p.date):'No date')+' • '+esc(p.source)+'</div>';
+      h+='</div>';
+      h+='<div style="font-size:14px;font-weight:600;color:'+col+';margin-left:12px">'+sign+fmtUSD(p.amount)+'</div>';
+      h+='</div>'})}
+  h+='</div>';
+
+  /* Upcoming scheduled items */
+  h+='<div class="chart-card">';
+  h+='<h3 style="margin-bottom:12px">Upcoming (Next 7 Days)</h3>';
+  var now=new Date();var weekOut=new Date();weekOut.setDate(weekOut.getDate()+7);
+  var upcoming=activeScheduled.filter(function(i){
+    if(!i.nextDue)return false;
+    var nd=new Date(i.nextDue+'T00:00:00');
+    return nd>=now&&nd<=weekOut}).sort(function(a,b){return(a.nextDue||'').localeCompare(b.nextDue||'')});
+  if(!upcoming.length)h+='<div style="opacity:0.5;font-size:13px">Nothing due this week</div>';
+  else{
+    upcoming.forEach(function(i){
+      var col=i.direction==='inflow'?'var(--green)':'var(--red)';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px">'+esc(i.name)+'</div>';
+      h+='<div style="font-size:11px;opacity:0.5">'+(i.nextDue||'')+(i.frequency!=='once'?' • '+i.frequency:'')+'</div>';
+      h+='</div>';
+      h+='<div style="font-size:14px;font-weight:600;color:'+col+'">'+(i.direction==='outflow'?'-':'')+fmtUSD(i.amount)+'</div>';
+      h+='</div>'})}
+  h+='</div>';
+  h+='</div>';
+
+  /* Row 5 — Existing dashboard charts (revenue analytics) */
+  h+='<h3 style="margin:20px 0 12px;font-size:14px;opacity:0.7">Revenue Analytics</h3>';
+  h+=rFinanceDashboard();
+
+  h+='</div>';
+  return h}
+
+function initFinanceOverviewCharts(){
+  setTimeout(function(){
+    /* Mini forecast chart */
+    var fc=buildForecast(90,'expected');
+    if(!fc.days.length)return;
+    var labels=[];var balances=[];
+    fc.days.forEach(function(d,i){
+      if(i%3===0||i===fc.days.length-1){labels.push(d.date.substring(5));balances.push(d.balance)}});
+    var el=document.getElementById('fin-overview-forecast');
+    if(el)mkLineUSD('fin-overview-forecast',labels,balances,balances[balances.length-1]>=0?'#3ddc84':'#ff3358');
+    /* Also init the dashboard charts below */
+    initFinanceDashboardCharts();
+  },200)}
+
+/* ═══════════ FINANCE: RECURRING ═══════════ */
+function rFinanceRecurring(){
+  var h='<div class="fin-analytics">';
+  var items=S.scheduledItems;
+  var active=items.filter(function(i){return i.isActive});
+  var inactive=items.filter(function(i){return !i.isActive});
+
+  /* Summary cards */
+  var monthlyOut=0,monthlyIn=0;
+  active.forEach(function(i){
+    var monthly=i.amount;
+    if(i.frequency==='weekly')monthly=i.amount*4.33;
+    else if(i.frequency==='biweekly')monthly=i.amount*2.17;
+    else if(i.frequency==='quarterly')monthly=i.amount/3;
+    else if(i.frequency==='annually')monthly=i.amount/12;
+    else if(i.frequency==='once')monthly=0;
+    if(i.direction==='outflow')monthlyOut+=monthly;
+    else monthlyIn+=monthly});
+
+  var now=new Date();var weekOut=new Date();weekOut.setDate(weekOut.getDate()+7);
+  var dueSoon=active.filter(function(i){
+    if(!i.nextDue)return false;
+    var nd=new Date(i.nextDue+'T00:00:00');
+    return nd>=now&&nd<=weekOut}).length;
+  var overdue=active.filter(function(i){
+    if(!i.nextDue)return false;
+    var nd=new Date(i.nextDue+'T00:00:00');
+    return nd<now&&(!i.lastPaidDate||new Date(i.lastPaidDate+'T00:00:00')<nd)}).length;
+
+  h+='<div class="cp-dash" style="margin-bottom:20px">';
+  h+=dashMet('Monthly Outflows',fmtUSD(monthlyOut),'var(--red)');
+  h+=dashMet('Monthly Inflows',fmtUSD(monthlyIn),'var(--green)');
+  h+=dashMet('Net Monthly',fmtUSD(monthlyIn-monthlyOut),(monthlyIn-monthlyOut)>=0?'var(--green)':'var(--red)');
+  h+=dashMet('Due This Week',dueSoon,dueSoon>0?'var(--amber)':'var(--muted)');
+  h+=dashMet('Overdue',overdue,overdue>0?'var(--red)':'var(--green)');
+  h+='</div>';
+
+  /* Reconciliation button */
+  h+='<div style="display:flex;gap:8px;margin-bottom:16px">';
+  h+='<button class="btn" onclick="TF.autoReconcile()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Auto-Reconcile</button>';
+  h+='</div>';
+
+  /* Active items table */
+  h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr>';
+  h+='<th>Name</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Account</th>';
+  h+='<th>Type</th><th>Last Paid</th><th>Status</th><th></th>';
+  h+='</tr></thead><tbody>';
+
+  if(!active.length)h+='<tr><td colspan="9" style="text-align:center;opacity:0.5;padding:32px">No scheduled items yet. Click "+ Add Item" to add recurring expenses.</td></tr>';
+
+  active.sort(function(a,b){return(a.nextDue||'9999').localeCompare(b.nextDue||'9999')}).forEach(function(item){
+    var isOverdue=false;
+    if(item.nextDue){
+      var nd=new Date(item.nextDue+'T00:00:00');
+      isOverdue=nd<now&&(!item.lastPaidDate||new Date(item.lastPaidDate+'T00:00:00')<nd)}
+    var isPaid=item.lastPaidDate&&item.nextDue&&new Date(item.lastPaidDate+'T00:00:00')>=new Date(item.nextDue+'T00:00:00');
+    var statusCls=isOverdue?'fin-status-unmatched':(isPaid?'fin-status-matched':'');
+    var statusLabel=isOverdue?'Overdue':(isPaid?'Paid':'Upcoming');
+    var dirCol=item.direction==='inflow'?'var(--green)':'var(--red)';
+
+    h+='<tr class="fin-row'+(isOverdue?' fin-unmatched':'')+'" onclick="TF.openEditScheduledItem(\''+item.id+'\')" style="cursor:pointer">';
+    h+='<td><span class="fin-payer-name">'+esc(item.name)+'</span></td>';
+    h+='<td style="color:'+dirCol+';font-weight:600">'+(item.direction==='outflow'?'-':'')+fmtUSD(item.amount)+'</td>';
+    h+='<td><span style="font-size:11px;opacity:0.7">'+esc(item.frequency)+'</span></td>';
+    h+='<td class="fin-date">'+(item.nextDue||'—')+'</td>';
+    h+='<td><span style="font-size:11px;opacity:0.7">'+esc(item.account||'Any')+'</span></td>';
+    h+='<td><span class="fin-type-'+item.type+'">'+esc(item.type)+'</span></td>';
+    h+='<td class="fin-date">'+(item.lastPaidDate||'—')+'</td>';
+    h+='<td><span class="'+statusCls+'">'+statusLabel+'</span></td>';
+    h+='<td><button class="btn" onclick="event.stopPropagation();TF.confirmDeleteScheduledItem(\''+item.id+'\')" style="font-size:11px;padding:4px 8px;border-radius:6px">'+icon('trash',11)+'</button></td>';
+    h+='</tr>'});
+
+  h+='</tbody></table></div>';
+
+  /* Inactive items (collapsed) */
+  if(inactive.length){
+    h+='<details style="margin-top:16px"><summary style="cursor:pointer;font-size:13px;opacity:0.6">'+inactive.length+' inactive item'+(inactive.length>1?'s':'')+'</summary>';
+    h+='<div class="tb-wrap" style="margin-top:8px"><table class="tb fin-tb"><tbody>';
+    inactive.forEach(function(item){
+      h+='<tr class="fin-row" style="opacity:0.5;cursor:pointer" onclick="TF.openEditScheduledItem(\''+item.id+'\')">';
+      h+='<td>'+esc(item.name)+'</td><td>'+fmtUSD(item.amount)+'</td><td>'+esc(item.frequency)+'</td>';
+      h+='<td>'+(item.nextDue||'—')+'</td><td colspan="5"></td></tr>'});
+    h+='</tbody></table></div></details>'}
+
+  h+='</div>';
+  return h}
+
+/* ═══════════ FINANCE: FORECAST ═══════════ */
+function rFinanceForecast(){
+  var h='<div class="fin-analytics">';
+  var horizon=S.forecastHorizon||90;
+  var scenario=S.forecastScenario||'expected';
+
+  /* Controls */
+  h+='<div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap">';
+  h+='<div class="fin-range-pills-group">';
+  [30,60,90,180,365].forEach(function(d){
+    h+='<button class="fin-range-pill'+(horizon===d?' on':'')+'" onclick="TF.setForecastHorizon('+d+')">'+d+'d</button>'});
+  h+='</div>';
+  h+='<div class="fin-range-pills-group" style="margin-left:8px">';
+  [['conservative','Conservative'],['expected','Expected'],['optimistic','Optimistic']].forEach(function(s){
+    h+='<button class="fin-range-pill'+(scenario===s[0]?' on':'')+'" onclick="TF.setForecastScenario(\''+s[0]+'\')">'+s[1]+'</button>'});
+  h+='</div>';
+  var lastSync=S.accountBalances.length?S.accountBalances[0].capturedAt:null;
+  if(lastSync)h+='<span style="font-size:11px;opacity:0.4;margin-left:auto">Balance as of '+fmtRelative(lastSync)+'</span>';
+  h+='</div>';
+
+  /* Build forecast */
+  var fc=buildForecast(horizon,scenario);
+  var metrics=getForecastMetrics(fc);
+
+  /* Metric cards */
+  h+='<div class="cp-dash" style="margin-bottom:20px">';
+  h+=dashMet('Current Balance',fmtUSD(fc.startingBalance),'var(--blue)');
+  h+=dashMet('30-Day Forecast',fmtUSD(metrics.day30),metrics.day30>=0?'var(--green)':'var(--red)');
+  h+=dashMet('Monthly Burn',fmtUSD(metrics.burnRate),'var(--red)');
+  h+=dashMet('Runway',metrics.runway>=fc.horizonDays?'> '+fc.horizonDays+'d':metrics.runway+' days',
+    metrics.runway<30?'var(--red)':metrics.runway<90?'var(--amber)':'var(--green)');
+  if(metrics.nextBigIn)h+=dashMet('Next Big Inflow',fmtUSD(metrics.nextBigIn.amount)+'<br><span style="font-size:10px;opacity:0.6">'+esc(metrics.nextBigIn.name)+'</span>','var(--green)');
+  if(metrics.nextBigOut)h+=dashMet('Next Big Outflow',fmtUSD(metrics.nextBigOut.amount)+'<br><span style="font-size:10px;opacity:0.6">'+esc(metrics.nextBigOut.name)+'</span>','var(--red)');
+  h+='</div>';
+
+  /* Main forecast chart */
+  h+='<div class="chart-card" style="margin-bottom:20px">';
+  h+='<h3 style="margin-bottom:12px">Projected Balance</h3>';
+  h+='<div class="chart-wrap" style="height:300px"><canvas id="fin-forecast-chart"></canvas></div>';
+  h+='</div>';
+
+  /* Weekly inflows vs outflows */
+  h+='<div class="chart-card" style="margin-bottom:20px">';
+  h+='<h3 style="margin-bottom:12px">Weekly Cash Flow Breakdown</h3>';
+  h+='<div class="chart-wrap" style="height:250px"><canvas id="fin-forecast-cashflow"></canvas></div>';
+  h+='</div>';
+
+  /* Forecast detail breakdown */
+  h+='<h3 style="margin:20px 0 12px;font-size:14px;opacity:0.7">Forecast Sources</h3>';
+
+  /* Scheduled expenses */
+  var schedOut=S.scheduledItems.filter(function(i){return i.isActive&&i.direction==='outflow'});
+  var schedIn=S.scheduledItems.filter(function(i){return i.isActive&&i.direction==='inflow'});
+
+  h+='<details open style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('refresh',14)+' Scheduled Expenses ('+schedOut.length+')</summary>';
+  if(schedOut.length){
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Confidence</th></tr></thead><tbody>';
+    schedOut.forEach(function(i){
+      h+='<tr class="fin-row"><td>'+esc(i.name)+'</td><td style="color:var(--red)">-'+fmtUSD(i.amount)+'</td>';
+      h+='<td>'+esc(i.frequency)+'</td><td>'+(i.nextDue||'—')+'</td><td>100%</td></tr>'});
+    h+='</tbody></table></div>'}
+  else h+='<div style="opacity:0.5;font-size:13px;padding:8px">No scheduled expenses</div>';
+  h+='</details>';
+
+  /* Team costs */
+  var activeTeam=S.teamMembers.filter(function(m){return m.isActive&&m.salary>0});
+  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('clients',14)+' Team Costs ('+activeTeam.length+')</summary>';
+  if(activeTeam.length){
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Salary</th><th>Pay Frequency</th><th>Pay Day</th><th>Confidence</th></tr></thead><tbody>';
+    activeTeam.forEach(function(m){
+      h+='<tr class="fin-row"><td>'+esc(m.name)+'</td><td style="color:var(--red)">-'+fmtUSD(m.salary)+'</td>';
+      h+='<td>'+esc(m.payFrequency)+'</td><td>'+m.payDay+'</td><td>100%</td></tr>'});
+    h+='</tbody></table></div>'}
+  else h+='<div style="opacity:0.5;font-size:13px;padding:8px">No team members</div>';
+  h+='</details>';
+
+  /* Confirmed inflows (pending invoices) */
+  var pendInv=S.financePayments.filter(function(p){return p.type==='invoice'&&p.pendingAmount>0&&p.status!=='excluded'});
+  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('file',14)+' Confirmed Inflows ('+pendInv.length+')</summary>';
+  if(pendInv.length){
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Payer</th><th>Amount</th><th>Expected Date</th><th>Confidence</th></tr></thead><tbody>';
+    pendInv.forEach(function(p){
+      var expDate=p.expectedPaymentDate||(p.date?fmtDate(new Date(new Date(p.date).getTime()+30*86400000)):'Unknown');
+      h+='<tr class="fin-row"><td>'+esc(p.payerName||p.description)+'</td><td style="color:var(--green)">+'+fmtUSD(p.pendingAmount)+'</td>';
+      h+='<td>'+esc(expDate)+'</td><td>100%</td></tr>'});
+    h+='</tbody></table></div>'}
+  else h+='<div style="opacity:0.5;font-size:13px;padding:8px">No pending invoices</div>';
+  h+='</details>';
+
+  /* Pipeline */
+  var pipeItems=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'&&o.expectedClose});
+  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('gem',14)+' Pipeline ('+pipeItems.length+')</summary>';
+  if(pipeItems.length){
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Opportunity</th><th>Value</th><th>Expected Close</th><th>Probability</th><th>Weighted</th></tr></thead><tbody>';
+    pipeItems.sort(function(a,b){
+      var ad=a.expectedClose instanceof Date?a.expectedClose.toISOString():a.expectedClose||'';
+      var bd=b.expectedClose instanceof Date?b.expectedClose.toISOString():b.expectedClose||'';
+      return ad.localeCompare(bd)}).forEach(function(o){
+      var val=(o.strategyFee||0)+(o.setupFee||0);
+      var prob=o.probability||0;
+      var weighted=val*(prob/100);
+      var closeStr=o.expectedClose instanceof Date?fmtDate(o.expectedClose):(o.expectedClose||'');
+      h+='<tr class="fin-row"><td>'+esc(o.name)+'</td><td>'+fmtUSD(val)+'</td>';
+      h+='<td>'+closeStr+'</td><td>'+prob+'%</td><td style="color:var(--green)">+'+fmtUSD(weighted)+'</td></tr>'});
+    h+='</tbody></table></div>'}
+  else h+='<div style="opacity:0.5;font-size:13px;padding:8px">No pipeline opportunities with expected close dates</div>';
+  h+='</details>';
+
+  /* Scheduled inflows */
+  if(schedIn.length){
+    h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('activity',14)+' Scheduled Inflows ('+schedIn.length+')</summary>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Confidence</th></tr></thead><tbody>';
+    schedIn.forEach(function(i){
+      h+='<tr class="fin-row"><td>'+esc(i.name)+'</td><td style="color:var(--green)">+'+fmtUSD(i.amount)+'</td>';
+      h+='<td>'+esc(i.frequency)+'</td><td>'+(i.nextDue||'—')+'</td><td>100%</td></tr>'});
+    h+='</tbody></table></div></details>'}
+
+  h+='</div>';
+  return h}
+
+function initForecastCharts(){
+  setTimeout(function(){
+    var horizon=S.forecastHorizon||90;
+    var scenario=S.forecastScenario||'expected';
+    var fc=buildForecast(horizon,scenario);
+    if(!fc.days.length)return;
+
+    /* Balance line chart */
+    var labels=[];var balances=[];
+    var step=Math.max(1,Math.floor(fc.days.length/60));
+    fc.days.forEach(function(d,i){
+      if(i%step===0||i===fc.days.length-1){labels.push(d.date.substring(5));balances.push(d.balance)}});
+
+    var el=document.getElementById('fin-forecast-chart');
+    if(el){
+      var ctx=el.getContext('2d');
+      if(charts['fin-forecast-chart']){charts['fin-forecast-chart'].destroy()}
+      charts['fin-forecast-chart']=new Chart(ctx,{type:'line',
+        data:{labels:labels,datasets:[{
+          label:'Projected Balance',data:balances,
+          borderColor:balances[balances.length-1]>=0?'#3ddc84':'#ff3358',
+          backgroundColor:function(context){
+            var chart=context.chart;var{ctx:c,chartArea}=chart;
+            if(!chartArea)return null;
+            var gradient=c.createLinearGradient(0,chartArea.top,0,chartArea.bottom);
+            gradient.addColorStop(0,'rgba(61,220,132,0.15)');
+            gradient.addColorStop(1,'rgba(61,220,132,0)');
+            return gradient},
+          fill:true,tension:0.3,pointRadius:0,borderWidth:2}]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},
+            annotation:{annotations:{zero:{type:'line',yMin:0,yMax:0,borderColor:'rgba(255,51,88,0.5)',borderWidth:1,borderDash:[5,5]}}}},
+          scales:{x:{ticks:{maxTicksLimit:12,font:{size:10}},grid:{display:false}},
+            y:{ticks:{callback:function(v){return'$'+Math.round(v/1000)+'k'},font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}}}}
+      })}
+
+    /* Weekly cash flow bar chart */
+    var weekLabels=[];var weekIn=[];var weekOut=[];
+    var weekSize=7;
+    for(var w=0;w<fc.days.length;w+=weekSize){
+      var end=Math.min(w+weekSize,fc.days.length);
+      var wIn=0,wOut=0;
+      for(var d=w;d<end;d++){wIn+=fc.days[d].totalIn;wOut+=fc.days[d].totalOut}
+      weekLabels.push(fc.days[w].date.substring(5));weekIn.push(wIn);weekOut.push(-wOut)}
+
+    var el2=document.getElementById('fin-forecast-cashflow');
+    if(el2){
+      var ctx2=el2.getContext('2d');
+      if(charts['fin-forecast-cashflow']){charts['fin-forecast-cashflow'].destroy()}
+      charts['fin-forecast-cashflow']=new Chart(ctx2,{type:'bar',
+        data:{labels:weekLabels,datasets:[
+          {label:'Inflows',data:weekIn,backgroundColor:'rgba(61,220,132,0.7)',stack:'a'},
+          {label:'Outflows',data:weekOut,backgroundColor:'rgba(255,51,88,0.7)',stack:'a'}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{labels:{font:{size:10},usePointStyle:true,color:'rgba(255,255,255,0.6)'}}},
+          scales:{x:{stacked:true,ticks:{maxTicksLimit:12,font:{size:10}},grid:{display:false}},
+            y:{stacked:true,ticks:{callback:function(v){return'$'+Math.round(v/1000)+'k'},font:{size:10}},grid:{color:'rgba(255,255,255,0.05)'}}}}
+      })}
+  },250)}
+
+/* ═══════════ FINANCE: TEAM ═══════════ */
+function rFinanceTeam(){
+  var h='<div class="fin-analytics">';
+  var members=S.teamMembers;
+  var active=members.filter(function(m){return m.isActive});
+  var inactive=members.filter(function(m){return !m.isActive});
+
+  /* Summary cards */
+  var totalPayroll=active.reduce(function(s,m){return s+m.salary},0);
+  var avgCommission=active.length?active.reduce(function(s,m){return s+m.commissionRate},0)/active.length:0;
+
+  h+='<div class="cp-dash" style="margin-bottom:20px">';
+  h+=dashMet('Monthly Payroll',fmtUSD(totalPayroll),'var(--red)');
+  h+=dashMet('Annual Payroll',fmtUSD(totalPayroll*12),'var(--red)');
+  h+=dashMet('Team Size',active.length,'var(--blue)');
+  h+=dashMet('Avg Commission',avgCommission.toFixed(1)+'%',avgCommission>0?'var(--amber)':'var(--muted)');
+  h+='</div>';
+
+  /* Active members table */
+  h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr>';
+  h+='<th>Name</th><th>Role</th><th>Salary</th><th>Pay Schedule</th>';
+  h+='<th>Commission</th><th>Start Date</th><th>Annual Cost</th><th></th>';
+  h+='</tr></thead><tbody>';
+
+  if(!active.length)h+='<tr><td colspan="8" style="text-align:center;opacity:0.5;padding:32px">No team members yet. Click "+ Add Member" to get started.</td></tr>';
+
+  active.forEach(function(m){
+    var annualSalary=m.salary*12;
+    /* Estimate commission for current month */
+    var now=new Date();var monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+    var commission=calcTeamCommissions(m,monthStart,now);
+    var estAnnual=annualSalary+(commission*12);
+
+    h+='<tr class="fin-row" onclick="TF.openEditTeamMember(\''+m.id+'\')" style="cursor:pointer">';
+    h+='<td><span class="fin-payer-name">'+esc(m.name)+'</span></td>';
+    h+='<td><span style="font-size:11px;opacity:0.7">'+esc(m.role||'—')+'</span></td>';
+    h+='<td style="font-weight:600">'+fmtUSD(m.salary)+'/mo</td>';
+    h+='<td><span style="font-size:11px;opacity:0.7">'+esc(m.payFrequency)+' (day '+m.payDay+')</span></td>';
+    h+='<td>';
+    if(m.commissionRate>0)h+=m.commissionRate+'% of '+esc(m.commissionBasis||'revenue');
+    else h+='<span style="opacity:0.4">None</span>';
+    h+='</td>';
+    h+='<td class="fin-date">'+(m.startDate||'—')+'</td>';
+    h+='<td style="font-weight:600;color:var(--red)">'+fmtUSD(estAnnual)+'/yr</td>';
+    h+='<td><button class="btn" onclick="event.stopPropagation();TF.confirmDeleteTeamMember(\''+m.id+'\')" style="font-size:11px;padding:4px 8px;border-radius:6px">'+icon('trash',11)+'</button></td>';
+    h+='</tr>'});
+
+  h+='</tbody></table></div>';
+
+  /* Inactive members */
+  if(inactive.length){
+    h+='<details style="margin-top:16px"><summary style="cursor:pointer;font-size:13px;opacity:0.6">'+inactive.length+' inactive member'+(inactive.length>1?'s':'')+'</summary>';
+    h+='<div class="tb-wrap" style="margin-top:8px"><table class="tb fin-tb"><tbody>';
+    inactive.forEach(function(m){
+      h+='<tr class="fin-row" style="opacity:0.5;cursor:pointer" onclick="TF.openEditTeamMember(\''+m.id+'\')">';
+      h+='<td>'+esc(m.name)+'</td><td>'+esc(m.role)+'</td><td>'+fmtUSD(m.salary)+'</td>';
+      h+='<td colspan="5"></td></tr>'});
+    h+='</tbody></table></div></details>'}
+
+  h+='</div>';
+  return h}
 
