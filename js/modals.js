@@ -3235,6 +3235,7 @@ function openIntegrationsModal(){
     h+='<button class="btn btn-p" onclick="TF.saveIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px">Save</button>';
     if(isConnected){
       h+='<button class="btn btn-go" onclick="TF.triggerSync(\''+plat.id.replace(/_/g,'-')+'\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Now</button>';
+      if(plat.id==='zoho_books')h+='<button class="btn" onclick="TF.debugZohoBooks()" style="font-size:12px;padding:6px 14px;color:var(--blue)">'+icon('search',11)+' Debug Data</button>';
       h+='<button class="btn" onclick="TF.deleteIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:rgba(255,0,0,0.2)">Disconnect</button>';
     }
     h+='</div>';

@@ -16,7 +16,7 @@ async function syncZohoBooks(userId) {
 
   const accessToken = await refreshZohoToken(cred, 'zoho_books');
   const headers = { 'Authorization': 'Zoho-oauthtoken ' + accessToken };
-  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '', debug: [], rawInvoices: [], rawPayments: [] };
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '', debug: [] };
 
   // For incremental syncs use last_sync_at; for first sync fetch everything.
   // Also treat it as a first sync if last sync found nothing (last_sync_message starts with '0 new')
@@ -129,12 +129,6 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
     const items = data[cfg.listKey] || [];
     stats.fetched += items.length;
     stats.debug.push(cfg.endpoint + ' page ' + page + ': ' + items.length + ' items from Zoho' + (data.page_context ? ' (has_more=' + data.page_context.has_more_page + ')' : ''));
-
-    // Capture raw Zoho data for debugging
-    const rawBucket = cfg.type === 'invoice' ? stats.rawInvoices : stats.rawPayments;
-    for (const item of items) {
-      rawBucket.push(item);
-    }
 
     for (const item of items) {
       const sourceId = cfg.entityPrefix + '_' + item[cfg.idField];

@@ -1120,13 +1120,12 @@ async function triggerSync(platform){
     var result=await resp.json();
     if(result.success){
       toast(platform+' synced: '+result.inserted+' new, '+result.updated+' updated'+(result.skipped?' ('+result.skipped+' skipped)':''),'ok');
-      /* Dump full sync data to console for debugging */
-      console.group('%c'+platform+' sync results','font-weight:bold;font-size:14px;color:#3ddc84');
-      console.log('Summary:',{fetched:result.fetched,inserted:result.inserted,updated:result.updated,skipped:result.skipped});
-      if(result.debug&&result.debug.length){console.group('Sync Log');result.debug.forEach(function(d){console.log(d)});console.groupEnd()}
-      if(result.rawInvoices&&result.rawInvoices.length){console.group('Raw Invoices from Zoho ('+result.rawInvoices.length+')');console.table(result.rawInvoices.map(function(inv){return{invoice_id:inv.invoice_id,invoice_number:inv.invoice_number,customer_name:inv.customer_name,date:inv.date,total:inv.total,balance:inv.balance,status:inv.status,due_date:inv.due_date,email:inv.email}}));console.log('Full raw data:',result.rawInvoices);console.groupEnd()}
-      if(result.rawPayments&&result.rawPayments.length){console.group('Raw Customer Payments from Zoho ('+result.rawPayments.length+')');console.table(result.rawPayments.map(function(p){return{payment_id:p.payment_id,customer_name:p.customer_name,date:p.date,amount:p.amount,payment_number:p.payment_number,payment_mode:p.payment_mode,reference_number:p.reference_number,invoices:(p.invoices||[]).length+' invoices'}}));console.log('Full raw data:',result.rawPayments);console.groupEnd()}
-      console.groupEnd()
+      /* Log sync debug info to console */
+      if(result.debug&&result.debug.length){
+        console.group('%c'+platform+' sync log','font-weight:bold;color:#3ddc84');
+        console.log('Summary:',{fetched:result.fetched,inserted:result.inserted,updated:result.updated,skipped:result.skipped});
+        result.debug.forEach(function(d){console.log(d)});
+        console.groupEnd()}
       await loadFinancePayments();await loadAccountBalances();await loadIntegrations();render();
     }else{
       var errMsg=result.error||'Unknown error';
@@ -1136,6 +1135,41 @@ async function triggerSync(platform){
       if(el)el.innerHTML='<span style="color:var(--red);white-space:pre-wrap;word-break:break-all">Sync failed: '+esc(errMsg)+'</span>';
     }
   }catch(e){console.error('Sync error:',e);toast('Sync error: '+e.message,'warn')}}
+
+async function debugZohoBooks(){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    toast('Fetching Zoho Books debug data...','info');
+    console.log('%c⏳ Fetching all Zoho Books data (this may take a moment)...','color:#2196f3;font-size:14px');
+    var resp=await fetch('/api/sync/zoho-books-debug',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
+    var data=await resp.json();
+    if(data.error){toast('Debug error: '+data.error,'warn');console.error('Zoho debug error:',data.error);return}
+
+    console.group('%c📘 ZOHO BOOKS DEBUG DATA','font-weight:bold;font-size:16px;color:#2196f3');
+    console.log('Sync Config:',data.syncConfig);
+    if(data.errors&&data.errors.length)console.warn('Errors:',data.errors);
+
+    console.group('📄 Invoices ('+data.invoices.length+')');
+    if(data.invoices.length){
+      console.table(data.invoices);
+      var outstanding=data.invoices.filter(function(i){return i.status!=='paid'&&i.status!=='void'});
+      if(outstanding.length){console.group('⚠️ Outstanding Invoices ('+outstanding.length+')');console.table(outstanding);console.groupEnd()}
+    }else console.log('No invoices returned');
+    console.groupEnd();
+
+    console.group('💰 Customer Payments ('+data.customerPayments.length+')');
+    if(data.customerPayments.length){
+      console.table(data.customerPayments.map(function(p){return{payment_id:p.payment_id,customer_name:p.customer_name,date:p.date,amount:p.amount,payment_mode:p.payment_mode,payment_number:p.payment_number,reference_number:p.reference_number,invoice_count:(p.invoices||[]).length}}));
+      console.log('Full payment data (with invoice details):',data.customerPayments);
+    }else console.log('No customer payments returned');
+    console.groupEnd();
+
+    console.groupEnd();
+    toast('Zoho debug data logged to console ('+data.invoices.length+' invoices, '+data.customerPayments.length+' payments)','ok');
+  }catch(e){console.error('Debug fetch error:',e);toast('Debug error: '+e.message,'warn')}}
 
 async function cleanupDuplicates(){
   try{
