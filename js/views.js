@@ -1991,8 +1991,12 @@ function rFinance(){
     else if(p.status==='split')splitCount++});
   var filtered=finFilteredPayments();
 
+  var bulkCount=finBulkCount();
   var h='<div class="pg-head"><h1>'+icon('activity',18)+' Finance</h1>';
-  h+='<button class="btn btn-p" onclick="TF.openAddFinancePayment()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Payment</button></div>';
+  h+='<div style="display:flex;gap:8px">';
+  h+='<button class="btn'+(S.finBulkMode?' btn-p':'')+'" onclick="TF.finToggleBulk()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.finBulkMode?icon('x',12)+' Exit Bulk':'Bulk Edit')+'</button>';
+  h+='<button class="btn btn-p" onclick="TF.openAddFinancePayment()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Payment</button>';
+  h+='</div></div>';
 
   /* Metrics */
   h+='<div class="cp-dash">';
@@ -2016,13 +2020,32 @@ function rFinance(){
   h+='<input class="fl fl-s" placeholder="Search payments..." value="'+esc(S.finSearch||'')+'" oninput="TF.setFinSearch(this.value)" style="max-width:260px">';
   h+='</div>';
 
+  /* Bulk action bar */
+  if(S.finBulkMode){
+    var catBulkOpts='<option value="">— Category —</option>';
+    PAY_CATS.forEach(function(c){catBulkOpts+='<option>'+esc(c)+'</option>'});
+    var clBulkOpts='<option value="">— No Client —</option>';
+    S.clientRecords.forEach(function(c){clBulkOpts+='<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>'});
+
+    h+='<div class="fin-bulk-bar">';
+    h+='<span class="fin-bulk-count">'+bulkCount+' selected</span>';
+    h+='<button class="btn" onclick="TF.finSelectAllVisible()" style="font-size:11px;padding:5px 12px">Select All ('+filtered.length+')</button>';
+    if(bulkCount>0)h+='<button class="btn" onclick="TF.finDeselectAll()" style="font-size:11px;padding:5px 12px">Deselect</button>';
+    h+='<select class="edf" id="fin-bulk-cat" style="font-size:12px;padding:5px 10px;max-width:180px">'+catBulkOpts+'</select>';
+    h+='<select class="edf" id="fin-bulk-client" style="font-size:12px;padding:5px 10px;max-width:180px">'+clBulkOpts+'</select>';
+    if(bulkCount>0)h+='<button class="btn btn-p" onclick="TF.finBulkApply()" style="font-size:12px;padding:6px 16px">Apply to '+bulkCount+'</button>';
+    h+='</div>';
+  }
+
   /* Table */
   if(!filtered.length){
     h+='<div style="text-align:center;padding:60px 20px;color:var(--t4)">No payments found</div>';
     return h}
 
   h+='<div class="tb-wrap"><table class="tb fin-tb">';
-  h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th></th></tr></thead>';
+  h+='<thead><tr>';
+  if(S.finBulkMode)h+='<th style="width:30px"><input type="checkbox" onclick="TF.finSelectAllVisible()" '+(bulkCount===filtered.length&&bulkCount>0?'checked':'')+' style="accent-color:var(--pink);cursor:pointer"></th>';
+  h+='<th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th></th></tr></thead>';
   h+='<tbody>';
   filtered.forEach(function(p,idx){
     var eid=escAttr(p.id);
@@ -2032,7 +2055,9 @@ function rFinance(){
     var splits=p.status==='split'?getSplitsForPayment(p.id):[];
     var rowCls='fin-row'+(p.status==='unmatched'?' fin-unmatched':'')+(p.status==='split'?' fin-split-parent':'');
 
-    h+='<tr class="'+rowCls+'" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
+    var rowClick=S.finBulkMode?'TF.finToggleSel(\''+eid+'\')':'TF.openFinancePaymentDetail(\''+eid+'\')';
+    h+='<tr class="'+rowCls+(S.finBulkSelected[p.id]?' fin-bulk-sel':'')+'" onclick="'+rowClick+'">';
+    if(S.finBulkMode)h+='<td onclick="event.stopPropagation();TF.finToggleSel(\''+eid+'\')"><input type="checkbox" '+(S.finBulkSelected[p.id]?'checked':'')+' style="accent-color:var(--pink);cursor:pointer"></td>';
     h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
     h+='<td class="fin-payer"><span class="fin-payer-name">'+esc(p.payerName||p.payerEmail||'Unknown')+'</span>';
     if(p.payerEmail&&p.payerName)h+='<span class="fin-payer-email">'+esc(p.payerEmail)+'</span>';

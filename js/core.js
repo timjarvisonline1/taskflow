@@ -61,7 +61,7 @@ var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],paymen
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
-  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:''};
+  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{}};
 
 var SECTIONS=[
   {id:'today',type:'single',icon:'today',label:'Today',kbd:'1'},
@@ -834,6 +834,11 @@ function finFilteredPayments(){
     fp=fp.filter(function(p){return(p.payerEmail||'').toLowerCase().indexOf(q)!==-1||(p.payerName||'').toLowerCase().indexOf(q)!==-1||(p.description||'').toLowerCase().indexOf(q)!==-1||(p.notes||'').toLowerCase().indexOf(q)!==-1})}
   return fp}
 function setFinSearch(v){S.finSearch=v;render()}
+function finToggleBulk(){S.finBulkMode=!S.finBulkMode;S.finBulkSelected={};render()}
+function finToggleSel(id){if(S.finBulkSelected[id])delete S.finBulkSelected[id];else S.finBulkSelected[id]=true;render()}
+function finSelectAllVisible(){var fp=finFilteredPayments();fp.forEach(function(p){S.finBulkSelected[p.id]=true});render()}
+function finDeselectAll(){S.finBulkSelected={};render()}
+function finBulkCount(){return Object.keys(S.finBulkSelected).length}
 function clientNameById(id){if(!id)return'';var c=S.clientRecords.find(function(r){return r.id===id});return c?c.name:''}
 
 /* ═══════════ NAV ═══════════ */

@@ -2246,6 +2246,41 @@ async function saveFinancePayment(){
   var msg=batchCount>0?'Payment saved + '+batchCount+' more updated':'Payment saved';
   toast(msg,'ok');closeModal();render()}
 
+async function finBulkApply(){
+  var ids=Object.keys(S.finBulkSelected);if(!ids.length){toast('No payments selected','warn');return}
+  var cat=(gel('fin-bulk-cat')||{}).value||'';
+  var clientId=(gel('fin-bulk-client')||{}).value||null;
+  if(!cat&&!clientId){toast('Select a category or client to apply','warn');return}
+
+  var count=0;
+  for(var i=0;i<ids.length;i++){
+    var p=S.financePayments.find(function(fp){return fp.id===ids[i]});
+    if(!p)continue;
+    var data={};
+    if(cat)data.category=cat;
+    if(clientId)data.clientId=clientId;
+    /* Determine status */
+    var newClientId=clientId||p.clientId||null;
+    var newCat=cat||p.category||'';
+    data.status=newClientId?'matched':(newCat==='Products'?'matched':p.status);
+    /* Keep existing values for fields we're not changing */
+    data.date=p.date?p.date.toISOString().slice(0,10):null;
+    data.notes=p.notes||'';
+    data.endClient=p.endClient||'';
+    data.campaignId=p.campaignId||null;
+    if(!cat)data.category=p.category||'';
+    if(!clientId)data.clientId=p.clientId||null;
+
+    var ok=await dbEditFinancePayment(ids[i],data);
+    if(ok){
+      if(cat)p.category=cat;
+      if(clientId)p.clientId=clientId;
+      p.status=data.status;
+      count++}
+  }
+  S.finBulkSelected={};S.finBulkMode=false;
+  toast(count+' payment'+(count!==1?'s':'')+' updated','ok');render()}
+
 async function excludeFinancePayment(){
   var id=(gel('fp-id')||{}).value;if(!id)return;
   var ok=await dbEditFinancePayment(id,{status:'excluded',date:null,category:'',clientId:null,campaignId:null,endClient:'',notes:''});
