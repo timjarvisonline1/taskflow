@@ -212,6 +212,23 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // 11b. Get Brex account names for internal transfer detection
+    const { data: brexAcctBals } = await client
+      .from('account_balances')
+      .select('account_name')
+      .eq('user_id', userId)
+      .eq('platform', 'brex');
+    const brexAcctNames = (brexAcctBals || []).map(r => (r.account_name || '').toLowerCase()).filter(Boolean);
+
+    function isBrexInternalOrNoise(desc) {
+      const d = (desc || '').toLowerCase();
+      if (d.includes('payment') && d.includes('thank you')) return true;
+      for (let i = 0; i < brexAcctNames.length; i++) {
+        if (d.startsWith(brexAcctNames[i])) return true;
+      }
+      return false;
+    }
+
     // 12-17. Delete noise records (transfers, settlements, vendor payments, bills, expenses)
     // Safety: skip records the user has already acted on (matched, split, or assigned to client)
     const noiseToDelete = new Set();
@@ -235,6 +252,15 @@ module.exports = async function handler(req, res) {
             noiseToDelete.add(rec.id);
             stats.brexSettlementsDeleted++;
           }
+        }
+      }
+
+      // 13b. Brex internal transfers (description starts with account name) + balance clears
+      if (rec.source === 'brex') {
+        const desc = rec.description || rec.payer_name || '';
+        if (isBrexInternalOrNoise(desc)) {
+          noiseToDelete.add(rec.id);
+          stats.brexTransfersDeleted++;
         }
       }
 

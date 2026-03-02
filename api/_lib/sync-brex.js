@@ -35,13 +35,30 @@ async function syncBrex(userId) {
       });
     }
 
-    // 2. Compute incremental sync start date (ISO 8601 format required by Brex API)
+    // 2. Build set of account names for internal transfer detection
+    //    Any transaction whose description starts with a known account name is an
+    //    internal transfer between Brex sub-accounts — skip it entirely.
+    const acctNames = accounts.map(function(a) { return (a.name || '').toLowerCase(); }).filter(Boolean);
+
+    // 3. Compute incremental sync start date (ISO 8601 format required by Brex API)
     //    posted_at_start parameter needs full ISO 8601: 2026-02-28T00:00:00Z
     const cutoffISO = CSV_CUTOFF + 'T00:00:00Z';
     let since = cred.last_sync_at ? new Date(cred.last_sync_at).toISOString() : cutoffISO;
     if (since < cutoffISO) since = cutoffISO;
 
-    // 3. Fetch cash transactions for each account
+    // Helper: detect internal transfers + balance clears
+    function isInternalOrNoise(desc) {
+      const d = (desc || '').toLowerCase();
+      // Balance clearing payments (credit card payoff from cash account)
+      if (d.includes('payment') && d.includes('thank you')) return true;
+      // Description starts with a known Brex account name → internal transfer
+      for (let i = 0; i < acctNames.length; i++) {
+        if (d.startsWith(acctNames[i])) return true;
+      }
+      return false;
+    }
+
+    // 4. Fetch cash transactions for each account
     //    Cash endpoint doesn't reliably support posted_at_start (returns 400),
     //    so we fetch all and filter client-side. Cash txns are low-volume (wires, ACH).
     for (const acct of accounts) {
@@ -75,6 +92,8 @@ async function syncBrex(userId) {
           // Skip card settlement sweeps (daily aggregate debits like "Brex Card -$6,040.64")
           const txDesc = (tx.description || '').toLowerCase();
           if (txDesc === 'brex card' || txDesc.startsWith('brex card ')) { stats.skipped++; continue; }
+          // Skip internal transfers (description matches account name) + balance clears
+          if (isInternalOrNoise(tx.description)) { stats.skipped++; continue; }
 
           const result = await upsertPayment(userId, 'brex', tx.id, {
             date: txDate, amount: amount, fee: 0, net: amount,
@@ -126,6 +145,8 @@ async function syncBrex(userId) {
 
         // Skip records before CSV cutoff
         if (cardTxDate && cardTxDate < CSV_CUTOFF) { stats.skipped++; continue; }
+        // Skip internal transfers + balance clears on card side too
+        if (isInternalOrNoise(merchantDesc)) { stats.skipped++; continue; }
 
         const result = await upsertPayment(userId, 'brex', tx.id, {
           date: cardTxDate, amount: amount, fee: 0, net: amount,
