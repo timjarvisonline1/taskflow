@@ -61,7 +61,7 @@ var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],paymen
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
-  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finShowAnalytics:true,finRange:'12m'};
+  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finShowAnalytics:true,finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:''};
 
 var SECTIONS=[
   {id:'today',type:'single',icon:'today',label:'Today',kbd:'1'},
@@ -328,6 +328,10 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var sv=localStorage.getItem('tf_sv');if(sv)S.view=sv;
   var fsa=localStorage.getItem('tf_fsa');if(fsa!==null)S.finShowAnalytics=fsa==='1';
   var fr=localStorage.getItem('tf_fr');if(fr)S.finRange=fr;
+  var fcat=localStorage.getItem('tf_fcat');if(fcat!==null)S.finCatFilter=fcat;
+  var fcli=localStorage.getItem('tf_fcli');if(fcli!==null)S.finClientFilter=fcli;
+  var fcs=localStorage.getItem('tf_fcs');if(fcs)S.finCustomStart=fcs;
+  var fce=localStorage.getItem('tf_fce');if(fce)S.finCustomEnd=fce;
   /* Migrate old view IDs to new structure */
   var viewMap={overview:'today',schedule:'today',analytics:'tasks',meetings:'today',weekly:'tasks',templates:'tasks',pipeline:'opportunities',review:'tasks'};
   if(viewMap[S.view])S.view=viewMap[S.view]}catch(e){}}
@@ -869,7 +873,24 @@ function finBulkCount(){return Object.keys(S.finBulkSelected).length}
 function clientNameById(id){if(!id)return'';var c=S.clientRecords.find(function(r){return r.id===id});return c?c.name:''}
 
 /* ═══════════ FINANCE RANGE HELPERS ═══════════ */
-function finSetRange(key){S.finRange=key;try{localStorage.setItem('tf_fr',key)}catch(e){}render()}
+function finSetRange(key){
+  S.finRange=key;try{localStorage.setItem('tf_fr',key)}catch(e){}
+  if(key!=='custom'){S.finCustomStart='';S.finCustomEnd='';
+    try{localStorage.removeItem('tf_fcs');localStorage.removeItem('tf_fce')}catch(e){}}
+  render()}
+function finSetCategory(v){S.finCatFilter=v;try{localStorage.setItem('tf_fcat',v)}catch(e){}render()}
+function finSetClient(v){S.finClientFilter=v;try{localStorage.setItem('tf_fcli',v)}catch(e){}render()}
+function finSetCustomRange(start,end){
+  S.finCustomStart=start;S.finCustomEnd=end;
+  try{localStorage.setItem('tf_fcs',start);localStorage.setItem('tf_fce',end)}catch(e){}
+  if(start&&end)render()}
+function finClearFilters(){
+  S.finCatFilter='';S.finClientFilter='';
+  if(S.finRange==='custom'){S.finRange='12m';S.finCustomStart='';S.finCustomEnd=''}
+  try{localStorage.removeItem('tf_fcat');localStorage.removeItem('tf_fcli');
+      localStorage.removeItem('tf_fcs');localStorage.removeItem('tf_fce');
+      localStorage.setItem('tf_fr',S.finRange)}catch(e){}
+  render()}
 
 function finGetRangeConfig(rangeKey){
   var now=new Date(),curYear=now.getFullYear(),curMonth=now.getMonth();
@@ -896,6 +917,17 @@ function finGetRangeConfig(rangeKey){
       cfg.startDate=new Date(curYear-1,0,1);
       cfg.endDate=new Date(curYear-1,11,31,23,59,59);
       cfg.label='Last Year';cfg.granularity='monthly';break;
+    case'custom':
+      var cs=S.finCustomStart?new Date(S.finCustomStart+'T00:00:00'):null;
+      var ce=S.finCustomEnd?new Date(S.finCustomEnd+'T00:00:00'):null;
+      if(ce)ce.setHours(23,59,59,999);
+      cfg.startDate=cs||new Date(curYear,curMonth-11,1);
+      cfg.endDate=ce||null;
+      cfg.label='Custom Range';
+      if(cs&&ce){var spanDays=Math.round((ce-cs)/864e5);
+        cfg.granularity=spanDays<=31?'daily':spanDays<=90?'weekly':'monthly'}
+      else{cfg.granularity='monthly'}
+      break;
     default:/* 12m */
       cfg.startDate=new Date(curYear,curMonth-11,1);
       cfg.label='Last 12 Months';cfg.granularity='monthly';
@@ -908,6 +940,19 @@ function finFilterByRange(payments,cfg){
     if(!p.date)return includeNullDates;
     if(p.date<cfg.startDate)return false;
     if(cfg.endDate&&p.date>cfg.endDate)return false;
+    return true})}
+
+function finFilterByAnalyticsFilters(payments){
+  var cat=S.finCatFilter,cli=S.finClientFilter;
+  if(!cat&&!cli)return payments;
+  return payments.filter(function(p){
+    if(cli&&p.clientId!==cli)return false;
+    if(cat){
+      if(p.status==='split'){
+        var splits=getSplitsForPayment(p.id);
+        if(!splits.some(function(sp){return sp.category===cat}))return false
+      }else{if(p.category!==cat)return false}
+    }
     return true})}
 
 function finAggregateByPeriod(payments,cfg){

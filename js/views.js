@@ -2027,7 +2027,7 @@ function rFinance(){
 
   /* ── Compute analytics data (range-aware) ── */
   var rangeCfg=finGetRangeConfig(S.finRange);
-  var rfp=finFilterByRange(fp,rangeCfg);
+  var rfp=finFilterByAnalyticsFilters(finFilterByRange(fp,rangeCfg));
 
   /* Range metrics */
   var rangeRev=0;rfp.forEach(function(p){rangeRev+=p.amount});
@@ -2037,7 +2037,7 @@ function rFinance(){
 
   /* Previous period comparison */
   var prevCfg=finGetPreviousPeriodConfig(rangeCfg);
-  var prevFp=finFilterByRange(fp,prevCfg);
+  var prevFp=finFilterByAnalyticsFilters(finFilterByRange(fp,prevCfg));
   var prevRev=0;prevFp.forEach(function(p){prevRev+=p.amount});
   var periodGrowth=prevRev>0?((rangeRev-prevRev)/prevRev*100):0;
 
@@ -2064,11 +2064,40 @@ function rFinance(){
   if(S.finShowAnalytics){
     h+='<div class="fin-analytics">';
 
-    /* Range picker pills */
+    /* Controls bar: range pills + custom dates + category/client filters */
+    h+='<div class="fin-controls-bar">';
+
+    /* Range pills */
+    h+='<div class="fin-range-pills-group">';
     h+='<div class="fin-range-bar">';
-    var ranges=[['all','All Time'],['12m','12 Months'],['6m','6 Months'],['3m','3 Months'],['1m','This Month'],['ytd','This Year'],['ly','Last Year']];
+    var ranges=[['all','All Time'],['12m','12 Months'],['6m','6 Months'],['3m','3 Months'],['1m','This Month'],['ytd','This Year'],['ly','Last Year'],['custom','Custom']];
     ranges.forEach(function(r){
       h+='<button class="fin-range-pill'+(S.finRange===r[0]?' on':'')+'" onclick="TF.finSetRange(\''+r[0]+'\')">'+r[1]+'</button>'});
+    h+='</div>';
+    if(S.finRange==='custom'){
+      h+='<div class="fin-custom-range">';
+      h+='<input type="date" class="fin-custom-date" id="fin-cs" value="'+esc(S.finCustomStart||'')+'" onchange="TF.finSetCustomRange(this.value,document.getElementById(\'fin-ce\').value)" title="Start date">';
+      h+='<span class="fin-custom-sep">→</span>';
+      h+='<input type="date" class="fin-custom-date" id="fin-ce" value="'+esc(S.finCustomEnd||'')+'" onchange="TF.finSetCustomRange(document.getElementById(\'fin-cs\').value,this.value)" title="End date">';
+      h+='</div>'}
+    h+='</div>';
+
+    /* Category filter */
+    var catFOpts='<option value="">All Categories</option>';
+    PAY_CATS.forEach(function(c){catFOpts+='<option value="'+esc(c)+'"'+(S.finCatFilter===c?' selected':'')+'>'+esc(c)+'</option>'});
+    catFOpts+='<option value="Uncategorised"'+(S.finCatFilter==='Uncategorised'?' selected':'')+'>Uncategorised</option>';
+    h+='<select class="fin-filter-sel'+(S.finCatFilter?' fin-filter-active':'')+'" onchange="TF.finSetCategory(this.value)">'+catFOpts+'</select>';
+
+    /* Client filter */
+    var cliFOpts='<option value="">All Clients</option>';
+    var sortedClients=S.clientRecords.slice().sort(function(a,b){return a.name.localeCompare(b.name)});
+    sortedClients.forEach(function(c){cliFOpts+='<option value="'+esc(c.id)+'"'+(S.finClientFilter===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+    h+='<select class="fin-filter-sel'+(S.finClientFilter?' fin-filter-active':'')+'" onchange="TF.finSetClient(this.value)">'+cliFOpts+'</select>';
+
+    /* Clear button */
+    if(S.finCatFilter||S.finClientFilter||(S.finRange==='custom'&&(S.finCustomStart||S.finCustomEnd))){
+      h+='<button class="fin-filter-clear" onclick="TF.finClearFilters()">'+icon('x',11)+' Clear</button>'}
+
     h+='</div>';
 
     /* Row 1: Revenue trend + Cumulative */
@@ -2210,7 +2239,7 @@ function initFinanceCharts(){
   setTimeout(function(){
     var fp=S.financePayments;
     var rangeCfg=finGetRangeConfig(S.finRange);
-    var rfp=finFilterByRange(fp,rangeCfg);
+    var rfp=finFilterByAnalyticsFilters(finFilterByRange(fp,rangeCfg));
     var agg=finAggregateByPeriod(rfp,rangeCfg);
 
     /* Revenue trend line */
