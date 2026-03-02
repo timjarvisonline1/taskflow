@@ -5,6 +5,25 @@ const ZOHO_PAY_BASE = 'https://payments.zoho.com/api/v1';
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+/* Convert various date formats to YYYY-MM-DD string */
+function parseDate(val) {
+  if (!val) return null;
+  // Unix timestamp (all digits, 10-13 chars)
+  if (/^\d{10,13}$/.test(String(val))) {
+    const ms = String(val).length <= 10 ? Number(val) * 1000 : Number(val);
+    return new Date(ms).toISOString().split('T')[0];
+  }
+  const s = String(val);
+  // ISO datetime (contains T)
+  if (s.includes('T')) return s.split('T')[0];
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // Try parsing as date
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  return null;
+}
+
 async function syncZohoPayments(userId) {
   const cred = await getCredentials(userId, 'zoho_payments');
   if (!cred) throw new Error('Zoho Payments not connected');
@@ -44,9 +63,9 @@ async function syncZohoPayments(userId) {
         const amount = parseFloat(pay.amount) || 0;
         const fee = parseFloat(pay.fee_amount || pay.fee || 0);
 
-        // Try multiple date field names
+        // Try multiple date field names — Zoho may return Unix timestamps
         const payDate = pay.date || pay.payment_date || pay.paid_at || pay.created_time || pay.created_date || null;
-        const dateStr = payDate ? (payDate.length > 10 ? payDate.split('T')[0] : payDate) : null;
+        const dateStr = parseDate(payDate);
 
         const result = await upsertPayment(userId, 'zoho_payments', pay.payment_id, {
           date: dateStr,
@@ -109,7 +128,7 @@ async function syncZohoPayments(userId) {
           const isPending = (poStatus === 'initiated' || poStatus === 'in_transit');
 
           const poDate = po.arrival_date || po.date || po.payout_date || po.created_time || po.created_date || null;
-          const poDateStr = poDate ? (poDate.length > 10 ? poDate.split('T')[0] : poDate) : null;
+          const poDateStr = parseDate(poDate);
 
           const result = await upsertPayment(userId, 'zoho_payments', sourceId, {
             date: poDateStr,
