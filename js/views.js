@@ -124,7 +124,8 @@ function rDashboard(){
   /* Campaign metrics */
   var activeCampaigns=S.campaigns.filter(function(c){return c.status==='Active'});
   var monthlyRecurring=0;activeCampaigns.forEach(function(c){monthlyRecurring+=(c.monthlyFee||0)+(c.monthlyAdSpend||0)});
-  var totalRevenue=0;S.payments.forEach(function(p){totalRevenue+=(p.amount||0)});
+  var totalRevenue=0;S.financePayments.forEach(function(p){if(p.status!=='excluded')totalRevenue+=p.amount});
+  var unmatchedPayments=S.financePayments.filter(function(p){return p.status==='unmatched'}).length;
 
   /* Opportunity metrics */
   var activeOpps=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
@@ -149,12 +150,13 @@ function rDashboard(){
   /* Business */
   h+='<div class="dash-section">Business Overview</div>';
   h+='<div class="dash-mets">';
-  h+=dashMet('Active Campaigns',activeCampaigns.length,'var(--amber)');
-  h+=dashMet('Monthly Recurring',fmtUSD(monthlyRecurring),'var(--green)');
   h+=dashMet('Total Revenue',fmtUSD(totalRevenue),'var(--green)');
+  h+=dashMet('Monthly Recurring',fmtUSD(monthlyRecurring),'var(--green)');
+  h+=dashMet('Active Campaigns',activeCampaigns.length,'var(--amber)');
   h+=dashMet('Pipeline Value',fmtUSD(pipelineValue),'var(--blue)');
   h+=dashMet('Active Opportunities',activeOpps.length,'var(--purple50)');
   h+=dashMet('Active Projects',activeProjects.length,'var(--t1)');
+  if(unmatchedPayments>0)h+=dashMet('Unmatched Payments',unmatchedPayments,'var(--amber)');
   h+='</div>';
 
   /* Recent completions */
@@ -182,6 +184,8 @@ function rDashboard(){
   h+='<div class="dash-charts">';
   h+='<div class="chart-card"><h3>Tasks by Category</h3><div class="chart-wrap"><canvas id="dash-cat-chart"></canvas></div></div>';
   h+='<div class="chart-card"><h3>Time by Client (30d)</h3><div class="chart-wrap"><canvas id="dash-client-chart"></canvas></div></div>';
+  h+='<div class="chart-card"><h3>Revenue by Source</h3><div class="chart-wrap"><canvas id="dash-revenue-source-chart"></canvas></div></div>';
+  h+='<div class="chart-card"><h3>Revenue by Client</h3><div class="chart-wrap"><canvas id="dash-revenue-client-chart"></canvas></div></div>';
   h+='</div>';
   return h}
 
@@ -195,6 +199,16 @@ function initDashboardCharts(){
     var clientData={};S.done.filter(function(d){return d.completed&&d.completed>=cutoff}).forEach(function(d){
       var cl=d.client||'Internal / N/A';clientData[cl]=(clientData[cl]||0)+(d.duration||0)});
     if(Object.keys(clientData).length)mkHBar('dash-client-chart',clientData);
+    /* Revenue by source donut */
+    var srcData={};S.financePayments.forEach(function(fp){if(fp.status==='excluded')return;
+      var s=fp.source==='stripe2'?'Stripe 2':fp.source.charAt(0).toUpperCase()+fp.source.slice(1);
+      srcData[s]=(srcData[s]||0)+fp.amount});
+    if(Object.keys(srcData).length)mkDonut('dash-revenue-source-chart',srcData);
+    /* Revenue by client bar */
+    var revClientData={};S.financePayments.forEach(function(fp){if(fp.status==='excluded')return;
+      var cName=clientNameById(fp.clientId)||'Unassigned';
+      revClientData[cName]=(revClientData[cName]||0)+fp.amount});
+    if(Object.keys(revClientData).length)mkHBar('dash-revenue-client-chart',revClientData);
     /* Heatmap */
     renderHeatmap();
   },200)}
@@ -1350,8 +1364,13 @@ function getOpportunityStats(op){
   var totalValue=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12);
   var weightedValue=totalValue*((op.probability||0)/100);
   var nextDue=openTasks.filter(function(t){return t.due}).sort(function(a,b){return a.due-b.due})[0];
+  /* Revenue realized from converted campaign */
+  var revenueRealized=0;
+  if(op.convertedCampaignId){
+    var cpSt=getCampaignStats({id:op.convertedCampaignId,strategyFee:op.strategyFee||0,setupFee:op.setupFee||0,monthlyFee:op.monthlyFee||0});
+    revenueRealized=cpSt.finRevenue}
   return{openTasks:openTasks,doneTasks:doneTasks,totalTime:totalTime,
-    totalValue:totalValue,weightedValue:weightedValue,
+    totalValue:totalValue,weightedValue:weightedValue,revenueRealized:revenueRealized,
     openCount:openTasks.length,doneCount:doneTasks.length,
     nextDue:nextDue?nextDue.due:null}}
 
@@ -1563,9 +1582,24 @@ function getCampaignStats(cp){
   var totalTime=doneTasks.reduce(function(sum,d){return sum+(d.duration||0)},0);
   var totalPaid=payments.reduce(function(sum,p){return sum+p.amount},0);
   var nextDue=openTasks.filter(function(t){return t.due}).sort(function(a,b){return a.due-b.due})[0];
+  /* Finance payments linked to this campaign (direct + splits) */
+  var finPayments=S.financePayments.filter(function(fp){return fp.campaignId===cp.id&&fp.status!=='excluded'});
+  var finSplits=S.financePaymentSplits.filter(function(sp){return sp.campaignId===cp.id});
+  var finRevenue=0;
+  finPayments.forEach(function(fp){finRevenue+=fp.amount});
+  finSplits.forEach(function(sp){finRevenue+=sp.amount});
+  /* Estimated revenue: one-off fees + monthly × months active */
+  var estOneOff=(cp.strategyFee||0)+(cp.setupFee||0);
+  var estMonthly=(cp.monthlyFee||0);
+  var monthsActive=0;
+  if(cp.actualLaunch){var now=new Date();monthsActive=Math.max(1,Math.round((now-cp.actualLaunch)/(30.44*86400000)))}
+  else if(cp.plannedLaunch){var now2=new Date();monthsActive=Math.max(1,Math.round((now2-cp.plannedLaunch)/(30.44*86400000)))}
+  var estTotal=estOneOff+(estMonthly*Math.max(monthsActive,1));
   return{openTasks:openTasks,doneTasks:doneTasks,payments:payments,meetings:meetings,
     totalTime:totalTime,totalPaid:totalPaid,nextDue:nextDue?nextDue.due:null,
-    openCount:openTasks.length,doneCount:doneTasks.length}}
+    openCount:openTasks.length,doneCount:doneTasks.length,
+    finPayments:finPayments,finSplits:finSplits,finRevenue:finRevenue,
+    estOneOff:estOneOff,estMonthly:estMonthly,estTotal:estTotal}}
 
 function rCampaigns(){return '<div class="pg-head"><h1>'+icon('target',18)+' Campaigns</h1><button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:12px;padding:8px 18px">+ Add Campaign</button></div>'+rCampaignsBody()}
 function rCampaignsBody(){
@@ -1577,13 +1611,12 @@ function rCampaignsBody(){
   var setupCount=campaigns.filter(function(c){return c.status==='Setup'}).length;
   var pausedCount=campaigns.filter(function(c){return c.status==='Paused'}).length;
   var completedCount=campaigns.filter(function(c){return c.status==='Completed'}).length;
-  var totalPaid=S.payments.reduce(function(s,p){return s+p.amount},0);
   var monthlyRecurring=0;
   campaigns.forEach(function(c){if(c.status==='Active')monthlyRecurring+=c.monthlyFee+c.monthlyAdSpend});
-  var openTaskCount=0,totalTimeSpent=0,upcoming7d=0,overdueCount=0;
+  var openTaskCount=0,totalTimeSpent=0,upcoming7d=0,overdueCount=0,totalFinRevenue=0;
   campaigns.forEach(function(cp){
     var st=getCampaignStats(cp);
-    openTaskCount+=st.openCount;totalTimeSpent+=st.totalTime;
+    openTaskCount+=st.openCount;totalTimeSpent+=st.totalTime;totalFinRevenue+=st.finRevenue;
     st.openTasks.forEach(function(t){
       if(t.due){var diff=dayDiff(td_,t.due);if(diff<0)overdueCount++;else if(diff<=7)upcoming7d++}})});
 
@@ -1591,7 +1624,7 @@ function rCampaignsBody(){
 
   /* DASHBOARD METRICS */
   h+='<div class="cp-dash">';
-  h+='<div class="cp-dash-met" style="animation-delay:0s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalPaid)+'</div><div class="cp-dash-met-l">Total Revenue</div></div>';
+  h+='<div class="cp-dash-met" style="animation-delay:0s"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalFinRevenue)+'</div><div class="cp-dash-met-l">Actual Revenue</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--amber)">'+fmtUSD(monthlyRecurring)+'</div><div class="cp-dash-met-l">Monthly Recurring</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:var(--t1)">'+openTaskCount+'</div><div class="cp-dash-met-l">Open Tasks</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:var(--pink)">'+fmtM(totalTimeSpent)+'</div><div class="cp-dash-met-l">Time Spent</div></div>';

@@ -1058,6 +1058,12 @@ function openCampaignDetail(id){
   var TERMS=['1 month','2 months','3 months','4 months','5 months','6 months','7 months','8 months','9 months','10 months','11 months','12 months','18 months','24 months','Ongoing'];
   var isMob=window.innerWidth<=600;
   var oneOff=cp.strategyFee+cp.setupFee;var monthly=cp.monthlyFee+cp.monthlyAdSpend;
+  /* Combine direct finance payments + split payments for this campaign */
+  var allCpPayments=[];
+  st.finPayments.forEach(function(fp){allCpPayments.push({date:fp.date,amount:fp.amount,source:fp.source,desc:fp.description||fp.payerName||'',id:fp.id,type:'direct'})});
+  st.finSplits.forEach(function(sp){var parent=S.financePayments.find(function(fp){return fp.id===sp.paymentId});
+    allCpPayments.push({date:parent?parent.date:null,amount:sp.amount,source:parent?parent.source:'',desc:sp.notes||(parent?parent.description||parent.payerName||'':''),id:parent?parent.id:'',type:'split'})});
+  allCpPayments.sort(function(a,b){return(b.date||0)-(a.date||0)});
 
   /* Helper: build common fields HTML */
   function cpFieldsHTML(gridCls){
@@ -1085,7 +1091,12 @@ function openCampaignDetail(id){
     fh+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Fee</div><input type="number" class="edf" id="cp-monthlyFee" value="'+(cp.monthlyFee||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
     fh+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Ad Spend</div><input type="number" class="edf" id="cp-monthlyAdSpend" value="'+(cp.monthlyAdSpend||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
     fh+='</div>';
-    fh+='<div class="cp-fee-total"><div class="cp-fee-total-label">One-off: '+fmtUSD(oneOff)+' · Monthly: '+fmtUSD(monthly)+'</div><div class="cp-fee-total-value">Total Paid: '+fmtUSD(st.totalPaid)+'</div></div>';
+    var revColor=st.finRevenue>=st.estTotal?'var(--green)':'var(--amber)';
+    fh+='<div class="cp-fee-total"><div class="cp-fee-total-label">One-off: '+fmtUSD(oneOff)+' · Monthly: '+fmtUSD(monthly)+'</div>';
+    fh+='<div class="cp-fee-total-value" style="display:flex;gap:12px;flex-wrap:wrap">';
+    fh+='<span>Estimated: '+fmtUSD(st.estTotal)+'</span>';
+    fh+='<span style="color:'+revColor+'">Actual: '+fmtUSD(st.finRevenue)+'</span>';
+    fh+='</div></div>';
     return fh}
 
   /* Helper: links HTML */
@@ -1145,13 +1156,15 @@ function openCampaignDetail(id){
     h+=cpFeesHTML();
     h+='<div style="margin-bottom:12px"></div></details>';
 
-    /* Payments */
+    /* Finance Payments */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
-    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between"> Payments ('+st.payments.length+') <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
-    if(st.payments.length){st.payments.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(p){
-      h+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">';
-      h+='<span>'+(p.date?fmtDShort(p.date):'')+'</span><span style="color:var(--green);font-weight:700">'+fmtUSD(p.amount)+'</span></div>'})}
-    h+='<button class="btn" onclick="TF.openAddPayment(\''+escAttr(cp.id)+'\')" style="margin:6px 0 12px;font-size:12px;padding:10px 14px">+ Add Payment</button>';
+    h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">'+icon('activity',12)+' Revenue ('+allCpPayments.length+') · '+fmtUSD(st.finRevenue)+' <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
+    if(allCpPayments.length){allCpPayments.forEach(function(fp){
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openFinancePaymentDetail(\''+escAttr(fp.id)+'\')},100)">';
+      h+='<span style="color:var(--t3)">'+(fp.date?fmtDShort(fp.date):'')+'</span>';
+      if(fp.type==='split')h+='<span class="fin-cat fin-cat-split" style="font-size:9px">Split</span>';
+      h+='<span style="color:var(--green);font-weight:700">'+fmtUSD(fp.amount)+'</span></div>'})}
+    else{h+='<div style="padding:12px;color:var(--t4);font-size:12px;text-align:center">No payments linked to this campaign yet</div>'}
     h+='</details>';
 
     /* Links */
@@ -1242,15 +1255,32 @@ function openCampaignDetail(id){
   /* RIGHT: Payments, Meetings, Tasks, Notes */
   h+='<div class="detail-split-right">';
 
-  /* Payments */
-  h+='<div><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block"> Payments ('+st.payments.length+')</span>';
-  if(st.payments.length){
-    h+='<div class="tb-wrap"><table class="tb"><thead><tr><th>Date</th><th class="r">Amount</th><th>Type</th><th>Notes</th></tr></thead><tbody>';
-    st.payments.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)}).forEach(function(p){
-      h+='<tr><td>'+(p.date?fmtDShort(p.date):'')+'</td><td class="nm" style="color:var(--green)">'+fmtUSD(p.amount)+'</td><td>'+esc(p.type)+'</td><td style="color:var(--t3)">'+esc(p.notes)+'</td></tr>'});
-    h+='<tr style="font-weight:700"><td>Total</td><td class="nm" style="color:var(--green)">'+fmtUSD(st.totalPaid)+'</td><td></td><td></td></tr>';
+  /* Revenue — Finance Payments */
+  h+='<div><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'+icon('activity',12)+' Revenue ('+allCpPayments.length+')';
+  h+='<span style="font-weight:700;color:var(--green)">'+fmtUSD(st.finRevenue)+'</span></span>';
+  /* Estimated vs actual bar */
+  if(st.estTotal>0){
+    var pct=Math.min(100,Math.round((st.finRevenue/st.estTotal)*100));
+    var barColor=pct>=100?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
+    h+='<div style="margin-bottom:10px">';
+    h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t4);margin-bottom:3px"><span>Actual vs Estimated</span><span>'+pct+'% of '+fmtUSD(st.estTotal)+'</span></div>';
+    h+='<div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden"><div style="background:'+barColor+';height:100%;width:'+pct+'%;border-radius:4px;transition:width .4s var(--ease)"></div></div>';
+    h+='</div>'}
+  if(allCpPayments.length){
+    h+='<div class="tb-wrap"><table class="tb"><thead><tr><th>Date</th><th class="r">Amount</th><th>Source</th><th>Description</th></tr></thead><tbody>';
+    allCpPayments.forEach(function(fp){
+      h+='<tr style="cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openFinancePaymentDetail(\''+escAttr(fp.id)+'\')},100)">';
+      h+='<td>'+(fp.date?fmtDShort(fp.date):'')+'</td>';
+      h+='<td class="nm" style="color:var(--green)">'+fmtUSD(fp.amount)+'</td>';
+      h+='<td>';
+      if(fp.source)h+='<span class="fin-src fin-src-'+esc(fp.source)+'">'+esc(fp.source==='stripe2'?'Stripe 2':fp.source.charAt(0).toUpperCase()+fp.source.slice(1))+'</span>';
+      if(fp.type==='split')h+=' <span class="fin-cat fin-cat-split" style="font-size:9px">Split</span>';
+      h+='</td>';
+      h+='<td style="color:var(--t3);font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(fp.desc)+'</td></tr>'});
+    h+='<tr style="font-weight:700"><td>Total</td><td class="nm" style="color:var(--green)">'+fmtUSD(st.finRevenue)+'</td><td></td><td></td></tr>';
     h+='</tbody></table></div>'}
-  h+='<button class="btn" onclick="TF.openAddPayment(\''+escAttr(cp.id)+'\')" style="margin-top:6px;font-size:11px;padding:5px 12px">+ Add Payment</button></div>';
+  else{h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px">No payments linked yet — associate payments in Finance view</div>'}
+  h+='</div>';
 
   /* Campaign Meetings */
   h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">'+icon('mic',12)+' Campaign Meetings ('+st.meetings.length+')</span>';
@@ -1461,6 +1491,7 @@ function openOpportunityDetail(id){
   if(st.openCount)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">'+st.openCount+' tasks</span>';
   if(op.client)h+='<span class="bg bg-cl">'+esc(op.client)+'</span>';
   if(op.endClient)h+='<span class="bg bg-ec">'+esc(op.endClient)+'</span>';
+  if(st.revenueRealized>0)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+icon('activity',12)+' '+fmtUSD(st.revenueRealized)+' received</span>';
   if(op.convertedCampaignId){var cpLink=S.campaigns.find(function(c){return c.id===op.convertedCampaignId});
     if(cpLink)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openCampaignDetail(\''+escAttr(cpLink.id)+'\')},100)">'+icon('target',12)+' '+esc(cpLink.name)+'</span>'}
   h+='</div></div>';
@@ -1505,6 +1536,18 @@ function openOpportunityDetail(id){
   /* Notes */
   h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
   h+='<textarea class="edf edf-notes" id="op-notes" rows="3" placeholder="Notes about this opportunity...">'+esc(op.notes)+'</textarea></div>';
+
+  /* Revenue Realized (for converted opportunities) */
+  if(op.convertedCampaignId&&st.revenueRealized>0){
+    var pctR=st.totalValue>0?Math.min(100,Math.round((st.revenueRealized/st.totalValue)*100)):0;
+    var rColor=pctR>=100?'var(--green)':pctR>=50?'var(--amber)':'var(--t4)';
+    h+='<div style="margin-bottom:16px;padding:14px;background:rgba(61,220,132,.04);border:1px solid rgba(61,220,132,.12);border-radius:10px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+    h+='<span class="ed-lbl" style="margin:0">'+icon('activity',12)+' Revenue Realized</span>';
+    h+='<span style="font-weight:700;color:var(--green)">'+fmtUSD(st.revenueRealized)+'</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t4);margin-bottom:3px"><span>'+pctR+'% of deal value</span><span>Deal: '+fmtUSD(st.totalValue)+'</span></div>';
+    h+='<div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden"><div style="background:'+rColor+';height:100%;width:'+pctR+'%;border-radius:4px"></div></div>';
+    h+='</div>'}
 
   /* Open Tasks */
   h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Open Tasks ('+st.openCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.closeModal();TF.openAddModal()">+ Add</button></span>';
