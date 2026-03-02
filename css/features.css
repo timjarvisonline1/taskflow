@@ -743,6 +743,35 @@
 .fin-related-date{color:var(--t3);font-size:11px;min-width:75px;flex-shrink:0}
 .fin-related-amt{font-weight:600;min-width:70px;flex-shrink:0}
 
+/* Split payment rows in finance table */
+.fin-split-parent{background:rgba(77,166,255,.03)}
+.fin-split-parent td{border-bottom:none!important}
+.fin-split-row{background:rgba(77,166,255,.02);cursor:pointer;transition:background .15s var(--ease)}
+.fin-split-row:hover{background:rgba(77,166,255,.06)}
+.fin-split-row td{font-size:11px!important;padding-top:3px!important;padding-bottom:3px!important;border-bottom:1px solid rgba(255,255,255,.02)!important}
+.fin-split-indent{color:var(--blue);font-weight:600;padding-left:12px!important}
+.fin-cat-split{background:rgba(77,166,255,.12)!important;color:var(--blue)!important}
+.fin-status-split{background:rgba(77,166,255,.12);color:var(--blue)}
+
+/* Split editor in payment detail modal */
+.split-balance{display:flex;gap:16px;padding:10px 14px;border-radius:8px;font-size:12px;color:var(--t2);margin-bottom:12px;border:1px solid var(--gborder)}
+.split-balance b{font-weight:700}
+.split-bal-ok{background:rgba(61,220,132,.06);border-color:rgba(61,220,132,.2)}
+.split-bal-ok b{color:var(--green)}
+.split-bal-warn{background:rgba(255,176,48,.06);border-color:rgba(255,176,48,.2)}
+.split-bal-warn b{color:var(--amber)}
+.split-bal-over{background:rgba(255,80,80,.06);border-color:rgba(255,80,80,.2)}
+.split-bal-over b{color:var(--red)}
+
+.split-line{background:var(--bg3);border:1px solid var(--gborder);border-radius:10px;padding:12px;margin-bottom:8px;transition:border-color .2s var(--ease)}
+.split-line:hover{border-color:rgba(77,166,255,.2)}
+.split-line-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.split-line-num{font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px}
+.split-line-del{padding:2px 6px!important;font-size:10px!important;min-width:0!important;border-radius:6px!important}
+
+.split-add-btn{background:rgba(77,166,255,.08)!important;color:var(--blue)!important;border:1px dashed rgba(77,166,255,.3)!important;border-radius:8px!important;font-weight:600!important;font-size:12px!important;padding:10px!important;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s var(--ease)}
+.split-add-btn:hover{background:rgba(77,166,255,.14)!important;border-color:rgba(77,166,255,.5)!important}
+
 /* Client status dot */
 .cl-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 .cl-status-active{background:var(--green)}

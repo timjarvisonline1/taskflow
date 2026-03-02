@@ -61,7 +61,7 @@ var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],paymen
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},cpView:'pipeline',projView:'board',opView:'pipeline',taskMode:'open',doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
-  financePayments:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:''};
+  financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:''};
 
 var SECTIONS=[
   {id:'today',type:'single',icon:'today',label:'Today',kbd:'1'},
@@ -483,6 +483,39 @@ async function dbDeleteFinancePayment(id){
   if(res.error){toast('Payment delete failed: '+res.error.message,'warn');return false}
   return true}
 
+/* Finance Payment Splits */
+async function loadFinancePaymentSplits(){
+  var res=await _sb.from('finance_payment_splits').select('*').order('created_at');
+  if(res.error){console.error('loadFinancePaymentSplits:',res.error);return}
+  S.financePaymentSplits=(res.data||[]).map(function(r){
+    return{id:r.id,paymentId:r.payment_id,amount:parseFloat(r.amount)||0,
+      category:r.category||'',endClient:r.end_client||'',campaignId:r.campaign_id||'',
+      notes:r.notes||''}})}
+
+async function dbAddFinancePaymentSplit(data){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,payment_id:data.paymentId,amount:data.amount||0,
+    category:data.category||'',end_client:data.endClient||'',
+    campaign_id:data.campaignId||null,notes:data.notes||''};
+  var res=await _sb.from('finance_payment_splits').insert(row).select().single();
+  if(res.error){toast('Split save failed: '+res.error.message,'warn');return null}
+  return res.data}
+
+async function dbEditFinancePaymentSplit(id,data){
+  var row={amount:data.amount||0,category:data.category||'',
+    end_client:data.endClient||'',campaign_id:data.campaignId||null,notes:data.notes||''};
+  var res=await _sb.from('finance_payment_splits').update(row).eq('id',id);
+  if(res.error){toast('Split update failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbDeleteFinancePaymentSplit(id){
+  var res=await _sb.from('finance_payment_splits').delete().eq('id',id);
+  if(res.error){toast('Split delete failed: '+res.error.message,'warn');return false}
+  return true}
+
+function getSplitsForPayment(paymentId){
+  return S.financePaymentSplits.filter(function(s){return s.paymentId===paymentId})}
+
 async function dbEditClient(id,data){
   var row={name:data.name,status:data.status||'active',email:data.email||'',
     company:data.company||'',notes:data.notes||''};
@@ -513,7 +546,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadPayerMap()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -796,6 +829,7 @@ function finFilteredPayments(){
   var fp=S.financePayments.slice();
   if(S.finFilter==='unmatched')fp=fp.filter(function(p){return p.status==='unmatched'});
   else if(S.finFilter==='matched')fp=fp.filter(function(p){return p.status==='matched'});
+  else if(S.finFilter==='split')fp=fp.filter(function(p){return p.status==='split'});
   if(S.finSearch){var q=S.finSearch.toLowerCase();
     fp=fp.filter(function(p){return(p.payerEmail||'').toLowerCase().indexOf(q)!==-1||(p.payerName||'').toLowerCase().indexOf(q)!==-1||(p.description||'').toLowerCase().indexOf(q)!==-1||(p.notes||'').toLowerCase().indexOf(q)!==-1})}
   return fp}

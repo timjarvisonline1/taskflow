@@ -2055,8 +2055,22 @@ function openFinancePaymentDetail(id){
   h+='<div class="ed-fld ed-fld-full"><textarea class="edf" id="fp-notes" rows="3" placeholder="Notes...">'+esc(p.notes)+'</textarea></div>';
   h+='</div>';
 
+  /* Section 5: Split Payment Editor (only when status==='split') */
+  var splits=p.status==='split'?getSplitsForPayment(p.id):[];
+  if(p.status==='split'){
+    h+='<div style="margin:12px 0 4px"><span class="ed-lbl" style="font-size:10px;color:var(--t3)">Payment Splits</span></div>';
+    h+='<div id="fp-splits-editor">';
+    h+=renderSplitEditorRows(splits,p);
+    h+='</div>';
+  }
+
   h+='<div class="ed-actions" style="margin-top:16px">';
-  h+='<button class="btn btn-p" onclick="TF.saveFinancePayment()" style="gap:6px">'+icon('save',14)+' Save</button>';
+  if(p.status==='split'){
+    h+='<button class="btn btn-p" onclick="TF.saveSplits()" style="gap:6px">'+icon('save',14)+' Save Splits</button>';
+  }else{
+    h+='<button class="btn btn-p" onclick="TF.saveFinancePayment()" style="gap:6px">'+icon('save',14)+' Save</button>';
+    h+='<button class="btn" onclick="TF.openSplitPayment()" style="color:var(--blue);border-color:rgba(77,166,255,.3)">'+icon('activity',14)+' Split Payment</button>';
+  }
   h+='<button class="btn" onclick="TF.excludeFinancePayment()" style="color:var(--t4)">Exclude</button>';
   h+='<button class="btn btn-d" onclick="TF.confirmDeleteFinancePayment()">'+icon('trash',14)+' Delete</button>';
   h+='</div>';
@@ -2400,3 +2414,181 @@ async function addNewClient(){
       await dbEditClient(newCl.id,{name:newCl.name,status:status,email:email,company:company,notes:notes});
       await loadClientRecords()}}
   toast('Client created','ok');closeModal();render()}
+
+/* ═══════════ PAYMENT SPLITS ═══════════ */
+
+/* Temp in-memory splits for the editor */
+var _splitRows=[];
+
+function renderSplitEditorRows(splits,p){
+  /* Build category options */
+  var catOptsBase='<option value="">— None —</option>';
+  PAY_CATS.forEach(function(c){catOptsBase+='<option>'+esc(c)+'</option>'});
+
+  /* Get client name from parent */
+  var clientName=clientNameById(p.clientId);
+
+  var totalSplit=0;
+  _splitRows=splits.map(function(sp){return{id:sp.id||'',amount:sp.amount||0,category:sp.category||'',endClient:sp.endClient||'',campaignId:sp.campaignId||'',notes:sp.notes||''}});
+  _splitRows.forEach(function(sp){totalSplit+=sp.amount});
+
+  var remaining=p.amount-totalSplit;
+  var balCls=Math.abs(remaining)<0.01?'split-bal-ok':(remaining>0?'split-bal-warn':'split-bal-over');
+
+  var h='';
+  /* Balance indicator */
+  h+='<div class="split-balance '+balCls+'">';
+  h+='<span>Parent: <b>'+fmtUSD(p.amount)+'</b></span>';
+  h+='<span>Allocated: <b>'+fmtUSD(totalSplit)+'</b></span>';
+  h+='<span>Remaining: <b>'+fmtUSD(remaining)+'</b></span>';
+  h+='</div>';
+
+  /* Split rows */
+  _splitRows.forEach(function(sp,idx){
+    var catOpts='<option value="">— None —</option>';
+    PAY_CATS.forEach(function(c){catOpts+='<option'+(c===sp.category?' selected':'')+'>'+esc(c)+'</option>'});
+    var ecOpts=buildEndClientOptions(sp.endClient,clientName);
+    var cpOpts=buildCampaignOptions(sp.campaignId,clientName,sp.endClient);
+
+    h+='<div class="split-line" data-split-idx="'+idx+'">';
+    h+='<div class="split-line-head">';
+    h+='<span class="split-line-num">Split '+(idx+1)+'</span>';
+    h+='<button class="btn btn-d split-line-del" onclick="TF.removeSplitRow('+idx+')" title="Remove split">'+icon('x',12)+'</button>';
+    h+='</div>';
+    h+='<div class="ed-grid" style="grid-template-columns:1fr 1fr">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf split-amt" id="sp-amt-'+idx+'" value="'+(sp.amount||'')+'" min="0" step="0.01" placeholder="0.00" oninput="TF.splitAmtChanged()"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="sp-cat-'+idx+'">'+catOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="sp-ec-'+idx+'" onchange="TF.splitEcChanged('+idx+')">'+ecOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="sp-cp-'+idx+'">'+cpOpts+'</select></div>';
+    h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><input type="text" class="edf" id="sp-notes-'+idx+'" value="'+esc(sp.notes||'')+'" placeholder="Split notes..."></div>';
+    h+='</div></div>';
+  });
+
+  h+='<button class="btn split-add-btn" onclick="TF.addSplitRow()" style="margin-top:8px;width:100%">'+icon('plus',12)+' Add Split Line</button>';
+  return h}
+
+function splitAmtChanged(){
+  /* Update balance indicator in real time */
+  var pid=(gel('fp-id')||{}).value;if(!pid)return;
+  var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
+  var total=0;
+  _splitRows.forEach(function(sp,idx){
+    var el=gel('sp-amt-'+idx);
+    total+=el?parseFloat(el.value)||0:sp.amount});
+  var remaining=p.amount-total;
+  var balEl=document.querySelector('.split-balance');
+  if(!balEl)return;
+  var balCls=Math.abs(remaining)<0.01?'split-bal-ok':(remaining>0?'split-bal-warn':'split-bal-over');
+  balEl.className='split-balance '+balCls;
+  balEl.innerHTML='<span>Parent: <b>'+fmtUSD(p.amount)+'</b></span><span>Allocated: <b>'+fmtUSD(total)+'</b></span><span>Remaining: <b>'+fmtUSD(remaining)+'</b></span>'}
+
+function splitEcChanged(idx){
+  var pid=(gel('fp-id')||{}).value;if(!pid)return;
+  var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
+  var clientName=clientNameById(p.clientId);
+  var ecEl=gel('sp-ec-'+idx);
+  var ec=ecEl?ecEl.value:'';
+  if(ec==='__addnew__'){ecAddNew('sp-ec-'+idx);return}
+  var cpSel=gel('sp-cp-'+idx);
+  if(cpSel)cpSel.innerHTML=buildCampaignOptions('',clientName,ec)}
+
+function addSplitRow(){
+  /* Read current form values into _splitRows first */
+  _readSplitForm();
+  var pid=(gel('fp-id')||{}).value;if(!pid)return;
+  var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
+  /* Calculate remaining */
+  var totalSoFar=0;_splitRows.forEach(function(sp){totalSoFar+=sp.amount});
+  var remaining=Math.max(0,p.amount-totalSoFar);
+  _splitRows.push({id:'',amount:remaining>0?Math.round(remaining*100)/100:0,category:'',endClient:'',campaignId:'',notes:''});
+  /* Re-render the split editor */
+  var editor=gel('fp-splits-editor');
+  if(editor)editor.innerHTML=renderSplitEditorRows(_splitRows,p)}
+
+function removeSplitRow(idx){
+  _readSplitForm();
+  _splitRows.splice(idx,1);
+  var pid=(gel('fp-id')||{}).value;if(!pid)return;
+  var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
+  var editor=gel('fp-splits-editor');
+  if(editor)editor.innerHTML=renderSplitEditorRows(_splitRows,p)}
+
+function _readSplitForm(){
+  _splitRows.forEach(function(sp,idx){
+    var amtEl=gel('sp-amt-'+idx);if(amtEl)sp.amount=parseFloat(amtEl.value)||0;
+    var catEl=gel('sp-cat-'+idx);if(catEl)sp.category=catEl.value||'';
+    var ecEl=gel('sp-ec-'+idx);if(ecEl)sp.endClient=ecEl.value||'';
+    var cpEl=gel('sp-cp-'+idx);if(cpEl)sp.campaignId=cpEl.value||'';
+    var ntEl=gel('sp-notes-'+idx);if(ntEl)sp.notes=ntEl.value||''})}
+
+async function openSplitPayment(){
+  var pid=(gel('fp-id')||{}).value;if(!pid)return;
+  var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
+
+  /* Pre-populate first split from existing payment fields */
+  var firstSplit={id:'',amount:p.amount,category:p.category||'',endClient:p.endClient||'',campaignId:p.campaignId||'',notes:''};
+
+  /* Update payment status to 'split' */
+  var ok=await dbEditFinancePayment(pid,{status:'split',category:'',endClient:'',campaignId:null,notes:p.notes||'',date:p.date?p.date.toISOString().slice(0,10):null,clientId:p.clientId||null});
+  if(!ok){toast('Could not switch to split mode','warn');return}
+  p.status='split';p.category='';p.endClient='';p.campaignId='';
+
+  /* Save the first split row */
+  var res=await dbAddFinancePaymentSplit({paymentId:pid,amount:firstSplit.amount,
+    category:firstSplit.category,endClient:firstSplit.endClient,
+    campaignId:firstSplit.campaignId||null,notes:firstSplit.notes});
+  if(res){
+    var newSp={id:res.id,paymentId:pid,amount:firstSplit.amount,category:firstSplit.category,
+      endClient:firstSplit.endClient,campaignId:firstSplit.campaign_id||firstSplit.campaignId||'',notes:firstSplit.notes};
+    S.financePaymentSplits.push(newSp)}
+
+  toast('Payment converted to split mode','ok');
+  /* Re-open the detail to show the split editor */
+  openFinancePaymentDetail(pid)}
+
+async function saveSplits(){
+  var pid=(gel('fp-id')||{}).value;if(!pid)return;
+  var p=S.financePayments.find(function(fp){return fp.id===pid});if(!p)return;
+
+  /* Read form */
+  _readSplitForm();
+
+  /* Validate total */
+  var total=0;
+  _splitRows.forEach(function(sp){total+=sp.amount});
+  if(Math.abs(total-p.amount)>0.02){
+    toast('Splits must total '+fmtUSD(p.amount)+' (currently '+fmtUSD(total)+')','warn');return}
+
+  /* Existing splits in DB */
+  var existing=getSplitsForPayment(pid);
+  var existingIds={};existing.forEach(function(e){existingIds[e.id]=true});
+
+  /* Process each row */
+  for(var i=0;i<_splitRows.length;i++){
+    var sp=_splitRows[i];
+    var data={paymentId:pid,amount:sp.amount,category:sp.category,
+      endClient:sp.endClient,campaignId:sp.campaignId||null,notes:sp.notes};
+
+    if(sp.id){
+      /* Update existing */
+      var ok=await dbEditFinancePaymentSplit(sp.id,data);
+      if(ok){
+        var exSp=S.financePaymentSplits.find(function(s){return s.id===sp.id});
+        if(exSp){exSp.amount=sp.amount;exSp.category=sp.category;exSp.endClient=sp.endClient;exSp.campaignId=sp.campaignId;exSp.notes=sp.notes}}
+      delete existingIds[sp.id];
+    }else{
+      /* Create new */
+      var res=await dbAddFinancePaymentSplit(data);
+      if(res){
+        S.financePaymentSplits.push({id:res.id,paymentId:pid,amount:sp.amount,
+          category:sp.category,endClient:sp.endClient,campaignId:res.campaign_id||sp.campaignId||'',notes:sp.notes})}
+    }
+  }
+
+  /* Delete removed splits */
+  var toDelete=Object.keys(existingIds);
+  for(var j=0;j<toDelete.length;j++){
+    await dbDeleteFinancePaymentSplit(toDelete[j]);
+    S.financePaymentSplits=S.financePaymentSplits.filter(function(s){return s.id!==toDelete[j]})}
+
+  toast('Splits saved','ok');closeModal();render()}

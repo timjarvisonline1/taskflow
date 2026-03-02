@@ -351,12 +351,22 @@ function rClients(){
     if(clientPayments.length){
       h+='<div class="cl-detail-section"><div class="cl-detail-label">'+icon('activity',11)+' Recent Payments ('+c.paymentCount+' total)</div>';
       clientPayments.forEach(function(fp){
+        var splits=fp.status==='split'?getSplitsForPayment(fp.id):[];
         h+='<div class="cl-detail-item" style="cursor:pointer" onclick="event.stopPropagation();TF.openFinancePaymentDetail(\''+escAttr(fp.id)+'\')">';
         h+='<span style="color:var(--t3);font-size:11px;min-width:75px">'+(fp.date?fmtDShort(fp.date):'-')+'</span>';
         h+='<span style="flex:1;color:var(--t1)">'+esc(fp.description||fp.payerName||fp.payerEmail||'Payment')+'</span>';
+        if(fp.status==='split')h+='<span class="fin-cat fin-cat-split" style="font-size:9px">Split ('+splits.length+')</span> ';
         h+='<span class="fin-src fin-src-'+esc(fp.source)+'">'+esc(fp.source)+'</span>';
         h+='<span style="font-weight:600;color:var(--green);min-width:80px;text-align:right">'+fmtUSD(fp.amount)+'</span>';
-        h+='</div>'});
+        h+='</div>';
+        /* Show split sub-items */
+        if(splits.length){splits.forEach(function(sp){
+          var cpName='';if(sp.campaignId){var cps=S.campaigns.find(function(c2){return c2.id===sp.campaignId});if(cps)cpName=cps.name}
+          h+='<div class="cl-detail-item" style="padding-left:20px;opacity:.75;font-size:11px">';
+          h+='<span style="color:var(--t4);min-width:75px">↳</span>';
+          h+='<span style="flex:1;color:var(--t3)">'+(sp.category?esc(sp.category):'')+(sp.endClient?' — '+esc(sp.endClient):'')+(cpName?' — '+esc(cpName):'')+'</span>';
+          h+='<span style="font-weight:600;color:var(--green);min-width:80px;text-align:right">'+fmtUSD(sp.amount)+'</span>';
+          h+='</div>'})}});
       if(c.paymentCount>10)h+='<div style="font-size:11px;color:var(--t4);padding:4px 0">+ '+(c.paymentCount-10)+' more payments</div>';
       h+='</div>'}
 
@@ -1974,8 +1984,11 @@ function mobTaskRow(t,td){
 /* ═══════════ FINANCE VIEW ═══════════ */
 function rFinance(){
   var fp=S.financePayments;
-  var totalRev=0,unmatchedCount=0,matchedCount=0;
-  fp.forEach(function(p){totalRev+=p.amount;if(p.status==='unmatched')unmatchedCount++;else if(p.status==='matched')matchedCount++});
+  var totalRev=0,unmatchedCount=0,matchedCount=0,splitCount=0;
+  fp.forEach(function(p){totalRev+=p.amount;
+    if(p.status==='unmatched')unmatchedCount++;
+    else if(p.status==='matched')matchedCount++;
+    else if(p.status==='split')splitCount++});
   var filtered=finFilteredPayments();
 
   var h='<div class="pg-head"><h1>'+icon('activity',18)+' Finance</h1>';
@@ -1987,15 +2000,17 @@ function rFinance(){
   h+='<div class="cp-dash-met" style="animation-delay:0.05s"><div class="cp-dash-met-v" style="color:var(--t1)">'+fp.length+'</div><div class="cp-dash-met-l">Payments</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.1s"><div class="cp-dash-met-v" style="color:'+(unmatchedCount>0?'var(--amber)':'var(--t4)')+'">'+unmatchedCount+'</div><div class="cp-dash-met-l">Unmatched</div></div>';
   h+='<div class="cp-dash-met" style="animation-delay:0.15s"><div class="cp-dash-met-v" style="color:var(--green)">'+matchedCount+'</div><div class="cp-dash-met-l">Matched</div></div>';
+  if(splitCount>0)h+='<div class="cp-dash-met" style="animation-delay:0.2s"><div class="cp-dash-met-v" style="color:var(--blue)">'+splitCount+'</div><div class="cp-dash-met-l">Split</div></div>';
   h+='</div>';
 
   /* Filter bar */
   h+='<div class="fin-filters">';
   h+='<div class="fin-tabs">';
-  var tabs=[['all','All'],['unmatched','Unmatched'],['matched','Matched']];
+  var tabs=[['all','All'],['unmatched','Unmatched'],['matched','Matched'],['split','Split']];
   tabs.forEach(function(t){
+    var cnt=t[0]==='unmatched'?unmatchedCount:t[0]==='split'?splitCount:0;
     h+='<button class="fin-tab'+(S.finFilter===t[0]?' on':'')+'" onclick="TF.setFinFilter(\''+t[0]+'\')">'+t[1];
-    if(t[0]==='unmatched'&&unmatchedCount>0)h+=' <span class="fin-tab-count">'+unmatchedCount+'</span>';
+    if(cnt>0)h+=' <span class="fin-tab-count">'+cnt+'</span>';
     h+='</button>'});
   h+='</div>';
   h+='<input class="fl fl-s" placeholder="Search payments..." value="'+esc(S.finSearch||'')+'" oninput="TF.setFinSearch(this.value)" style="max-width:260px">';
@@ -2009,19 +2024,27 @@ function rFinance(){
   h+='<div class="tb-wrap"><table class="tb fin-tb">';
   h+='<thead><tr><th>Date</th><th>Payer</th><th class="r">Amount</th><th>Source</th><th>Category</th><th>Client</th><th>Description</th><th></th></tr></thead>';
   h+='<tbody>';
-  filtered.forEach(function(p){
+  filtered.forEach(function(p,idx){
     var eid=escAttr(p.id);
     var clientName=clientNameById(p.clientId);
     var srcCls='fin-src fin-src-'+p.source;
     var srcLabel=p.source==='stripe2'?'Stripe 2':p.source.charAt(0).toUpperCase()+p.source.slice(1);
-    h+='<tr class="fin-row'+(p.status==='unmatched'?' fin-unmatched':'')+'" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
+    var splits=p.status==='split'?getSplitsForPayment(p.id):[];
+    var rowCls='fin-row'+(p.status==='unmatched'?' fin-unmatched':'')+(p.status==='split'?' fin-split-parent':'');
+
+    h+='<tr class="'+rowCls+'" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
     h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'')+'</td>';
     h+='<td class="fin-payer"><span class="fin-payer-name">'+esc(p.payerName||p.payerEmail||'Unknown')+'</span>';
     if(p.payerEmail&&p.payerName)h+='<span class="fin-payer-email">'+esc(p.payerEmail)+'</span>';
     h+='</td>';
     h+='<td class="r nm" style="color:var(--green);font-weight:600">'+fmtUSD(p.amount)+'</td>';
     h+='<td><span class="'+srcCls+'">'+esc(srcLabel)+'</span></td>';
-    h+='<td>'+(p.category?'<span class="fin-cat">'+esc(p.category)+'</span>':'<span style="color:var(--t5)">—</span>')+'</td>';
+    /* Category: show split count if split, or normal category */
+    h+='<td>';
+    if(p.status==='split')h+='<span class="fin-cat fin-cat-split">Split ('+splits.length+')</span>';
+    else if(p.category)h+='<span class="fin-cat">'+esc(p.category)+'</span>';
+    else h+='<span style="color:var(--t5)">—</span>';
+    h+='</td>';
     h+='<td>';
     if(clientName)h+='<span class="fin-client-name">'+esc(clientName)+'</span>';
     else h+='<button class="btn fin-match-btn" onclick="event.stopPropagation();TF.openAssociateModal(\''+eid+'\')">Associate</button>';
@@ -2029,9 +2052,25 @@ function rFinance(){
     h+='<td class="fin-desc">'+esc((p.description||'').substring(0,60))+(p.description&&p.description.length>60?'...':'')+'</td>';
     h+='<td>';
     if(p.status==='unmatched')h+='<span class="fin-status fin-status-unmatched">Unmatched</span>';
+    else if(p.status==='split')h+='<span class="fin-status fin-status-split">Split</span>';
     else h+='<span class="fin-status fin-status-matched">Matched</span>';
     h+='</td>';
-    h+='</tr>'});
+    h+='</tr>';
+
+    /* Split sub-rows */
+    if(splits.length){
+      splits.forEach(function(sp){
+        var cpName='';if(sp.campaignId){var cp=S.campaigns.find(function(c){return c.id===sp.campaignId});if(cp)cpName=cp.name}
+        h+='<tr class="fin-split-row" onclick="TF.openFinancePaymentDetail(\''+eid+'\')">';
+        h+='<td></td><td class="fin-split-indent">↳</td>';
+        h+='<td class="r nm" style="color:var(--green)">'+fmtUSD(sp.amount)+'</td>';
+        h+='<td></td>';
+        h+='<td>'+(sp.category?'<span class="fin-cat">'+esc(sp.category)+'</span>':'')+'</td>';
+        h+='<td style="font-size:11px;color:var(--t3)">'+(sp.endClient?esc(sp.endClient):'')+(sp.endClient&&cpName?' / ':'')+(cpName?esc(cpName):'')+'</td>';
+        h+='<td colspan="2" class="fin-desc" style="font-size:11px">'+esc(sp.notes||'')+'</td>';
+        h+='</tr>'})
+    }
+  });
   h+='</tbody></table></div>';
   return h}
 
