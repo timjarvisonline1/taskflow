@@ -101,14 +101,20 @@ async function testZohoPayments(res, userId, creds, config) {
   const accountId = (config || {}).account_id || '';
   const accessToken = tokenCreds.access_token;
 
+  if (!accountId) {
+    throw new Error('Account ID is required. Find it in Zoho Payments → Settings → Account Details');
+  }
+
   // Test by listing recent payments
-  let url = 'https://payments.zoho.com/api/v1/payments?per_page=1';
-  if (accountId) url += '&account_id=' + accountId;
+  const url = 'https://payments.zoho.com/api/v1/payments?per_page=1&account_id=' + accountId;
 
   const resp = await fetch(url, {
     headers: { 'Authorization': 'Zoho-oauthtoken ' + accessToken }
   });
-  if (!resp.ok) throw new Error('Zoho Payments API returned ' + resp.status);
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error('Zoho Payments API returned ' + resp.status + ': ' + errText.substring(0, 300));
+  }
   const data = await resp.json();
 
   return res.status(200).json({
