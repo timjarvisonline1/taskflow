@@ -155,7 +155,7 @@ function renderFocusOverlay(){
   /* Task detail badges */
   h+='<div class="focus-details">';
   h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
-  if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
+  if(task.client)h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
   if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
   if(task.campaign){var _cpfm=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpfm)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',12)+' '+esc(_cpfm.name)+'</span>'}
   if(task.opportunity){var _opfm=S.opportunities.find(function(o){return o.id===task.opportunity});if(_opfm)h+='<span class="bg bg-opp">'+icon('gem',12)+' '+esc(_opfm.name)+'</span>'}
@@ -287,7 +287,7 @@ async function processRecurring(){
     if(exists)continue;
     var now=new Date();now.setHours(17,0,0,0);
     var data={item:item,due:now.toISOString(),importance:tpl.importance||'Important',category:tpl.category||'',
-      client:tpl.client||'Internal / N/A',endClient:tpl.endClient||'',type:tpl.type||'Business',est:tpl.est||0,notes:tpl.notes||'',status:'Planned',flag:false,campaign:tpl.campaign||''};
+      client:tpl.client||'',endClient:tpl.endClient||'',type:tpl.type||'Business',est:tpl.est||0,notes:tpl.notes||'',status:'Planned',flag:false,campaign:tpl.campaign||''};
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:item,due:now,importance:data.importance,est:data.est,category:data.category,
       client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:'Planned',flag:false,campaign:data.campaign,opportunity:'',project:'',phase:''});

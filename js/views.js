@@ -68,7 +68,7 @@ function taskCard(t,td,idx){
   h+='</div>';
   h+='<div class="tk-g-name">'+esc(t.item)+'</div>';
   h+='<div class="tk-g-meta">';
-  if(t.client&&t.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(t.client)+'</span>';
+  if(t.client)h+='<span class="bg bg-cl">'+esc(t.client)+'</span>';
   if(t.endClient)h+='<span class="bg bg-ec">'+esc(t.endClient)+'</span>';
   if(t.campaign){var _cp=S.campaigns.find(function(c){return c.id===t.campaign});if(_cp)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',11)+' '+esc(_cp.name)+'</span>'}
   if(t.project){var _pj=S.projects.find(function(p){return p.id===t.project});if(_pj)h+='<span class="bg bg-proj" onclick="event.stopPropagation();TF.openProjectDetail(\''+escAttr(_pj.id)+'\')">'+icon('folder',11)+' '+esc(_pj.name)+'</span>'}
@@ -173,7 +173,7 @@ function rDashboard(){
       h+='<span class="dash-recent-check">'+CK_XS+'</span>';
       h+='<span class="dash-recent-name">'+esc(d.item)+'</span>';
       h+='<span class="dash-recent-meta">';
-      if(d.client&&d.client!=='Internal / N/A')h+='<span>'+esc(d.client)+'</span>';
+      if(d.client)h+='<span>'+esc(d.client)+'</span>';
       if(d.duration)h+='<span>'+fmtM(d.duration)+'</span>';
       if(d.completed)h+='<span>'+fmtDShort(d.completed)+'</span>';
       h+='</span></div>'});
@@ -201,7 +201,7 @@ function initDashboardCharts(){
     /* Client time bar (last 30 days) */
     var cutoff=new Date(today().getTime()-30*864e5);
     var clientData={};S.done.filter(function(d){return d.completed&&d.completed>=cutoff}).forEach(function(d){
-      var cl=d.client||'Internal / N/A';clientData[cl]=(clientData[cl]||0)+(d.duration||0)});
+      var cl=d.client||'';clientData[cl]=(clientData[cl]||0)+(d.duration||0)});
     if(Object.keys(clientData).length)mkHBar('dash-client-chart',clientData);
     /* Revenue by source donut */
     var srcData={};S.financePayments.forEach(function(fp){if(fp.status==='excluded')return;
@@ -223,7 +223,7 @@ function rClients(){
   /* Build client data map */
   var clientMap={};
   function ensureClient(name){
-    if(!name||name==='Internal / N/A')return;
+    if(!name||name==='')return;
     if(!clientMap[name])clientMap[name]={name:name,campaigns:0,activeCampaigns:0,monthlyRev:0,
       opportunities:0,pipelineValue:0,openTasks:0,overdueTasks:0,doneTasks:0,timeTracked:0,
       meetings:0,lastActivity:null,campaignList:[],oppList:[],recentDone:[],
@@ -231,14 +231,14 @@ function rClients(){
 
   /* From campaigns */
   S.campaigns.forEach(function(cp){
-    ensureClient(cp.partner);if(!cp.partner||cp.partner==='Internal / N/A')return;
+    ensureClient(cp.partner);if(!cp.partner||cp.partner==='')return;
     var c=clientMap[cp.partner];c.campaigns++;
     if(cp.status==='Active'){c.activeCampaigns++;c.monthlyRev+=(cp.monthlyFee||0)}
     c.campaignList.push({name:cp.name,status:cp.status,id:cp.id})});
 
   /* From opportunities */
   S.opportunities.forEach(function(op){
-    ensureClient(op.client);if(!op.client||op.client==='Internal / N/A')return;
+    ensureClient(op.client);if(!op.client||op.client==='')return;
     var c=clientMap[op.client];
     if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
       c.opportunities++;c.pipelineValue+=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12)}
@@ -246,13 +246,13 @@ function rClients(){
 
   /* From tasks */
   S.tasks.forEach(function(t){
-    ensureClient(t.client);if(!t.client||t.client==='Internal / N/A')return;
+    ensureClient(t.client);if(!t.client||t.client==='')return;
     clientMap[t.client].openTasks++;
     if(t.due&&t.due<td_)clientMap[t.client].overdueTasks++});
 
   /* From done */
   S.done.forEach(function(d){
-    ensureClient(d.client);if(!d.client||d.client==='Internal / N/A')return;
+    ensureClient(d.client);if(!d.client||d.client==='')return;
     var c=clientMap[d.client];c.doneTasks++;c.timeTracked+=(d.duration||0);
     if(d.completed&&(!c.lastActivity||d.completed>c.lastActivity))c.lastActivity=d.completed;
     if(c.recentDone.length<5)c.recentDone.push({item:d.item,duration:d.duration,completed:d.completed})});
@@ -262,7 +262,7 @@ function rClients(){
   var thisMonth=new Date(td_.getFullYear(),td_.getMonth(),1);
   S.campaignMeetings.forEach(function(m){
     var partner=cpMap[m.campaignId]||'';
-    ensureClient(partner);if(!partner||partner==='Internal / N/A')return;
+    ensureClient(partner);if(!partner||partner==='')return;
     clientMap[partner].meetings++;
     if(m.date&&m.date>=thisMonth)clientMap[partner].meetings++});
 
@@ -431,8 +431,8 @@ function initClientsCharts(){
   if(S.subView&&S.subView!=='analytics')return;
   setTimeout(function(){
     var timeData={},pipeData={},revData={};
-    S.done.forEach(function(d){if(!d.client||d.client==='Internal / N/A')return;timeData[d.client]=(timeData[d.client]||0)+(d.duration||0)});
-    S.opportunities.forEach(function(o){if(!o.client||o.client==='Internal / N/A')return;
+    S.done.forEach(function(d){if(!d.client||d.client==='')return;timeData[d.client]=(timeData[d.client]||0)+(d.duration||0)});
+    S.opportunities.forEach(function(o){if(!o.client||o.client==='')return;
       if(o.stage==='Closed Won'||o.stage==='Closed Lost')return;
       var val=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
       pipeData[o.client]=(pipeData[o.client]||0)+val});
@@ -451,7 +451,7 @@ function rToday(){
   S.tasks.forEach(function(t){t._score=taskScore(t)});
   var sorted=S.tasks.slice().sort(function(a,b){return(b._score||0)-(a._score||0)});
 
-  /* Filter to effective day only */
+  /* Shared data prep */
   var effDayEnd=new Date(effDay.getTime()+864e5);
   var prog=0;
   S.tasks.forEach(function(t){
@@ -462,31 +462,17 @@ function rToday(){
 
   var inProg=[],inProgIds={};
   sorted.forEach(function(t){var ts=tmrGet(t.id);if(ts.started||ts.elapsed>0){inProg.push(t);inProgIds[t.id]=true}});
-  /* Due on effective day or overdue */
   var focus=sorted.filter(function(t){if(inProgIds[t.id])return false;if(!t.due)return false;return dayDiff(effDay,t.due)<=0});
-  var impOrder={Critical:0,Important:1,'When Time Allows':2};
-  /* Quick hits due on or before effective day */
-  var quickHits=sorted.filter(function(t){if(inProgIds[t.id])return false;if(!t.est||t.est>30)return false;if(t.due&&dayDiff(effDay,t.due)>1)return false;return true})
-    .sort(function(a,b){var ia=(impOrder[a.importance]!=null?impOrder[a.importance]:9),ib=(impOrder[b.importance]!=null?impOrder[b.importance]:9);return ia!==ib?ia-ib:(b._score||0)-(a._score||0)});
-  /* Calendar events for effective day (logged meetings for display) */
   var dayCalEventsAll=S.calEvents.filter(function(e){return!e.allDay&&e.start>=effDay&&e.start<effDayEnd&&e.title.indexOf('OOO')!==0});
-  var dayCalEvents=dayCalEventsAll.filter(function(e){return!!findMtgDone(e.title,e.start)});
+  var dayCalEvents=dayCalEventsAll;
   dayCalEvents.sort(function(a,b){return a.start.getTime()-b.start.getTime()});
 
-  /* Chase items due on effective day */
-  var chaseItems=[];
-  S.tasks.forEach(function(t){
-    if(t.flag!==true&&t.status!=='Need Client Input')return;
-    if(t.due&&dayDiff(effDay,t.due)>0)return;
-    var ds='no date',ov=false,urgency=0;
-    if(t.due instanceof Date){var diff=dayDiff(effDay,t.due);
-      if(diff<0){ds=Math.abs(diff)+'d overdue';ov=true;urgency=Math.abs(diff)}
-      else if(diff===0){ds='due today'}else{ds=diff+'d left';urgency=-diff}}
-    chaseItems.push({task:t,ds:ds,ov:ov,urgency:urgency})});
-  chaseItems.sort(function(a,b){return b.urgency-a.urgency});
+  var ctx={td:td,now:now,effDay:effDay,effDayEnd:effDayEnd,isShifted:isShifted,sorted:sorted,
+    prog:prog,todayDone:todayDone,todayMins:todayMins,inProg:inProg,inProgIds:inProgIds,
+    focus:focus,dayCalEvents:dayCalEvents,dayCalEventsAll:dayCalEventsAll};
 
   /* HEADER */
-  var dayTitle=isShifted?fmtDFull(effDay):'Today';
+  var dayTitle=isShifted?fmtDFull(effDay):'Schedule';
   var h='<div class="pg-head"><h1>'+dayTitle+'</h1><div class="stats">';
   if(isShifted)h+='<div class="st" style="color:var(--amber)">Showing next working day</div>';
   else h+='<div class="st">'+now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</div>';
@@ -502,7 +488,20 @@ function rToday(){
   if(prog)h+='<div class="td-met"><div class="td-met-v" style="color:var(--green)">'+prog+'</div><div class="td-met-l">Running</div></div>';
   h+='</div>';
 
-  /* WEEKLY CAPACITY PLANNING */
+  /* SUB-VIEW DISPATCH */
+  var sv=S.subView||'capacity';
+  switch(sv){
+    case'capacity':h+=rScheduleCapacity(ctx);break;
+    case'schedule':h+=rSchedulePlanner(ctx);break;
+    case'day':h+=rScheduleDay(ctx);break;
+    case'prep':h+=rSchedulePrep(ctx);break;
+    default:h+=rScheduleCapacity(ctx)}
+  return h}
+
+/* ── Sub-view: Weekly Capacity ── */
+function rScheduleCapacity(ctx){
+  var h='';
+  var td=ctx.td;
   var schedDaysConf=CONFIG.schedDays||[1,2,3,4];
   var wSC=CONFIG.workStart||9,wEC=CONFIG.workEnd||20;
   var workMinsPerDay=(wEC-wSC)*60;
@@ -590,6 +589,14 @@ function rToday(){
       if(d.free>0)h+='<span class="cap-day-info"><b style="color:var(--green)">'+fmtM(d.free)+'</b> free</span>';
       h+='</div></div>'});
     h+='</div></div>'}
+  else{h+='<div class="no-data" style="padding:36px">No working days configured for capacity planning.</div>'}
+  return h}
+
+/* ── Sub-view: Suggested Schedule (Calendar + Day Planner) ── */
+function rSchedulePlanner(ctx){
+  var h='';
+  var effDay=ctx.effDay,isShifted=ctx.isShifted,now=ctx.now;
+  var dayCalEvents=ctx.dayCalEvents,dayCalEventsAll=ctx.dayCalEventsAll;
 
   /* CALENDAR + 2-DAY PLANNER */
   h+='<div id="cal-section">'+renderCalSection()+'</div>';
@@ -613,9 +620,8 @@ function rToday(){
     var ee=Math.min(e.end.getTime(),new Date(effDay).setHours(wE,0,0,0));
     if(ee>es)busyMins+=Math.round((ee-es)/60000)});
   var freeMins=Math.max(0,(wE-wS)*60-busyMins);
-  var totalWorkMins=(wE-wS)*60;
 
-  /* Determine visible time window — start at current hour if mid-day */
+  /* Determine visible time window */
   var nowHr=now.getHours()+now.getMinutes()/60;
   var visStart=wS;
   if(!isShifted&&nowHr>=wS&&nowHr<wE){
@@ -654,7 +660,6 @@ function rToday(){
   dayItems.forEach(function(item){
     item._startHr=item.start.getHours()+item.start.getMinutes()/60;
     item._endHr=item.end.getHours()+item.end.getMinutes()/60});
-  /* Group overlapping items into clusters */
   var clusters=[];
   dayItems.forEach(function(item){
     var placed=false;
@@ -665,7 +670,6 @@ function rToday(){
           cl.push(item);placed=true;break}}
       if(placed)break}
     if(!placed)clusters.push([item])});
-  /* Assign columns within each cluster */
   clusters.forEach(function(cl){
     var cols=[];
     cl.sort(function(a,b){return a._startHr-b._startHr||a._endHr-b._endHr});
@@ -681,7 +685,6 @@ function rToday(){
 
   /* Render items as positioned blocks */
   dayItems.forEach(function(item){
-    /* Skip items that ended before the visible window */
     if(item._endHr<=visStart)return;
     var topPct=((Math.max(item._startHr,visStart)-visStart)/visHrs)*100;
     var heightPct=((Math.min(item._endHr,wE)-Math.max(item._startHr,visStart))/visHrs)*100;
@@ -713,7 +716,7 @@ function rToday(){
       if(!compact){h+='<div class="today-cal-block-meta">';
         h+='<span class="bg '+impCls(imp)+'" style="font-size:8px;padding:1px 5px">'+imp.charAt(0)+'</span>';
         h+=fmtM(item.mins);
-        if(item.task.client&&item.task.client!=='Internal / N/A')h+=' · '+esc(item.task.client);
+        if(item.task.client)h+=' · '+esc(item.task.client);
         if(item.task.endClient)h+=' · <span style="color:var(--teal)">'+esc(item.task.endClient)+'</span>';
         if(item.task.campaign){var _cptd=S.campaigns.find(function(c){return c.id===item.task.campaign});if(_cptd)h+=' · <span style="color:var(--amber)">'+icon('target',11)+' '+esc(_cptd.name)+'</span>'}
         if(hasT)h+=' · <span style="color:'+(running?'var(--green)':'var(--amber)')+';font-family:var(--fd);font-weight:600">'+fmtT(elapsed)+'</span>';
@@ -727,9 +730,33 @@ function rToday(){
 
   if(!dayItems.length){
     h+='<div class="today-cal-empty">No meetings or tasks scheduled</div>'}
-  h+='</div></div>'
+  h+='</div></div>';
+  return h}
 
-  /* ALERTS ROW */
+/* ── Sub-view: Today's Schedule (Alerts + Pinned) ── */
+function rScheduleDay(ctx){
+  var h='';
+  var effDay=ctx.effDay,effDayEnd=ctx.effDayEnd,isShifted=ctx.isShifted,sorted=ctx.sorted;
+
+  /* Chase items */
+  var chaseItems=[];
+  S.tasks.forEach(function(t){
+    if(t.flag!==true&&t.status!=='Need Client Input')return;
+    if(t.due&&dayDiff(effDay,t.due)>0)return;
+    var ds='no date',ov=false,urgency=0;
+    if(t.due instanceof Date){var diff=dayDiff(effDay,t.due);
+      if(diff<0){ds=Math.abs(diff)+'d overdue';ov=true;urgency=Math.abs(diff)}
+      else if(diff===0){ds='due today'}else{ds=diff+'d left';urgency=-diff}}
+    chaseItems.push({task:t,ds:ds,ov:ov,urgency:urgency})});
+  chaseItems.sort(function(a,b){return b.urgency-a.urgency});
+
+  /* In-progress tasks */
+  var inProg=ctx.inProg;
+  if(inProg.length){
+    h+='<div class="td-panel" style="border-color:rgba(16,185,129,0.15);margin-bottom:18px"><div class="td-panel-h"><span class="td-panel-t" style="color:var(--green)">'+icon('play',12)+' In Progress</span><span class="td-panel-c">'+inProg.length+'</span></div>';
+    inProg.forEach(function(t){h+=miniRow(t,effDay)});h+='</div>'}
+
+  /* Alerts row */
   if(chaseItems.length||S.review.length){
     var alertsBoth=chaseItems.length&&S.review.length;
     h+='<div class="'+(alertsBoth?'td-row':'td-alerts-single')+'">';
@@ -738,7 +765,7 @@ function rToday(){
       chaseItems.slice(0,5).forEach(function(c){
         h+='<div class="chase-item" onclick="TF.openDetail(\''+escAttr(c.task.id)+'\')">';
         h+='<span class="bg bg-fl">'+icon('flag',11)+'</span><span class="chase-item-name">'+esc(c.task.item)+'</span>';
-        if(c.task.client&&c.task.client!=='Internal / N/A')h+='<span class="bg bg-cl" style="font-size:10px">'+esc(c.task.client)+'</span>';
+        if(c.task.client)h+='<span class="bg bg-cl" style="font-size:10px">'+esc(c.task.client)+'</span>';
         h+='<span class="chase-item-meta" style="color:'+(c.ov?'var(--red)':'var(--amber)')+';font-weight:600">'+c.ds+'</span></div>'});
       if(chaseItems.length>5)h+='<div style="font-size:11px;color:var(--t4);padding-top:6px">+ '+(chaseItems.length-5)+' more</div>';
       h+='</div>'}
@@ -750,8 +777,33 @@ function rToday(){
       h+='</div>'}
     h+='</div>'}
 
-  /* MEETING PREP WIDGET */
-  var prepCutoff=new Date(now.getTime()+48*3600000);
+  /* Pinned tasks */
+  var pinnedTasks=sorted.filter(function(t){return S.pins[t.id]});
+  if(pinnedTasks.length){
+    h+='<div class="td-panel" style="border-color:rgba(255,176,48,0.15);margin-bottom:18px"><div class="td-panel-h"><span class="td-panel-t" style="color:var(--amber)">'+icon('pin',12)+' Pinned</span><span class="td-panel-c">'+pinnedTasks.length+'</span></div>';
+    pinnedTasks.forEach(function(t){h+=miniRow(t,effDay)});h+='</div>'}
+
+  /* Recently completed today */
+  if(ctx.todayDone.length){
+    h+='<div class="td-panel" style="border-color:rgba(16,185,129,0.15);margin-bottom:18px"><div class="td-panel-h"><span class="td-panel-t" style="color:var(--green)">'+icon('check',12)+' Completed Today</span><span class="td-panel-c">'+ctx.todayDone.length+'</span></div>';
+    ctx.todayDone.slice(0,10).forEach(function(d){
+      h+='<div class="mini-row" onclick="TF.openDoneDetail(\''+escAttr(d.id)+'\')">';
+      h+='<span class="mini-row-name" style="text-decoration:line-through;opacity:0.7">'+esc(d.item)+'</span>';
+      if(d.duration)h+='<span class="mini-row-meta" style="color:var(--green)">'+fmtM(d.duration)+'</span>';
+      h+='</div>'});
+    if(ctx.todayDone.length>10)h+='<div style="font-size:11px;color:var(--t4);padding-top:6px">+ '+(ctx.todayDone.length-10)+' more</div>';
+    h+='</div>'}
+
+  if(!inProg.length&&!chaseItems.length&&!pinnedTasks.length&&!ctx.todayDone.length){
+    h+='<div class="no-data" style="padding:36px">All clear! No tasks for '+(isShifted?fmtDShort(effDay):'today')+'.</div>'}
+  return h}
+
+/* ── Sub-view: Meeting Prep ── */
+function rSchedulePrep(ctx){
+  var h='';
+  var now=ctx.now,effDay=ctx.effDay,effDayEnd=ctx.effDayEnd;
+
+  var prepCutoff=new Date(now.getTime()+7*24*3600000);
   var mtgPrepGroups={};
   S.tasks.forEach(function(t){
     if(!t.meetingKey)return;
@@ -763,17 +815,18 @@ function rToday(){
     return mtgPrepGroups[a].event.start.getTime()-mtgPrepGroups[b].event.start.getTime()});
   if(prepKeys.length){
     h+='<div class="td-panel" style="border-color:rgba(255,0,153,0.15);margin-bottom:18px">';
-    h+='<div class="td-panel-h"><span class="td-panel-t" style="color:var(--purple50)">Meeting Prep</span>';
+    h+='<div class="td-panel-h"><span class="td-panel-t" style="color:var(--purple50)">'+icon('users',12)+' Meeting Prep</span>';
     var totalPrepTasks=0;prepKeys.forEach(function(k){totalPrepTasks+=mtgPrepGroups[k].tasks.length});
-    h+='<span class="td-panel-c">'+totalPrepTasks+' task'+(totalPrepTasks>1?'s':'')+'</span></div>';
+    h+='<span class="td-panel-c">'+totalPrepTasks+' task'+(totalPrepTasks>1?'s':'')+' across '+prepKeys.length+' meeting'+(prepKeys.length>1?'s':'')+'</span></div>';
     prepKeys.forEach(function(key){
       var grp=mtgPrepGroups[key];
       var me=grp.event;
       var isToday_=me.start>=effDay&&me.start<effDayEnd;
-      var urgClr=isToday_?'var(--red)':'var(--amber)';
-      var urgLabel=isToday_?'TODAY':'TOMORROW';
+      var isTomorrow_=me.start>=effDayEnd&&me.start<new Date(effDayEnd.getTime()+864e5);
+      var urgClr=isToday_?'var(--red)':isTomorrow_?'var(--amber)':'var(--t3)';
+      var urgLabel=isToday_?'TODAY':isTomorrow_?'TOMORROW':fmtDShort(me.start);
       var timeUntil=Math.round((me.start-now)/60000);
-      h+='<div style="padding:8px 0;'+(key!==prepKeys[prepKeys.length-1]?'border-bottom:1px solid rgba(255,255,255,0.04);':'')+'">';
+      h+='<div style="padding:10px 0;'+(key!==prepKeys[prepKeys.length-1]?'border-bottom:1px solid rgba(255,255,255,0.04);':'')+'">';
       h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
       h+='<span style="font-size:10px;font-weight:700;color:'+urgClr+';text-transform:uppercase;letter-spacing:0.5px">'+urgLabel+'</span>';
       h+='<span style="font-size:12.5px;font-weight:600;color:var(--t1)">'+esc(me.title)+'</span>';
@@ -783,15 +836,8 @@ function rToday(){
       grp.tasks.forEach(function(t){h+=miniRow(t,effDay)});
       h+='</div>'});
     h+='</div>'}
-
-  /* PINNED TASKS */
-  var pinnedTasks=sorted.filter(function(t){return S.pins[t.id]});
-  if(pinnedTasks.length){
-    h+='<div class="td-panel" style="border-color:rgba(255,176,48,0.15);margin-bottom:18px"><div class="td-panel-h"><span class="td-panel-t" style="color:var(--amber)">'+icon('pin',12)+' Pinned</span><span class="td-panel-c">'+pinnedTasks.length+'</span></div>';
-    pinnedTasks.forEach(function(t){h+=miniRow(t,effDay)});h+='</div>'}
-
-  if(!dayItems.length&&!chaseItems.length&&!pinnedTasks.length){
-    h+='<div class="no-data" style="padding:36px">All clear! No tasks for '+(isShifted?fmtDShort(effDay):'today')+'.</div>'}
+  else{
+    h+='<div class="no-data" style="padding:36px">'+icon('check',16)+' No meeting prep tasks in the next 7 days.</div>'}
   return h}
 
 function initTodayCharts(){
@@ -815,9 +861,9 @@ function initTodayCharts(){
 
 async function quickAdd(){var input=gel('qa-item');if(!input)return;var item=input.value.trim();if(!item){toast('Enter a task name','warn');return}
   var now=new Date();now.setHours(17,0,0,0);
-  var data={item:item,due:now.toISOString(),importance:qaImp,category:'',client:'Internal / N/A',endClient:'',type:'Business',est:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:''};
+  var data={item:item,due:now.toISOString(),importance:qaImp,category:'',client:'',endClient:'',type:'Business',est:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:''};
   var result=await dbAddTask(data);
-  if(result){S.tasks.push({id:result.id,item:item,due:now,importance:qaImp,est:0,category:'',client:'Internal / N/A',endClient:'',type:'Business',duration:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:''})}
+  if(result){S.tasks.push({id:result.id,item:item,due:now,importance:qaImp,est:0,category:'',client:'',endClient:'',type:'Business',duration:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:''})}
   input.value='';toast('Added: '+item,'ok');render()}
 
 /* ═══════════ TASKS (UNIFIED: Open / Completed / All) ═══════════ */
@@ -925,7 +971,7 @@ function rTasks(){
       if(dsort==='client'){
         doneFiltered.sort(function(a,b){return(a.client||'').localeCompare(b.client||'')});
         doneFiltered.forEach(function(d){
-          var key=d.client||'Internal / N/A';
+          var key=d.client||'';
           if(!groups[key])groups[key]={label:key,items:[],mins:0};groups[key].items.push(d);groups[key].mins+=d.duration});
       } else if(dsort==='duration'){
         doneFiltered.sort(function(a,b){return(b.duration||0)-(a.duration||0)});
@@ -961,7 +1007,7 @@ function rTasks(){
           h+='<span class="done-name">'+esc(d.item)+'</span>';
           h+='</div>';
           h+='<div class="done-right">';
-          if(d.client&&d.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(d.client)+'</span>';
+          if(d.client)h+='<span class="bg bg-cl">'+esc(d.client)+'</span>';
           if(d.endClient)h+='<span class="bg bg-ec">'+esc(d.endClient)+'</span>';
           if(d.campaign){var _cpd=S.campaigns.find(function(c){return c.id===d.campaign});if(_cpd)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',11)+' '+esc(_cpd.name)+'</span>'}
           if(d.opportunity){var _opd=S.opportunities.find(function(o){return o.id===d.opportunity});if(_opd)h+='<span class="bg bg-opp">'+icon('gem',11)+' '+esc(_opd.name)+'</span>'}
@@ -988,7 +1034,7 @@ function rTasks(){
         h+='<span class="rv-name">'+esc(r.item)+'</span>';
         h+='</div>';
         h+='<div class="rv-card-right">';
-        if(r.client&&r.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(r.client)+'</span>';
+        if(r.client)h+='<span class="bg bg-cl">'+esc(r.client)+'</span>';
         if(r.endClient)h+='<span class="bg bg-ec">'+esc(r.endClient)+'</span>';
         if(r.category)h+='<span class="bg bg-ca">'+esc(r.category)+'</span>';
         if(r.est)h+='<span class="bg-es">'+fmtM(r.est)+'</span>';
@@ -1015,7 +1061,7 @@ function buildTaskGroups(tasks,td){
       else if(est<=30){key='medium';label='Medium (10-30m)';color='var(--amber)'}
       else{key='deep';label='Deep Work (30m+)';color='var(--purple50)'}
     } else if(gb==='client'){
-      key=t.client||'Internal / N/A';label=key==='Internal / N/A'?'Internal / N/A':key;color=key==='Internal / N/A'?'var(--t3)':'var(--pink50)';
+      key=t.client||'';label=key||'No Client';color=key?'var(--pink50)':'var(--t3)';
     } else if(gb==='due'){
       if(!t.due){key='no_date';label='No Due Date';color='var(--t4)'}
       else{var diff=dayDiff(td,t.due);
@@ -1202,8 +1248,7 @@ function renderCalWeek24(td,now,wS,wE,schedDays){
     var isWorkDay=schedDays.indexOf(dayDate.getDay())!==-1;
     var dayEventsAll=S.calEvents.filter(function(e){return e.start>=dayDate&&e.start<dayEnd});
     dayEventsAll.sort(function(a,b){return a.start.getTime()-b.start.getTime()});
-    /* Tracked-only events for display */
-    var dayEvents=dayEventsAll.filter(function(e){return!!findMtgDone(e.title,e.start)});
+    var dayEvents=dayEventsAll;
 
     var dayBusy=0;dayEventsAll.forEach(function(e){
       var es=Math.max(e.start.getTime(),new Date(dayDate).setHours(wS,0,0,0));
@@ -1268,7 +1313,7 @@ function renderCalWeek24(td,now,wS,wE,schedDays){
       h+='<div class="cal-tl-tip"><div class="cal-tl-tip-title">'+esc(s.task.item)+'</div>';
       h+='<div class="cal-tl-tip-meta">'+fmtTime(s.start)+' - '+fmtTime(s.end)+' · '+fmtM(s.mins)+'</div>';
       h+='<div class="cal-tl-tip-meta">'+esc(imp);
-      if(s.task.client&&s.task.client!=='Internal / N/A')h+=' · '+esc(s.task.client);
+      if(s.task.client)h+=' · '+esc(s.task.client);
       if(s.task.endClient)h+=' · EC: '+esc(s.task.endClient);
       if(s.task.campaign){var _cptt=S.campaigns.find(function(c){return c.id===s.task.campaign});if(_cptt)h+=' · '+icon('target',11)+' '+esc(_cptt.name)}
       h+='</div></div></div>'});
@@ -1287,8 +1332,7 @@ function renderSchedulePanel(dayDate,td,wS,wE,excludeIds){
   var dayEnd=new Date(dayDate.getTime()+864e5);
   var dayEventsAll=S.calEvents.filter(function(e){return e.start>=dayDate&&e.start<dayEnd});
   dayEventsAll.sort(function(a,b){return a.start.getTime()-b.start.getTime()});
-  /* Tracked-only events for display */
-  var dayEvents=dayEventsAll.filter(function(e){return!!findMtgDone(e.title,e.start)});
+  var dayEvents=dayEventsAll;
   var sched=scheduleTasks(dayDate,excludeIds||{});
   var usedIds={};sched.forEach(function(s){usedIds[s.task.id]=true});
 
@@ -1341,7 +1385,7 @@ function renderSchedulePanel(dayDate,td,wS,wE,excludeIds){
       h+='<span class="cal-pr-dot tk"></span>';
       h+='<span class="cal-pr-name">'+esc(item.title)+'</span>';
       h+='<span class="bg '+impCls(imp)+'" style="font-size:8px;padding:1px 5px">'+imp.charAt(0)+'</span>';
-      if(item.task.client&&item.task.client!=='Internal / N/A')h+='<span class="cal-pr-client">'+esc(item.task.client)+'</span>';
+      if(item.task.client)h+='<span class="cal-pr-client">'+esc(item.task.client)+'</span>';
       if(item.task.endClient)h+='<span class="cal-pr-client" style="color:var(--teal)">'+esc(item.task.endClient)+'</span>';
       h+='<span class="cal-pr-dur">'+fmtM(item.mins)+'</span>';
       h+='</div>'}});
@@ -1427,8 +1471,8 @@ function rOpportunitiesBody(){
   var winRate=wonOpps.length+lostOpps.length>0?Math.round(wonOpps.length/(wonOpps.length+lostOpps.length)*100):0;
   var avgDeal=activeOpps.length>0?Math.round(totalPipeline/activeOpps.length):0;
 
-  /* Add button + DASHBOARD METRICS */
-  var h='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:12px;padding:8px 18px">+ Add Opportunity</button></div>';
+  /* DASHBOARD METRICS */
+  var h='';
 
   /* DASHBOARD METRICS */
   h+='<div class="op-dash">';
@@ -1646,7 +1690,7 @@ function rCampaignsBody(){
     st.openTasks.forEach(function(t){
       if(t.due){var diff=dayDiff(td_,t.due);if(diff<0)overdueCount++;else if(diff<=7)upcoming7d++}})});
 
-  var h='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:12px;padding:8px 18px">+ Add Campaign</button></div>';
+  var h='';
 
   /* DASHBOARD METRICS */
   h+='<div class="cp-dash">';
@@ -1930,7 +1974,7 @@ function rProjectsBody(){
     h+='<button class="tm-btn'+(sub==='list'?' on':'')+'" onclick="TF.subNav(\'list\')">List</button>';
     h+='<button class="tm-btn'+(sub==='timeline'?' on':'')+'" onclick="TF.subNav(\'timeline\')">Timeline</button>';
     h+='</div>'}
-  h+='<button class="btn btn-p" onclick="TF.openAddProject()">+ New Project</button></div>';
+  h+='</div>';
 
   /* Metrics */
   h+='<div class="proj-mets">';

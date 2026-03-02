@@ -38,6 +38,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   confirmDeleteProject:confirmDeleteProject,doDeleteProject:doDeleteProject,
   addPhaseToProject:addPhaseToProject,doAddPhase:doAddPhase,editPhaseInline:editPhaseInline,savePhase:savePhase,deletePhase:deletePhase,movePhase:movePhase,
   refreshAddPhases:refreshAddPhases,refreshDetailPhases:refreshDetailPhases,onProjectChange:onProjectChange,
+  projDragStart:projDragStart,projDragOver:projDragOver,projDragDrop:projDragDrop,
   setProjView:function(v){subNav(v)},
   /* Opportunities */
   openOpportunityDetail:openOpportunityDetail,saveOpportunity:saveOpportunity,
@@ -58,7 +59,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openIntegrationsModal:openIntegrationsModal,triggerSync:triggerSync,cleanupDuplicates:cleanupDuplicates,saveIntegrationBtn:saveIntegrationBtn,testIntegrationBtn:testIntegrationBtn,deleteIntegrationBtn:deleteIntegrationBtn,setFinDirection:setFinDirection,
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
-  atToggleMin:atToggleMin,
+  atToggleMin:atToggleMin,modalToggle:modalToggle,
   signOut:signOut,
   toast:toast,
   /* Mobile */

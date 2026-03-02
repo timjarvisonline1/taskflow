@@ -57,14 +57,19 @@ function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\
 
 var PAY_CATS=['Products','Retain Live','F&C Campaign Set-Up','F&C Strategy','F&C Monthly Fees','Other'];
 
-var S={tasks:[],done:[],review:[],clients:['Internal / N/A'],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],timers:{},view:'today',subView:'',layout:'grid',groupBy:'importance',
+var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],timers:{},view:'today',subView:'',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
-  pins:{},actLogs:{},customOrder:[],schedOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
+  pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[]};
 
 var SECTIONS=[
-  {id:'today',icon:'today',label:'Today',kbd:'1'},
+  {id:'today',icon:'calendar',label:'Schedule',kbd:'1',subs:[
+    {id:'capacity',label:'Weekly Capacity',icon:'activity'},
+    {id:'schedule',label:'Suggested Schedule',icon:'calendar'},
+    {id:'day',label:"Today's Schedule",icon:'today'},
+    {id:'prep',label:'Meeting Prep',icon:'users'}
+  ]},
   {id:'tasks',icon:'tasks',label:'Tasks',kbd:'2',subs:[
     {id:'open',label:'Open Tasks',icon:'tasks'},
     {id:'done',label:'Completed',icon:'check'},
@@ -113,7 +118,7 @@ function subNav(subId){S.subView=subId;save();render()}
 function isMobile(){return window.innerWidth<=860}
 var MOB_VIEWS=[
   {id:'mob-add',icon:'plus',label:'Add'},
-  {id:'today',icon:'today',label:'Today'},
+  {id:'today',icon:'calendar',label:'Schedule'},
   {id:'tasks',icon:'tasks',label:'Tasks'},
   {id:'opportunities',icon:'gem',label:'Opps'}
 ];
@@ -375,6 +380,36 @@ function atToggleMin(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initDrag);else initDrag()
 })()
 
+/* ═══════════ MODAL TOGGLE SECTIONS ═══════════ */
+function modalToggle(id,show){var el=gel(id);if(el)el.style.display=show?'':'none'}
+
+/* ═══════════ PROJECT TASK REORDER ═══════════ */
+var _projDragId=null,_projDragPhase=null;
+function projDragStart(e,taskId,phaseId){_projDragId=taskId;_projDragPhase=phaseId;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',taskId)}
+function projDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move'}
+function projDragDrop(e,targetId,targetPhase){e.preventDefault();if(!_projDragId||_projDragId===targetId)return;
+  /* Only reorder within same phase */
+  if(_projDragPhase!==targetPhase){_projDragId=null;return}
+  var key=targetPhase;
+  var order=S.projTaskOrder[key]||[];
+  /* Ensure both IDs are in the order array */
+  if(order.indexOf(_projDragId)===-1)order.push(_projDragId);
+  if(order.indexOf(targetId)===-1)order.push(targetId);
+  /* Remove dragged and insert before target */
+  order=order.filter(function(id){return id!==_projDragId});
+  var targetIdx=order.indexOf(targetId);
+  order.splice(targetIdx,0,_projDragId);
+  S.projTaskOrder[key]=order;_projDragId=null;save();
+  /* Re-render the project detail */
+  var projId=gel('pj-id');if(projId)openProjectDetail(projId.value)}
+function applyProjTaskOrder(tasks,phaseId){
+  var order=S.projTaskOrder[phaseId];if(!order||!order.length)return tasks;
+  var map={};tasks.forEach(function(t){map[t.id]=t});
+  var ordered=[];
+  order.forEach(function(id){if(map[id]){ordered.push(map[id]);delete map[id]}});
+  Object.keys(map).forEach(function(id){ordered.push(map[id])});
+  return ordered}
+
 /* ═══════════ CHARTS ═══════════ */
 function killChart(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
 function mkDonut(id,data){var el=gel(id);if(!el)return;killChart(id);var labels=Object.keys(data),vals=labels.map(function(k){return data[k]});var cols=labels.map(function(_,i){return P[i%P.length]});
@@ -419,7 +454,7 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_sv',S.view);localStorage.setItem('tf_sv2',S.subView)}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_pto',JSON.stringify(S.projTaskOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_sv',S.view);localStorage.setItem('tf_sv2',S.subView)}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
@@ -428,6 +463,7 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var pins=localStorage.getItem('tf_pins');if(pins)S.pins=JSON.parse(pins);
   var ord=localStorage.getItem('tf_ord');if(ord)S.customOrder=JSON.parse(ord);
   var so=localStorage.getItem('tf_so');if(so)S.schedOrder=JSON.parse(so);
+  var pto=localStorage.getItem('tf_pto');if(pto)S.projTaskOrder=JSON.parse(pto);
   var rl=localStorage.getItem('tf_rl');if(rl)S.recurrLast=JSON.parse(rl);
   var ds=localStorage.getItem('tf_ds');if(ds)S.doneSort=ds;
   var cpsp=localStorage.getItem('tf_cpsp');if(cpsp)S.cpShowPaused=true;
@@ -480,7 +516,6 @@ async function loadClients(){
   if(res.error){console.error('loadClients:',res.error);return}
   var cls=(res.data||[]).map(function(r){return r.name});
   cls.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
-  cls.unshift('Internal / N/A');
   S.clients=cls}
 
 async function loadReview(){
@@ -488,7 +523,7 @@ async function loadReview(){
   if(res.error){console.error('loadReview:',res.error);return}
   S.review=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,notes:r.notes||'',importance:r.importance||'Important',
-      category:r.category||'',client:r.client||'Internal / N/A',endClient:r.end_client||'',
+      category:r.category||'',client:r.client||'',endClient:r.end_client||'',
       type:r.type||'Business',est:r.est||0,due:r.due?new Date(r.due+'T00:00:00'):null,
       source:r.source||'',created:r.created?new Date(r.created):new Date(),campaign:r.campaign||''}})}
 
@@ -590,10 +625,9 @@ async function loadClientRecords(){
   if(res.error){console.error('loadClientRecords:',res.error);return}
   S.clientRecords=(res.data||[]).map(function(r){
     return{id:r.id,name:r.name||'',status:r.status||'active',email:r.email||'',company:r.company||'',notes:r.notes||''}});
-  /* Also update S.clients string array for backward compat */
-  var cls=S.clientRecords.map(function(r){return r.name});
+  /* Also update S.clients string array for backward compat — active clients only */
+  var cls=S.clientRecords.filter(function(r){return r.status==='active'}).map(function(r){return r.name});
   cls.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
-  cls.unshift('Internal / N/A');
   S.clients=cls}
 
 async function loadPayerMap(){

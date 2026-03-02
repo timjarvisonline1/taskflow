@@ -217,6 +217,16 @@ h3{font-family:var(--fd);font-size:13px;font-weight:600;color:var(--t2);margin:2
 .vt-btn.on{background:var(--bg5);color:var(--accent);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,0.2)}
 .vt-btn:hover:not(.on){color:var(--t1)}
 
+/* ── MODAL TOGGLE SECTIONS ── */
+.modal-toggles{display:flex;gap:6px;flex-wrap:wrap;padding:6px 0}
+.modal-toggle{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:1px solid var(--gborder);cursor:pointer;font-size:11px;font-weight:600;color:var(--t3);transition:all .2s var(--ease);background:transparent;user-select:none}
+.modal-toggle:hover{border-color:var(--t3);color:var(--t1)}
+.modal-toggle input[type="checkbox"]{display:none}
+.modal-toggle:has(input:checked){background:var(--pink);border-color:var(--pink);color:#fff}
+.mt-fields{padding:4px 0;animation:fadeIn .15s ease}
+.ed-grid-1{display:grid;grid-template-columns:1fr;gap:10px}
+.ed-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
 /* ── FLOATING ACTIVE TASKS WIDGET ── */
 .at-widget{position:fixed;bottom:20px;right:20px;width:280px;background:var(--bg1);border:1px solid var(--gborder);border-radius:var(--r);box-shadow:0 8px 32px rgba(0,0,0,0.35);z-index:200;overflow:hidden;transition:opacity .3s var(--ease),box-shadow .2s var(--ease)}
 .at-widget:hover{box-shadow:0 8px 40px rgba(0,0,0,0.45)}

@@ -6,7 +6,7 @@ function openDetail(id){
   var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
   var td=today(),ts=tmrGet(id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
   var elapsed=tmrElapsed(id),eid=escAttr(id);
-  var cliOpts=S.clients.map(function(c){return'<option'+(c===(task.client||'Internal / N/A')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var cliOpts=S.clients.map(function(c){return'<option'+(c===(task.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===task.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===task.importance?' selected':'')+'>'+i+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t===task.type?' selected':'')+'>'+t+'</option>'}).join('');
@@ -52,7 +52,7 @@ function openDetail(id){
     h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
     if(task.due){var diff=dayDiff(td,task.due);h+='<span class="bg-du'+(diff<0?' od':(diff===0?' td':''))+'">'+dueLabel(task.due,td)+'</span>'}
     if(task.flag)h+='<span class="bg bg-fl">'+icon('flag',12)+'</span>';
-    if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
+    if(task.client)h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
     if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
     if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
     h+='</div>';
@@ -70,14 +70,32 @@ function openDetail(id){
     h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="d-cat">'+catOpts+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="d-est" value="'+(task.est||'')+'" min="0" placeholder="30"></div>';
+    h+='</div>';
+    var mCli=!!task.client,mCp=!!task.campaign,mOpp=!!task.opportunity,mProj=!!task.project,mMtg=!!task.meetingKey;
+    h+='<div class="modal-toggles">';
+    h+='<label class="modal-toggle"><input type="checkbox" id="mb-cli"'+(mCli?' checked':'')+' onchange="TF.modalToggle(\'mb-cli-fields\',this.checked)"><span>Client</span></label>';
+    h+='<label class="modal-toggle"><input type="checkbox" id="mb-campaign"'+(mCp?' checked':'')+' onchange="TF.modalToggle(\'mb-campaign-fields\',this.checked)"><span>Campaign</span></label>';
+    h+='<label class="modal-toggle"><input type="checkbox" id="mb-opp"'+(mOpp?' checked':'')+' onchange="TF.modalToggle(\'mb-opp-fields\',this.checked)"><span>Opportunity</span></label>';
+    h+='<label class="modal-toggle"><input type="checkbox" id="mb-proj"'+(mProj?' checked':'')+' onchange="TF.modalToggle(\'mb-proj-fields\',this.checked)"><span>Project</span></label>';
+    h+='<label class="modal-toggle"><input type="checkbox" id="mb-mtg"'+(mMtg?' checked':'')+' onchange="TF.modalToggle(\'mb-mtg-fields\',this.checked)"><span>Meeting</span></label>';
+    h+='</div>';
+    h+='<div class="mt-fields" id="mb-cli-fields" style="'+(mCli?'':'display:none')+'"><div class="ed-grid" style="grid-template-columns:1fr">';
     h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-cli" onchange="TF.refreshDetailEndClients()">'+cliOpts+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(task.endClient||'',task.client)+'</select></div>';
+    h+='</div></div>';
+    h+='<div class="mt-fields" id="mb-campaign-fields" style="'+(mCp?'':'display:none')+'"><div class="ed-grid" style="grid-template-columns:1fr">';
     h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
+    h+='</div></div>';
+    h+='<div class="mt-fields" id="mb-opp-fields" style="'+(mOpp?'':'display:none')+'"><div class="ed-grid" style="grid-template-columns:1fr">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'')+'</select></div>';
+    h+='</div></div>';
+    h+='<div class="mt-fields" id="mb-proj-fields" style="'+(mProj?'':'display:none')+'"><div class="ed-grid" style="grid-template-columns:1fr">';
     h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(task.project||'')+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="d-phase">'+buildPhaseOptions(task.project||'',task.phase||'')+'</select></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'')+'</select></div>';
+    h+='</div></div>';
+    h+='<div class="mt-fields" id="mb-mtg-fields" style="'+(mMtg?'':'display:none')+'"><div class="ed-grid" style="grid-template-columns:1fr">';
     h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
-    h+='</div>';
+    h+='</div></div>';
     h+='<div class="flag-row" style="margin:8px 0 12px;flex-direction:column;gap:12px;padding:12px">';
     h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">'+icon('flag',12)+'</span><span class="flag-text">Needs Client Input</span></label>';
     h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
@@ -124,7 +142,7 @@ function openDetail(id){
     h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
     if(task.due){var diff=dayDiff(td,task.due);h+='<span class="bg-du'+(diff<0?' od':(diff===0?' td':''))+'">'+dueLabel(task.due,td)+'</span>'}
     if(task.flag)h+='<span class="bg bg-fl">'+icon('flag',12)+' Needs Client Input</span>';
-    if(task.client&&task.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
+    if(task.client)h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
     if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
     if(task.campaign){var _cpdet=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpdet)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',12)+' '+esc(_cpdet.name)+'</span>'}
     if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
@@ -140,17 +158,35 @@ function openDetail(id){
     h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="d-cat">'+catOpts+'</select></div>';
     h+='</div>';
-    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-grid ed-grid-2">';
     h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="d-est" value="'+(task.est||'')+'" min="0" placeholder="30"></div>';
+    h+='</div>';
+    var hasCli=!!task.client,hasCp=!!task.campaign,hasOpp=!!task.opportunity,hasProj=!!task.project,hasMtg=!!task.meetingKey;
+    h+='<div class="modal-toggles">';
+    h+='<label class="modal-toggle"><input type="checkbox" id="dt-cli"'+(hasCli?' checked':'')+' onchange="TF.modalToggle(\'dt-cli-fields\',this.checked)"><span>Client</span></label>';
+    h+='<label class="modal-toggle"><input type="checkbox" id="dt-campaign"'+(hasCp?' checked':'')+' onchange="TF.modalToggle(\'dt-campaign-fields\',this.checked)"><span>Campaign</span></label>';
+    h+='<label class="modal-toggle"><input type="checkbox" id="dt-opp"'+(hasOpp?' checked':'')+' onchange="TF.modalToggle(\'dt-opp-fields\',this.checked)"><span>Opportunity</span></label>';
+    h+='<label class="modal-toggle"><input type="checkbox" id="dt-proj"'+(hasProj?' checked':'')+' onchange="TF.modalToggle(\'dt-proj-fields\',this.checked)"><span>Project</span></label>';
+    h+='<label class="modal-toggle"><input type="checkbox" id="dt-mtg"'+(hasMtg?' checked':'')+' onchange="TF.modalToggle(\'dt-mtg-fields\',this.checked)"><span>Meeting</span></label>';
+    h+='</div>';
+    h+='<div class="mt-fields" id="dt-cli-fields" style="'+(hasCli?'':'display:none')+'"><div class="ed-grid ed-grid-2">';
     h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-cli" onchange="TF.refreshDetailEndClients()">'+cliOpts+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(task.endClient||'',task.client)+'</select></div>';
+    h+='</div></div>';
+    h+='<div class="mt-fields" id="dt-campaign-fields" style="'+(hasCp?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
     h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
+    h+='</div></div>';
+    h+='<div class="mt-fields" id="dt-opp-fields" style="'+(hasOpp?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'')+'</select></div>';
+    h+='</div></div>';
+    h+='<div class="mt-fields" id="dt-proj-fields" style="'+(hasProj?'':'display:none')+'"><div class="ed-grid ed-grid-2">';
     h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(task.project||'')+'</select></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="d-phase">'+buildPhaseOptions(task.project||'',task.phase||'')+'</select></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'')+'</select></div>';
+    h+='</div></div>';
+    h+='<div class="mt-fields" id="dt-mtg-fields" style="'+(hasMtg?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
     h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
-    h+='</div>';
+    h+='</div></div>';
     h+='<div class="flag-row ed-flags-inline">';
     h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">'+icon('flag',12)+'</span><span class="flag-text">Needs Client Input</span></label>';
     h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
@@ -200,7 +236,7 @@ async function saveDetail(){
   task.item=gel('d-item').value.trim();if(!task.item){toast('Item name required','warn');return}
   task.due=gel('d-due').value?new Date(gel('d-due').value):null;
   task.importance=gel('d-imp').value;task.category=gel('d-cat').value;
-  task.client=gel('d-cli').value||'Internal / N/A';task.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();task.type=gel('d-type').value;
+  task.client=gel('d-cli').value||'';task.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();task.type=gel('d-type').value;
   task.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   task.project=gel('d-project')?gel('d-project').value:'';
   task.phase=gel('d-phase')?gel('d-phase').value:'';
@@ -224,7 +260,7 @@ async function markAlreadyCompleted(id){
   task.item=gel('d-item').value.trim();if(!task.item){toast('Item name required','warn');return}
   task.due=gel('d-due').value?new Date(gel('d-due').value):null;
   task.importance=gel('d-imp').value;task.category=gel('d-cat').value;
-  task.client=gel('d-cli').value||'Internal / N/A';task.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();task.type=gel('d-type').value;
+  task.client=gel('d-cli').value||'';task.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();task.type=gel('d-type').value;
   task.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   task.project=gel('d-project')?gel('d-project').value:'';
   task.phase=gel('d-phase')?gel('d-phase').value:'';
@@ -256,7 +292,7 @@ async function doDelete(id){var task=S.tasks.find(function(t){return t.id===id})
   toast(icon('trash',12)+' Deleted: '+task.item,'warn');closeModal();render();renderSidebar();renderActiveWidget()}
 
 /* ═══════════ ADD TASK ═══════════ */
-function openAddModal(){var now=new Date();now.setHours(17,0,0,0);var iso=now.toISOString().slice(0,16);
+function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHours(17,0,0,0);var iso=now.toISOString().slice(0,16);
   var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('plus',12)+' New Task</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
@@ -269,18 +305,41 @@ function openAddModal(){var now=new Date();now.setHours(17,0,0,0);var iso=now.to
   h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="f-imp">'+IMPS.map(function(i){return'<option'+(i==='Important'?' selected':'')+'>'+i+'</option>'}).join('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="f-cat"><option value="">Select...</option>'+CATS.map(function(c){return'<option>'+c+'</option>'}).join('')+'</select></div>';
   h+='</div>';
-  /* ── Details ── */
-  h+='<div class="ed-grid ed-grid-3">';
+  /* ── Details (always visible) ── */
+  h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="f-type">'+TYPES.map(function(t){return'<option>'+t+'</option>'}).join('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="f-est" placeholder="30" min="0"></div>';
+  h+='</div>';
+  /* ── Toggleable sections ── */
+  h+='<div class="modal-toggles">';
+  h+='<label class="modal-toggle"><input type="checkbox" id="mt-cli" onchange="TF.modalToggle(\'mt-cli-fields\',this.checked)"><span>Client</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="mt-campaign" onchange="TF.modalToggle(\'mt-campaign-fields\',this.checked)"><span>Campaign</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="mt-opp" onchange="TF.modalToggle(\'mt-opp-fields\',this.checked)"><span>Opportunity</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="mt-proj" onchange="TF.modalToggle(\'mt-proj-fields\',this.checked)"><span>Project</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="mt-mtg" onchange="TF.modalToggle(\'mt-mtg-fields\',this.checked)"><span>Meeting</span></label>';
+  h+='</div>';
+  /* Client fields */
+  h+='<div class="mt-fields" id="mt-cli-fields" style="display:none"><div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="f-cli" onchange="TF.refreshAddEndClients()"><option value="">Select...</option>'+cliOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="f-ec" onchange="TF.refreshAddCampaigns();TF.ecAddNew(\'f-ec\')">'+buildEndClientOptions('')+'</select></div>';
+  h+='</div></div>';
+  /* Campaign fields */
+  h+='<div class="mt-fields" id="mt-campaign-fields" style="display:none"><div class="ed-grid ed-grid-1">';
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="f-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'f\',\'campaign\')">'+buildCampaignOptions('','','')+'</select></div>';
+  h+='</div></div>';
+  /* Opportunity fields */
+  h+='<div class="mt-fields" id="mt-opp-fields" style="display:none"><div class="ed-grid ed-grid-1">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="f-opportunity" onchange="TF.onProjectChange(\'f\',\'opportunity\')">'+buildOpportunityOptions('')+'</select></div>';
+  h+='</div></div>';
+  /* Project fields */
+  h+='<div class="mt-fields" id="mt-proj-fields" style="display:none"><div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="f-project" onchange="TF.onProjectChange(\'f\',\'project\');TF.refreshAddPhases()">'+buildProjectOptions('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="f-phase">'+buildPhaseOptions('','')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="f-opportunity" onchange="TF.onProjectChange(\'f\',\'opportunity\')">'+buildOpportunityOptions('')+'</select></div>';
+  h+='</div></div>';
+  /* Meeting fields */
+  h+='<div class="mt-fields" id="mt-mtg-fields" style="display:none"><div class="ed-grid ed-grid-1">';
   h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="f-mtg">'+buildMeetingOptions('')+'</select></div>';
-  h+='</div>';
+  h+='</div></div>';
 
   /* ── Options (single row) ── */
   h+='<div class="flag-row ed-flags-inline">';
@@ -300,6 +359,14 @@ function openAddModal(){var now=new Date();now.setHours(17,0,0,0);var iso=now.to
     S.templates.forEach(function(t,i){h+='<option value="'+i+'">'+esc(t.name)+'</option>'});h+='</select>'}
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  /* Pre-fill from context (e.g. adding task from project view) */
+  if(prefill.project){var ptg=gel('mt-proj');if(ptg){ptg.checked=true;modalToggle('mt-proj-fields',true)}
+    var ps=gel('f-project');if(ps){ps.value=prefill.project;refreshAddPhases();
+    setTimeout(function(){if(prefill.phase){var ph=gel('f-phase');if(ph)ph.value=prefill.phase}},50)}}
+  if(prefill.client){var ctg=gel('mt-cli');if(ctg){ctg.checked=true;modalToggle('mt-cli-fields',true)}
+    var cs=gel('f-cli');if(cs)cs.value=prefill.client}
+  if(prefill.campaign){var cptg=gel('mt-campaign');if(cptg){cptg.checked=true;modalToggle('mt-campaign-fields',true)}
+    var cp=gel('f-campaign');if(cp)cp.value=prefill.campaign}
   setTimeout(function(){var fi=gel('f-item');if(fi)fi.focus()},100)}
 
 async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('Enter a task name','warn');return}
@@ -313,7 +380,7 @@ async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim
   var phaseVal=(gel('f-phase')||{}).value||'';
   var oppVal=(gel('f-opportunity')||{}).value||'';
   var data={item:item.trim(),due:gel('f-due').value,importance:gel('f-imp').value,category:gel('f-cat').value,
-    client:gel('f-cli').value||'Internal / N/A',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
+    client:gel('f-cli').value||'',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal,
     project:projVal,phase:phaseVal,opportunity:oppVal};
   if(markDone){
@@ -341,7 +408,7 @@ async function addAndStart(){var item=(gel('f-item')||{}).value;if(!item||!item.
   var phaseVal2=(gel('f-phase')||{}).value||'';
   var oppVal2=(gel('f-opportunity')||{}).value||'';
   var data={item:item.trim(),due:gel('f-due').value,importance:gel('f-imp').value,category:gel('f-cat').value,
-    client:gel('f-cli').value||'Internal / N/A',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
+    client:gel('f-cli').value||'',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal2,
     project:projVal2,phase:phaseVal2,opportunity:oppVal2};
   var result=await dbAddTask(data);
@@ -462,7 +529,7 @@ async function logMeeting(){
   var mins=parseInt((gel('lm-dur')||{}).value)||0;
   var cat=(gel('lm-cat')||{}).value||'One-on-One';
   var type=(gel('lm-type')||{}).value||'Business';
-  var cli=(gel('lm-cli')||{}).value||'Internal / N/A';
+  var cli=(gel('lm-cli')||{}).value||'';
   var ec=(gel('lm-ec')||{}).value||'';
   var cpVal=(gel('lm-cp')||{}).value||'';
   var notes=(gel('lm-notes')||{}).value||'';
@@ -510,7 +577,7 @@ async function logMeeting(){
 
 /* ═══════════ TEMPLATES ═══════════ */
 function openTplForm(idx){
-  var editing=idx!==undefined&&S.templates[idx];var t=editing||{name:'',item:'',importance:'Important',category:'',client:'Internal / N/A',endClient:'',type:'Business',est:0,notes:'',setName:''};
+  var editing=idx!==undefined&&S.templates[idx];var t=editing||{name:'',item:'',importance:'Important',category:'',client:'',endClient:'',type:'Business',est:0,notes:'',setName:''};
   var cliOpts=S.clients.map(function(c){return'<option'+(c===t.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===t.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===t.importance?' selected':'')+'>'+i+'</option>'}).join('');
@@ -547,7 +614,7 @@ function openTplForm(idx){
 
 function saveTpl(){var name=(gel('tpl-name')||{}).value;if(!name||!name.trim()){toast('Enter a template name','warn');return}
   var tpl={name:name.trim(),item:(gel('tpl-item')||{}).value||'',importance:gel('tpl-imp').value,category:gel('tpl-cat').value,
-    client:gel('tpl-cli').value||'Internal / N/A',endClient:(gel('tpl-ec')?gel('tpl-ec').value:'').trim(),type:gel('tpl-type').value,est:parseInt(gel('tpl-est').value)||0,
+    client:gel('tpl-cli').value||'',endClient:(gel('tpl-ec')?gel('tpl-ec').value:'').trim(),type:gel('tpl-type').value,est:parseInt(gel('tpl-est').value)||0,
     notes:(gel('tpl-notes')||{}).value||'',setName:(gel('tpl-set')||{}).value||'',recurrence:(gel('tpl-recur')||{}).value||''};
   var idx=parseInt(gel('tpl-idx').value);
   if(idx>=0&&S.templates[idx]){S.templates[idx]=tpl;toast(icon('save',12)+' Updated: '+tpl.name,'ok')}
@@ -561,7 +628,7 @@ async function useTpl(idx){var t=S.templates[idx];if(!t)return;
   var now=new Date();now.setHours(17,0,0,0);
   var item=t.item||t.name;
   var data={item:item,due:now.toISOString(),importance:t.importance||'Important',category:t.category||'',
-    client:t.client||'Internal / N/A',endClient:t.endClient||'',type:t.type||'Business',est:t.est||0,notes:t.notes||'',status:'Planned',flag:false,campaign:t.campaign||''};
+    client:t.client||'',endClient:t.endClient||'',type:t.type||'Business',est:t.est||0,notes:t.notes||'',status:'Planned',flag:false,campaign:t.campaign||''};
   var result=await dbAddTask(data);
   if(result){S.tasks.push({id:result.id,item:item,due:now,importance:data.importance,est:data.est,category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:'Planned',flag:false,campaign:data.campaign})}
   toast('Added from template: '+item,'ok');render()}
@@ -571,7 +638,7 @@ async function useSet(setName){var items=S.templates.filter(function(t){return t
   for(var i=0;i<items.length;i++){var t=items[i];
     var now=new Date();now.setHours(17,0,0,0);var item=t.item||t.name;
     var data={item:item,due:now.toISOString(),importance:t.importance||'Important',category:t.category||'',
-      client:t.client||'Internal / N/A',endClient:t.endClient||'',type:t.type||'Business',est:t.est||0,notes:t.notes||'',status:'Planned',flag:false,campaign:t.campaign||''};
+      client:t.client||'',endClient:t.endClient||'',type:t.type||'Business',est:t.est||0,notes:t.notes||'',status:'Planned',flag:false,campaign:t.campaign||''};
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:item,due:now,importance:data.importance,est:data.est,category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:'Planned',flag:false,campaign:data.campaign});count++}}
   toast('Added '+count+' tasks from "'+setName+'"','ok');render()}
@@ -580,7 +647,7 @@ async function useSet(setName){var items=S.templates.filter(function(t){return t
 function openDoneDetail(id){
   var d=S.done.find(function(t){return t.id===id});if(!d)return;
   var td=today(),eid=escAttr(id);
-  var cliOpts=S.clients.map(function(c){return'<option'+(c===(d.client||'Internal / N/A')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var cliOpts=S.clients.map(function(c){return'<option'+(c===(d.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===d.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===d.importance?' selected':'')+'>'+i+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t===d.type?' selected':'')+'>'+t+'</option>'}).join('');
@@ -594,7 +661,7 @@ function openDoneDetail(id){
   h+='<span class="bg" style="background:rgba(61,220,132,0.1);color:var(--green)">Completed</span>';
   if(d.importance)h+='<span class="bg '+impCls(d.importance)+'">'+esc(d.importance)+'</span>';
   if(d.completed)h+='<span class="bg-du">'+fmtDFull(d.completed)+'</span>';
-  if(d.client&&d.client!=='Internal / N/A')h+='<span class="bg bg-cl">'+esc(d.client)+'</span>';
+  if(d.client)h+='<span class="bg bg-cl">'+esc(d.client)+'</span>';
   if(d.endClient)h+='<span class="bg bg-ec">'+esc(d.endClient)+'</span>';
   if(d.campaign){var _cpdd=S.campaigns.find(function(c){return c.id===d.campaign});if(_cpdd)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',12)+' '+esc(_cpdd.name)+'</span>'}
   if(d.opportunity){var _opdd=S.opportunities.find(function(o){return o.id===d.opportunity});if(_opdd)h+='<span class="bg bg-opp">'+icon('gem',12)+' '+esc(_opdd.name)+'</span>'}
@@ -638,7 +705,7 @@ async function saveDoneDetail(){
   d.item=gel('d-item').value.trim();if(!d.item){toast('Item name required','warn');return}
   d.completed=gel('d-completed').value?new Date(gel('d-completed').value):d.completed;
   d.importance=gel('d-imp').value;d.category=gel('d-cat').value;
-  d.client=gel('d-cli').value||'Internal / N/A';d.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();d.type=gel('d-type').value;
+  d.client=gel('d-cli').value||'';d.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();d.type=gel('d-type').value;
   d.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   d.duration=parseInt(gel('d-dur').value)||0;d.est=parseInt(gel('d-est').value)||0;
   d.notes=gel('d-notes').value;
@@ -668,7 +735,7 @@ function openReviewDetail(id){
   var curIdx=items.findIndex(function(t){return t.id===id});
   reviewIdx=curIdx>=0?curIdx:0;
   var eid=escAttr(id);
-  var cliOpts=S.clients.map(function(c){return'<option'+(c===(r.client||'Internal / N/A')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var cliOpts=S.clients.map(function(c){return'<option'+(c===(r.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===r.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===r.importance?' selected':'')+'>'+i+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t===r.type?' selected':'')+'>'+t+'</option>'}).join('');
@@ -705,18 +772,42 @@ function openReviewDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="d-cat">'+catOpts+'</select></div>';
   h+='</div>';
-  /* ── Details ── */
-  h+='<div class="ed-grid ed-grid-3">';
+  /* ── Details (always visible) ── */
+  h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="d-est" value="'+(r.est||'')+'" min="0" placeholder="30"></div>';
+  h+='</div>';
+  /* ── Toggleable sections ── */
+  var rvCli=!!(r.client),rvCp=!!(r.campaign),rvOpp=!!(r.opportunity),rvProj=!!(r.project),rvMtg=!!(r.meetingKey);
+  h+='<div class="modal-toggles">';
+  h+='<label class="modal-toggle"><input type="checkbox" id="rv-cli"'+(rvCli?' checked':'')+' onchange="TF.modalToggle(\'rv-cli-fields\',this.checked)"><span>Client</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="rv-campaign"'+(rvCp?' checked':'')+' onchange="TF.modalToggle(\'rv-campaign-fields\',this.checked)"><span>Campaign</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="rv-opp"'+(rvOpp?' checked':'')+' onchange="TF.modalToggle(\'rv-opp-fields\',this.checked)"><span>Opportunity</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="rv-proj"'+(rvProj?' checked':'')+' onchange="TF.modalToggle(\'rv-proj-fields\',this.checked)"><span>Project</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="rv-mtg"'+(rvMtg?' checked':'')+' onchange="TF.modalToggle(\'rv-mtg-fields\',this.checked)"><span>Meeting</span></label>';
+  h+='</div>';
+  /* Client fields */
+  h+='<div class="mt-fields" id="rv-cli-fields" style="'+(rvCli?'':'display:none')+'"><div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-cli" onchange="TF.refreshDetailEndClients()">'+cliOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(r.endClient||'',r.client)+'</select></div>';
+  h+='</div></div>';
+  /* Campaign fields */
+  h+='<div class="mt-fields" id="rv-campaign-fields" style="'+(rvCp?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(r.campaign||'',r.client,r.endClient)+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="d-phase">'+buildPhaseOptions('','')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions('')+'</select></div>';
-  h+='</div>';
+  h+='</div></div>';
+  /* Opportunity fields */
+  h+='<div class="mt-fields" id="rv-opp-fields" style="'+(rvOpp?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(r.opportunity||'')+'</select></div>';
+  h+='</div></div>';
+  /* Project fields */
+  h+='<div class="mt-fields" id="rv-proj-fields" style="'+(rvProj?'':'display:none')+'"><div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(r.project||'')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="d-phase">'+buildPhaseOptions(r.project||'',r.phase||'')+'</select></div>';
+  h+='</div></div>';
+  /* Meeting fields */
+  h+='<div class="mt-fields" id="rv-mtg-fields" style="'+(rvMtg?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(r.meetingKey||'')+'</select></div>';
+  h+='</div></div>';
 
   /* ── Options (single row) ── */
   h+='<div class="flag-row ed-flags-inline">';
@@ -742,10 +833,10 @@ function openReviewDetail(id){
 async function approveReview(id){
   var r=S.review.find(function(t){return t.id===id});if(!r)return;
   var data={item:r.item,due:r.due?r.due.toISOString():'',importance:r.importance,category:r.category,
-    client:r.client||'Internal / N/A',endClient:r.endClient||'',type:r.type,est:r.est,notes:r.notes,status:'Planned',flag:false,campaign:r.campaign||'',meetingKey:'',project:'',phase:'',opportunity:''};
+    client:r.client||'',endClient:r.endClient||'',type:r.type,est:r.est,notes:r.notes,status:'Planned',flag:false,campaign:r.campaign||'',meetingKey:'',project:'',phase:'',opportunity:''};
   var result=await dbAddTask(data);
   if(result){S.tasks.push({id:result.id,item:r.item,due:r.due,importance:r.importance,est:r.est,category:r.category,
-    client:r.client||'Internal / N/A',endClient:r.endClient||'',type:r.type,duration:0,notes:r.notes,status:'Planned',flag:false,campaign:r.campaign||'',meetingKey:'',project:'',phase:'',opportunity:''})}
+    client:r.client||'',endClient:r.endClient||'',type:r.type,duration:0,notes:r.notes,status:'Planned',flag:false,campaign:r.campaign||'',meetingKey:'',project:'',phase:'',opportunity:''})}
   await dbDeleteReview(id);
   S.review=S.review.filter(function(rv){return rv.id!==id});
   toast('Added: '+r.item,'ok');advanceReview()}
@@ -754,6 +845,9 @@ function reviewGetDue(){var v=gel('d-due').value;if(v)return v;return fmtISO(new
 async function approveFromModal(){
   var id=gel('d-id').value;var r=S.review.find(function(t){return t.id===id});if(!r)return;
   var item=gel('d-item').value.trim();if(!item){toast('Item name required','warn');return}
+  /* Disable buttons to prevent double-click */
+  var btnAdd=gel('d-btn-add'),btnStart=gel('d-btn-start');
+  if(btnAdd)btnAdd.disabled=true;if(btnStart)btnStart.disabled=true;
   var flagged=gel('d-flag').checked;
   var markDone=gel('d-done')&&gel('d-done').checked;
   var dueVal=reviewGetDue();
@@ -763,23 +857,26 @@ async function approveFromModal(){
   var phaseVal3=(gel('d-phase')||{}).value||'';
   var oppVal3=(gel('d-opportunity')||{}).value||'';
   var data={item:item,due:dueVal,importance:gel('d-imp').value,category:gel('d-cat').value,
-    client:gel('d-cli').value||'Internal / N/A',endClient:(gel('d-ec')?gel('d-ec').value:'').trim(),type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
+    client:gel('d-cli').value||'',endClient:(gel('d-ec')?gel('d-ec').value:'').trim(),type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
     notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal2,meetingKey:mtgVal3,project:projVal3,phase:phaseVal3,opportunity:oppVal3};
-  await dbDeleteReview(id);
-  S.review=S.review.filter(function(rv){return rv.id!==id});
+  var success=false;
   if(markDone){
     var mins=parseInt((gel('d-done-dur')||{}).value)||data.est||0;
     var dueDate=dueVal?new Date(dueVal):null;
     var doneData={item:data.item,due:dueVal||null,importance:data.importance,category:data.category,
       client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity};
     var result=await dbCompleteTask(doneData);
-    if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:dueDate,importance:data.importance,category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity})}
-    toast('Completed: '+data.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
+    if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:dueDate,importance:data.importance,category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity});
+      success=true;toast('Completed: '+data.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
+    else{toast('Failed to complete task','err')}}
   else{
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:data.item,due:dueVal?new Date(dueVal):null,importance:data.importance,est:data.est,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity})}
-    toast('Added: '+data.item,'ok')}
+      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
+      success=true;toast('Added: '+data.item,'ok')}
+    else{toast('Failed to add task','err')}}
+  if(success){await dbDeleteReview(id);S.review=S.review.filter(function(rv){return rv.id!==id})}
+  if(btnAdd)btnAdd.disabled=false;if(btnStart)btnStart.disabled=false;
   advanceReview()}
 
 async function approveAndStart(){
@@ -795,7 +892,7 @@ async function approveAndStart(){
   var phaseVal4=(gel('d-phase')||{}).value||'';
   var oppVal4=(gel('d-opportunity')||{}).value||'';
   var data={item:item,due:dueVal,importance:gel('d-imp').value,category:gel('d-cat').value,
-    client:gel('d-cli').value||'Internal / N/A',endClient:(gel('d-ec')?gel('d-ec').value:'').trim(),type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
+    client:gel('d-cli').value||'',endClient:(gel('d-ec')?gel('d-ec').value:'').trim(),type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
     notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal3,meetingKey:mtgVal4,project:projVal4,phase:phaseVal4,opportunity:oppVal4};
   var result=await dbAddTask(data);
   if(!result)return;
@@ -867,7 +964,7 @@ function openDailySummary(){
     if(carryOver.length>8)h+='<div style="font-size:11px;color:var(--t4);padding:4px 0">+ '+(carryOver.length-8)+' more</div>';
     h+='</div>'}
   if(chaseItems.length){h+='<div class="summary-section"><div class="summary-section-h">Needs Chasing</div>';
-    chaseItems.forEach(function(t){h+='<div class="summary-item">'+icon('flag',12)+' '+esc(t.item)+(t.client&&t.client!=='Internal / N/A'?' <span style="color:var(--pink50)">'+esc(t.client)+'</span>':'')+(t.endClient?' <span style="color:var(--teal)">EC: '+esc(t.endClient)+'</span>':'')+'</div>'});
+    chaseItems.forEach(function(t){h+='<div class="summary-item">'+icon('flag',12)+' '+esc(t.item)+(t.client?' <span style="color:var(--pink50)">'+esc(t.client)+'</span>':'')+(t.endClient?' <span style="color:var(--teal)">EC: '+esc(t.endClient)+'</span>':'')+'</div>'});
     h+='</div>'}
 
   /* Copyable text version */
@@ -875,7 +972,7 @@ function openDailySummary(){
   txt+='DONE ('+todayDone.length+', '+fmtM(todayMins)+'):\n';
   todayDone.forEach(function(d){txt+='  - '+d.item+' ('+fmtM(d.duration)+')\n'});
   if(carryOver.length){txt+='\nCARRY OVER ('+carryOver.length+'):\n';carryOver.slice(0,8).forEach(function(t){txt+='  - '+t.item+'\n'})}
-  if(chaseItems.length){txt+='\nNEEDS CHASING ('+chaseItems.length+'):\n';chaseItems.forEach(function(t){txt+='  - '+t.item+(t.client&&t.client!=='Internal / N/A'?' ['+t.client+']':'')+(t.endClient?' (EC: '+t.endClient+')':'')+'\n'})}
+  if(chaseItems.length){txt+='\nNEEDS CHASING ('+chaseItems.length+'):\n';chaseItems.forEach(function(t){txt+='  - '+t.item+(t.client?' ['+t.client+']':'')+(t.endClient?' (EC: '+t.endClient+')':'')+'\n'})}
 
   h+='<div style="margin-top:16px"><button class="btn btn-p" onclick="navigator.clipboard.writeText('+esc(JSON.stringify(txt)).replace(/'/g,"\\'")+');TF.toast(\'Copied to clipboard\',\'ok\')" style="padding:8px 18px;font-size:12px">Copy Summary</button></div>';
 
@@ -1787,11 +1884,15 @@ function openProjectDetail(id){
     if(ps.openCount+ps.doneCount>0){h+='<div class="proj-progress" style="margin:6px 0 8px"><div class="proj-progress-fill" style="width:'+ps.progress+'%;background:'+proj.color+'"></div></div>'}
     ps.doneTasks.forEach(function(d){
       h+='<div class="proj-phase-task" style="opacity:0.5"><span style="color:var(--green)">'+CK_XS+'</span><span class="proj-phase-task-name" style="text-decoration:line-through;color:var(--t4)">'+esc(d.item)+'</span><span style="font-size:10px;color:var(--t4);font-family:var(--fd)">'+fmtM(d.duration)+'</span></div>'});
-    ps.openTasks.forEach(function(t){var teid=escAttr(t.id);
-      h+='<div class="proj-phase-task"><span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:1px 6px">'+esc((t.importance||'I')[0])+'</span>';
+    var orderedTasks=applyProjTaskOrder(ps.openTasks,ph.id);
+    orderedTasks.forEach(function(t){var teid=escAttr(t.id);
+      h+='<div class="proj-phase-task" draggable="true" data-task-id="'+esc(t.id)+'" data-phase-id="'+esc(ph.id)+'" ondragstart="TF.projDragStart(event,\''+teid+'\',\''+phEid+'\')" ondragover="TF.projDragOver(event)" ondrop="TF.projDragDrop(event,\''+teid+'\',\''+phEid+'\')">';
+      h+='<span class="proj-drag-handle" style="cursor:grab;color:var(--t4);font-size:10px;flex-shrink:0">⠿</span>';
+      h+='<span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:1px 6px">'+esc((t.importance||'I')[0])+'</span>';
       h+='<span class="proj-phase-task-name" onclick="TF.openDetail(\''+teid+'\')">'+esc(t.item)+'</span>';
       if(t.due)h+='<span class="bg-du'+(t.due<today()?' od':'')+'\" style="font-size:9px">'+fmtDShort(t.due)+'</span>';
       h+='<button class="ab ab-dn ab-mini" onclick="TF.done(\''+teid+'\')" title="Complete">'+CK_XS+'</button></div>'});
+    h+='<button class="btn" style="margin-top:6px;padding:4px 10px;font-size:10px;width:100%;opacity:0.6" onclick="TF.openAddModal({project:\''+eid+'\',phase:\''+phEid+'\'})">+ Add Task</button>';
     h+='</div></div>'});
 
   /* Backlog: tasks with project but no phase */
@@ -1801,10 +1902,14 @@ function openProjectDetail(id){
     h+='<div class="proj-backlog"><span class="proj-backlog-label">Backlog (no phase)</span>';
     backlogDone.forEach(function(d){
       h+='<div class="proj-phase-task" style="opacity:0.5"><span style="color:var(--green)">'+CK_XS+'</span><span style="text-decoration:line-through;color:var(--t4);font-size:12px">'+esc(d.item)+'</span></div>'});
-    backlog.forEach(function(t){var teid=escAttr(t.id);
-      h+='<div class="proj-phase-task"><span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:1px 6px">'+esc((t.importance||'I')[0])+'</span>';
+    var orderedBacklog=applyProjTaskOrder(backlog,'_backlog');
+    orderedBacklog.forEach(function(t){var teid=escAttr(t.id);
+      h+='<div class="proj-phase-task" draggable="true" data-task-id="'+esc(t.id)+'" data-phase-id="_backlog" ondragstart="TF.projDragStart(event,\''+teid+'\',\'_backlog\')" ondragover="TF.projDragOver(event)" ondrop="TF.projDragDrop(event,\''+teid+'\',\'_backlog\')">';
+      h+='<span class="proj-drag-handle" style="cursor:grab;color:var(--t4);font-size:10px;flex-shrink:0">⠿</span>';
+      h+='<span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:1px 6px">'+esc((t.importance||'I')[0])+'</span>';
       h+='<span class="proj-phase-task-name" onclick="TF.openDetail(\''+teid+'\')">'+esc(t.item)+'</span>';
       h+='<button class="ab ab-dn ab-mini" onclick="TF.done(\''+teid+'\')" title="Complete">'+CK_XS+'</button></div>'});
+    h+='<button class="btn" style="margin-top:6px;padding:4px 10px;font-size:10px;width:100%;opacity:0.6" onclick="TF.openAddModal({project:\''+eid+'\'})">+ Add Task</button>';
     h+='</div>'}
 
   h+='</div>';
