@@ -953,9 +953,19 @@ function finFilteredPayments(){
   /* Always exclude 'excluded' records */
   fp=fp.filter(function(p){return p.status!=='excluded'});
   if(S.finFilter==='unmatched'){
-    /* Unmatched: only inflow payments needing client matching.
-       Excludes invoices, payouts, outflows, transfers, bills, expenses */
-    fp=fp.filter(function(p){return p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment'});
+    /* Unmatched: only actual customer payments needing client matching.
+       - zoho_payments: credit card payments received (authoritative)
+       - mercury: bank transfers received (authoritative)
+       - stripe/stripe2/zoho: legacy CSV imports
+       - brex: only non-transfer payments
+       Excludes zoho_books (always duplicates zoho_payments or mercury),
+       outflows, invoices, bills, expenses, payouts, and transfers */
+    fp=fp.filter(function(p){
+      if(p.status!=='unmatched'||p.direction!=='inflow'||p.type!=='payment')return false;
+      if(p.source==='zoho_books')return false;
+      if(p.source==='brex')return false;
+      return true;
+    });
   }
   else if(S.finFilter==='matched')fp=fp.filter(function(p){return p.status==='matched'});
   else if(S.finFilter==='split')fp=fp.filter(function(p){return p.status==='split'});

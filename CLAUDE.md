@@ -190,9 +190,22 @@ Payments flow through these states:
 - **split** — split across multiple clients/campaigns
 - **excluded** — intentionally excluded (e.g., pre-existing records already handled)
 
-### Unmatched View
+### Unmatched View (Client Matching)
 
-The Unmatched tab only shows records where `direction === 'inflow' && type === 'payment'`. This filters out invoices, payouts, outflows, transfers, bills, and expenses — those are used for cash flow forecasting, not client matching.
+The Unmatched tab shows only records that need client association. It filters to:
+- `status === 'unmatched'`
+- `direction === 'inflow'`
+- `type === 'payment'`
+- `source !== 'zoho_books'` (always duplicates Zoho Payments or Mercury)
+- `source !== 'brex'` (internal business banking, not client payments)
+
+**Deduplication logic:** A single real-world customer payment creates records in multiple sources:
+- Credit card payment: Zoho Payments (authoritative) + Zoho Books customer payment (duplicate)
+- Bank transfer: Mercury (authoritative) + Zoho Books customer payment (duplicate)
+
+Therefore Zoho Books records are excluded from client matching entirely. They still exist in the database for cash flow forecasting and accounting reconciliation.
+
+Sources eligible for client matching: `zoho_payments`, `mercury`, `stripe`, `stripe2`, `zoho` (legacy CSV).
 
 ### Data Sources
 

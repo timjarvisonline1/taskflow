@@ -126,7 +126,7 @@ function rDashboard(){
   var activeCampaigns=S.campaigns.filter(function(c){return c.status==='Active'});
   var monthlyRecurring=0;activeCampaigns.forEach(function(c){monthlyRecurring+=(c.monthlyFee||0)+(c.monthlyAdSpend||0)});
   var totalRevenue=0;S.financePayments.forEach(function(p){if(p.status!=='excluded')totalRevenue+=p.amount});
-  var unmatchedPayments=S.financePayments.filter(function(p){return p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment'}).length;
+  var unmatchedPayments=S.financePayments.filter(function(p){return p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment'&&p.source!=='zoho_books'&&p.source!=='brex'}).length;
 
   /* Opportunity metrics */
   var activeOpps=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
@@ -2025,7 +2025,7 @@ function rFinance(){
   var totalRev=0,totalOut=0,unmatchedCount=0,matchedCount=0,splitCount=0;
   fp.forEach(function(p){
     if(p.direction==='outflow')totalOut+=p.amount;else totalRev+=p.amount;
-    if(p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment')unmatchedCount++;
+    if(p.status==='unmatched'&&p.direction==='inflow'&&p.type==='payment'&&p.source!=='zoho_books'&&p.source!=='brex')unmatchedCount++;
     else if(p.status==='matched')matchedCount++;
     else if(p.status==='split')splitCount++});
   var filtered=finFilteredPayments();
