@@ -39,7 +39,9 @@ async function syncZohoBooks(userId) {
       idField: 'invoice_id',
       direction: 'inflow',
       type: 'invoice',
-      extraParams: 'status=sent,overdue,unpaid,partially_paid',
+      /* No status filter — only ~40 invoices total, fetch all and let
+         pending_amount (from inv.balance) determine outstanding vs paid.
+         The UI filters by pendingAmount > 0. */
       transform: (inv) => ({
         date: inv.date || null,
         amount: parseFloat(inv.total) || 0,
