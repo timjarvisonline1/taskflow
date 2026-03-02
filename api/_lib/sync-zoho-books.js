@@ -120,6 +120,7 @@ async function syncZohoBooks(userId) {
     await delay(700);
 
     // 5. Expenses (outflow — direct expenses)
+    // Note: expenses endpoint doesn't support sort_column=last_modified_time
     await syncEntity(userId, headers, orgId, since, stats, {
       endpoint: '/expenses',
       listKey: 'expenses',
@@ -127,6 +128,8 @@ async function syncZohoBooks(userId) {
       idField: 'expense_id',
       direction: 'outflow',
       type: 'expense',
+      sortColumn: 'date',
+      dateFilter: 'date_start=' + since + '&date_end=' + new Date().toISOString().split('T')[0],
       transform: (exp) => ({
         date: exp.date || null,
         amount: parseFloat(exp.total) || 0,
@@ -158,10 +161,14 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
   let hasMore = true;
 
   while (hasMore) {
+    const sortCol = cfg.sortColumn || 'last_modified_time';
+    const dateFilterPart = cfg.dateFilter
+      ? '&' + cfg.dateFilter
+      : '&last_modified_time=' + encodeURIComponent(since + 'T00:00:00+0000');
     const url = ZOHO_BOOKS_BASE + cfg.endpoint
       + '?organization_id=' + orgId
-      + '&sort_column=last_modified_time&sort_order=D'
-      + '&last_modified_time=' + encodeURIComponent(since + 'T00:00:00+0000')
+      + '&sort_column=' + sortCol + '&sort_order=D'
+      + dateFilterPart
       + '&page=' + page + '&per_page=200';
 
     const resp = await fetch(url, { headers });
