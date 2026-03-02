@@ -1120,7 +1120,13 @@ async function triggerSync(platform){
     var result=await resp.json();
     if(result.success){
       toast(platform+' synced: '+result.inserted+' new, '+result.updated+' updated'+(result.skipped?' ('+result.skipped+' skipped)':''),'ok');
-      if(result.debug&&result.debug.length){console.group(platform+' sync debug');result.debug.forEach(function(d){console.log(d)});console.groupEnd()}
+      /* Dump full sync data to console for debugging */
+      console.group('%c'+platform+' sync results','font-weight:bold;font-size:14px;color:#3ddc84');
+      console.log('Summary:',{fetched:result.fetched,inserted:result.inserted,updated:result.updated,skipped:result.skipped});
+      if(result.debug&&result.debug.length){console.group('Sync Log');result.debug.forEach(function(d){console.log(d)});console.groupEnd()}
+      if(result.rawInvoices&&result.rawInvoices.length){console.group('Raw Invoices from Zoho ('+result.rawInvoices.length+')');console.table(result.rawInvoices.map(function(inv){return{invoice_id:inv.invoice_id,invoice_number:inv.invoice_number,customer_name:inv.customer_name,date:inv.date,total:inv.total,balance:inv.balance,status:inv.status,due_date:inv.due_date,email:inv.email}}));console.log('Full raw data:',result.rawInvoices);console.groupEnd()}
+      if(result.rawPayments&&result.rawPayments.length){console.group('Raw Customer Payments from Zoho ('+result.rawPayments.length+')');console.table(result.rawPayments.map(function(p){return{payment_id:p.payment_id,customer_name:p.customer_name,date:p.date,amount:p.amount,payment_number:p.payment_number,payment_mode:p.payment_mode,reference_number:p.reference_number,invoices:(p.invoices||[]).length+' invoices'}}));console.log('Full raw data:',result.rawPayments);console.groupEnd()}
+      console.groupEnd()
       await loadFinancePayments();await loadAccountBalances();await loadIntegrations();render();
     }else{
       var errMsg=result.error||'Unknown error';
