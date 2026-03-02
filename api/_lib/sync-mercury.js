@@ -49,6 +49,15 @@ async function syncMercury(userId) {
       : new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
     if (since < CSV_CUTOFF) since = CSV_CUTOFF;
 
+    // Pre-fetch existing Mercury source_ids to skip already-synced records without DB round-trips
+    const dbClient = getServiceClient();
+    const { data: existingRecs } = await dbClient
+      .from('finance_payments')
+      .select('source_id')
+      .eq('user_id', userId)
+      .eq('source', 'mercury');
+    const existingIds = new Set((existingRecs || []).map(r => r.source_id));
+
     // 2. Fetch transactions for each account
     for (const acct of accounts) {
       let offset = 0;
@@ -83,6 +92,9 @@ async function syncMercury(userId) {
           // Skip records before CSV cutoff
           if (txDate && txDate < CSV_CUTOFF) { stats.skipped++; continue; }
 
+          // Fast-path: skip if we already have this record
+          if (existingIds.has(tx.id)) { stats.skipped++; continue; }
+
           const result = await upsertPayment(userId, 'mercury', tx.id, {
             date: txDate,
             amount: amount,
@@ -104,7 +116,7 @@ async function syncMercury(userId) {
             status: 'unmatched'
           });
 
-          if (result.action === 'inserted') stats.inserted++;
+          if (result.action === 'inserted') { stats.inserted++; existingIds.add(tx.id); }
           else if (result.action === 'updated') stats.updated++;
           else if (result.action === 'skipped') stats.skipped++;
         }

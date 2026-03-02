@@ -1,4 +1,4 @@
-const { getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountBalance } = require('./supabase');
+const { getCredentials, updateSyncStatus, logSync, upsertPayment, upsertAccountBalance, getServiceClient } = require('./supabase');
 
 const BREX_BASE = 'https://platform.brexapis.com';
 const CSV_CUTOFF = '2026-02-28'; // All data before this date was imported via CSV — never re-sync
@@ -36,8 +36,22 @@ async function syncBrex(userId) {
       });
     }
 
-    // 2. Fetch transactions for each cash account
-    // Note: Brex posted_at_start filter returns 400, so we fetch all and rely on upsert deduplication
+    // 2. Pre-fetch all existing Brex source_ids in ONE query.
+    //    Brex API doesn't support date filtering, so every sync fetches the full
+    //    transaction history. Without this pre-fetch, each of the ~300+ records
+    //    would trigger 3-4 Supabase queries via upsertPayment(), easily exceeding
+    //    the 60-second Vercel function timeout. By checking locally, subsequent
+    //    syncs only hit the DB for genuinely new transactions.
+    const dbClient = getServiceClient();
+    const { data: existingRecs } = await dbClient
+      .from('finance_payments')
+      .select('source_id')
+      .eq('user_id', userId)
+      .eq('source', 'brex');
+    const existingIds = new Set((existingRecs || []).map(r => r.source_id));
+
+    // 3. Fetch transactions for each cash account
+    // Note: Brex posted_at_start filter returns 400, so we fetch all and filter client-side
     for (const acct of accounts) {
       let cursor = null;
       let hasMore = true;
@@ -73,6 +87,9 @@ async function syncBrex(userId) {
           const txDesc = (tx.description || '').toLowerCase();
           if (txDesc === 'brex card' || txDesc.startsWith('brex card ')) { stats.skipped++; continue; }
 
+          // Fast-path: skip if we already have this record (avoids 3-4 DB queries per record)
+          if (existingIds.has(tx.id)) { stats.skipped++; continue; }
+
           const result = await upsertPayment(userId, 'brex', tx.id, {
             date: txDate,
             amount: amount,
@@ -90,7 +107,7 @@ async function syncBrex(userId) {
             status: 'unmatched'
           });
 
-          if (result.action === 'inserted') stats.inserted++;
+          if (result.action === 'inserted') { stats.inserted++; existingIds.add(tx.id); }
           else if (result.action === 'updated') stats.updated++;
           else if (result.action === 'skipped') stats.skipped++;
         }
@@ -130,6 +147,9 @@ async function syncBrex(userId) {
         // Skip records before CSV cutoff
         if (cardTxDate && cardTxDate < CSV_CUTOFF) { stats.skipped++; continue; }
 
+        // Fast-path: skip if we already have this record
+        if (existingIds.has(tx.id)) { stats.skipped++; continue; }
+
         const result = await upsertPayment(userId, 'brex', tx.id, {
           date: cardTxDate,
           amount: amount,
@@ -151,7 +171,7 @@ async function syncBrex(userId) {
           status: 'unmatched'
         });
 
-        if (result.action === 'inserted') stats.inserted++;
+        if (result.action === 'inserted') { stats.inserted++; existingIds.add(tx.id); }
         else if (result.action === 'updated') stats.updated++;
         else if (result.action === 'skipped') stats.skipped++;
       }
