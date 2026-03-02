@@ -2862,7 +2862,23 @@ async function testIntegrationBtn(platformId){
     var msg='Connection successful!';
     if(result.accounts)msg+=' Found '+result.accounts.length+' account(s).';
     if(result.organization)msg+=' Org: '+result.organization;
-    resultEl.innerHTML='<span style="color:var(--green)">'+esc(msg)+'</span>';
+    var extraHtml='';
+    /* Show organizations list for Zoho Books */
+    if(result.organizations&&result.organizations.length){
+      msg+=' '+result.organizations.length+' org(s):';
+      extraHtml='<div style="margin-top:6px;font-size:11px;color:var(--t2)">';
+      result.organizations.forEach(function(o){
+        var rec=result.recommended_org_id&&o.id===result.recommended_org_id;
+        extraHtml+='<div style="margin:2px 0'+(rec?';font-weight:700;color:var(--green)':'')+'">'
+          +esc(o.name)+' — ID: <code>'+esc(String(o.id))+'</code>'
+          +(o.invoices!==undefined?' ('+o.invoices+' invoices)':'')
+          +(o.is_default?' [default]':'')
+          +(rec?' ★ recommended':'')
+          +'</div>';
+      });
+      extraHtml+='</div>';
+    }
+    resultEl.innerHTML='<span style="color:var(--green)">'+esc(msg)+'</span>'+extraHtml;
     /* If test returned a refresh_token (Zoho code exchange), populate it into the form */
     if(result.refresh_token){
       var rtEl=gel('intg-'+platformId+'-refresh_token');
@@ -2870,6 +2886,11 @@ async function testIntegrationBtn(platformId){
       /* Clear the auth code field since it's been used */
       var codeEl=gel('intg-'+platformId+'-code');
       if(codeEl)codeEl.value='';
+    }
+    /* Auto-fill recommended org_id for Zoho Books */
+    if(result.recommended_org_id&&platformId==='zoho_books'){
+      var orgEl=gel('intg-cfg-zoho_books-organization_id');
+      if(orgEl&&!orgEl.value)orgEl.value=result.recommended_org_id;
     }
   }else{
     resultEl.innerHTML='<span style="color:var(--red)">Failed: '+esc((result&&result.error)||'Unknown error')+'</span>';

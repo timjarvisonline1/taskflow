@@ -68,8 +68,27 @@ async function testZohoBooks(res, userId, creds, config) {
     delete tokenCreds.auth_code;
   }
 
+  // If we have a refresh_token but expired/missing access_token, refresh it
+  if (tokenCreds.refresh_token && !tokenCreds.access_token) {
+    const params = new URLSearchParams({
+      refresh_token: tokenCreds.refresh_token,
+      client_id: tokenCreds.client_id,
+      client_secret: tokenCreds.client_secret,
+      grant_type: 'refresh_token'
+    });
+    const refreshResp = await fetch('https://accounts.zoho.com/oauth/v2/token', { method: 'POST', body: params });
+    const refreshData = await refreshResp.json();
+    if (refreshData.access_token) {
+      tokenCreds.access_token = refreshData.access_token;
+    }
+  }
+
   // Test the connection by listing organizations
   const accessToken = tokenCreds.access_token;
+  if (!accessToken) {
+    throw new Error('No access token available. Provide an Auth Code or Refresh Token.');
+  }
+
   const resp = await fetch('https://www.zohoapis.com/books/v3/organizations', {
     headers: { 'Authorization': 'Zoho-oauthtoken ' + accessToken }
   });
@@ -80,10 +99,40 @@ async function testZohoBooks(res, userId, creds, config) {
   const data = await resp.json();
   const orgs = data.organizations || [];
 
+  // For each org, try to fetch a quick invoice count to show which org has data
+  const orgDetails = [];
+  for (const o of orgs) {
+    let invoiceCount = '?';
+    try {
+      const invResp = await fetch(
+        'https://www.zohoapis.com/books/v3/invoices?organization_id=' + o.organization_id + '&per_page=1',
+        { headers: { 'Authorization': 'Zoho-oauthtoken ' + accessToken } }
+      );
+      if (invResp.ok) {
+        const invData = await invResp.json();
+        const pc = invData.page_context || {};
+        invoiceCount = pc.total || (invData.invoices || []).length;
+      }
+    } catch (e) { /* ignore */ }
+
+    orgDetails.push({
+      id: o.organization_id,
+      name: o.name,
+      is_default: !!o.is_default_org,
+      invoices: invoiceCount
+    });
+  }
+
+  // Recommend the org that has data, or the default org
+  const orgWithData = orgDetails.find(o => o.invoices > 0);
+  const defaultOrg = orgDetails.find(o => o.is_default);
+  const recommended = orgWithData || defaultOrg || orgDetails[0];
+
   return res.status(200).json({
     success: true,
     details: orgs.length + ' organization(s) found',
-    organizations: orgs.map(o => ({ id: o.organization_id, name: o.name })),
+    organizations: orgDetails,
+    recommended_org_id: recommended ? recommended.id : null,
     refresh_token: tokenCreds.refresh_token || null
   });
 }

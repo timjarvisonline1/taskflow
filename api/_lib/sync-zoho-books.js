@@ -186,7 +186,9 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
     const items = data[cfg.listKey] || [];
     // Log response details for debugging
     if (page === 1) {
-      stats.debug += cfg.endpoint + ':' + items.length + ' ';
+      const total = (data.page_context && data.page_context.total) ? data.page_context.total : items.length;
+      const code = data.code !== undefined ? data.code : '?';
+      stats.debug += cfg.endpoint + ':' + total + '(c' + code + ') ';
     }
     stats.fetched += items.length;
 
