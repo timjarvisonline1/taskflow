@@ -163,16 +163,19 @@ async function syncEntity(userId, headers, orgId, since, stats, cfg) {
   let hasMore = true;
 
   while (hasMore) {
-    const sortCol = cfg.sortColumn || 'last_modified_time';
+    let sortPart = '';
     let dateFilterPart = '';
     if (since) {
+      // Only add sort + date filter for incremental syncs
+      const sortCol = cfg.sortColumn || 'last_modified_time';
+      sortPart = '&sort_column=' + sortCol + '&sort_order=D';
       dateFilterPart = cfg.dateFilter
         ? '&' + cfg.dateFilter
         : '&last_modified_time=' + encodeURIComponent(since + 'T00:00:00+0000');
     }
     const url = ZOHO_BOOKS_BASE + cfg.endpoint
       + '?organization_id=' + orgId
-      + '&sort_column=' + sortCol + '&sort_order=D'
+      + sortPart
       + dateFilterPart
       + '&page=' + page + '&per_page=200';
 
