@@ -30,7 +30,9 @@ async function syncZohoBooks(userId) {
 
   try {
     // 1. Invoices (inflow — represents money owed to us)
-    await syncEntity(userId, headers, orgId, since, stats, {
+    // ALWAYS full-fetch invoices (pass null instead of since) — only ~40 records
+    // and we need to catch status/balance changes on older invoices (e.g. part-paid)
+    await syncEntity(userId, headers, orgId, null, stats, {
       endpoint: '/invoices',
       listKey: 'invoices',
       entityPrefix: 'inv',
