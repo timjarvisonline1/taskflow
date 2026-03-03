@@ -312,6 +312,9 @@ async function doDelete(id){var task=S.tasks.find(function(t){return t.id===id})
   toast(icon('trash',12)+' Deleted: '+task.item,'warn');closeModal();render();renderSidebar();renderActiveWidget()}
 
 /* ═══════════ ADD TASK ═══════════ */
+function openAddMeetingPrepTask(meetingKey){
+  openAddModal({meetingKey:meetingKey,category:'One-on-One',importance:'Important'})}
+
 function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHours(17,0,0,0);var iso=now.toISOString().slice(0,16);
   var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('plus',12)+' New Task</span>';
@@ -390,6 +393,10 @@ function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHou
     var cp=gel('f-campaign');if(cp)cp.value=prefill.campaign}
   if(prefill.opportunity){var otg=gel('mt-opp');if(otg){otg.checked=true;modalToggle('mt-opp-fields',true)}
     var os=gel('f-opportunity');if(os)os.value=prefill.opportunity}
+  if(prefill.meetingKey){var mtg=gel('mt-mtg');if(mtg){mtg.checked=true;modalToggle('mt-mtg-fields',true)}
+    var ms=gel('f-mtg');if(ms)ms.value=prefill.meetingKey}
+  if(prefill.category){var cs=gel('f-cat');if(cs)cs.value=prefill.category}
+  if(prefill.importance){var is=gel('f-imp');if(is)is.value=prefill.importance}
   setTimeout(function(){var fi=gel('f-item');if(fi)fi.focus()},100)}
 
 async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('Enter a task name','warn');return}

@@ -262,8 +262,8 @@
 /* Task blocks (colour-coded by importance) */
 .cal-tl-task{position:absolute;top:3px;bottom:3px;border-radius:3px;overflow:visible;display:flex;align-items:center;cursor:pointer;transition:background .15s, opacity .15s;min-width:2px;z-index:3;opacity:.85}
 .cal-tl-task:hover{opacity:1;z-index:10}
-.cal-tl-task.crit{background:rgba(255,0,153,0.28)}
-.cal-tl-task.crit:hover{background:rgba(255,0,153,0.45)}
+.cal-tl-task.crit{background:rgba(239,68,68,0.28)}
+.cal-tl-task.crit:hover{background:rgba(239,68,68,0.45)}
 .cal-tl-task.imp{background:rgba(77,166,255,0.22)}
 .cal-tl-task.imp:hover{background:rgba(77,166,255,0.38)}
 .cal-tl-task.wta{background:rgba(255,170,50,0.18)}
@@ -276,7 +276,7 @@
 .cal-tl-tip-meta{font-size:9px;font-weight:600;color:var(--t4);font-family:var(--fd);margin-top:2px;letter-spacing:0.02em}
 .cal-tl-event .cal-tl-tip{border-top:2px solid var(--pink)}
 .cal-tl-task .cal-tl-tip{border-top:2px solid var(--blue)}
-.cal-tl-task.crit .cal-tl-tip{border-top-color:var(--purple50)}
+.cal-tl-task.crit .cal-tl-tip{border-top-color:var(--red)}
 .cal-tl-task.wta .cal-tl-tip{border-top-color:var(--amber)}
 
 /* Now marker */

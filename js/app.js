@@ -75,6 +75,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   linkExpenseToScheduled:linkExpenseToScheduled,unlinkExpenseFromScheduled:unlinkExpenseFromScheduled,saveExpenseAsOneOff:saveExpenseAsOneOff,
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
+  openClientDashboard:openClientDashboard,closeClientDashboard:closeClientDashboard,
+  openAddMeetingPrepTask:openAddMeetingPrepTask,
   atToggleMin:atToggleMin,modalToggle:modalToggle,
   signOut:signOut,
   toast:toast,
@@ -93,5 +95,5 @@ function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterva
 (async function(){
   var sess=await _sb.auth.getSession();
   if(!sess.data.session){window.location.href='/login.html';return}
-  restore();S.view=isMobile()?'mob-add':'today';buildNav();await loadData();startAutoRefresh();startMeetingCheck();
+  restore();S.view=isMobile()?'mob-add':'dashboard';buildNav();await loadData();startAutoRefresh();startMeetingCheck();
 })();

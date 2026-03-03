@@ -51,7 +51,13 @@ var ICONS={
   grip:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>',
   mic:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>',
   link:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
-  check:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+  check:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  users:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  briefcase:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>',
+  bar_chart:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>',
+  sun:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+  layers:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22.54 12.43-1.96-.89-8.58 3.91a2 2 0 0 1-1.66 0l-8.58-3.9-1.96.89a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22.54 16.43-1.96-.89-8.58 3.91a2 2 0 0 1-1.66 0l-8.58-3.9-1.96.89a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/></svg>',
+  arrow_left:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>'
 };
 function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"')}return s}
 
@@ -65,7 +71,7 @@ var OPP_TYPES={
     closedStages:['Closed Won','Closed Lost'],
     color:'var(--green)',conversion:'client',
     defaultFees:{strategyFee:5000}},
-  fc_partnership:{label:'F&C Partnership',short:'F&C-P',
+  fc_partnership:{label:'F&C Partnerships',short:'F&C-P',
     stages:['Brief Received','Meeting Booked','Meeting Complete','Video Tracking','Pitch Development','Proposal Delivered'],
     closedStages:['Closed Won','Closed Lost'],awaitingStage:'Awaiting',
     color:'var(--blue)',conversion:'campaign',
@@ -80,7 +86,7 @@ function oppTypeConf(type){return OPP_TYPES[type]||OPP_TYPES.fc_partnership}
 function oppAllStages(type){var c=oppTypeConf(type);var all=c.stages.concat(c.closedStages);if(c.awaitingStage)all.push(c.awaitingStage);return all}
 function oppIsClosedStage(stage){return stage==='Closed Won'||stage==='Closed Lost'}
 
-var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'today',subView:'',layout:'grid',groupBy:'importance',
+var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'dashboard',subView:'',layout:'grid',groupBy:'importance',clientDetailName:'',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
@@ -88,38 +94,42 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected'};
 
 var SECTIONS=[
-  {id:'today',icon:'calendar',label:'Schedule',kbd:'1',subs:[
-    {id:'capacity',label:'Weekly Capacity',icon:'activity'},
+  {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
+  {id:'today',icon:'calendar',label:'Schedule',kbd:'2',subs:[
     {id:'schedule',label:'Suggested Schedule',icon:'calendar'},
     {id:'day',label:"Today's Schedule",icon:'today'},
-    {id:'prep',label:'Meeting Prep',icon:'users'}
+    {id:'prep',label:'Meeting Prep',icon:'users'},
+    {id:'analytics',label:'Analytics',icon:'bar_chart'},
+    {id:'daily',label:'Daily Summary',icon:'sun'},
+    {id:'weekly',label:'Weekly Summary',icon:'layers'},
+    {id:'capacity',label:'Weekly Capacity',icon:'activity'}
   ]},
-  {id:'tasks',icon:'tasks',label:'Tasks',kbd:'2',subs:[
+  {id:'tasks',icon:'tasks',label:'Tasks',kbd:'3',subs:[
     {id:'open',label:'Open Tasks',icon:'tasks'},
     {id:'done',label:'Completed',icon:'check'},
     {id:'review',label:'Review Queue',icon:'inbox'}
   ]},
-  {id:'opportunities',icon:'gem',label:'Opportunities',kbd:'3',subs:[
+  {id:'opportunities',icon:'gem',label:'Sales',kbd:'4',subs:[
     {id:'analytics',label:'Analytics',icon:'dashboard'},
     {id:'retain_live',label:'Retain Live',icon:'users'},
-    {id:'fc_partnership',label:'F&C Partnership',icon:'briefcase'},
-    {id:'fc_direct',label:'F&C Direct',icon:'zap'}
+    {id:'fc_partnership',label:'F&C Partnerships',icon:'briefcase'},
+    {id:'fc_direct',label:'F&C Direct',icon:'zap'},
+    {id:'profitability',label:'Profitability',icon:'activity'}
   ]},
-  {id:'campaigns',icon:'target',label:'Campaigns',kbd:'4',subs:[
+  {id:'campaigns',icon:'target',label:'Campaigns',kbd:'5',subs:[
     {id:'pipeline',label:'Pipeline',icon:'target'},
     {id:'list',label:'List',icon:'menu'},
     {id:'performance',label:'Performance',icon:'activity'}
   ]},
-  {id:'projects',icon:'folder',label:'Projects',kbd:'5',subs:[
+  {id:'projects',icon:'folder',label:'Projects',kbd:'6',subs:[
     {id:'board',label:'Board',icon:'grip'},
     {id:'list',label:'List',icon:'menu'},
     {id:'timeline',label:'Timeline',icon:'calendar'}
   ]},
-  {id:'clients',icon:'clients',label:'Clients',kbd:'6',subs:[
-    {id:'directory',label:'Directory',icon:'clients'},
-    {id:'analytics',label:'Analytics',icon:'dashboard'}
+  {id:'clients',icon:'clients',label:'Clients',kbd:'7',subs:[
+    {id:'active',label:'Active',icon:'clients'},
+    {id:'lapsed',label:'Lapsed',icon:'clock'}
   ]},
-  {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'7'},
   {id:'finance',icon:'activity',label:'Finance',kbd:'8',subs:[
     {id:'overview',label:'Overview',icon:'dashboard'},
     {id:'payments',label:'Transactions',icon:'activity'},
@@ -146,8 +156,8 @@ function subNav(subId){S.subView=subId;save();render()}
 function isMobile(){return window.innerWidth<=860}
 var MOB_VIEWS=[
   {id:'mob-add',icon:'plus',label:'Add'},
-  {id:'today',icon:'calendar',label:'Schedule'},
   {id:'tasks',icon:'tasks',label:'Tasks'},
+  {id:'mob-review',icon:'inbox',label:'Review'},
   {id:'opportunities',icon:'gem',label:'Opps'}
 ];
 
@@ -1942,8 +1952,7 @@ function finFilteredPayments(){
       return true;
     });
   }
-  else if(S.finFilter==='matched')fp=fp.filter(function(p){return p.status==='matched'&&p.type!=='transfer'});
-  else if(S.finFilter==='split')fp=fp.filter(function(p){return p.status==='split'&&p.type!=='transfer'});
+  else if(S.finFilter==='matched')fp=fp.filter(function(p){return(p.status==='matched'||p.status==='split')&&p.type!=='transfer'});
   else if(S.finFilter==='expenses')fp=fp.filter(function(p){return p.direction==='outflow'&&p.type!=='transfer'});
   if(S.finDirection)fp=fp.filter(function(p){return p.direction===S.finDirection});
   if(S.finSearch){var q=S.finSearch.toLowerCase();
@@ -2187,7 +2196,9 @@ function buildSubNav(sec){
   sec.subs.forEach(function(sub){
     var isOn=S.subView===sub.id;
     h+='<div class="sub-nav-item'+(isOn?' on':'')+'" onclick="TF.subNav(\''+sub.id+'\')">';
-    h+='<span class="ico">'+icon(sub.icon,14)+'</span>'+sub.label+'</div>'});
+    h+='<span class="ico">'+icon(sub.icon,14)+'</span>'+sub.label;
+    if(sub.id==='review'&&S.review.length>0)h+='<span class="sub-badge">'+S.review.length+'</span>';
+    h+='</div>'});
   el.innerHTML=h;el.classList.add('open')}
 function openMenu(){if(isMobile())return;gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on');
   var mt=document.querySelector('.btm-tab[data-v="more"]');if(mt)mt.classList.add('on')}
