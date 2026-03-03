@@ -662,7 +662,7 @@ async function loadOpportunityMeetings(){
   S.oppMeetings=(res.data||[]).map(function(r){
     return{id:r.id,opportunityId:r.opportunity_id,date:r.date?new Date(r.date):new Date(),
       title:r.title||'',recordingLink:r.recording_link||'',notes:r.notes||'',
-      created:r.created_at?new Date(r.created_at):new Date()}})}}
+      created:r.created_at?new Date(r.created_at):new Date()}})}
 
 /* ═══════════ FINANCE DATA ═══════════ */
 async function loadFinancePayments(){
