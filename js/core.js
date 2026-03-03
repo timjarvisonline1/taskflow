@@ -463,7 +463,7 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_pto',JSON.stringify(S.projTaskOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_sv',S.view);localStorage.setItem('tf_sv2',S.subView)}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_pto',JSON.stringify(S.projTaskOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_sv',S.view);localStorage.setItem('tf_sv2',S.subView);localStorage.setItem('tf_ftg',JSON.stringify(S.forecastToggles||{}));localStorage.setItem('tf_fac',S.forecastAccount||'')}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
@@ -485,6 +485,8 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var fcli=localStorage.getItem('tf_fcli');if(fcli!==null)S.finClientFilter=fcli;
   var fcs=localStorage.getItem('tf_fcs');if(fcs)S.finCustomStart=fcs;
   var fce=localStorage.getItem('tf_fce');if(fce)S.finCustomEnd=fce;
+  var ftg=localStorage.getItem('tf_ftg');if(ftg)try{S.forecastToggles=JSON.parse(ftg)}catch(e){}
+  var fac=localStorage.getItem('tf_fac');if(fac)S.forecastAccount=fac;
   /* Migrate old view IDs to new structure */
   var viewMap={overview:'today',schedule:'today',analytics:'tasks',meetings:'today',weekly:'tasks',templates:'tasks',pipeline:'opportunities',review:'tasks'};
   if(viewMap[S.view])S.view=viewMap[S.view];
@@ -614,6 +616,8 @@ async function loadOpportunities(){
       source:r.source||'',notes:r.notes||'',
       closedAt:r.closed_at?new Date(r.closed_at):null,
       convertedCampaignId:r.converted_campaign_id||'',
+      paymentMethod:r.payment_method||'bank_transfer',processingFeePct:parseFloat(r.processing_fee_pct)||0,
+      receivingAccount:r.receiving_account||'',expectedMonthlyDuration:r.expected_monthly_duration||12,
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
 /* ═══════════ FINANCE DATA ═══════════ */
@@ -749,6 +753,7 @@ async function loadScheduledItems(){
       nextDue:r.next_due||null,category:r.category||'',account:r.account||'',
       type:r.type||'expense',clientId:r.client_id||null,notes:r.notes||'',
       isActive:r.is_active!==false,lastPaidDate:r.last_paid_date||null,
+      endDate:r.end_date||null,numPayments:r.num_payments||null,
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
 async function dbAddScheduledItem(data){
@@ -757,7 +762,7 @@ async function dbAddScheduledItem(data){
     frequency:data.frequency||'monthly',day_of_month:data.dayOfMonth||null,
     next_due:data.nextDue||null,category:data.category||'',account:data.account||'',
     type:data.type||'expense',client_id:data.clientId||null,notes:data.notes||'',
-    is_active:data.isActive!==false};
+    is_active:data.isActive!==false,end_date:data.endDate||null,num_payments:data.numPayments||null};
   var res=await _sb.from('scheduled_items').insert(row).select('id').single();
   if(res.error){toast('Add scheduled item failed: '+res.error.message,'warn');return null}
   return res.data.id}
@@ -777,6 +782,8 @@ async function dbEditScheduledItem(id,data){
   if('notes' in data)row.notes=data.notes||'';
   if('isActive' in data)row.is_active=data.isActive!==false;
   if('lastPaidDate' in data)row.last_paid_date=data.lastPaidDate||null;
+  if('endDate' in data)row.end_date=data.endDate||null;
+  if('numPayments' in data)row.num_payments=data.numPayments||null;
   var res=await _sb.from('scheduled_items').update(row).eq('id',id);
   if(res.error){toast('Update scheduled item failed: '+res.error.message,'warn');return false}
   return true}
@@ -793,6 +800,7 @@ async function loadTeamMembers(){
     return{id:r.id,name:r.name||'',role:r.role||'',salary:parseFloat(r.salary)||0,
       payFrequency:r.pay_frequency||'monthly',payDay:r.pay_day||1,
       commissionRate:parseFloat(r.commission_rate)||0,commissionBasis:r.commission_basis||'',
+      commissionFrequency:r.commission_frequency||'monthly',commissionCap:parseFloat(r.commission_cap)||null,
       startDate:r.start_date||null,notes:r.notes||'',isActive:r.is_active!==false,
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
@@ -801,6 +809,7 @@ async function dbAddTeamMember(data){
   var row={user_id:uid,name:data.name||'',role:data.role||'',salary:data.salary||0,
     pay_frequency:data.payFrequency||'monthly',pay_day:data.payDay||1,
     commission_rate:data.commissionRate||0,commission_basis:data.commissionBasis||'',
+    commission_frequency:data.commissionFrequency||'monthly',commission_cap:data.commissionCap||null,
     start_date:data.startDate||null,notes:data.notes||'',is_active:data.isActive!==false};
   var res=await _sb.from('team_members').insert(row).select('id').single();
   if(res.error){toast('Add team member failed: '+res.error.message,'warn');return null}
@@ -815,6 +824,8 @@ async function dbEditTeamMember(id,data){
   if('payDay' in data)row.pay_day=data.payDay||1;
   if('commissionRate' in data)row.commission_rate=data.commissionRate||0;
   if('commissionBasis' in data)row.commission_basis=data.commissionBasis||'';
+  if('commissionFrequency' in data)row.commission_frequency=data.commissionFrequency||'monthly';
+  if('commissionCap' in data)row.commission_cap=data.commissionCap||null;
   if('startDate' in data)row.start_date=data.startDate||null;
   if('notes' in data)row.notes=data.notes||'';
   if('isActive' in data)row.is_active=data.isActive!==false;
@@ -853,6 +864,8 @@ function getNextOccurrence(item,afterDate){
 
 function itemFallsOnDay(item,dayStr){
   /* Check if a scheduled item has an occurrence on this exact date YYYY-MM-DD */
+  /* End date guard */
+  if(item.endDate){var endD=new Date(item.endDate+'T00:00:00');if(new Date(dayStr+'T00:00:00')>endD)return false}
   if(item.frequency==='once')return item.nextDue===dayStr;
   var dayDate=new Date(dayStr+'T00:00:00');
   var dom=item.dayOfMonth||1;
@@ -884,17 +897,21 @@ function salaryFallsOnDay(member,dayStr){
 
 function calcTeamCommissions(member,periodStart,periodEnd){
   if(!member.commissionRate||!member.commissionBasis)return 0;
-  var rate=member.commissionRate/100;
-  var total=0;
+  var rate=member.commissionRate/100;var total=0;
+  var basis=member.commissionBasis;
+  /* Category-based: filter by PAY_CAT match */
+  var catBased=['Retain Live','F&C Monthly Fees','F&C Strategy','F&C Campaign Set-Up','Products'];
   S.financePayments.forEach(function(p){
-    if(p.direction!=='inflow'||p.status==='excluded')return;
-    if(!p.date)return;
+    if(p.direction!=='inflow'||p.status==='excluded'||!p.date)return;
     var pd=p.date instanceof Date?p.date:new Date(p.date+'T00:00:00');
     if(pd<periodStart||pd>periodEnd)return;
-    if(member.commissionBasis==='revenue')total+=p.amount*rate;
-    else if(member.commissionBasis==='profit')total+=p.net*rate});
-  if(member.commissionBasis==='per_deal'){
-    /* Count distinct clients or campaigns paid in period */
+    if(catBased.indexOf(basis)!==-1){
+      if(p.category===basis)total+=p.amount*rate;
+    }else if(basis==='All Revenue'||basis==='revenue'){
+      total+=p.amount*rate;
+    }else if(basis==='profit'){
+      total+=p.net*rate}});
+  if(basis==='per_deal'){
     var deals=new Set();
     S.financePayments.forEach(function(p){
       if(p.direction!=='inflow'||p.status==='excluded'||!p.date)return;
@@ -902,7 +919,83 @@ function calcTeamCommissions(member,periodStart,periodEnd){
       if(pd<periodStart||pd>periodEnd)return;
       if(p.clientId)deals.add(p.clientId)});
     total=deals.size*member.commissionRate}
+  if(member.commissionCap&&total>member.commissionCap)total=member.commissionCap;
   return total}
+
+function getCommissionTally(member){
+  /* Calculate accrued unpaid commission since last commission payment */
+  if(!member.commissionRate||!member.commissionBasis)return{accrued:0,nextPaymentDate:null};
+  var now=new Date();now.setHours(0,0,0,0);
+  var freq=member.commissionFrequency||'monthly';
+  /* Determine period start: beginning of current commission period */
+  var periodStart;
+  if(freq==='quarterly'){
+    var qm=now.getMonth()-now.getMonth()%3;
+    periodStart=new Date(now.getFullYear(),qm,1);
+  }else{
+    periodStart=new Date(now.getFullYear(),now.getMonth(),1)}
+  var accrued=calcTeamCommissions(member,periodStart,now);
+  /* Next payment date */
+  var nextPay;
+  if(freq==='quarterly'){
+    nextPay=new Date(periodStart);nextPay.setMonth(nextPay.getMonth()+3);
+  }else{
+    nextPay=new Date(now.getFullYear(),now.getMonth()+1,member.payDay||1)}
+  return{accrued:accrued,nextPaymentDate:nextPay.toISOString().split('T')[0]}}
+
+function commissionFallsOnDay(member,dayStr){
+  var freq=member.commissionFrequency||'monthly';
+  var dayDate=new Date(dayStr+'T00:00:00');
+  var pd=member.payDay||1;
+  if(freq==='monthly')return dayDate.getDate()===pd;
+  if(freq==='quarterly')return dayDate.getDate()===pd&&dayDate.getMonth()%3===0;
+  return false}
+
+function estimateMonthlyCommission(member){
+  if(!member.commissionRate||!member.commissionBasis)return 0;
+  var now=new Date();
+  /* Average of last 3 months */
+  var total=0;
+  for(var i=1;i<=3;i++){
+    var ps=new Date(now.getFullYear(),now.getMonth()-i,1);
+    var pe=new Date(now.getFullYear(),now.getMonth()-i+1,0);
+    total+=calcTeamCommissions(member,ps,pe)}
+  return total/3}
+
+/* ── Zoho Payment Clearing ── */
+function addBusinessDays(date,n){
+  var result=new Date(date);var added=0;
+  while(added<n){result.setDate(result.getDate()+1);var dow=result.getDay();
+    if(dow!==0&&dow!==6)added++}
+  return result}
+
+function isInClearing(payment){
+  if(payment.direction!=='inflow')return false;
+  if(payment.source!=='zoho_books'&&payment.source!=='zoho_payments')return false;
+  if(!payment.date)return false;
+  var payDate=payment.date instanceof Date?payment.date:new Date(payment.date+'T00:00:00');
+  var clearDate=addBusinessDays(payDate,2);
+  return new Date()<clearDate}
+
+/* ── Forecast Toggles ── */
+function toggleForecastSource(key){
+  if(!S.forecastToggles)S.forecastToggles={};
+  S.forecastToggles[key]=S.forecastToggles[key]===false?true:false;
+  save();render()}
+
+function setForecastAccount(acct){
+  S.forecastAccount=acct||'';save();render()}
+
+/* ── One-off Quick Add ── */
+async function quickAddOneOff(){
+  var name=(gel('qo-name')||{}).value;if(!name||!name.trim()){toast('Name required','warn');return}
+  var data={name:name.trim(),amount:parseFloat((gel('qo-amount')||{}).value)||0,
+    direction:(gel('qo-direction')||{}).value||'outflow',frequency:'once',
+    nextDue:(gel('qo-date')||{}).value||null,type:'expense',isActive:true};
+  if(!data.amount){toast('Amount required','warn');return}
+  if(!data.nextDue){toast('Date required','warn');return}
+  await dbAddScheduledItem(data);await loadScheduledItems();
+  toast('One-off payment added','ok');render()}
 
 function buildForecast(horizonDays,scenario){
   horizonDays=horizonDays||S.forecastHorizon||90;
@@ -911,6 +1004,8 @@ function buildForecast(horizonDays,scenario){
   var days=[];
   var today=new Date();today.setHours(0,0,0,0);
   var running=startBal;
+  var tg=S.forecastToggles||{};
+  var acctFilter=S.forecastAccount||'';
 
   /* Pre-compute pipeline items */
   var pipelineItems=S.opportunities.filter(function(o){
@@ -925,55 +1020,88 @@ function buildForecast(horizonDays,scenario){
     var dayStr=d.toISOString().split('T')[0];
     var dayIn=[];var dayOut=[];
 
-    /* 1. Scheduled items */
-    S.scheduledItems.forEach(function(item){
-      if(!item.isActive)return;
-      if(itemFallsOnDay(item,dayStr)){
-        var entry={name:item.name,amount:item.amount,source:'scheduled',sourceId:item.id,type:item.type};
-        if(item.direction==='inflow')dayIn.push(entry);
-        else dayOut.push(entry)}});
+    /* 1. Scheduled items (recurring + one-off) */
+    if(tg.scheduled!==false){
+      S.scheduledItems.forEach(function(item){
+        if(!item.isActive)return;
+        if(item.frequency==='once'&&tg.oneoff===false)return;
+        if(acctFilter&&item.account&&item.account.indexOf(acctFilter)===-1)return;
+        if(itemFallsOnDay(item,dayStr)){
+          var entry={name:item.name,amount:item.amount,source:'scheduled',sourceId:item.id,type:item.type,
+            frequency:item.frequency};
+          if(item.direction==='inflow')dayIn.push(entry);
+          else dayOut.push(entry)}})}
 
     /* 2. Team salaries */
-    S.teamMembers.forEach(function(m){
-      if(!m.isActive||!m.salary)return;
-      if(salaryFallsOnDay(m,dayStr)){
-        dayOut.push({name:'Salary: '+m.name,amount:m.salary,source:'team',sourceId:m.id,type:'salary'})}});
+    if(tg.salaries!==false){
+      S.teamMembers.forEach(function(m){
+        if(!m.isActive||!m.salary)return;
+        if(salaryFallsOnDay(m,dayStr)){
+          dayOut.push({name:'Salary: '+m.name,amount:m.salary,source:'team',sourceId:m.id,type:'salary'})}})}
 
-    /* 3. Pending invoices (confirmed inflows) */
-    pendingInvoices.forEach(function(inv){
-      var expDate=inv.expectedPaymentDate||null;
-      if(!expDate&&inv.date){
-        /* Fallback: assume payment 30 days after invoice date */
-        var invDate=inv.date instanceof Date?inv.date:new Date(inv.date+'T00:00:00');
-        var fb=new Date(invDate);fb.setDate(fb.getDate()+30);
-        expDate=fb.toISOString().split('T')[0]}
-      if(expDate===dayStr){
-        dayIn.push({name:'Invoice: '+(inv.payerName||inv.description||'#'+inv.sourceId),
-          amount:inv.pendingAmount,source:'invoice',sourceId:inv.id,type:'invoice'})}});
+    /* 2b. Team commissions */
+    if(tg.commissions!==false){
+      S.teamMembers.forEach(function(m){
+        if(!m.isActive||!m.commissionRate||!m.commissionBasis)return;
+        if(commissionFallsOnDay(m,dayStr)){
+          var est=estimateMonthlyCommission(m);
+          if(m.commissionFrequency==='quarterly')est=est*3;
+          if(est>0)dayOut.push({name:'Commission: '+m.name,amount:est,source:'team',sourceId:m.id,type:'commission'})}})}
 
-    /* 4. Opportunity pipeline (weighted) */
-    pipelineItems.forEach(function(op){
-      var closeStr=op.expectedClose instanceof Date?op.expectedClose.toISOString().split('T')[0]:op.expectedClose;
-      if(closeStr===dayStr){
-        var totalVal=(op.strategyFee||0)+(op.setupFee||0);
-        var prob=(op.probability||0)/100;
-        if(scenario==='conservative')prob=prob*0.5;
-        else if(scenario==='optimistic')prob=Math.min(prob*1.2,1);
-        var weighted=totalVal*prob;
-        if(weighted>0){
-          dayIn.push({name:'Pipeline: '+op.name,amount:weighted,source:'pipeline',sourceId:op.id,
-            type:'pipeline',probability:op.probability})}}});
+    /* 3. Pending invoices (confirmed inflows) — with clearing delay */
+    if(tg.invoices!==false){
+      pendingInvoices.forEach(function(inv){
+        var expDate=inv.expectedPaymentDate||null;
+        if(!expDate&&inv.date){
+          var invDate=inv.date instanceof Date?inv.date:new Date(inv.date+'T00:00:00');
+          var fb=new Date(invDate);fb.setDate(fb.getDate()+30);
+          expDate=fb.toISOString().split('T')[0]}
+        if(expDate===dayStr){
+          var clearing=isInClearing(inv);
+          dayIn.push({name:'Invoice: '+(inv.payerName||inv.description||'#'+inv.sourceId),
+            amount:inv.pendingAmount,source:'invoice',sourceId:inv.id,type:'invoice',clearing:clearing})}})}
+
+    /* 4. Opportunity pipeline (weighted, with processing fees) */
+    if(tg.pipeline!==false){
+      pipelineItems.forEach(function(op){
+        var closeStr=op.expectedClose instanceof Date?op.expectedClose.toISOString().split('T')[0]:op.expectedClose;
+        if(acctFilter&&op.receivingAccount&&op.receivingAccount!==acctFilter)return;
+        if(closeStr===dayStr){
+          var totalVal=(op.strategyFee||0)+(op.setupFee||0);
+          var feePct=(op.processingFeePct||0)/100;
+          var netVal=totalVal*(1-feePct);
+          var prob=(op.probability||0)/100;
+          if(scenario==='conservative')prob=prob*0.5;
+          else if(scenario==='optimistic')prob=Math.min(prob*1.2,1);
+          var weighted=netVal*prob;
+          if(weighted>0){
+            dayIn.push({name:'Pipeline: '+op.name,amount:weighted,source:'pipeline',sourceId:op.id,
+              type:'pipeline',probability:op.probability})}}
+        /* Pipeline monthly fee projection (post-close) */
+        if(op.monthlyFee&&op.monthlyFee>0){
+          var closeDt=new Date(closeStr+'T00:00:00');
+          var dur=op.expectedMonthlyDuration||12;
+          if(d>closeDt){
+            var mDiff=(d.getFullYear()-closeDt.getFullYear())*12+(d.getMonth()-closeDt.getMonth());
+            if(mDiff>0&&mDiff<=dur&&d.getDate()===(closeDt.getDate()||1)){
+              var mProb=(op.probability||0)/100;
+              if(scenario==='conservative')mProb=mProb*0.5;
+              else if(scenario==='optimistic')mProb=Math.min(mProb*1.2,1);
+              var mFee=op.monthlyFee*mProb*(1-(op.processingFeePct||0)/100);
+              if(mFee>0)dayIn.push({name:'Monthly: '+op.name,amount:mFee,source:'pipeline',sourceId:op.id,
+                type:'pipeline-monthly',probability:op.probability})}}}})}
 
     /* 5. Active campaign billing (frequency-aware) */
-    S.campaigns.forEach(function(cp){
-      if(cp.status!=='Active'&&cp.status!=='Running')return;
-      if(!cp.monthlyFee)return;
-      if(campaignBillingFallsOnDay(cp,dayStr)){
-        var cycleMonths=cp.billingFrequency==='quarterly'?3:cp.billingFrequency==='annually'?12:1;
-        var billingAmt=cp.monthlyFee*cycleMonths;
-        var prob=scenario==='conservative'?0.8:1;
-        dayIn.push({name:'Campaign: '+cp.name,amount:billingAmt*prob,source:'campaign',sourceId:cp.id,
-          type:'recurring',frequency:cp.billingFrequency||'monthly'})}});
+    if(tg.campaigns!==false){
+      S.campaigns.forEach(function(cp){
+        if(cp.status!=='Active'&&cp.status!=='Running')return;
+        if(!cp.monthlyFee)return;
+        if(campaignBillingFallsOnDay(cp,dayStr)){
+          var cycleMonths=cp.billingFrequency==='quarterly'?3:cp.billingFrequency==='annually'?12:1;
+          var billingAmt=cp.monthlyFee*cycleMonths;
+          var prob=scenario==='conservative'?0.8:1;
+          dayIn.push({name:'Campaign: '+cp.name,amount:billingAmt*prob,source:'campaign',sourceId:cp.id,
+            type:'recurring',frequency:cp.billingFrequency||'monthly'})}})}
 
     var totalIn=dayIn.reduce(function(s,e){return s+e.amount},0);
     var totalOut=dayOut.reduce(function(s,e){return s+e.amount},0);
@@ -1523,7 +1651,9 @@ async function dbAddOpportunity(data){
     client:data.client||'',end_client:data.endClient||'',contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
     probability:data.probability||50,expected_close:data.expectedClose||null,
-    source:data.source||'',notes:data.notes||''};
+    source:data.source||'',notes:data.notes||'',
+    payment_method:data.paymentMethod||'bank_transfer',processing_fee_pct:data.processingFeePct||0,
+    receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12};
   var res=await _sb.from('opportunities').insert(row).select().single();
   if(res.error){toast('Opportunity save failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -1534,7 +1664,9 @@ async function dbEditOpportunity(id,data){
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
     probability:data.probability||50,expected_close:data.expectedClose||null,
     source:data.source||'',notes:data.notes||'',
-    closed_at:data.closedAt||null,converted_campaign_id:data.convertedCampaignId||null};
+    closed_at:data.closedAt||null,converted_campaign_id:data.convertedCampaignId||null,
+    payment_method:data.paymentMethod||'bank_transfer',processing_fee_pct:data.processingFeePct||0,
+    receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12};
   var res=await _sb.from('opportunities').update(row).eq('id',id);
   if(res.error){toast('Opportunity update failed: '+res.error.message,'warn');return false}
   return true}

@@ -2504,6 +2504,36 @@ function rFinanceUpcoming(){
   items.forEach(function(it){if(it.direction==='inflow')totalIn+=it.amount;else totalOut+=it.amount});
 
   var h='';
+
+  /* One-off payments section */
+  var oneOffs=S.scheduledItems.filter(function(i){return i.frequency==='once'&&i.isActive});
+  if(oneOffs.length||true){
+    h+='<div class="chart-card" style="margin-bottom:20px">';
+    h+='<h3 style="margin-bottom:12px">'+icon('file',14)+' One-Off Payments</h3>';
+    if(oneOffs.length){
+      h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr>';
+      h+='<th>Name</th><th>Amount</th><th>Direction</th><th>Due Date</th><th></th>';
+      h+='</tr></thead><tbody>';
+      oneOffs.sort(function(a,b){return(a.nextDue||'9999').localeCompare(b.nextDue||'9999')}).forEach(function(item){
+        var dirCol=item.direction==='inflow'?'var(--green)':'var(--red)';
+        h+='<tr class="fin-row" onclick="TF.openEditScheduledItem(\''+item.id+'\')" style="cursor:pointer">';
+        h+='<td>'+esc(item.name)+'</td>';
+        h+='<td style="color:'+dirCol+';font-weight:600">'+(item.direction==='outflow'?'-':'')+fmtUSD(item.amount)+'</td>';
+        h+='<td><span style="font-size:11px;color:'+dirCol+'">'+esc(item.direction==='inflow'?'Inflow':'Outflow')+'</span></td>';
+        h+='<td class="fin-date">'+(item.nextDue||'—')+'</td>';
+        h+='<td><button class="btn" onclick="event.stopPropagation();TF.confirmDeleteScheduledItem(\''+item.id+'\')" style="font-size:11px;padding:4px 8px;border-radius:6px">'+icon('trash',11)+'</button></td>';
+        h+='</tr>'});
+      h+='</tbody></table></div>'}
+    else{h+='<div style="opacity:0.5;font-size:13px;text-align:center;padding:12px">No one-off payments yet</div>'}
+    /* Inline quick-add row */
+    h+='<div class="fin-quick-add" style="margin-top:8px">';
+    h+='<input id="oo-name" class="edf" placeholder="Name..." style="flex:2">';
+    h+='<input id="oo-amount" class="edf" type="number" step="0.01" placeholder="Amount" style="flex:1">';
+    h+='<select id="oo-direction" class="edf" style="flex:1"><option value="outflow">Outflow</option><option value="inflow">Inflow</option></select>';
+    h+='<input id="oo-date" class="edf" type="date" style="flex:1">';
+    h+='<button class="btn btn-p" onclick="TF.quickAddOneOff()" style="padding:6px 14px;font-size:12px">'+icon('save',11)+' Add</button>';
+    h+='</div></div>'}
+
   h+='<div class="cp-dash">';
   h+=dashMet('Expected Inflows',fmtUSD(totalIn),'var(--green)');
   h+=dashMet('Expected Outflows',fmtUSD(totalOut),'var(--red)');
@@ -2695,40 +2725,60 @@ function rFinanceOverview(){
   }).reduce(function(s,p){return s+p.amount},0);
   var unreconciledExp=S.financePayments.filter(function(p){return p.direction==='outflow'&&p.type!=='transfer'&&!p.scheduledItemId&&p.status!=='excluded'}).length;
 
-  /* Row 1 — Balance cards
-     For Brex: use availableBalance (reflects pending card authorizations)
-     For others: use currentBalance (no pending concept) */
-  var balCols=2+platKeys.length+(unreconciledExp>0?1:0);
-  h+='<div style="display:grid;grid-template-columns:repeat('+Math.min(balCols,4)+',1fr);gap:16px;margin-bottom:20px">';
-
-  /* Combined balance: use availableBalance for Brex, currentBalance for others */
+  /* Row 1 — 3 bank cards: Combined (hero) + Brex + Mercury, expandable sub-accounts */
   var combinedAvail=S.accountBalances.reduce(function(s,a){
     return s+(a.platform==='brex'&&a.availableBalance?a.availableBalance:a.currentBalance)},0);
-  h+='<div class="chart-card" style="text-align:center;padding:24px;background:linear-gradient(135deg,var(--card) 0%,rgba(61,220,132,0.05) 100%);border:1px solid rgba(61,220,132,0.2)">';
+  /* Compute clearing total */
+  var clearingTotal=S.financePayments.filter(function(p){return typeof isInClearing==='function'&&isInClearing(p)}).reduce(function(s,p){return s+p.amount},0);
+
+  var gridCols=unreconciledExp>0?4:3;
+  h+='<div style="display:grid;grid-template-columns:repeat('+gridCols+',1fr);gap:16px;margin-bottom:20px">';
+
+  /* Combined Balance — hero card */
+  h+='<div class="fin-bank-card" style="background:linear-gradient(135deg,var(--card) 0%,rgba(61,220,132,0.06) 100%);border:1px solid rgba(61,220,132,0.2)">';
   h+='<div style="font-size:12px;opacity:0.6;margin-bottom:4px">Combined Balance</div>';
   h+='<div style="font-size:28px;font-weight:700;color:var(--green)">'+fmtUSD(combinedAvail)+'</div>';
+  if(clearingTotal>0)h+='<div class="fin-clearing-badge" style="margin-top:8px"><span class="fin-clearing-dot"></span> Clearing: '+fmtUSD(clearingTotal)+'</div>';
   if(lastSync)h+='<div style="font-size:10px;opacity:0.4;margin-top:6px">Last synced '+fmtRelative(lastSync)+'</div>';
   h+='</div>';
 
-  platKeys.forEach(function(pk){
-    var p=byPlat[pk];
-    p.accounts.forEach(function(a){
-      /* Brex: show availableBalance (includes pending card charge deductions) */
-      var isBrex=pk==='brex';
-      var displayBal=isBrex&&a.availableBalance?a.availableBalance:a.currentBalance;
-      var pendingHold=isBrex?a.currentBalance-a.availableBalance:0;
-      h+='<div class="chart-card" style="text-align:center;padding:20px">';
-      h+='<div style="font-size:11px;opacity:0.6;margin-bottom:4px">'+esc(a.accountName||a.platform)+'</div>';
-      h+='<div style="font-size:20px;font-weight:600">'+fmtUSD(displayBal)+'</div>';
-      h+='<div style="font-size:10px;opacity:0.4;margin-top:4px">'+esc(a.platform)+' • '+esc(a.accountType)+'</div>';
-      if(isBrex&&pendingHold>1){
-        h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">Pending holds: -'+fmtUSD(pendingHold)+'</div>'}
-      else if(isBrex&&recentCardSpend>0){
-        h+='<div style="font-size:11px;color:var(--t4);margin-top:6px">Card spend (7d): -'+fmtUSD(recentCardSpend)+'</div>'}
-      h+='</div>'})});
+  /* Brex card — expandable */
+  var brexData=byPlat.brex||{total:0,accounts:[]};
+  var brexAvail=brexData.accounts.reduce(function(s,a){return s+(a.availableBalance||a.currentBalance)},0);
+  var brexPendingHolds=brexData.accounts.reduce(function(s,a){return s+(a.currentBalance-(a.availableBalance||a.currentBalance))},0);
+  h+='<div class="fin-bank-card">';
+  h+='<details>';
+  h+='<summary style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none">';
+  h+='<div><div style="font-size:12px;opacity:0.6;margin-bottom:4px">Brex</div>';
+  h+='<div style="font-size:22px;font-weight:700">'+fmtUSD(brexAvail)+'</div></div>';
+  h+='<span class="fin-expand-icon">'+icon('chevron-down',14)+'</span></summary>';
+  if(recentCardSpend>0)h+='<div style="font-size:11px;color:var(--t4);margin-top:4px">Card spend (7d): -'+fmtUSD(recentCardSpend)+'</div>';
+  if(brexPendingHolds>1)h+='<div style="font-size:11px;color:var(--amber);margin-top:2px">Pending holds: -'+fmtUSD(brexPendingHolds)+'</div>';
+  brexData.accounts.forEach(function(a){
+    var dispBal=a.availableBalance||a.currentBalance;
+    h+='<div class="fin-bank-sub">';
+    h+='<span style="flex:1">'+esc(a.accountName||'Account')+' <span style="font-size:10px;opacity:0.4">'+esc(a.accountType)+'</span></span>';
+    h+='<span style="font-weight:600">'+fmtUSD(dispBal)+'</span></div>'});
+  h+='</details></div>';
+
+  /* Mercury card — expandable */
+  var mercData=byPlat.mercury||{total:0,accounts:[]};
+  var mercTotal=mercData.accounts.reduce(function(s,a){return s+a.currentBalance},0);
+  h+='<div class="fin-bank-card">';
+  h+='<details>';
+  h+='<summary style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none">';
+  h+='<div><div style="font-size:12px;opacity:0.6;margin-bottom:4px">Mercury</div>';
+  h+='<div style="font-size:22px;font-weight:700">'+fmtUSD(mercTotal)+'</div></div>';
+  h+='<span class="fin-expand-icon">'+icon('chevron-down',14)+'</span></summary>';
+  mercData.accounts.forEach(function(a){
+    h+='<div class="fin-bank-sub">';
+    h+='<span style="flex:1">'+esc(a.accountName||'Account')+' <span style="font-size:10px;opacity:0.4">'+esc(a.accountType)+'</span></span>';
+    h+='<span style="font-weight:600">'+fmtUSD(a.currentBalance)+'</span></div>'});
+  h+='</details></div>';
+
   /* Unreconciled expenses CTA */
   if(unreconciledExp>0){
-    h+='<div class="chart-card" style="text-align:center;padding:20px;cursor:pointer;border:1px solid rgba(255,152,0,.2)" onclick="TF.setFinFilter(\'expenses\');TF.subNav(\'payments\')">';
+    h+='<div class="fin-bank-card" style="cursor:pointer;border-color:rgba(255,152,0,.25)" onclick="TF.setFinFilter(\'expenses\');TF.subNav(\'payments\')">';
     h+='<div style="font-size:24px;font-weight:700;color:var(--amber)">'+unreconciledExp+'</div>';
     h+='<div style="font-size:12px;opacity:0.6">Unreconciled Expenses</div>';
     h+='<div style="font-size:10px;color:var(--amber);margin-top:4px">Click to reconcile →</div>';
@@ -2784,12 +2834,15 @@ function rFinanceOverview(){
     recent.forEach(function(p){
       var col=p.direction==='inflow'?'var(--green)':'var(--red)';
       var sign=p.direction==='inflow'?'+':'-';
+      var clearing=typeof isInClearing==='function'&&isInClearing(p);
       h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">';
-      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px">';
+      if(clearing)h+='<span class="fin-clearing-dot" title="Clearing (2 business days)"></span>';
+      h+='<div style="min-width:0;flex:1">';
       h+='<div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(p.payerName||p.description||'Unknown')+'</div>';
-      h+='<div style="font-size:11px;opacity:0.5">'+(p.date?fmtDate(p.date):'No date')+' • '+esc(p.source)+'</div>';
-      h+='</div>';
-      h+='<div style="font-size:14px;font-weight:600;color:'+col+';margin-left:12px">'+sign+fmtUSD(p.amount)+'</div>';
+      h+='<div style="font-size:11px;opacity:0.5">'+(p.date?fmtDate(p.date):'No date')+' • '+esc(p.source)+(clearing?' • Clearing':'')+'</div>';
+      h+='</div></div>';
+      h+='<div style="font-size:14px;font-weight:600;color:'+(clearing?'var(--amber)':col)+';margin-left:12px">'+sign+fmtUSD(p.amount)+'</div>';
       h+='</div>'})}
   h+='</div>';
 
@@ -2928,9 +2981,11 @@ function rFinanceForecast(){
   var h='<div class="fin-analytics">';
   var horizon=S.forecastHorizon||90;
   var scenario=S.forecastScenario||'expected';
+  var tg=S.forecastToggles||{};
+  var acctFilter=S.forecastAccount||'';
 
-  /* Controls */
-  h+='<div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap">';
+  /* Controls row 1: Horizon + Scenario */
+  h+='<div style="display:flex;gap:16px;align-items:center;margin-bottom:12px;flex-wrap:wrap">';
   h+='<div class="fin-range-pills-group">';
   [30,60,90,180,365].forEach(function(d){
     h+='<button class="fin-range-pill'+(horizon===d?' on':'')+'" onclick="TF.setForecastHorizon('+d+')">'+d+'d</button>'});
@@ -2939,23 +2994,46 @@ function rFinanceForecast(){
   [['conservative','Conservative'],['expected','Expected'],['optimistic','Optimistic']].forEach(function(s){
     h+='<button class="fin-range-pill'+(scenario===s[0]?' on':'')+'" onclick="TF.setForecastScenario(\''+s[0]+'\')">'+s[1]+'</button>'});
   h+='</div>';
+  /* Account filter */
+  h+='<div style="margin-left:auto;display:flex;gap:6px;align-items:center">';
+  h+='<span style="font-size:11px;opacity:0.5">Account:</span>';
+  h+='<div class="fin-range-pills-group">';
+  [['','All'],['brex','Brex'],['mercury','Mercury']].forEach(function(a){
+    h+='<button class="fin-range-pill'+(acctFilter===a[0]?' on':'')+'" onclick="TF.setForecastAccount(\''+a[0]+'\')">'+a[1]+'</button>'});
+  h+='</div></div>';
   var lastSync=S.accountBalances.length?S.accountBalances[0].capturedAt:null;
-  if(lastSync)h+='<span style="font-size:11px;opacity:0.4;margin-left:auto">Balance as of '+fmtRelative(lastSync)+'</span>';
+  if(lastSync)h+='<span style="font-size:11px;opacity:0.4;margin-left:8px">Balance as of '+fmtRelative(lastSync)+'</span>';
+  h+='</div>';
+
+  /* Controls row 2: Source toggles */
+  h+='<div class="fin-forecast-toggles" style="margin-bottom:20px">';
+  h+='<span style="font-size:11px;opacity:0.5;margin-right:6px">Sources:</span>';
+  var toggleDefs=[
+    ['campaigns','Campaigns','var(--blue)'],
+    ['scheduled','Scheduled','var(--purple50)'],
+    ['invoices','Invoices','var(--green)'],
+    ['salaries','Salaries','var(--pink)'],
+    ['pipeline','Pipeline','var(--amber)'],
+    ['oneoff','One-Off','var(--t2)'],
+    ['commissions','Commissions','var(--amber)']];
+  toggleDefs.forEach(function(td){
+    var isOn=tg[td[0]]!==false;
+    h+='<button class="fin-toggle'+(isOn?' on':'')+'" style="'+(isOn?'border-color:'+td[2]+';color:'+td[2]:'')+ '" onclick="TF.toggleForecastSource(\''+td[0]+'\')">'+td[1]+'</button>'});
   h+='</div>';
 
   /* Build forecast */
   var fc=buildForecast(horizon,scenario);
   var metrics=getForecastMetrics(fc);
 
-  /* Metric cards */
-  h+='<div class="cp-dash" style="margin-bottom:20px">';
-  h+=dashMet('Current Balance',fmtUSD(fc.startingBalance),'var(--blue)');
-  h+=dashMet('30-Day Forecast',fmtUSD(metrics.day30),metrics.day30>=0?'var(--green)':'var(--red)');
-  h+=dashMet('Monthly Burn',fmtUSD(metrics.burnRate),'var(--red)');
-  h+=dashMet('Runway',metrics.runway>=fc.horizonDays?'> '+fc.horizonDays+'d':metrics.runway+' days',
-    metrics.runway<30?'var(--red)':metrics.runway<90?'var(--amber)':'var(--green)');
-  if(metrics.nextBigIn)h+=dashMet('Next Big Inflow',fmtUSD(metrics.nextBigIn.amount)+'<br><span style="font-size:10px;opacity:0.6">'+esc(metrics.nextBigIn.name)+'</span>','var(--green)');
-  if(metrics.nextBigOut)h+=dashMet('Next Big Outflow',fmtUSD(metrics.nextBigOut.amount)+'<br><span style="font-size:10px;opacity:0.6">'+esc(metrics.nextBigOut.name)+'</span>','var(--red)');
+  /* Metric cards — bigger, gradient borders */
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px">';
+  h+='<div class="chart-card" style="text-align:center;padding:20px;border-left:3px solid var(--blue)"><div style="font-size:11px;opacity:0.5;margin-bottom:4px">Current Balance</div><div style="font-size:22px;font-weight:700;color:var(--blue)">'+fmtUSD(fc.startingBalance)+'</div></div>';
+  h+='<div class="chart-card" style="text-align:center;padding:20px;border-left:3px solid '+(metrics.day30>=0?'var(--green)':'var(--red)')+'"><div style="font-size:11px;opacity:0.5;margin-bottom:4px">30-Day Forecast</div><div style="font-size:22px;font-weight:700;color:'+(metrics.day30>=0?'var(--green)':'var(--red)')+'">'+fmtUSD(metrics.day30)+'</div></div>';
+  h+='<div class="chart-card" style="text-align:center;padding:20px;border-left:3px solid var(--red)"><div style="font-size:11px;opacity:0.5;margin-bottom:4px">Monthly Burn</div><div style="font-size:22px;font-weight:700;color:var(--red)">'+fmtUSD(metrics.burnRate)+'</div></div>';
+  var rwColor=metrics.runway<30?'var(--red)':metrics.runway<90?'var(--amber)':'var(--green)';
+  h+='<div class="chart-card" style="text-align:center;padding:20px;border-left:3px solid '+rwColor+'"><div style="font-size:11px;opacity:0.5;margin-bottom:4px">Runway</div><div style="font-size:22px;font-weight:700;color:'+rwColor+'">'+(metrics.runway>=fc.horizonDays?'> '+fc.horizonDays+'d':metrics.runway+' days')+'</div></div>';
+  if(metrics.nextBigIn)h+='<div class="chart-card" style="text-align:center;padding:20px;border-left:3px solid var(--green)"><div style="font-size:11px;opacity:0.5;margin-bottom:4px">Next Big Inflow</div><div style="font-size:18px;font-weight:700;color:var(--green)">'+fmtUSD(metrics.nextBigIn.amount)+'</div><div style="font-size:10px;opacity:0.5;margin-top:2px">'+esc(metrics.nextBigIn.name)+'</div></div>';
+  if(metrics.nextBigOut)h+='<div class="chart-card" style="text-align:center;padding:20px;border-left:3px solid var(--red)"><div style="font-size:11px;opacity:0.5;margin-bottom:4px">Next Big Outflow</div><div style="font-size:18px;font-weight:700;color:var(--red)">'+fmtUSD(metrics.nextBigOut.amount)+'</div><div style="font-size:10px;opacity:0.5;margin-top:2px">'+esc(metrics.nextBigOut.name)+'</div></div>';
   h+='</div>';
 
   /* Main forecast chart */
@@ -2974,59 +3052,77 @@ function rFinanceForecast(){
   h+='<h3 style="margin:20px 0 12px;font-size:14px;opacity:0.7">Forecast Sources</h3>';
 
   /* Scheduled expenses */
-  var schedOut=S.scheduledItems.filter(function(i){return i.isActive&&i.direction==='outflow'});
-  var schedIn=S.scheduledItems.filter(function(i){return i.isActive&&i.direction==='inflow'});
+  var schedOut=S.scheduledItems.filter(function(i){return i.isActive&&i.direction==='outflow'&&i.frequency!=='once'});
+  var schedIn=S.scheduledItems.filter(function(i){return i.isActive&&i.direction==='inflow'&&i.frequency!=='once'});
 
-  h+='<details open style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('refresh',14)+' Scheduled Expenses ('+schedOut.length+')</summary>';
+  h+='<details open style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('refresh',14)+' Scheduled Expenses ('+schedOut.length+')'+(tg.scheduled===false?' <span style="font-size:10px;color:var(--amber);margin-left:6px">OFF</span>':'')+'</summary>';
   if(schedOut.length){
-    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Confidence</th></tr></thead><tbody>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>End Date</th><th>Confidence</th></tr></thead><tbody>';
     schedOut.forEach(function(i){
       h+='<tr class="fin-row"><td>'+esc(i.name)+'</td><td style="color:var(--red)">-'+fmtUSD(i.amount)+'</td>';
-      h+='<td>'+esc(i.frequency)+'</td><td>'+(i.nextDue||'—')+'</td><td>100%</td></tr>'});
+      h+='<td>'+esc(i.frequency)+'</td><td>'+(i.nextDue||'—')+'</td><td>'+(i.endDate||'—')+'</td><td>100%</td></tr>'});
     h+='</tbody></table></div>'}
   else h+='<div style="opacity:0.5;font-size:13px;padding:8px">No scheduled expenses</div>';
   h+='</details>';
 
   /* Team costs */
   var activeTeam=S.teamMembers.filter(function(m){return m.isActive&&m.salary>0});
-  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('clients',14)+' Team Costs ('+activeTeam.length+')</summary>';
+  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('clients',14)+' Team Costs ('+activeTeam.length+')'+(tg.salaries===false?' <span style="font-size:10px;color:var(--amber);margin-left:6px">OFF</span>':'')+'</summary>';
   if(activeTeam.length){
-    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Salary</th><th>Pay Frequency</th><th>Pay Day</th><th>Confidence</th></tr></thead><tbody>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Salary</th><th>Pay Frequency</th><th>Pay Day</th><th>Est. Commission</th><th>Confidence</th></tr></thead><tbody>';
     activeTeam.forEach(function(m){
+      var est=estimateMonthlyCommission(m);
       h+='<tr class="fin-row"><td>'+esc(m.name)+'</td><td style="color:var(--red)">-'+fmtUSD(m.salary)+'</td>';
-      h+='<td>'+esc(m.payFrequency)+'</td><td>'+m.payDay+'</td><td>100%</td></tr>'});
+      h+='<td>'+esc(m.payFrequency)+'</td><td>'+m.payDay+'</td>';
+      h+='<td style="color:var(--amber)">'+(est>0?'-'+fmtUSD(est)+'/mo':'—')+'</td>';
+      h+='<td>100%</td></tr>'});
     h+='</tbody></table></div>'}
   else h+='<div style="opacity:0.5;font-size:13px;padding:8px">No team members</div>';
   h+='</details>';
 
   /* Confirmed inflows (pending invoices) */
   var pendInv=S.financePayments.filter(function(p){return p.type==='invoice'&&p.pendingAmount>0&&p.status!=='excluded'});
-  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('file',14)+' Confirmed Inflows ('+pendInv.length+')</summary>';
+  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('file',14)+' Confirmed Inflows ('+pendInv.length+')'+(tg.invoices===false?' <span style="font-size:10px;color:var(--amber);margin-left:6px">OFF</span>':'')+'</summary>';
   if(pendInv.length){
-    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Payer</th><th>Amount</th><th>Expected Date</th><th>Confidence</th></tr></thead><tbody>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Payer</th><th>Amount</th><th>Expected Date</th><th>Status</th><th>Confidence</th></tr></thead><tbody>';
     pendInv.forEach(function(p){
       var expDate=p.expectedPaymentDate||(p.date?fmtDate(new Date(new Date(p.date).getTime()+30*86400000)):'Unknown');
+      var clearing=typeof isInClearing==='function'&&isInClearing(p);
       h+='<tr class="fin-row"><td>'+esc(p.payerName||p.description)+'</td><td style="color:var(--green)">+'+fmtUSD(p.pendingAmount)+'</td>';
-      h+='<td>'+esc(expDate)+'</td><td>100%</td></tr>'});
+      h+='<td>'+esc(expDate)+'</td>';
+      h+='<td>'+(clearing?'<span class="fin-clearing-badge"><span class="fin-clearing-dot"></span> Clearing</span>':'Confirmed')+'</td>';
+      h+='<td>100%</td></tr>'});
     h+='</tbody></table></div>'}
   else h+='<div style="opacity:0.5;font-size:13px;padding:8px">No pending invoices</div>';
   h+='</details>';
 
-  /* Pipeline */
+  /* Pipeline — with net after fees */
   var pipeItems=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'&&o.expectedClose});
-  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('gem',14)+' Pipeline ('+pipeItems.length+')</summary>';
+  h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('gem',14)+' Pipeline ('+pipeItems.length+')'+(tg.pipeline===false?' <span style="font-size:10px;color:var(--amber);margin-left:6px">OFF</span>':'')+'</summary>';
   if(pipeItems.length){
-    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Opportunity</th><th>Value</th><th>Expected Close</th><th>Probability</th><th>Weighted</th></tr></thead><tbody>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Opportunity</th><th>Value</th><th>Fee %</th><th>Net (after fees)</th><th>Expected Close</th><th>Probability</th><th>Weighted</th></tr></thead><tbody>';
     pipeItems.sort(function(a,b){
       var ad=a.expectedClose instanceof Date?a.expectedClose.toISOString():a.expectedClose||'';
       var bd=b.expectedClose instanceof Date?b.expectedClose.toISOString():b.expectedClose||'';
       return ad.localeCompare(bd)}).forEach(function(o){
       var val=(o.strategyFee||0)+(o.setupFee||0);
+      var feePct=o.processingFeePct||0;
+      var netVal=val*(1-feePct/100);
       var prob=o.probability||0;
-      var weighted=val*(prob/100);
+      var weighted=netVal*(prob/100);
       var closeStr=o.expectedClose instanceof Date?fmtDate(o.expectedClose):(o.expectedClose||'');
       h+='<tr class="fin-row"><td>'+esc(o.name)+'</td><td>'+fmtUSD(val)+'</td>';
-      h+='<td>'+closeStr+'</td><td>'+prob+'%</td><td style="color:var(--green)">+'+fmtUSD(weighted)+'</td></tr>'});
+      h+='<td>'+(feePct>0?feePct+'%':'—')+'</td>';
+      h+='<td>'+fmtUSD(netVal)+'</td>';
+      h+='<td>'+closeStr+'</td><td>'+prob+'%</td><td style="color:var(--green)">+'+fmtUSD(weighted)+'</td></tr>';
+      /* Monthly fee projection */
+      if(o.monthlyFee>0){
+        var dur=o.expectedMonthlyDuration||12;
+        var monthlyNet=o.monthlyFee*(1-feePct/100);
+        h+='<tr class="fin-row" style="opacity:0.6"><td style="padding-left:24px">↳ Monthly fee × '+dur+'mo</td>';
+        h+='<td>'+fmtUSD(o.monthlyFee)+'/mo</td><td></td>';
+        h+='<td>'+fmtUSD(monthlyNet)+'/mo</td>';
+        h+='<td colspan="2"></td><td style="color:var(--green)">+'+fmtUSD(monthlyNet*dur*(prob/100))+'</td></tr>'}});
     h+='</tbody></table></div>'}
   else h+='<div style="opacity:0.5;font-size:13px;padding:8px">No pipeline opportunities with expected close dates</div>';
   h+='</details>';
@@ -3034,10 +3130,34 @@ function rFinanceForecast(){
   /* Scheduled inflows */
   if(schedIn.length){
     h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('activity',14)+' Scheduled Inflows ('+schedIn.length+')</summary>';
-    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>Confidence</th></tr></thead><tbody>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Amount</th><th>Frequency</th><th>Next Due</th><th>End Date</th><th>Confidence</th></tr></thead><tbody>';
     schedIn.forEach(function(i){
       h+='<tr class="fin-row"><td>'+esc(i.name)+'</td><td style="color:var(--green)">+'+fmtUSD(i.amount)+'</td>';
-      h+='<td>'+esc(i.frequency)+'</td><td>'+(i.nextDue||'—')+'</td><td>100%</td></tr>'});
+      h+='<td>'+esc(i.frequency)+'</td><td>'+(i.nextDue||'—')+'</td><td>'+(i.endDate||'—')+'</td><td>100%</td></tr>'});
+    h+='</tbody></table></div></details>'}
+
+  /* One-off payments */
+  var oneOffs=S.scheduledItems.filter(function(i){return i.frequency==='once'&&i.isActive});
+  if(oneOffs.length){
+    h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('file',14)+' One-Off Payments ('+oneOffs.length+')'+(tg.oneoff===false?' <span style="font-size:10px;color:var(--amber);margin-left:6px">OFF</span>':'')+'</summary>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Name</th><th>Amount</th><th>Direction</th><th>Due Date</th><th>Confidence</th></tr></thead><tbody>';
+    oneOffs.forEach(function(i){
+      var dirCol=i.direction==='inflow'?'var(--green)':'var(--red)';
+      h+='<tr class="fin-row"><td>'+esc(i.name)+'</td><td style="color:'+dirCol+'">'+(i.direction==='outflow'?'-':'+')+fmtUSD(i.amount)+'</td>';
+      h+='<td>'+esc(i.direction)+'</td><td>'+(i.nextDue||'—')+'</td><td>100%</td></tr>'});
+    h+='</tbody></table></div></details>'}
+
+  /* Campaign revenue breakdown */
+  var activeCampaigns=S.campaigns.filter(function(c){return c.status==='Active'||c.status==='Setup'});
+  if(activeCampaigns.length&&tg.campaigns!==false){
+    h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('target',14)+' Campaign Revenue ('+activeCampaigns.length+')</summary>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Campaign</th><th>Billing Frequency</th><th>Next Billing</th><th>Monthly Fees</th></tr></thead><tbody>';
+    activeCampaigns.forEach(function(c){
+      var monthlyFee=(c.monthlyFee||0);
+      h+='<tr class="fin-row"><td>'+esc(c.name)+'</td>';
+      h+='<td>'+esc(c.billingFrequency||'monthly')+'</td>';
+      h+='<td>'+(c.nextBillingDate||'—')+'</td>';
+      h+='<td style="color:var(--green)">+'+fmtUSD(monthlyFee)+'/mo</td></tr>'});
     h+='</tbody></table></div></details>'}
 
   h+='</div>';
@@ -3113,29 +3233,34 @@ function rFinanceTeam(){
 
   /* Summary cards */
   var totalPayroll=active.reduce(function(s,m){return s+m.salary},0);
-  var avgCommission=active.length?active.reduce(function(s,m){return s+m.commissionRate},0)/active.length:0;
+  var totalAccruedComm=0;
+  var totalEstMonthlyComm=0;
+  active.forEach(function(m){
+    var tally=getCommissionTally(m);
+    totalAccruedComm+=tally.accrued;
+    totalEstMonthlyComm+=estimateMonthlyCommission(m)});
 
   h+='<div class="cp-dash" style="margin-bottom:20px">';
   h+=dashMet('Monthly Payroll',fmtUSD(totalPayroll),'var(--red)');
   h+=dashMet('Annual Payroll',fmtUSD(totalPayroll*12),'var(--red)');
   h+=dashMet('Team Size',active.length,'var(--blue)');
-  h+=dashMet('Avg Commission',avgCommission.toFixed(1)+'%',avgCommission>0?'var(--amber)':'var(--muted)');
+  h+=dashMet('Accrued Commission',fmtUSD(totalAccruedComm),totalAccruedComm>0?'var(--amber)':'var(--muted)');
+  h+=dashMet('Est. Monthly Commission',fmtUSD(totalEstMonthlyComm),totalEstMonthlyComm>0?'var(--amber)':'var(--muted)');
   h+='</div>';
 
   /* Active members table */
   h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr>';
   h+='<th>Name</th><th>Role</th><th>Salary</th><th>Pay Schedule</th>';
-  h+='<th>Commission</th><th>Start Date</th><th>Annual Cost</th><th></th>';
+  h+='<th>Commission</th><th>Commission Owed</th><th>Annual Cost</th><th></th>';
   h+='</tr></thead><tbody>';
 
   if(!active.length)h+='<tr><td colspan="8" style="text-align:center;opacity:0.5;padding:32px">No team members yet. Click "+ Add Member" to get started.</td></tr>';
 
   active.forEach(function(m){
     var annualSalary=m.salary*12;
-    /* Estimate commission for current month */
-    var now=new Date();var monthStart=new Date(now.getFullYear(),now.getMonth(),1);
-    var commission=calcTeamCommissions(m,monthStart,now);
-    var estAnnual=annualSalary+(commission*12);
+    var tally=getCommissionTally(m);
+    var estMonthly=estimateMonthlyCommission(m);
+    var estAnnual=annualSalary+(estMonthly*12);
 
     h+='<tr class="fin-row" onclick="TF.openEditTeamMember(\''+m.id+'\')" style="cursor:pointer">';
     h+='<td><span class="fin-payer-name">'+esc(m.name)+'</span></td>';
@@ -3143,15 +3268,39 @@ function rFinanceTeam(){
     h+='<td style="font-weight:600">'+fmtUSD(m.salary)+'/mo</td>';
     h+='<td><span style="font-size:11px;opacity:0.7">'+esc(m.payFrequency)+' (day '+m.payDay+')</span></td>';
     h+='<td>';
-    if(m.commissionRate>0)h+=m.commissionRate+'% of '+esc(m.commissionBasis||'revenue');
+    if(m.commissionRate>0){
+      h+=m.commissionRate+'% of '+esc(m.commissionBasis||'revenue');
+      h+='<div style="font-size:10px;opacity:0.5">'+esc((m.commissionFrequency||'monthly'))+(m.commissionCap?' • Cap: '+fmtUSD(m.commissionCap):'')+'</div>'}
     else h+='<span style="opacity:0.4">None</span>';
     h+='</td>';
-    h+='<td class="fin-date">'+(m.startDate||'—')+'</td>';
+    h+='<td>';
+    if(tally.accrued>0)h+='<span style="font-weight:600;color:var(--amber)">'+fmtUSD(tally.accrued)+'</span>';
+    else h+='<span style="opacity:0.4">—</span>';
+    h+='</td>';
     h+='<td style="font-weight:600;color:var(--red)">'+fmtUSD(estAnnual)+'/yr</td>';
     h+='<td><button class="btn" onclick="event.stopPropagation();TF.confirmDeleteTeamMember(\''+m.id+'\')" style="font-size:11px;padding:4px 8px;border-radius:6px">'+icon('trash',11)+'</button></td>';
     h+='</tr>'});
 
   h+='</tbody></table></div>';
+
+  /* Commission forecast section */
+  if(active.some(function(m){return m.commissionRate>0})){
+    h+='<div class="chart-card" style="margin-top:16px">';
+    h+='<h3 style="margin-bottom:12px">'+icon('activity',14)+' Commission Forecast</h3>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr>';
+    h+='<th>Name</th><th>Basis</th><th>Rate</th><th>Est. Monthly</th><th>Frequency</th><th>Next Payment</th>';
+    h+='</tr></thead><tbody>';
+    active.filter(function(m){return m.commissionRate>0}).forEach(function(m){
+      var tally=getCommissionTally(m);
+      var est=estimateMonthlyCommission(m);
+      h+='<tr class="fin-row">';
+      h+='<td>'+esc(m.name)+'</td>';
+      h+='<td>'+esc(m.commissionBasis||'—')+'</td>';
+      h+='<td>'+m.commissionRate+'%</td>';
+      h+='<td style="color:var(--amber);font-weight:600">'+fmtUSD(est)+'</td>';
+      h+='<td>'+esc(m.commissionFrequency||'monthly')+'</td>';
+      h+='<td>'+(tally.nextPayDate||'—')+'</td></tr>'});
+    h+='</tbody></table></div></div>'}
 
   /* Inactive members */
   if(inactive.length){

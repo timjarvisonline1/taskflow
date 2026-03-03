@@ -891,3 +891,65 @@
   .intg-fields{grid-template-columns:1fr}
   .fin-dir-tabs{margin-top:8px}
 }
+
+/* ═══════════ FINANCE OVERHAUL STYLES ═══════════ */
+
+/* Fallback styling for ed-f / ed-in (used in scheduled item + team member modals) */
+.ed-f{display:flex;flex-direction:column;gap:4px}
+.ed-f label{font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:1px;padding-left:12px}
+.ed-in{background:var(--bg3);border:1px solid var(--gborder);color:var(--t1);padding:9px 13px;border-radius:var(--rs);font-size:13px;font-family:var(--f);width:100%;transition:all .25s var(--ease);box-sizing:border-box}
+.ed-in:hover{border-color:rgba(255,255,255,0.1);background:var(--bg4)}
+.ed-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,0,153,0.12);cursor:text}
+select.ed-in{cursor:pointer;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-color:var(--bg3);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a7ca8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:10px 6px;padding-right:30px}
+select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ff0099'/%3E%3C/svg%3E")}
+
+/* Finance overview — bank cards */
+.fin-bank-card{text-align:center;padding:24px 20px;background:var(--card);border:1px solid var(--gborder);border-radius:var(--r);transition:all .25s var(--ease)}
+.fin-bank-card:hover{border-color:rgba(255,255,255,0.1);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,0.2)}
+.fin-bank-card .fin-bank-total{font-size:24px;font-weight:700;margin:4px 0}
+.fin-bank-card .fin-bank-label{font-size:12px;opacity:0.6;margin-bottom:4px}
+.fin-bank-card .fin-bank-meta{font-size:10px;opacity:0.4;margin-top:6px}
+.fin-bank-card details{text-align:left;margin-top:12px;border-top:1px solid var(--gborder);padding-top:8px}
+.fin-bank-card details summary{cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--t3);padding:4px 0;list-style:none;user-select:none}
+.fin-bank-card details summary::-webkit-details-marker{display:none}
+.fin-bank-card details summary .fin-expand-icon{transition:transform .2s var(--ease);display:inline-block;font-size:10px}
+.fin-bank-card details[open] summary .fin-expand-icon{transform:rotate(180deg)}
+.fin-bank-sub{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.04)}
+.fin-bank-sub:last-child{border-bottom:none}
+.fin-bank-sub-name{color:var(--t3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fin-bank-sub-bal{font-weight:600;margin-left:12px}
+.fin-bank-sub-type{font-size:10px;opacity:0.4;margin-left:8px;flex-shrink:0}
+
+/* Clearing badge */
+.fin-clearing-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(255,152,0,0.08);border:1px solid rgba(255,152,0,0.2);border-radius:var(--rs);font-size:12px;color:var(--amber)}
+.fin-clearing-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:clearingPulse 1.5s ease-in-out infinite}
+@keyframes clearingPulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* Forecast toggles */
+.fin-forecast-controls{display:flex;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.fin-forecast-toggles{display:flex;gap:6px;flex-wrap:wrap}
+.fin-toggle{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--gborder);background:var(--bg1);color:var(--t3);transition:all .2s var(--ease);user-select:none}
+.fin-toggle:hover{border-color:rgba(255,255,255,0.15);background:var(--bg3)}
+.fin-toggle.on{background:rgba(255,0,153,0.08);border-color:rgba(255,0,153,0.3);color:var(--pink)}
+.fin-toggle input[type="checkbox"]{display:none}
+.fin-toggle-dot{width:8px;height:8px;border-radius:50%;background:var(--gborder);transition:background .2s}
+.fin-toggle.on .fin-toggle-dot{background:var(--pink)}
+
+/* Commission tally in team modal */
+.comm-tally{background:var(--bg1);border:1px solid var(--gborder);border-radius:var(--r);padding:14px;margin-top:14px}
+.comm-tally-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.comm-tally-title{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px}
+.comm-tally-amount{font-size:20px;font-weight:700;color:var(--green)}
+.comm-tally-meta{font-size:11px;color:var(--t4);margin-top:4px}
+
+/* One-off quick add row */
+.fin-quick-add td{padding:6px 4px!important}
+.fin-quick-add input,.fin-quick-add select{padding:6px 8px;font-size:12px;background:var(--bg3);border:1px solid var(--gborder);color:var(--t1);border-radius:var(--rs);font-family:var(--f);width:100%;box-sizing:border-box}
+.fin-quick-add input:focus,.fin-quick-add select:focus{outline:none;border-color:var(--accent)}
+
+@media(max-width:700px){
+  .fin-forecast-toggles{gap:4px}
+  .fin-toggle{padding:4px 8px;font-size:10px}
+  .fin-bank-card{padding:16px 12px}
+  .fin-bank-card .fin-bank-total{font-size:20px}
+}

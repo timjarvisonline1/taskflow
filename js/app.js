@@ -63,6 +63,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openAddTeamMember:openAddTeamMember,openEditTeamMember:openEditTeamMember,saveTeamMember:saveTeamMember,confirmDeleteTeamMember:confirmDeleteTeamMember,doDeleteTeamMember:doDeleteTeamMember,
   /* Forecast */
   setForecastHorizon:setForecastHorizon,setForecastScenario:setForecastScenario,
+  toggleForecastSource:toggleForecastSource,setForecastAccount:setForecastAccount,
+  quickAddOneOff:quickAddOneOff,
   /* Reconciliation */
   autoReconcile:autoReconcile,
   openExpenseReconcileModal:openExpenseReconcileModal,createScheduledFromExpense:createScheduledFromExpense,setExpenseCategory:setExpenseCategory,

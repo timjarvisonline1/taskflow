@@ -1657,6 +1657,15 @@ function openOpportunityDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
   h+='</div>';
+  /* Payment & Processing */
+  h+='<div class="ed-grid ed-grid-4" style="margin-top:4px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Payment Method</span><select class="edf" id="op-paymethod">';
+  [['bank_transfer','Bank Transfer'],['card','Card'],['direct_debit','Direct Debit']].forEach(function(pm){h+='<option value="'+pm[0]+'"'+((op.paymentMethod||'bank_transfer')===pm[0]?' selected':'')+'>'+pm[1]+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Processing Fee %</span><input type="number" class="edf" id="op-procfee" value="'+(op.processingFeePct||0)+'" min="0" max="100" step="0.1"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Receiving Account</span><select class="edf" id="op-recvacct"><option value=""'+(!(op.receivingAccount)?' selected':'')+'>Auto</option><option value="brex"'+((op.receivingAccount||'')==='brex'?' selected':'')+'>Brex</option><option value="mercury"'+((op.receivingAccount||'')==='mercury'?' selected':'')+'>Mercury</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Duration</span><input type="number" class="edf" id="op-monthdur" value="'+(op.expectedMonthlyDuration||12)+'" min="1" placeholder="12"></div>';
+  h+='</div>';
 
   /* Actions */
   h+='<div class="ed-actions" style="margin-top:12px">';
@@ -1731,6 +1740,10 @@ async function saveOpportunity(){
   op.expectedClose=gel('op-close').value?new Date(gel('op-close').value+'T00:00:00'):null;
   op.description=(gel('op-desc').value||'').trim();
   op.notes=gel('op-notes').value||'';
+  op.paymentMethod=gel('op-paymethod')?gel('op-paymethod').value||'bank_transfer':'bank_transfer';
+  op.processingFeePct=gel('op-procfee')?parseFloat(gel('op-procfee').value)||0:0;
+  op.receivingAccount=gel('op-recvacct')?gel('op-recvacct').value||'':'';
+  op.expectedMonthlyDuration=gel('op-monthdur')?parseInt(gel('op-monthdur').value)||12:12;
   await dbEditOpportunity(id,op);
   toast('Saved: '+op.name,'ok');closeModal();render()}
 
@@ -1759,6 +1772,13 @@ function openAddOpportunity(){
   h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="nop-close"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="nop-desc" placeholder="Brief description..."></div>';
   h+='</div>';
+  /* Payment & Processing */
+  h+='<div class="ed-grid ed-grid-4">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Payment Method</span><select class="edf" id="nop-paymethod"><option value="bank_transfer">Bank Transfer</option><option value="card">Card</option><option value="direct_debit">Direct Debit</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Processing Fee %</span><input type="number" class="edf" id="nop-procfee" value="0" min="0" max="100" step="0.1"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Receiving Account</span><select class="edf" id="nop-recvacct"><option value="">Auto</option><option value="brex">Brex</option><option value="mercury">Mercury</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Duration</span><input type="number" class="edf" id="nop-monthdur" value="12" min="1" placeholder="12"></div>';
+  h+='</div>';
   h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
   h+='<textarea class="edf edf-notes" id="nop-notes" placeholder="Notes about this opportunity..." rows="2"></textarea></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.addOpportunity()">'+icon('gem',12)+' Create Opportunity</button></div>';
@@ -1775,14 +1795,20 @@ async function addOpportunity(){
     monthlyFee:parseFloat(gel('nop-monthly').value)||0,
     probability:parseInt(gel('nop-prob').value)||50,
     expectedClose:gel('nop-close').value||null,
-    description:(gel('nop-desc').value||'').trim(),notes:gel('nop-notes').value||''};
+    description:(gel('nop-desc').value||'').trim(),notes:gel('nop-notes').value||'',
+    paymentMethod:gel('nop-paymethod')?gel('nop-paymethod').value||'bank_transfer':'bank_transfer',
+    processingFeePct:gel('nop-procfee')?parseFloat(gel('nop-procfee').value)||0:0,
+    receivingAccount:gel('nop-recvacct')?gel('nop-recvacct').value||'':'',
+    expectedMonthlyDuration:gel('nop-monthdur')?parseInt(gel('nop-monthdur').value)||12:12};
   var result=await dbAddOpportunity(data);
   if(!result){toast('Failed to create opportunity','warn');return}
   S.opportunities.unshift({id:result.id,name:data.name,description:data.description,stage:data.stage,
     client:data.client,endClient:data.endClient,contactName:data.contactName,contactEmail:data.contactEmail,
     strategyFee:data.strategyFee,setupFee:data.setupFee,monthlyFee:data.monthlyFee,
     probability:data.probability,expectedClose:data.expectedClose?new Date(data.expectedClose+'T00:00:00'):null,
-    source:data.source,notes:data.notes,closedAt:null,convertedCampaignId:'',created:new Date()});
+    source:data.source,notes:data.notes,closedAt:null,convertedCampaignId:'',created:new Date(),
+    paymentMethod:data.paymentMethod,processingFeePct:data.processingFeePct,
+    receivingAccount:data.receivingAccount,expectedMonthlyDuration:data.expectedMonthlyDuration});
   toast('Created: '+data.name,'ok');closeModal();render()}
 
 function confirmDeleteOpportunity(){
@@ -3042,21 +3068,23 @@ function openAddScheduledItem(){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('refresh',14)+' Add Scheduled Item</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="edf-body" style="padding:16px">';
-  h+='<div class="ed-grid ed-grid-2">';
-  h+='<div class="ed-f"><label>Name</label><input id="si-name" class="ed-in" placeholder="e.g. Office Rent"></div>';
-  h+='<div class="ed-f"><label>Amount ($)</label><input id="si-amount" class="ed-in" type="number" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="ed-f"><label>Direction</label><select id="si-direction" class="ed-in"><option value="outflow">Outflow</option><option value="inflow">Inflow</option></select></div>';
-  h+='<div class="ed-f"><label>Frequency</label><select id="si-frequency" class="ed-in"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="once">One-time</option></select></div>';
-  h+='<div class="ed-f"><label>Day of Month</label><input id="si-dom" class="ed-in" type="number" min="1" max="31" placeholder="1"></div>';
-  h+='<div class="ed-f"><label>Next Due Date</label><input id="si-nextdue" class="ed-in" type="date"></div>';
-  h+='<div class="ed-f"><label>Type</label><select id="si-type" class="ed-in"><option value="expense">Expense</option><option value="subscription">Subscription</option><option value="salary">Salary</option><option value="tax">Tax</option><option value="loan">Loan</option><option value="income">Income</option></select></div>';
-  h+='<div class="ed-f"><label>Account</label><select id="si-account" class="ed-in"><option value="">Any</option><option value="brex_card">Brex Card</option><option value="brex_cash">Brex Cash</option><option value="mercury">Mercury</option></select></div>';
-  h+='<div class="ed-f"><label>Category</label><select id="si-category" class="ed-in"><option value="">—</option>';
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input id="si-name" class="edf" placeholder="e.g. Office Rent"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount ($)</span><input id="si-amount" class="edf" type="number" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Direction</span><select id="si-direction" class="edf"><option value="outflow">Outflow (expense)</option><option value="inflow">Inflow (income)</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Frequency</span><select id="si-frequency" class="edf"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="biweekly">Bi-weekly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option><option value="once">One-time</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Day of Month</span><input id="si-dom" class="edf" type="number" min="1" max="31" placeholder="1"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Next Due Date</span><input id="si-nextdue" class="edf" type="date"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Date</span><input id="si-enddate" class="edf" type="date" placeholder="Optional"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl"># Payments</span><input id="si-numpay" class="edf" type="number" min="1" placeholder="∞"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select id="si-type" class="edf"><option value="expense">Expense</option><option value="subscription">Subscription</option><option value="salary">Salary</option><option value="tax">Tax</option><option value="loan">Loan</option><option value="income">Income</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Account</span><select id="si-account" class="edf"><option value="">Any</option><option value="brex_card">Brex Card</option><option value="brex_cash">Brex Cash</option><option value="mercury">Mercury</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select id="si-category" class="edf"><option value="">—</option>';
   PAY_CATS.forEach(function(c){h+='<option>'+c+'</option>'});
   h+='</select></div>';
-  h+='<div class="ed-f"><label>Notes</label><input id="si-notes" class="ed-in" placeholder="Optional notes"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><input id="si-notes" class="edf" placeholder="Optional notes"></div>';
   h+='</div>';
-  h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveScheduledItem()">Add Item</button></div>';
+  h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveScheduledItem()">'+icon('save',12)+' Add Item</button></div>';
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
@@ -3067,33 +3095,35 @@ function openEditScheduledItem(id){
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<input type="hidden" id="si-id" value="'+item.id+'">';
   h+='<div class="edf-body" style="padding:16px">';
-  h+='<div class="ed-grid ed-grid-2">';
-  h+='<div class="ed-f"><label>Name</label><input id="si-name" class="ed-in" value="'+esc(item.name)+'"></div>';
-  h+='<div class="ed-f"><label>Amount ($)</label><input id="si-amount" class="ed-in" type="number" step="0.01" value="'+item.amount+'"></div>';
-  h+='<div class="ed-f"><label>Direction</label><select id="si-direction" class="ed-in"><option value="outflow"'+(item.direction==='outflow'?' selected':'')+'>Outflow</option><option value="inflow"'+(item.direction==='inflow'?' selected':'')+'>Inflow</option></select></div>';
-  h+='<div class="ed-f"><label>Frequency</label><select id="si-frequency" class="ed-in">';
-  ['monthly','weekly','biweekly','quarterly','annually','once'].forEach(function(f){
-    h+='<option value="'+f+'"'+(item.frequency===f?' selected':'')+'>'+f.charAt(0).toUpperCase()+f.slice(1)+'</option>'});
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input id="si-name" class="edf" value="'+esc(item.name)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount ($)</span><input id="si-amount" class="edf" type="number" step="0.01" value="'+item.amount+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Direction</span><select id="si-direction" class="edf"><option value="outflow"'+(item.direction==='outflow'?' selected':'')+'>Outflow (expense)</option><option value="inflow"'+(item.direction==='inflow'?' selected':'')+'>Inflow (income)</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Frequency</span><select id="si-frequency" class="edf">';
+  [['monthly','Monthly'],['weekly','Weekly'],['biweekly','Bi-weekly'],['quarterly','Quarterly'],['annually','Annually'],['once','One-time']].forEach(function(f){
+    h+='<option value="'+f[0]+'"'+(item.frequency===f[0]?' selected':'')+'>'+f[1]+'</option>'});
   h+='</select></div>';
-  h+='<div class="ed-f"><label>Day of Month</label><input id="si-dom" class="ed-in" type="number" min="1" max="31" value="'+(item.dayOfMonth||'')+'"></div>';
-  h+='<div class="ed-f"><label>Next Due Date</label><input id="si-nextdue" class="ed-in" type="date" value="'+(item.nextDue||'')+'"></div>';
-  h+='<div class="ed-f"><label>Type</label><select id="si-type" class="ed-in">';
-  ['expense','subscription','salary','tax','loan','income'].forEach(function(t){
-    h+='<option value="'+t+'"'+(item.type===t?' selected':'')+'>'+t.charAt(0).toUpperCase()+t.slice(1)+'</option>'});
+  h+='<div class="ed-fld"><span class="ed-lbl">Day of Month</span><input id="si-dom" class="edf" type="number" min="1" max="31" value="'+(item.dayOfMonth||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Next Due Date</span><input id="si-nextdue" class="edf" type="date" value="'+(item.nextDue||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Date</span><input id="si-enddate" class="edf" type="date" value="'+(item.endDate||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl"># Payments</span><input id="si-numpay" class="edf" type="number" min="1" value="'+(item.numPayments||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select id="si-type" class="edf">';
+  [['expense','Expense'],['subscription','Subscription'],['salary','Salary'],['tax','Tax'],['loan','Loan'],['income','Income']].forEach(function(t){
+    h+='<option value="'+t[0]+'"'+(item.type===t[0]?' selected':'')+'>'+t[1]+'</option>'});
   h+='</select></div>';
-  h+='<div class="ed-f"><label>Account</label><select id="si-account" class="ed-in">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Account</span><select id="si-account" class="edf">';
   [['','Any'],['brex_card','Brex Card'],['brex_cash','Brex Cash'],['mercury','Mercury']].forEach(function(a){
     h+='<option value="'+a[0]+'"'+(item.account===a[0]?' selected':'')+'>'+a[1]+'</option>'});
   h+='</select></div>';
-  h+='<div class="ed-f"><label>Category</label><select id="si-category" class="ed-in"><option value="">—</option>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select id="si-category" class="edf"><option value="">—</option>';
   PAY_CATS.forEach(function(c){h+='<option'+(item.category===c?' selected':'')+'>'+c+'</option>'});
   h+='</select></div>';
-  h+='<div class="ed-f"><label>Active</label><select id="si-active" class="ed-in"><option value="1"'+(item.isActive?' selected':'')+'>Active</option><option value="0"'+(!item.isActive?' selected':'')+'>Inactive</option></select></div>';
-  h+='<div class="ed-f" style="grid-column:span 2"><label>Notes</label><input id="si-notes" class="ed-in" value="'+esc(item.notes)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Active</span><select id="si-active" class="edf"><option value="1"'+(item.isActive?' selected':'')+'>Active</option><option value="0"'+(!item.isActive?' selected':'')+'>Inactive</option></select></div>';
+  h+='<div class="ed-fld full"><span class="ed-lbl">Notes</span><input id="si-notes" class="edf" value="'+esc(item.notes)+'"></div>';
   h+='</div>';
   h+='<div class="edf-actions" style="margin-top:16px;display:flex;gap:8px">';
-  h+='<button class="btn btn-p" onclick="TF.saveScheduledItem()">Save</button>';
-  h+='<button class="btn" onclick="TF.confirmDeleteScheduledItem(\''+item.id+'\')" style="color:var(--red)">Delete</button>';
+  h+='<button class="btn btn-p" onclick="TF.saveScheduledItem()">'+icon('save',12)+' Save</button>';
+  h+='<button class="btn" onclick="TF.confirmDeleteScheduledItem(\''+item.id+'\')" style="color:var(--red)">'+icon('trash',12)+' Delete</button>';
   h+='</div>';
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
@@ -3110,7 +3140,9 @@ async function saveScheduledItem(){
     type:gel('si-type').value||'expense',
     account:gel('si-account').value||'',
     category:gel('si-category').value||'',
-    notes:(gel('si-notes').value||'').trim()
+    notes:(gel('si-notes').value||'').trim(),
+    endDate:gel('si-enddate')?gel('si-enddate').value||null:null,
+    numPayments:gel('si-numpay')?parseInt(gel('si-numpay').value)||null:null
   };
   if(gel('si-active'))data.isActive=gel('si-active').value==='1';
   if(!data.name){toast('Name is required','warn');return}
@@ -3146,45 +3178,87 @@ function openAddTeamMember(){
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="edf-body" style="padding:16px">';
   h+='<div class="ed-grid ed-grid-2">';
-  h+='<div class="ed-f"><label>Name</label><input id="tm-name" class="ed-in" placeholder="Full name"></div>';
-  h+='<div class="ed-f"><label>Role</label><input id="tm-role" class="ed-in" placeholder="e.g. Account Manager"></div>';
-  h+='<div class="ed-f"><label>Monthly Salary ($)</label><input id="tm-salary" class="ed-in" type="number" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="ed-f"><label>Pay Frequency</label><select id="tm-payfreq" class="ed-in"><option value="monthly">Monthly</option><option value="biweekly">Bi-weekly</option></select></div>';
-  h+='<div class="ed-f"><label>Pay Day</label><input id="tm-payday" class="ed-in" type="number" min="1" max="31" value="1" placeholder="1"></div>';
-  h+='<div class="ed-f"><label>Commission Rate (%)</label><input id="tm-commrate" class="ed-in" type="number" step="0.1" placeholder="0"></div>';
-  h+='<div class="ed-f"><label>Commission Basis</label><select id="tm-commbasis" class="ed-in"><option value="">None</option><option value="revenue">% of Revenue</option><option value="profit">% of Profit</option><option value="per_deal">Per Deal (flat)</option></select></div>';
-  h+='<div class="ed-f"><label>Start Date</label><input id="tm-start" class="ed-in" type="date"></div>';
-  h+='<div class="ed-f" style="grid-column:span 2"><label>Notes</label><input id="tm-notes" class="ed-in" placeholder="Optional notes"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input id="tm-name" class="edf" placeholder="Full name"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Role</span><input id="tm-role" class="edf" placeholder="e.g. Account Manager"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Salary ($)</span><input id="tm-salary" class="edf" type="number" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Pay Frequency</span><select id="tm-payfreq" class="edf"><option value="monthly">Monthly</option><option value="biweekly">Bi-weekly</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Pay Day</span><input id="tm-payday" class="edf" type="number" min="1" max="31" value="1" placeholder="1"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Start Date</span><input id="tm-start" class="edf" type="date"></div>';
   h+='</div>';
-  h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveTeamMember()">Add Member</button></div>';
+  /* Commission section */
+  h+='<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">';
+  h+='<span class="ed-lbl" style="font-size:12px;font-weight:600;margin-bottom:12px;display:block">'+icon('activity',12)+' Commission Structure</span>';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Commission Rate (%)</span><input id="tm-commrate" class="edf" type="number" step="0.1" placeholder="0"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Commission Basis</span><select id="tm-commbasis" class="edf"><option value="">None</option>';
+  h+='<option value="Retain Live">Retain Live Fees</option>';
+  h+='<option value="F&C Monthly Fees">F&C Monthly Fees</option>';
+  h+='<option value="F&C Strategy">F&C Strategy Fees</option>';
+  h+='<option value="F&C Campaign Set-Up">F&C Campaign Set-Up</option>';
+  h+='<option value="Products">Products</option>';
+  h+='<option value="All Revenue">All Revenue</option>';
+  h+='<option value="per_deal">Per Deal (flat)</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Commission Frequency</span><select id="tm-commfreq" class="edf"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Commission Cap ($)</span><input id="tm-commcap" class="edf" type="number" step="0.01" placeholder="No cap"></div>';
+  h+='</div></div>';
+  h+='<div class="ed-fld" style="margin-top:12px"><span class="ed-lbl">Notes</span><input id="tm-notes" class="edf" placeholder="Optional notes"></div>';
+  h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveTeamMember()">'+icon('save',12)+' Add Member</button></div>';
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 function openEditTeamMember(id){
   var m=S.teamMembers.find(function(t){return t.id===id});
   if(!m)return;
+  var tally=getCommissionTally(m);
+  var estMonthly=estimateMonthlyCommission(m);
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('clients',14)+' Edit Team Member</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<input type="hidden" id="tm-id" value="'+m.id+'">';
   h+='<div class="edf-body" style="padding:16px">';
   h+='<div class="ed-grid ed-grid-2">';
-  h+='<div class="ed-f"><label>Name</label><input id="tm-name" class="ed-in" value="'+esc(m.name)+'"></div>';
-  h+='<div class="ed-f"><label>Role</label><input id="tm-role" class="ed-in" value="'+esc(m.role)+'"></div>';
-  h+='<div class="ed-f"><label>Monthly Salary ($)</label><input id="tm-salary" class="ed-in" type="number" step="0.01" value="'+m.salary+'"></div>';
-  h+='<div class="ed-f"><label>Pay Frequency</label><select id="tm-payfreq" class="ed-in"><option value="monthly"'+(m.payFrequency==='monthly'?' selected':'')+'>Monthly</option><option value="biweekly"'+(m.payFrequency==='biweekly'?' selected':'')+'>Bi-weekly</option></select></div>';
-  h+='<div class="ed-f"><label>Pay Day</label><input id="tm-payday" class="ed-in" type="number" min="1" max="31" value="'+m.payDay+'"></div>';
-  h+='<div class="ed-f"><label>Commission Rate (%)</label><input id="tm-commrate" class="ed-in" type="number" step="0.1" value="'+m.commissionRate+'"></div>';
-  h+='<div class="ed-f"><label>Commission Basis</label><select id="tm-commbasis" class="ed-in">';
-  [['','None'],['revenue','% of Revenue'],['profit','% of Profit'],['per_deal','Per Deal (flat)']].forEach(function(b){
-    h+='<option value="'+b[0]+'"'+(m.commissionBasis===b[0]?' selected':'')+'>'+b[1]+'</option>'});
-  h+='</select></div>';
-  h+='<div class="ed-f"><label>Start Date</label><input id="tm-start" class="ed-in" type="date" value="'+(m.startDate||'')+'"></div>';
-  h+='<div class="ed-f"><label>Active</label><select id="tm-active" class="ed-in"><option value="1"'+(m.isActive?' selected':'')+'>Active</option><option value="0"'+(!m.isActive?' selected':'')+'>Inactive</option></select></div>';
-  h+='<div class="ed-f"><label>Notes</label><input id="tm-notes" class="ed-in" value="'+esc(m.notes)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input id="tm-name" class="edf" value="'+esc(m.name)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Role</span><input id="tm-role" class="edf" value="'+esc(m.role)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Salary ($)</span><input id="tm-salary" class="edf" type="number" step="0.01" value="'+m.salary+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Pay Frequency</span><select id="tm-payfreq" class="edf"><option value="monthly"'+(m.payFrequency==='monthly'?' selected':'')+'>Monthly</option><option value="biweekly"'+(m.payFrequency==='biweekly'?' selected':'')+'>Bi-weekly</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Pay Day</span><input id="tm-payday" class="edf" type="number" min="1" max="31" value="'+m.payDay+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Start Date</span><input id="tm-start" class="edf" type="date" value="'+(m.startDate||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Active</span><select id="tm-active" class="edf"><option value="1"'+(m.isActive?' selected':'')+'>Active</option><option value="0"'+(!m.isActive?' selected':'')+'>Inactive</option></select></div>';
   h+='</div>';
+  /* Commission section */
+  h+='<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">';
+  h+='<span class="ed-lbl" style="font-size:12px;font-weight:600;margin-bottom:12px;display:block">'+icon('activity',12)+' Commission Structure</span>';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Commission Rate (%)</span><input id="tm-commrate" class="edf" type="number" step="0.1" value="'+m.commissionRate+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Commission Basis</span><select id="tm-commbasis" class="edf">';
+  var basisOpts=[['','None'],['Retain Live','Retain Live Fees'],['F&C Monthly Fees','F&C Monthly Fees'],['F&C Strategy','F&C Strategy Fees'],['F&C Campaign Set-Up','F&C Campaign Set-Up'],['Products','Products'],['All Revenue','All Revenue'],['per_deal','Per Deal (flat)']];
+  basisOpts.forEach(function(b){h+='<option value="'+b[0]+'"'+(m.commissionBasis===b[0]?' selected':'')+'>'+b[1]+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Commission Frequency</span><select id="tm-commfreq" class="edf"><option value="monthly"'+((m.commissionFrequency||'monthly')==='monthly'?' selected':'')+'>Monthly</option><option value="quarterly"'+((m.commissionFrequency||'monthly')==='quarterly'?' selected':'')+'>Quarterly</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Commission Cap ($)</span><input id="tm-commcap" class="edf" type="number" step="0.01" value="'+(m.commissionCap||'')+'" placeholder="No cap"></div>';
+  h+='</div></div>';
+  /* Commission tally */
+  if(m.commissionRate>0&&m.commissionBasis){
+    h+='<div class="comm-tally" style="margin-top:16px">';
+    h+='<div class="comm-tally-header"><span>'+icon('activity',12)+' Commission Tally</span></div>';
+    h+='<div class="ed-grid ed-grid-3" style="margin-top:8px">';
+    h+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--amber)">'+fmtUSD(tally.accrued)+'</div><div style="font-size:10px;opacity:0.6">Accrued Unpaid</div></div>';
+    h+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:var(--blue)">'+fmtUSD(estMonthly)+'</div><div style="font-size:10px;opacity:0.6">Est. Monthly</div></div>';
+    h+='<div style="text-align:center"><div style="font-size:14px;font-weight:600;color:var(--t2)">'+(tally.nextPayDate||'—')+'</div><div style="font-size:10px;opacity:0.6">Next Payment</div></div>';
+    h+='</div>';
+    /* Qualifying payments breakdown */
+    if(tally.qualifyingPayments&&tally.qualifyingPayments.length){
+      h+='<details style="margin-top:10px"><summary style="cursor:pointer;font-size:11px;opacity:0.6">Qualifying Payments ('+tally.qualifyingPayments.length+')</summary>';
+      h+='<div style="max-height:150px;overflow-y:auto;margin-top:6px">';
+      tally.qualifyingPayments.slice(0,20).forEach(function(qp){
+        h+='<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid var(--border)">';
+        h+='<span style="opacity:0.7">'+esc(qp.name||'Payment')+'</span>';
+        h+='<span style="color:var(--green)">'+fmtUSD(qp.amount)+'</span></div>'});
+      h+='</div></details>'}
+    h+='</div>'}
+  h+='<div class="ed-fld" style="margin-top:12px"><span class="ed-lbl">Notes</span><input id="tm-notes" class="edf" value="'+esc(m.notes)+'"></div>';
   h+='<div class="edf-actions" style="margin-top:16px;display:flex;gap:8px">';
-  h+='<button class="btn btn-p" onclick="TF.saveTeamMember()">Save</button>';
-  h+='<button class="btn" onclick="TF.confirmDeleteTeamMember(\''+m.id+'\')" style="color:var(--red)">Delete</button>';
+  h+='<button class="btn btn-p" onclick="TF.saveTeamMember()">'+icon('save',12)+' Save</button>';
+  h+='<button class="btn" onclick="TF.confirmDeleteTeamMember(\''+m.id+'\')" style="color:var(--red)">'+icon('trash',12)+' Delete</button>';
   h+='</div>';
   h+='</div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
@@ -3199,6 +3273,8 @@ async function saveTeamMember(){
     payDay:parseInt(gel('tm-payday').value)||1,
     commissionRate:parseFloat(gel('tm-commrate').value)||0,
     commissionBasis:gel('tm-commbasis').value||'',
+    commissionFrequency:gel('tm-commfreq')?gel('tm-commfreq').value||'monthly':'monthly',
+    commissionCap:gel('tm-commcap')?(parseFloat(gel('tm-commcap').value)||null):null,
     startDate:gel('tm-start').value||null,
     notes:(gel('tm-notes').value||'').trim()
   };
