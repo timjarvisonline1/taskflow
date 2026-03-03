@@ -44,7 +44,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openOpportunityDetail:openOpportunityDetail,saveOpportunity:saveOpportunity,
   openAddOpportunity:openAddOpportunity,addOpportunity:addOpportunity,selectOpType:selectOpType,
   confirmDeleteOpportunity:confirmDeleteOpportunity,doDeleteOpportunity:doDeleteOpportunity,
-  convertOpportunity:convertOpportunity,convertToClient:convertToClient,closeAsLost:closeAsLost,
+  convertOpportunity:convertOpportunity,convertToClient:convertToClient,closeAsLost:closeAsLost,doCloseAsLost:doCloseAsLost,
   openAddOpportunityMeeting:openAddOpportunityMeeting,addOpportunityMeeting:addOpportunityMeeting,deleteOpportunityMeeting:deleteOpportunityMeeting,
   setOpView:function(v){subNav(v)},
   setOpTypeFilter:function(v){S.opTypeFilter=v;save();render()},

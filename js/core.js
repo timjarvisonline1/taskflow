@@ -61,15 +61,15 @@ var EXPENSE_CATS=['Software & SaaS','Advertising & Marketing','Travel','Food & D
 /* ═══════════ OPPORTUNITY TYPE CONFIG ═══════════ */
 var OPP_TYPES={
   retain_live:{label:'Retain Live',short:'RL',
-    stages:['Meeting Booked','Agreement Sent'],
+    stages:['Meeting Booked','Interested','Agreement Generated','Agreement Sent'],
     closedStages:['Closed Won','Closed Lost'],
     color:'var(--green)',conversion:'client',
     defaultFees:{strategyFee:5000}},
   fc_partnership:{label:'F&C Partnership',short:'F&C-P',
-    stages:['Contact Identified','Outreach Initiated','Meeting Booked','Discovery Call','Video Tracking','Audit/Report','Proactive Pitch','Negotiation'],
+    stages:['Brief Received','Meeting Booked','Discovery Call','Video Tracking','Audit/Report','Proactive Pitch','Proposal Delivered','Negotiation'],
     closedStages:['Closed Won','Closed Lost'],
     color:'var(--blue)',conversion:'campaign',
-    defaultFees:{}},
+    defaultFees:{setupFee:5000,monthlyFee:2000}},
   fc_direct:{label:'F&C Direct',short:'F&C-D',
     stages:['Lead Generated','Discovery Call','Video Tracking','Proactive Pitch','Negotiation'],
     closedStages:['Closed Won','Closed Lost'],
@@ -654,6 +654,10 @@ async function loadOpportunities(){
       convertedCampaignId:r.converted_campaign_id||'',
       paymentMethod:r.payment_method||'bank_transfer',processingFeePct:parseFloat(r.processing_fee_pct)||0,
       receivingAccount:r.receiving_account||'',expectedMonthlyDuration:r.expected_monthly_duration||12,
+      contactJobTitle:r.contact_job_title||'',prospectWebsite:r.prospect_website||'',
+      previousRelationship:r.previous_relationship||'',companyDescription:r.company_description||'',
+      prospectDescription:r.prospect_description||'',videoStrategyBenefits:r.video_strategy_benefits||'',
+      closeReason:r.close_reason||'',
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
 async function loadOpportunityMeetings(){
@@ -1743,7 +1747,11 @@ async function dbAddOpportunity(data){
     probability:data.probability||50,expected_close:data.expectedClose||null,
     source:data.source||'',notes:data.notes||'',payment_plan:data.paymentPlan||'',
     payment_method:data.paymentMethod||'bank_transfer',processing_fee_pct:data.processingFeePct||0,
-    receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12};
+    receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12,
+    contact_job_title:data.contactJobTitle||'',prospect_website:data.prospectWebsite||'',
+    previous_relationship:data.previousRelationship||'',company_description:data.companyDescription||'',
+    prospect_description:data.prospectDescription||'',video_strategy_benefits:data.videoStrategyBenefits||'',
+    close_reason:data.closeReason||''};
   var res=await _sb.from('opportunities').insert(row).select().single();
   if(res.error){toast('Opportunity save failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -1758,7 +1766,11 @@ async function dbEditOpportunity(id,data){
     source:data.source||'',notes:data.notes||'',payment_plan:data.paymentPlan||'',
     closed_at:data.closedAt||null,converted_campaign_id:data.convertedCampaignId||null,
     payment_method:data.paymentMethod||'bank_transfer',processing_fee_pct:data.processingFeePct||0,
-    receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12};
+    receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12,
+    contact_job_title:data.contactJobTitle||'',prospect_website:data.prospectWebsite||'',
+    previous_relationship:data.previousRelationship||'',company_description:data.companyDescription||'',
+    prospect_description:data.prospectDescription||'',video_strategy_benefits:data.videoStrategyBenefits||'',
+    close_reason:data.closeReason||''};
   var res=await _sb.from('opportunities').update(row).eq('id',id);
   if(res.error){toast('Opportunity update failed: '+res.error.message,'warn');return false}
   return true}

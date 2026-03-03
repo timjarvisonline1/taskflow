@@ -1660,6 +1660,7 @@ function openOpportunityDetail(id){
   if(op.endClient)h+='<span class="bg bg-ec">'+esc(op.endClient)+'</span>';
   if(st.totalTime)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">'+icon('clock',12)+' '+fmtM(st.totalTime)+'</span>';
   if(st.revenueRealized>0)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+icon('activity',12)+' '+fmtUSD(st.revenueRealized)+' received</span>';
+  if(op.stage==='Closed Lost'&&op.closeReason)h+='<span class="bg" style="background:rgba(255,51,88,0.08);color:var(--red)">'+esc(op.closeReason)+'</span>';
   if(op.convertedCampaignId){var cpLink=S.campaigns.find(function(c){return c.id===op.convertedCampaignId});
     if(cpLink)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openCampaignDetail(\''+escAttr(cpLink.id)+'\')},100)">'+icon('target',12)+' '+esc(cpLink.name)+'</span>'}
   h+='</div></div>';
@@ -1677,6 +1678,11 @@ function openOpportunityDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="op-source" value="'+esc(op.source)+'" placeholder="e.g. Referral, Inbound..."></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Job Title</span><input type="text" class="edf" id="op-jobtitle" value="'+esc(op.contactJobTitle)+'" placeholder="Contact job title..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Website</span><input type="url" class="edf" id="op-website" value="'+esc(op.prospectWebsite)+'" placeholder="https://..."></div>';
+  h+='<div></div>';
   h+='</div>';
 
   /* Fee fields — type-specific */
@@ -1735,6 +1741,18 @@ function openOpportunityDetail(id){
 
   /* RIGHT PANE */
   h+='<div class="detail-split-right">';
+  /* Brief Fields (F&C Partnership) */
+  if(op.type==='fc_partnership'){
+    var hasBrief=op.previousRelationship||op.companyDescription||op.prospectDescription||op.videoStrategyBenefits;
+    h+='<div style="margin-bottom:16px">';
+    h+='<span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="var s=this.nextElementSibling;s.style.display=s.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span\').textContent=s.style.display===\'none\'?\'\u25B6\':\'\u25BC\'">Brief Details <span>'+(hasBrief?'\u25BC':'\u25B6')+'</span></span>';
+    h+='<div id="op-brief-section" style="display:'+(hasBrief?'block':'none')+'">';
+    h+='<div style="margin-bottom:8px"><span class="ed-lbl" style="font-size:9px;margin-bottom:2px">Previous Relationship</span><textarea class="edf edf-notes" id="op-prevrel" rows="2" placeholder="Previous working relationship...">'+esc(op.previousRelationship)+'</textarea></div>';
+    h+='<div style="margin-bottom:8px"><span class="ed-lbl" style="font-size:9px;margin-bottom:2px">Company Description</span><textarea class="edf edf-notes" id="op-compdesc" rows="2" placeholder="Brief company description...">'+esc(op.companyDescription)+'</textarea></div>';
+    h+='<div style="margin-bottom:8px"><span class="ed-lbl" style="font-size:9px;margin-bottom:2px">Prospect Description</span><textarea class="edf edf-notes" id="op-prospdesc" rows="2" placeholder="Brief prospect description...">'+esc(op.prospectDescription)+'</textarea></div>';
+    h+='<div style="margin-bottom:8px"><span class="ed-lbl" style="font-size:9px;margin-bottom:2px">Video Strategy Benefits</span><textarea class="edf edf-notes" id="op-vidbene" rows="2" placeholder="Benefits of a video strategy...">'+esc(op.videoStrategyBenefits)+'</textarea></div>';
+    h+='</div></div>'}
+
   /* Notes */
   h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
   h+='<textarea class="edf edf-notes" id="op-notes" rows="3" placeholder="Notes about this opportunity...">'+esc(op.notes)+'</textarea></div>';
@@ -1815,6 +1833,12 @@ async function saveOpportunity(){
   op.processingFeePct=gel('op-procfee')?parseFloat(gel('op-procfee').value)||0:0;
   op.receivingAccount=gel('op-recvacct')?gel('op-recvacct').value||'':'';
   op.expectedMonthlyDuration=gel('op-monthdur')?parseInt(gel('op-monthdur').value)||12:12;
+  op.contactJobTitle=gel('op-jobtitle')?(gel('op-jobtitle').value||'').trim():'';
+  op.prospectWebsite=gel('op-website')?(gel('op-website').value||'').trim():'';
+  op.previousRelationship=gel('op-prevrel')?(gel('op-prevrel').value||'').trim():'';
+  op.companyDescription=gel('op-compdesc')?(gel('op-compdesc').value||'').trim():'';
+  op.prospectDescription=gel('op-prospdesc')?(gel('op-prospdesc').value||'').trim():'';
+  op.videoStrategyBenefits=gel('op-vidbene')?(gel('op-vidbene').value||'').trim():'';
   await dbEditOpportunity(id,op);
   toast('Saved: '+op.name,'ok');closeModal();render()}
 
@@ -1871,17 +1895,30 @@ function selectOpType(type){
     h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="nop-prob" value="50" min="0" max="100"></div>';
     h+='</div>';
   }else{
+    var isFCP=type==='fc_partnership';
     h+='<div class="ed-grid ed-grid-4">';
     h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="nop-strategy" min="0" step="0.01" placeholder="0.00"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="nop-setup" min="0" step="0.01" placeholder="0.00"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="nop-monthly" min="0" step="0.01" placeholder="0.00"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="nop-setup" value="'+(isFCP?'5000':'')+'" min="0" step="0.01" placeholder="0.00"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="nop-monthly" value="'+(isFCP?'2000':'')+'" min="0" step="0.01" placeholder="0.00"></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Monthly Ad Spend</span><input type="number" class="edf" id="nop-adspend" min="0" step="0.01" placeholder="0.00"></div>';
     h+='</div>';
     h+='<div class="ed-grid ed-grid-3">';
     h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="nop-prob" value="50" min="0" max="100"></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="nop-close"></div>';
     h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="nop-desc" placeholder="Brief description..."></div>';
-    h+='</div>'}
+    h+='</div>';
+    if(isFCP){
+      h+='<div style="margin-top:8px;padding:12px;background:var(--bg2);border-radius:10px;border:1px solid var(--bd)">';
+      h+='<span class="ed-lbl" style="margin-bottom:8px;display:block">Brief Details</span>';
+      h+='<div class="ed-grid ed-grid-2">';
+      h+='<div class="ed-fld"><span class="ed-lbl" style="font-size:9px">Job Title</span><input type="text" class="edf" id="nop-jobtitle" placeholder="Contact job title..."></div>';
+      h+='<div class="ed-fld"><span class="ed-lbl" style="font-size:9px">Website</span><input type="url" class="edf" id="nop-website" placeholder="https://..."></div>';
+      h+='</div>';
+      h+='<div class="ed-fld" style="margin-bottom:6px"><span class="ed-lbl" style="font-size:9px">Previous Relationship</span><textarea class="edf edf-notes" id="nop-prevrel" rows="2" placeholder="Previous working relationship..."></textarea></div>';
+      h+='<div class="ed-fld" style="margin-bottom:6px"><span class="ed-lbl" style="font-size:9px">Company Description</span><textarea class="edf edf-notes" id="nop-compdesc" rows="2" placeholder="Brief company description..."></textarea></div>';
+      h+='<div class="ed-fld" style="margin-bottom:6px"><span class="ed-lbl" style="font-size:9px">Prospect Description</span><textarea class="edf edf-notes" id="nop-prospdesc" rows="2" placeholder="Brief prospect description..."></textarea></div>';
+      h+='<div class="ed-fld"><span class="ed-lbl" style="font-size:9px">Video Strategy Benefits</span><textarea class="edf edf-notes" id="nop-vidbene" rows="2" placeholder="Benefits of a video strategy..."></textarea></div>';
+      h+='</div>'}}
 
   if(isRL){
     h+='<div class="ed-grid ed-grid-2">';
@@ -1915,7 +1952,14 @@ async function addOpportunity(){
     notes:gel('nop-notes').value||'',
     paymentPlan:gel('nop-payplan')?gel('nop-payplan').value||'':'',
     paymentMethod:'bank_transfer',processingFeePct:0,receivingAccount:'',
-    expectedMonthlyDuration:isRL?1:12};
+    expectedMonthlyDuration:isRL?1:12,
+    contactJobTitle:gel('nop-jobtitle')?(gel('nop-jobtitle').value||'').trim():'',
+    prospectWebsite:gel('nop-website')?(gel('nop-website').value||'').trim():'',
+    previousRelationship:gel('nop-prevrel')?(gel('nop-prevrel').value||'').trim():'',
+    companyDescription:gel('nop-compdesc')?(gel('nop-compdesc').value||'').trim():'',
+    prospectDescription:gel('nop-prospdesc')?(gel('nop-prospdesc').value||'').trim():'',
+    videoStrategyBenefits:gel('nop-vidbene')?(gel('nop-vidbene').value||'').trim():'',
+    closeReason:''};
   var result=await dbAddOpportunity(data);
   if(!result){toast('Failed to create opportunity','warn');return}
   S.opportunities.unshift({id:result.id,name:data.name,description:data.description||'',stage:data.stage,type:data.type,
@@ -1924,7 +1968,11 @@ async function addOpportunity(){
     probability:data.probability,expectedClose:data.expectedClose?new Date(data.expectedClose+'T00:00:00'):null,
     source:data.source,notes:data.notes,paymentPlan:data.paymentPlan,closedAt:null,convertedCampaignId:'',created:new Date(),
     paymentMethod:data.paymentMethod,processingFeePct:data.processingFeePct,
-    receivingAccount:data.receivingAccount,expectedMonthlyDuration:data.expectedMonthlyDuration});
+    receivingAccount:data.receivingAccount,expectedMonthlyDuration:data.expectedMonthlyDuration,
+    contactJobTitle:data.contactJobTitle,prospectWebsite:data.prospectWebsite,
+    previousRelationship:data.previousRelationship,companyDescription:data.companyDescription,
+    prospectDescription:data.prospectDescription,videoStrategyBenefits:data.videoStrategyBenefits,
+    closeReason:''});
   toast('Created: '+data.name,'ok');closeModal();render()}
 
 function confirmDeleteOpportunity(){
@@ -1979,10 +2027,27 @@ async function convertOpportunity(id){
 
   toast('Converted to campaign: '+op.name,'ok');closeModal();render()}
 
-async function closeAsLost(id){
+function closeAsLost(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
-  if(!confirm('Close "'+op.name+'" as Lost?'))return;
-  op.stage='Closed Lost';op.closedAt=new Date();
+  var h='<div style="padding:40px;text-align:center">';
+  h+='<h2 style="margin-bottom:8px;color:var(--t1)">Close as Lost</h2>';
+  h+='<p style="color:var(--t3);margin-bottom:20px">Why is <strong>'+esc(op.name)+'</strong> being closed?</p>';
+  h+='<input type="hidden" id="cal-opid" value="'+escAttr(id)+'">';
+  h+='<div style="max-width:300px;margin:0 auto 20px"><select class="edf" id="cal-reason" style="text-align:center">';
+  ['Not Interested','Not a Good Fit','Budget / Timing','Went with Competitor','No Response','Other'].forEach(function(r){
+    h+='<option>'+r+'</option>'});
+  h+='</select></div>';
+  h+='<div style="display:flex;gap:8px;justify-content:center">';
+  h+='<button class="btn" style="background:rgba(255,51,88,0.1);color:var(--red);border-color:rgba(255,51,88,0.3)" onclick="TF.doCloseAsLost()">'+icon('x',12)+' Close as Lost</button>';
+  h+='<button class="btn" onclick="TF.openOpportunityDetail(\''+escAttr(id)+'\')">Cancel</button>';
+  h+='</div></div>';
+  gel('detail-body').innerHTML=h}
+
+async function doCloseAsLost(){
+  var id=(gel('cal-opid')||{}).value;if(!id)return;
+  var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
+  var reason=(gel('cal-reason')||{}).value||'';
+  op.stage='Closed Lost';op.closedAt=new Date();op.closeReason=reason;
   await dbEditOpportunity(id,op);
   toast('Closed Lost: '+op.name,'warn');closeModal();render()}
 
