@@ -101,6 +101,7 @@ var SECTIONS=[
     {id:'overview',label:'Overview',icon:'dashboard'},
     {id:'payments',label:'Transactions',icon:'activity'},
     {id:'invoices',label:'Invoices',icon:'file'},
+    {id:'upcoming',label:'Upcoming',icon:'calendar'},
     {id:'recurring',label:'Recurring',icon:'refresh'},
     {id:'forecast',label:'Forecast',icon:'pipeline'},
     {id:'team',label:'Team',icon:'clients'}
@@ -551,6 +552,7 @@ async function loadCampaigns(){
       videoAssetsLink:r.video_assets_link||'',transcriptsLink:r.transcripts_link||'',
       awarenessLP:r.awareness_lp||'',considerationLP:r.consideration_lp||'',
       decisionLP:r.decision_lp||'',contractLink:r.contract_link||'',
+      billingFrequency:r.billing_frequency||'monthly',nextBillingDate:r.next_billing_date||null,
       notes:r.notes||'',created:r.created_at?new Date(r.created_at):new Date()}})}
 
 async function loadPayments(){
@@ -962,14 +964,16 @@ function buildForecast(horizonDays,scenario){
           dayIn.push({name:'Pipeline: '+op.name,amount:weighted,source:'pipeline',sourceId:op.id,
             type:'pipeline',probability:op.probability})}}});
 
-    /* 5. Active campaign monthly fees (recurring revenue) */
+    /* 5. Active campaign billing (frequency-aware) */
     S.campaigns.forEach(function(cp){
       if(cp.status!=='Active'&&cp.status!=='Running')return;
       if(!cp.monthlyFee)return;
-      /* Assume monthly fee on the 1st of each month */
-      if(d.getDate()===1){
+      if(campaignBillingFallsOnDay(cp,dayStr)){
+        var cycleMonths=cp.billingFrequency==='quarterly'?3:cp.billingFrequency==='annually'?12:1;
+        var billingAmt=cp.monthlyFee*cycleMonths;
         var prob=scenario==='conservative'?0.8:1;
-        dayIn.push({name:'Campaign: '+cp.name,amount:cp.monthlyFee*prob,source:'campaign',sourceId:cp.id,type:'recurring'})}});
+        dayIn.push({name:'Campaign: '+cp.name,amount:billingAmt*prob,source:'campaign',sourceId:cp.id,
+          type:'recurring',frequency:cp.billingFrequency||'monthly'})}});
 
     var totalIn=dayIn.reduce(function(s,e){return s+e.amount},0);
     var totalOut=dayOut.reduce(function(s,e){return s+e.amount},0);
@@ -1002,6 +1006,103 @@ function getForecastMetrics(fc){
 
 function setForecastHorizon(days){S.forecastHorizon=days;render()}
 function setForecastScenario(s){S.forecastScenario=s;render()}
+
+/* Check if a campaign billing falls on a given day based on billingFrequency + nextBillingDate */
+function campaignBillingFallsOnDay(cp,dayStr){
+  var freq=cp.billingFrequency||'monthly';
+  var dayDate=new Date(dayStr+'T00:00:00');
+  if(cp.nextBillingDate){
+    /* Use nextBillingDate as anchor and project forward */
+    var anchor=new Date(cp.nextBillingDate+'T00:00:00');
+    if(freq==='monthly'){
+      return dayDate.getDate()===anchor.getDate()}
+    if(freq==='quarterly'){
+      if(dayDate.getDate()!==anchor.getDate())return false;
+      var monthDiff=(dayDate.getFullYear()-anchor.getFullYear())*12+(dayDate.getMonth()-anchor.getMonth());
+      return monthDiff>=0&&monthDiff%3===0}
+    if(freq==='annually'){
+      return dayDate.getMonth()===anchor.getMonth()&&dayDate.getDate()===anchor.getDate()}
+    return dayDate.getDate()===anchor.getDate()
+  }
+  /* Fallback: 1st of month for monthly, 1st of quarter for quarterly */
+  if(freq==='monthly')return dayDate.getDate()===1;
+  if(freq==='quarterly')return dayDate.getDate()===1&&dayDate.getMonth()%3===0;
+  if(freq==='annually')return dayDate.getMonth()===0&&dayDate.getDate()===1;
+  return dayDate.getDate()===1}
+
+/* Build list of all upcoming payments within a horizon (for the Upcoming tab) */
+function buildUpcomingPayments(horizonDays){
+  horizonDays=horizonDays||90;
+  var today=new Date();today.setHours(0,0,0,0);
+  var items=[];
+
+  /* 1. Campaign billings */
+  S.campaigns.forEach(function(cp){
+    if(cp.status!=='Active'&&cp.status!=='Running')return;
+    if(!cp.monthlyFee)return;
+    var cycleMonths=cp.billingFrequency==='quarterly'?3:cp.billingFrequency==='annually'?12:1;
+    var billingAmt=cp.monthlyFee*cycleMonths;
+    for(var i=0;i<horizonDays;i++){
+      var d=new Date(today);d.setDate(d.getDate()+i);
+      var ds=d.toISOString().split('T')[0];
+      if(campaignBillingFallsOnDay(cp,ds)){
+        items.push({type:'campaign',name:cp.name,amount:billingAmt,date:ds,
+          sourceId:cp.id,direction:'inflow',frequency:cp.billingFrequency||'monthly',editable:true})}}});
+
+  /* 2. Scheduled items */
+  S.scheduledItems.forEach(function(item){
+    if(!item.isActive)return;
+    for(var i=0;i<horizonDays;i++){
+      var d=new Date(today);d.setDate(d.getDate()+i);
+      var ds=d.toISOString().split('T')[0];
+      if(itemFallsOnDay(item,ds)){
+        items.push({type:'scheduled',name:item.name,amount:item.amount,date:ds,
+          sourceId:item.id,direction:item.direction,frequency:item.frequency,editable:true})}}});
+
+  /* 3. Pending invoices */
+  S.financePayments.forEach(function(p){
+    if(p.type!=='invoice'||p.pendingAmount<=0||p.status==='excluded')return;
+    var expDate=p.expectedPaymentDate||null;
+    if(!expDate&&p.date){
+      var invDate=p.date instanceof Date?p.date:new Date(p.date+'T00:00:00');
+      var fb=new Date(invDate);fb.setDate(fb.getDate()+30);
+      expDate=fb.toISOString().split('T')[0]}
+    if(!expDate)return;
+    var ed=new Date(expDate+'T00:00:00');
+    var endDate=new Date(today);endDate.setDate(endDate.getDate()+horizonDays);
+    if(ed>=today&&ed<=endDate){
+      items.push({type:'invoice',name:p.payerName||p.description||'Invoice',amount:p.pendingAmount,date:expDate,
+        sourceId:p.id,direction:'inflow',frequency:'once',editable:true})}});
+
+  /* 4. Team salaries */
+  S.teamMembers.forEach(function(m){
+    if(!m.isActive||!m.salary)return;
+    for(var i=0;i<horizonDays;i++){
+      var d=new Date(today);d.setDate(d.getDate()+i);
+      var ds=d.toISOString().split('T')[0];
+      if(salaryFallsOnDay(m,ds)){
+        items.push({type:'salary',name:'Salary: '+m.name,amount:m.salary,date:ds,
+          sourceId:m.id,direction:'outflow',frequency:m.payFrequency||'monthly',editable:false})}}});
+
+  items.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0});
+  return items}
+
+/* Update the underlying record date from the Upcoming tab */
+async function setUpcomingDate(type,id,newDate){
+  if(type==='campaign'){
+    var cp=S.campaigns.find(function(c){return c.id===id});
+    if(!cp)return;
+    var ok=await dbEditCampaign(id,{nextBillingDate:newDate||null});
+    if(!ok)return;
+    cp.nextBillingDate=newDate||null;
+    toast('Next billing date updated','ok');render();
+  }else if(type==='scheduled'){
+    var item=S.scheduledItems.find(function(i){return i.id===id});
+    if(!item)return;
+    var ok=await dbEditScheduledItem(id,{nextDue:newDate||null});
+    if(!ok)return;
+    item.nextDue=newDate||null;
+    toast('Next due date updated','ok');render()}}
 
 /* ── Reconciliation ── */
 function autoReconcile(){
@@ -1145,41 +1246,6 @@ async function triggerSync(platform){
       if(el)el.innerHTML='<span style="color:var(--red);white-space:pre-wrap;word-break:break-all">Sync failed: '+esc(errMsg)+'</span>';
     }
   }catch(e){console.error('Sync error:',e);toast('Sync error: '+e.message,'warn')}}
-
-async function debugZohoBooks(){
-  try{
-    var sess=await _sb.auth.getSession();
-    if(!sess.data.session)return;
-    var token=sess.data.session.access_token;
-    toast('Fetching Zoho Books debug data...','info');
-    console.log('%c⏳ Fetching all Zoho Books data (this may take a moment)...','color:#2196f3;font-size:14px');
-    var resp=await fetch('/api/sync/zoho-books-debug',{method:'POST',
-      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
-    var data=await resp.json();
-    if(data.error){toast('Debug error: '+data.error,'warn');console.error('Zoho debug error:',data.error);return}
-
-    console.group('%c📘 ZOHO BOOKS DEBUG DATA','font-weight:bold;font-size:16px;color:#2196f3');
-    console.log('Sync Config:',data.syncConfig);
-    if(data.errors&&data.errors.length)console.warn('Errors:',data.errors);
-
-    console.group('📄 Invoices ('+data.invoices.length+')');
-    if(data.invoices.length){
-      console.table(data.invoices);
-      var outstanding=data.invoices.filter(function(i){return i.status!=='paid'&&i.status!=='void'});
-      if(outstanding.length){console.group('⚠️ Outstanding Invoices ('+outstanding.length+')');console.table(outstanding);console.groupEnd()}
-    }else console.log('No invoices returned');
-    console.groupEnd();
-
-    console.group('💰 Customer Payments ('+data.customerPayments.length+')');
-    if(data.customerPayments.length){
-      console.table(data.customerPayments.map(function(p){return{payment_id:p.payment_id,customer_name:p.customer_name,date:p.date,amount:p.amount,payment_mode:p.payment_mode,payment_number:p.payment_number,reference_number:p.reference_number,invoice_count:(p.invoices||[]).length}}));
-      console.log('Full payment data (with invoice details):',data.customerPayments);
-    }else console.log('No customer payments returned');
-    console.groupEnd();
-
-    console.groupEnd();
-    toast('Zoho debug data logged to console ('+data.invoices.length+' invoices, '+data.customerPayments.length+' payments)','ok');
-  }catch(e){console.error('Debug fetch error:',e);toast('Debug error: '+e.message,'warn')}}
 
 async function cleanupDuplicates(){
   try{
@@ -1351,24 +1417,39 @@ async function dbAddCampaign(data){
     video_assets_link:data.videoAssetsLink||'',transcripts_link:data.transcriptsLink||'',
     awareness_lp:data.awarenessLP||'',consideration_lp:data.considerationLP||'',
     decision_lp:data.decisionLP||'',contract_link:data.contractLink||'',
+    billing_frequency:data.billingFrequency||'monthly',next_billing_date:data.nextBillingDate||null,
     notes:data.notes||''};
   var res=await _sb.from('campaigns').insert(row).select().single();
   if(res.error){toast('Campaign save failed: '+res.error.message,'warn');return null}
   return res.data}
 
 async function dbEditCampaign(id,data){
-  var row={name:data.name,partner:data.partner||'',end_client:data.endClient||'',
-    status:data.status||'Setup',platform:data.platform||'',
-    strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,
-    monthly_fee:data.monthlyFee||0,monthly_ad_spend:data.monthlyAdSpend||0,
-    campaign_term:data.campaignTerm||'',
-    planned_launch:data.plannedLaunch||null,actual_launch:data.actualLaunch||null,
-    renewal_date:data.renewalDate||null,goal:data.goal||'',
-    proposal_link:data.proposalLink||'',reports_link:data.reportsLink||'',
-    video_assets_link:data.videoAssetsLink||'',transcripts_link:data.transcriptsLink||'',
-    awareness_lp:data.awarenessLP||'',consideration_lp:data.considerationLP||'',
-    decision_lp:data.decisionLP||'',contract_link:data.contractLink||'',
-    notes:data.notes||''};
+  var row={};
+  if('name' in data)row.name=data.name;
+  if('partner' in data)row.partner=data.partner||'';
+  if('endClient' in data)row.end_client=data.endClient||'';
+  if('status' in data)row.status=data.status||'Setup';
+  if('platform' in data)row.platform=data.platform||'';
+  if('strategyFee' in data)row.strategy_fee=data.strategyFee||0;
+  if('setupFee' in data)row.setup_fee=data.setupFee||0;
+  if('monthlyFee' in data)row.monthly_fee=data.monthlyFee||0;
+  if('monthlyAdSpend' in data)row.monthly_ad_spend=data.monthlyAdSpend||0;
+  if('campaignTerm' in data)row.campaign_term=data.campaignTerm||'';
+  if('plannedLaunch' in data)row.planned_launch=data.plannedLaunch||null;
+  if('actualLaunch' in data)row.actual_launch=data.actualLaunch||null;
+  if('renewalDate' in data)row.renewal_date=data.renewalDate||null;
+  if('goal' in data)row.goal=data.goal||'';
+  if('proposalLink' in data)row.proposal_link=data.proposalLink||'';
+  if('reportsLink' in data)row.reports_link=data.reportsLink||'';
+  if('videoAssetsLink' in data)row.video_assets_link=data.videoAssetsLink||'';
+  if('transcriptsLink' in data)row.transcripts_link=data.transcriptsLink||'';
+  if('awarenessLP' in data)row.awareness_lp=data.awarenessLP||'';
+  if('considerationLP' in data)row.consideration_lp=data.considerationLP||'';
+  if('decisionLP' in data)row.decision_lp=data.decisionLP||'';
+  if('contractLink' in data)row.contract_link=data.contractLink||'';
+  if('billingFrequency' in data)row.billing_frequency=data.billingFrequency||'monthly';
+  if('nextBillingDate' in data)row.next_billing_date=data.nextBillingDate||null;
+  if('notes' in data)row.notes=data.notes||'';
   var res=await _sb.from('campaigns').update(row).eq('id',id);
   if(res.error){toast('Campaign update failed: '+res.error.message,'warn');return false}
   return true}

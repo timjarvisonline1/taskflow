@@ -1794,7 +1794,7 @@ function rCampaignList(campaigns,td_){
   h+='<th style="width:20%">Name</th><th style="width:12%">Partner</th><th style="width:12%">End Client</th>';
   h+='<th style="width:8%">Status</th><th style="width:8%">Platform</th>';
   h+='<th class="c" style="width:8%">Open</th><th class="r" style="width:8%">Time</th>';
-  h+='<th class="r" style="width:10%">Paid</th><th style="width:8%">Next Due</th><th style="width:8%">Renewal</th>';
+  h+='<th class="r" style="width:10%">Paid</th><th style="width:8%">Next Billing</th><th style="width:8%">Renewal</th>';
   h+='</tr></thead><tbody>';
 
   sorted.forEach(function(cp){
@@ -1808,7 +1808,9 @@ function rCampaignList(campaigns,td_){
     h+='<td class="tc">'+st.openCount+'</td>';
     h+='<td class="nm" style="color:var(--pink)">'+fmtM(st.totalTime)+'</td>';
     h+='<td class="nm" style="color:var(--green)">'+fmtUSD(st.finRevenue)+'</td>';
-    h+='<td>'+(st.nextDue?fmtDShort(st.nextDue):'—')+'</td>';
+    h+='<td>'+(cp.nextBillingDate?cp.nextBillingDate:'—');
+    if(cp.billingFrequency&&cp.billingFrequency!=='monthly')h+=' <span style="font-size:9px;color:var(--blue);font-weight:600">'+cp.billingFrequency.charAt(0).toUpperCase()+'</span>';
+    h+='</td>';
     h+='<td>'+(cp.renewalDate?fmtDShort(cp.renewalDate):'—')+'</td>';
     h+='</tr>'});
   h+='</tbody></table></div>';
@@ -2197,6 +2199,7 @@ function rFinance(){
   if(sub==='overview')h+=rFinanceOverview();
   else if(sub==='payments')h+=rFinancePayments();
   else if(sub==='invoices')h+=rFinanceInvoices();
+  else if(sub==='upcoming')h+=rFinanceUpcoming();
   else if(sub==='recurring')h+=rFinanceRecurring();
   else if(sub==='forecast')h+=rFinanceForecast();
   else if(sub==='team')h+=rFinanceTeam();
@@ -2204,7 +2207,7 @@ function rFinance(){
 
 function rFinanceMobileSubs(sub){
   var h='<div class="task-mode-toggle" style="margin-bottom:16px">';
-  var subs=[['overview','Overview'],['payments','Transactions'],['invoices','Invoices'],['recurring','Recurring'],['forecast','Forecast'],['team','Team']];
+  var subs=[['overview','Overview'],['payments','Transactions'],['invoices','Invoices'],['upcoming','Upcoming'],['recurring','Recurring'],['forecast','Forecast'],['team','Team']];
   subs.forEach(function(s){h+='<button class="tm-btn'+(sub===s[0]?' on':'')+'" onclick="TF.subNav(\''+s[0]+'\')">'+s[1]+'</button>'});
   return h+'</div>'}
 
@@ -2492,6 +2495,68 @@ function rInvoiceTable(invoices,now){
     var statusColor=statusLabel==='overdue'?'var(--red)':statusLabel==='sent'||statusLabel==='unpaid'||statusLabel==='partially_paid'?'var(--amber)':'var(--t3)';
     h+='<td><span style="font-size:11px;font-weight:500;color:'+statusColor+';text-transform:capitalize">'+esc(statusLabel)+'</span></td>';
     h+='</tr>'});
+  h+='</tbody></table></div>';
+  return h}
+
+function rFinanceUpcoming(){
+  var items=buildUpcomingPayments(90);
+  var totalIn=0,totalOut=0;
+  items.forEach(function(it){if(it.direction==='inflow')totalIn+=it.amount;else totalOut+=it.amount});
+
+  var h='';
+  h+='<div class="cp-dash">';
+  h+=dashMet('Expected Inflows',fmtUSD(totalIn),'var(--green)');
+  h+=dashMet('Expected Outflows',fmtUSD(totalOut),'var(--red)');
+  h+=dashMet('Net',fmtUSD(totalIn-totalOut),totalIn-totalOut>=0?'var(--green)':'var(--red)');
+  h+=dashMet('Items',items.length,'var(--t1)');
+  h+='</div>';
+
+  if(!items.length){
+    return h+'<div style="text-align:center;padding:60px 20px;color:var(--t4)">No upcoming payments in the next 90 days.<br><span style="font-size:12px;opacity:0.5">Add campaigns, recurring items, or invoices to see upcoming payments.</span></div>'}
+
+  h+='<div class="tb-wrap"><table class="tb fin-tb">';
+  h+='<thead><tr><th>Date</th><th>Type</th><th>Name</th><th>Direction</th><th class="r">Amount</th><th>Frequency</th><th></th></tr></thead>';
+  h+='<tbody>';
+
+  items.forEach(function(it){
+    var eid=escAttr(it.sourceId);
+    var typeColors={campaign:'var(--blue)',scheduled:'var(--purple50)',invoice:'var(--green)',salary:'var(--pink)'};
+    var typeLabels={campaign:'Campaign',scheduled:'Recurring',invoice:'Invoice',salary:'Salary'};
+    var typeColor=typeColors[it.type]||'var(--t3)';
+    var typeLabel=typeLabels[it.type]||it.type;
+    var dirColor=it.direction==='inflow'?'var(--green)':'var(--red)';
+    var dirSign=it.direction==='inflow'?'+':'-';
+
+    /* Row click opens the relevant detail */
+    var rowClick='';
+    if(it.type==='campaign')rowClick='TF.openCampaignDetail(\''+eid+'\')';
+    else if(it.type==='scheduled')rowClick='TF.openEditScheduledItem(\''+eid+'\')';
+    else if(it.type==='invoice')rowClick='TF.openFinancePaymentDetail(\''+eid+'\')';
+    else if(it.type==='salary')rowClick='TF.openEditTeamMember(\''+eid+'\')';
+
+    h+='<tr class="fin-row" onclick="'+rowClick+'">';
+
+    /* Date column — editable for campaign/scheduled/invoice, read-only for salary */
+    h+='<td onclick="event.stopPropagation()">';
+    if(it.editable){
+      var dateHandler='';
+      if(it.type==='campaign')dateHandler='TF.setUpcomingDate(\'campaign\',\''+eid+'\',this.value)';
+      else if(it.type==='scheduled')dateHandler='TF.setUpcomingDate(\'scheduled\',\''+eid+'\',this.value)';
+      else if(it.type==='invoice')dateHandler='TF.setInvExpDate(\''+eid+'\',this.value)';
+      h+='<input type="date" class="edf inv-exp-date" value="'+it.date+'" onchange="'+dateHandler+'" ';
+      h+='style="font-size:11px;padding:3px 4px;background:transparent;border:1px solid rgba(255,255,255,0.08);border-radius:4px;color:var(--t2);width:130px">';
+    }else{
+      h+='<span class="fin-date">'+fmtDShort(new Date(it.date+'T00:00:00'))+'</span>'}
+    h+='</td>';
+
+    h+='<td><span style="font-size:11px;font-weight:600;color:'+typeColor+';padding:2px 8px;border:1px solid '+typeColor+';border-radius:6px;opacity:0.8">'+typeLabel+'</span></td>';
+    h+='<td style="font-weight:500">'+esc(it.name)+'</td>';
+    h+='<td><span style="font-size:11px;font-weight:500;color:'+dirColor+'">'+esc(it.direction==='inflow'?'Inflow':'Outflow')+'</span></td>';
+    h+='<td class="r nm" style="color:'+dirColor+';font-weight:600">'+dirSign+fmtUSD(it.amount)+'</td>';
+    h+='<td style="font-size:11px;color:var(--t3);text-transform:capitalize">'+esc(it.frequency)+'</td>';
+    h+='<td></td>';
+    h+='</tr>'});
+
   h+='</tbody></table></div>';
   return h}
 

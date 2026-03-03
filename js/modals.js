@@ -1194,6 +1194,11 @@ function openCampaignDetail(id){
     fh+='<span>Estimated: '+fmtUSD(st.estTotal)+'</span>';
     fh+='<span style="color:'+revColor+'">Actual: '+fmtUSD(st.finRevenue)+'</span>';
     fh+='</div></div>';
+    /* Billing terms */
+    fh+='<div class="cp-fees-grid" style="margin-top:10px">';
+    fh+='<div class="cp-fee-item"><div class="cp-fee-label">Billing Frequency</div><select class="edf" id="cp-billingFreq"><option value="monthly"'+(cp.billingFrequency==='monthly'?' selected':'')+'>Monthly</option><option value="quarterly"'+(cp.billingFrequency==='quarterly'?' selected':'')+'>Quarterly</option><option value="annually"'+(cp.billingFrequency==='annually'?' selected':'')+'>Annually</option></select></div>';
+    fh+='<div class="cp-fee-item"><div class="cp-fee-label">Next Billing Date</div><input type="date" class="edf" id="cp-nextBilling" value="'+(cp.nextBillingDate||'')+'"></div>';
+    fh+='</div>';
     return fh}
 
   /* Helper: links HTML */
@@ -1264,6 +1269,20 @@ function openCampaignDetail(id){
     else{h+='<div style="padding:12px;color:var(--t4);font-size:12px;text-align:center">No payments linked to this campaign yet</div>'}
     h+='</details>';
 
+    /* Upcoming Billing (mobile) */
+    if(cp.monthlyFee){
+      var cycMoM=cp.billingFrequency==='quarterly'?3:cp.billingFrequency==='annually'?12:1;
+      var billAmtM=cp.monthlyFee*cycMoM;
+      var freqLblM=cp.billingFrequency==='quarterly'?'Quarterly':cp.billingFrequency==='annually'?'Annually':'Monthly';
+      h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
+      h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">'+icon('calendar',12)+' Upcoming Billing <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:13px">';
+      h+='<span style="color:var(--t3)">Amount: <strong style="color:var(--blue)">'+fmtUSD(billAmtM)+'</strong> '+freqLblM+'</span>';
+      h+='</div>';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 12px;font-size:13px">';
+      h+='<span style="color:var(--t3)">Next: <strong style="color:var(--t1)">'+(cp.nextBillingDate||'Not set')+'</strong></span>';
+      h+='</div></details>'}
+
     /* Links */
     h+='<details style="padding:0 16px;border-top:1px solid var(--gborder)">';
     h+='<summary style="padding:14px 0;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">'+icon('link',12)+' Links <span style="font-size:10px;color:var(--t4)">'+icon('chevron_down',10)+'</span></summary>';
@@ -1329,6 +1348,11 @@ function openCampaignDetail(id){
   h+='<div class="cp-fee-item"><div class="cp-fee-label">Monthly Ad Spend</div><input type="number" class="edf" id="cp-monthlyAdSpend" value="'+(cp.monthlyAdSpend||'')+'" placeholder="0" min="0" step="0.01" style="font-size:16px;font-weight:700"></div>';
   h+='</div>';
   h+='<div class="cp-fee-total"><div class="cp-fee-total-label">One-off: '+fmtUSD(oneOff)+' · Monthly: '+fmtUSD(monthly)+'</div><div class="cp-fee-total-value">Total Paid: '+fmtUSD(st.finRevenue)+'</div></div>';
+  /* Billing terms */
+  h+='<div class="cp-fees-grid" style="margin-top:10px">';
+  h+='<div class="cp-fee-item"><div class="cp-fee-label">Billing Frequency</div><select class="edf" id="cp-billingFreq"><option value="monthly"'+(cp.billingFrequency==='monthly'?' selected':'')+'>Monthly</option><option value="quarterly"'+(cp.billingFrequency==='quarterly'?' selected':'')+'>Quarterly</option><option value="annually"'+(cp.billingFrequency==='annually'?' selected':'')+'>Annually</option></select></div>';
+  h+='<div class="cp-fee-item"><div class="cp-fee-label">Next Billing Date</div><input type="date" class="edf" id="cp-nextBilling" value="'+(cp.nextBillingDate||'')+'"></div>';
+  h+='</div>';
   h+='</div>';
 
   /* Links */
@@ -1378,6 +1402,17 @@ function openCampaignDetail(id){
     h+='</tbody></table></div>'}
   else{h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px">No payments linked yet — associate payments in Finance view</div>'}
   h+='</div>';
+
+  /* Upcoming Billing */
+  if(cp.monthlyFee){
+    var cycMo=cp.billingFrequency==='quarterly'?3:cp.billingFrequency==='annually'?12:1;
+    var billAmt=cp.monthlyFee*cycMo;
+    var freqLbl=cp.billingFrequency==='quarterly'?'Quarterly':cp.billingFrequency==='annually'?'Annually':'Monthly';
+    h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'+icon('calendar',12)+' Upcoming Billing';
+    h+='<span style="font-weight:700;color:var(--blue)">'+fmtUSD(billAmt)+' '+freqLbl+'</span></span>';
+    h+='<div style="display:flex;gap:12px;align-items:center;font-size:12px;color:var(--t3)">';
+    h+='<span>Next billing: <strong style="color:var(--t1)">'+(cp.nextBillingDate||'Not set')+'</strong></span>';
+    h+='</div></div>'}
 
   /* Campaign Meetings */
   h+='<div style="border-top:1px solid var(--gborder);padding-top:14px"><span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">'+icon('mic',12)+' Campaign Meetings ('+st.meetings.length+')</span>';
@@ -1429,6 +1464,8 @@ async function saveCampaign(){
   cp.setupFee=parseFloat(gel('cp-setupFee').value)||0;
   cp.monthlyFee=parseFloat(gel('cp-monthlyFee').value)||0;
   cp.monthlyAdSpend=parseFloat(gel('cp-monthlyAdSpend').value)||0;
+  cp.billingFrequency=(gel('cp-billingFreq')||{}).value||'monthly';
+  cp.nextBillingDate=(gel('cp-nextBilling')||{}).value||null;
   cp.proposalLink=(gel('cp-proposalLink')||{}).value||'';
   cp.reportsLink=(gel('cp-reportsLink')||{}).value||'';
   cp.videoAssetsLink=(gel('cp-videoAssetsLink')||{}).value||'';
@@ -1461,6 +1498,8 @@ function openAddCampaign(){
   h+='<div class="fld"><label>Set-Up Fee ($)</label><input type="number" id="ncp-setupFee" placeholder="0" min="0" step="0.01"></div>';
   h+='<div class="fld"><label>Monthly Fee ($)</label><input type="number" id="ncp-monthlyFee" placeholder="0" min="0" step="0.01"></div>';
   h+='<div class="fld"><label>Monthly Ad Spend ($)</label><input type="number" id="ncp-monthlyAdSpend" placeholder="0" min="0" step="0.01"></div>';
+  h+='<div class="fld"><label>Billing Frequency</label><select id="ncp-billingFreq"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annually">Annually</option></select></div>';
+  h+='<div class="fld"><label>Next Billing Date</label><input type="date" id="ncp-nextBilling"></div>';
   h+='<div class="fld full"><label>Notes</label><textarea id="ncp-notes" rows="2" placeholder="Campaign notes..."></textarea></div>';
   h+='</div><button class="btn btn-p" onclick="TF.addCampaign()" style="margin-top:12px">'+icon('target',12)+' Create Campaign</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
@@ -1474,6 +1513,7 @@ async function addCampaign(){
     monthlyFee:parseFloat(gel('ncp-monthlyFee').value)||0,monthlyAdSpend:parseFloat(gel('ncp-monthlyAdSpend').value)||0,
     campaignTerm:gel('ncp-term').value||'',plannedLaunch:null,actualLaunch:null,renewalDate:null,
     goal:(gel('ncp-goal')||{}).value||'',proposalLink:'',reportsLink:'',videoAssetsLink:'',transcriptsLink:'',
+    billingFrequency:(gel('ncp-billingFreq')||{}).value||'monthly',nextBillingDate:(gel('ncp-nextBilling')||{}).value||null,
     awarenessLP:'',considerationLP:'',decisionLP:'',contractLink:'',notes:(gel('ncp-notes')||{}).value||''};
   var result=await dbAddCampaign(cp);
   if(result){cp.id=result.id;cp.created=new Date();S.campaigns.push(cp)}
@@ -3018,7 +3058,7 @@ function openAddScheduledItem(){
   h+='</div>';
   h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveScheduledItem()">Add Item</button></div>';
   h+='</div>';
-  gel('modal-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 function openEditScheduledItem(id){
   var item=S.scheduledItems.find(function(i){return i.id===id});
@@ -3056,7 +3096,7 @@ function openEditScheduledItem(id){
   h+='<button class="btn" onclick="TF.confirmDeleteScheduledItem(\''+item.id+'\')" style="color:var(--red)">Delete</button>';
   h+='</div>';
   h+='</div>';
-  gel('modal-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 async function saveScheduledItem(){
   var id=gel('si-id')?gel('si-id').value:'';
@@ -3118,7 +3158,7 @@ function openAddTeamMember(){
   h+='</div>';
   h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveTeamMember()">Add Member</button></div>';
   h+='</div>';
-  gel('modal-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 function openEditTeamMember(id){
   var m=S.teamMembers.find(function(t){return t.id===id});
@@ -3147,7 +3187,7 @@ function openEditTeamMember(id){
   h+='<button class="btn" onclick="TF.confirmDeleteTeamMember(\''+m.id+'\')" style="color:var(--red)">Delete</button>';
   h+='</div>';
   h+='</div>';
-  gel('modal-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 async function saveTeamMember(){
   var id=gel('tm-id')?gel('tm-id').value:'';
@@ -3235,7 +3275,6 @@ function openIntegrationsModal(){
     h+='<button class="btn btn-p" onclick="TF.saveIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px">Save</button>';
     if(isConnected){
       h+='<button class="btn btn-go" onclick="TF.triggerSync(\''+plat.id.replace(/_/g,'-')+'\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Now</button>';
-      if(plat.id==='zoho_books')h+='<button class="btn" onclick="TF.debugZohoBooks()" style="font-size:12px;padding:6px 14px;color:var(--blue)">'+icon('search',11)+' Debug Data</button>';
       h+='<button class="btn" onclick="TF.deleteIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:rgba(255,0,0,0.2)">Disconnect</button>';
     }
     h+='</div>';
