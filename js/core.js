@@ -83,7 +83,7 @@ function oppIsClosedStage(stage){return stage==='Closed Won'||stage==='Closed Lo
 var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'today',subView:'',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',
+  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected'};
 
@@ -100,9 +100,10 @@ var SECTIONS=[
     {id:'review',label:'Review Queue',icon:'inbox'}
   ]},
   {id:'opportunities',icon:'gem',label:'Opportunities',kbd:'3',subs:[
-    {id:'pipeline',label:'Pipeline',icon:'pipeline'},
-    {id:'list',label:'List',icon:'menu'},
-    {id:'analytics',label:'Analytics',icon:'dashboard'}
+    {id:'analytics',label:'Analytics',icon:'dashboard'},
+    {id:'retain_live',label:'Retain Live',icon:'users'},
+    {id:'fc_partnership',label:'F&C Partnership',icon:'briefcase'},
+    {id:'fc_direct',label:'F&C Direct',icon:'zap'}
   ]},
   {id:'campaigns',icon:'target',label:'Campaigns',kbd:'4',subs:[
     {id:'pipeline',label:'Pipeline',icon:'target'},
