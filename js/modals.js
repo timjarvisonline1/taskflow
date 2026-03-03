@@ -6,7 +6,7 @@ function openDetail(id){
   var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
   var td=today(),ts=tmrGet(id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
   var elapsed=tmrElapsed(id),eid=escAttr(id);
-  var cliOpts=S.clients.map(function(c){return'<option'+(c===(task.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===(task.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===task.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===task.importance?' selected':'')+'>'+i+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t===task.type?' selected':'')+'>'+t+'</option>'}).join('');
@@ -101,6 +101,13 @@ function openDetail(id){
     h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
     h+='<div id="d-already-dur-wrap" style="display:none;align-items:center;gap:8px"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-already-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(task.est||30)+'" min="0"></div>';
     h+='</div>';
+    /* Add Time inline */
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg1);border-radius:var(--r);margin:0 0 8px;border:1px solid var(--gborder)">';
+    h+='<span style="font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap">'+icon('clock',12)+' Add Time</span>';
+    h+='<input type="number" id="d-add-mins" class="edf" style="width:70px;padding:6px 10px;font-size:13px" placeholder="mins" min="1">';
+    h+='<button class="btn" onclick="TF.addTimeToTask(\''+eid+'\',parseInt(gel(\'d-add-mins\').value))" style="font-size:12px;padding:6px 14px">+ Add</button>';
+    if(elapsed>0)h+='<span style="font-size:11px;color:var(--t4);margin-left:auto">Current: '+fmtM(Math.round(elapsed/60))+'</span>';
+    h+='</div>';
     h+='</details>';
 
     /* Activity Log accordion */
@@ -192,6 +199,13 @@ function openDetail(id){
     h+='<label class="flag-toggle"><input type="checkbox" id="d-already-done" onchange="var c=this.checked;document.getElementById(\'d-already-dur-wrap\').style.display=c?\'flex\':\'none\'"><span class="flag-box">'+CK_XS+'</span><span class="flag-text">Already Completed</span></label>';
     h+='<div id="d-already-dur-wrap" style="display:none;align-items:center;gap:8px;margin-left:auto"><span class="ed-lbl" style="padding:0">Actual Mins</span><input type="number" id="d-already-dur" class="edf" style="width:70px;padding:6px 10px" placeholder="'+(task.est||30)+'" min="0"></div>';
     h+='</div>';
+    /* Add Time inline */
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg1);border-radius:var(--r);margin:0 0 8px;border:1px solid var(--gborder)">';
+    h+='<span style="font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap">'+icon('clock',12)+' Add Time</span>';
+    h+='<input type="number" id="d-add-mins" class="edf" style="width:80px;padding:6px 10px;font-size:13px" placeholder="mins" min="1">';
+    h+='<button class="btn" onclick="TF.addTimeToTask(\''+eid+'\',parseInt(gel(\'d-add-mins\').value))" style="font-size:12px;padding:6px 14px">+ Add</button>';
+    if(elapsed>0)h+='<span style="font-size:11px;color:var(--t4);margin-left:auto">Current: '+fmtM(Math.round(elapsed/60))+'</span>';
+    h+='</div>';
     h+='<div class="ed-actions">';
     h+='<button class="btn btn-p" onclick="TF.saveDetail()">'+icon('save',12)+' Save</button>';
     if(running){
@@ -236,7 +250,10 @@ async function saveDetail(){
   task.item=gel('d-item').value.trim();if(!task.item){toast('Item name required','warn');return}
   task.due=gel('d-due').value?new Date(gel('d-due').value):null;
   task.importance=gel('d-imp').value;task.category=gel('d-cat').value;
-  task.client=gel('d-cli').value||'';task.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();task.type=gel('d-type').value;
+  var cliToggle=gel('dt-cli')||gel('mb-cli');
+  task.client=(cliToggle&&cliToggle.checked)?(gel('d-cli').value||''):'';
+  task.endClient=(cliToggle&&cliToggle.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
+  task.type=gel('d-type').value;
   task.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   task.project=gel('d-project')?gel('d-project').value:'';
   task.phase=gel('d-phase')?gel('d-phase').value:'';
@@ -260,7 +277,10 @@ async function markAlreadyCompleted(id){
   task.item=gel('d-item').value.trim();if(!task.item){toast('Item name required','warn');return}
   task.due=gel('d-due').value?new Date(gel('d-due').value):null;
   task.importance=gel('d-imp').value;task.category=gel('d-cat').value;
-  task.client=gel('d-cli').value||'';task.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();task.type=gel('d-type').value;
+  var cliToggle2=gel('dt-cli')||gel('mb-cli');
+  task.client=(cliToggle2&&cliToggle2.checked)?(gel('d-cli').value||''):'';
+  task.endClient=(cliToggle2&&cliToggle2.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
+  task.type=gel('d-type').value;
   task.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   task.project=gel('d-project')?gel('d-project').value:'';
   task.phase=gel('d-phase')?gel('d-phase').value:'';
@@ -578,7 +598,7 @@ async function logMeeting(){
 /* ═══════════ TEMPLATES ═══════════ */
 function openTplForm(idx){
   var editing=idx!==undefined&&S.templates[idx];var t=editing||{name:'',item:'',importance:'Important',category:'',client:'',endClient:'',type:'Business',est:0,notes:'',setName:''};
-  var cliOpts=S.clients.map(function(c){return'<option'+(c===t.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===t.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===t.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===t.importance?' selected':'')+'>'+i+'</option>'}).join('');
 
@@ -647,7 +667,7 @@ async function useSet(setName){var items=S.templates.filter(function(t){return t
 function openDoneDetail(id){
   var d=S.done.find(function(t){return t.id===id});if(!d)return;
   var td=today(),eid=escAttr(id);
-  var cliOpts=S.clients.map(function(c){return'<option'+(c===(d.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===(d.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===d.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===d.importance?' selected':'')+'>'+i+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t===d.type?' selected':'')+'>'+t+'</option>'}).join('');
@@ -735,7 +755,7 @@ function openReviewDetail(id){
   var curIdx=items.findIndex(function(t){return t.id===id});
   reviewIdx=curIdx>=0?curIdx:0;
   var eid=escAttr(id);
-  var cliOpts=S.clients.map(function(c){return'<option'+(c===(r.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===(r.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===r.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===r.importance?' selected':'')+'>'+i+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t===r.type?' selected':'')+'>'+t+'</option>'}).join('');
@@ -848,6 +868,7 @@ async function approveFromModal(){
   /* Disable buttons to prevent double-click */
   var btnAdd=gel('d-btn-add'),btnStart=gel('d-btn-start');
   if(btnAdd)btnAdd.disabled=true;if(btnStart)btnStart.disabled=true;
+  try{
   var flagged=gel('d-flag').checked;
   var markDone=gel('d-done')&&gel('d-done').checked;
   var dueVal=reviewGetDue();
@@ -856,14 +877,17 @@ async function approveFromModal(){
   var projVal3=(gel('d-project')||{}).value||'';
   var phaseVal3=(gel('d-phase')||{}).value||'';
   var oppVal3=(gel('d-opportunity')||{}).value||'';
+  var rvCliToggle=gel('rv-cli');
+  var rvClient=(rvCliToggle&&rvCliToggle.checked)?(gel('d-cli').value||''):'';
+  var rvEndClient=(rvCliToggle&&rvCliToggle.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
   var data={item:item,due:dueVal,importance:gel('d-imp').value,category:gel('d-cat').value,
-    client:gel('d-cli').value||'',endClient:(gel('d-ec')?gel('d-ec').value:'').trim(),type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
+    client:rvClient,endClient:rvEndClient,type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
     notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal2,meetingKey:mtgVal3,project:projVal3,phase:phaseVal3,opportunity:oppVal3};
   var success=false;
   if(markDone){
     var mins=parseInt((gel('d-done-dur')||{}).value)||data.est||0;
     var dueDate=dueVal?new Date(dueVal):null;
-    var doneData={item:data.item,due:dueVal||null,importance:data.importance,category:data.category,
+    var doneData={item:data.item,due:dueDate,importance:data.importance,category:data.category,
       client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity};
     var result=await dbCompleteTask(doneData);
     if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:dueDate,importance:data.importance,category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity});
@@ -876,6 +900,7 @@ async function approveFromModal(){
       success=true;toast('Added: '+data.item,'ok')}
     else{toast('Failed to add task','err')}}
   if(success){await dbDeleteReview(id);S.review=S.review.filter(function(rv){return rv.id!==id})}
+  }catch(e){console.error('approveFromModal error:',e);toast('Failed to process task','err')}
   if(btnAdd)btnAdd.disabled=false;if(btnStart)btnStart.disabled=false;
   advanceReview()}
 
@@ -2684,6 +2709,8 @@ function openExpenseReconcileModal(paymentId){
     h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gborder)">';
     h+='<button class="btn" onclick="TF.createScheduledFromExpense(\''+escAttr(p.id)+'\')" style="width:100%;padding:10px;font-size:13px;color:var(--blue);border-color:rgba(79,172,254,.3)">';
     h+=icon('plus',14)+' Create New Recurring Item from This Expense</button>';
+    h+='<button class="btn" onclick="TF.saveExpenseAsOneOff(\''+escAttr(p.id)+'\')" style="width:100%;padding:10px;font-size:13px;color:var(--purple50);border-color:rgba(168,85,247,.3);margin-top:8px">';
+    h+=icon('file',14)+' Save as One-Off Expense</button>';
     h+='</div>'}
 
   h+='</div>';

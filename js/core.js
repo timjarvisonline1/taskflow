@@ -281,6 +281,17 @@ function tmrDone(id){var task=S.tasks.find(function(t){return t.id===id});if(!ta
       toast('Done: '+task.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
     closeModal();render();renderSidebar();renderActiveWidget()},500)}
 
+async function addTimeToTask(id,mins){
+  if(!mins||mins<=0){toast('Enter valid minutes','warn');return}
+  var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
+  var t=tmrGet(id);t.elapsed=(t.elapsed||0)+(mins*60);S.timers[id]=t;
+  task.duration=(task.duration||0)+mins;
+  save();
+  await dbUpdateTaskDuration(id,task.duration);
+  addLog(id,'Added '+mins+' mins manually');
+  toast('Added '+mins+' mins','ok');
+  openDetail(id)}
+
 /* Timer tick */
 setInterval(function(){
   var anyActive=false;
@@ -1312,6 +1323,24 @@ async function unlinkExpenseFromScheduled(paymentId){
   await loadFinancePayments();
   toast('Link removed','ok');
   closeModal();render()}
+
+async function saveExpenseAsOneOff(paymentId){
+  var p=S.financePayments.find(function(fp){return fp.id===paymentId});
+  if(!p)return;
+  var acct=getExpenseAccount(p);
+  var dateStr=p.date?(p.date instanceof Date?p.date.toISOString().split('T')[0]:p.date):null;
+  var data={
+    name:p.payerName||p.description||'One-off expense',
+    amount:p.amount,direction:'outflow',frequency:'once',
+    nextDue:dateStr,type:'expense',account:acct||'',
+    category:p.category||'',
+    notes:'From '+(p.source||'unknown')+' — '+(p.description||'')};
+  var itemId=await dbAddScheduledItem(data);
+  if(itemId){
+    await loadScheduledItems();
+    await linkExpenseToScheduled(paymentId,itemId);
+    return}
+  toast('Failed to save one-off','warn')}
 
 function getExpenseAccount(p){
   var meta=typeof p.metadata==='string'?JSON.parse(p.metadata||'{}'):p.metadata||{};

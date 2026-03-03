@@ -2534,6 +2534,41 @@ function rFinanceUpcoming(){
     h+='<button class="btn btn-p" onclick="TF.quickAddOneOff()" style="padding:6px 14px;font-size:12px">'+icon('save',11)+' Add</button>';
     h+='</div></div>'}
 
+  /* Expense Reconciliation Review */
+  var reconExps=S.financePayments.filter(function(p){return p.direction==='outflow'&&p.scheduledItemId&&p.status!=='excluded'&&p.type!=='transfer'});
+  var unreconExps=S.financePayments.filter(function(p){return p.direction==='outflow'&&!p.scheduledItemId&&p.status!=='excluded'&&p.type!=='transfer'});
+  h+='<div class="chart-card" style="margin-bottom:20px">';
+  h+='<h3 style="margin-bottom:12px">'+icon('link',14)+' Expense Reconciliation</h3>';
+  h+='<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">';
+  h+='<div style="flex:1;min-width:140px;padding:12px;background:rgba(61,220,132,.05);border:1px solid rgba(61,220,132,.15);border-radius:8px;text-align:center">';
+  h+='<div style="font-size:22px;font-weight:700;color:var(--green)">'+reconExps.length+'</div>';
+  h+='<div style="font-size:11px;color:var(--t4);margin-top:2px">Reconciled</div>';
+  var reconTotal=0;reconExps.forEach(function(p){reconTotal+=p.amount});
+  h+='<div style="font-size:12px;color:var(--green);margin-top:4px">'+fmtUSD(reconTotal)+'</div>';
+  h+='</div>';
+  h+='<div style="flex:1;min-width:140px;padding:12px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.15);border-radius:8px;text-align:center;cursor:'+(unreconExps.length?'pointer':'default')+'" '+(unreconExps.length?'onclick="TF.nav(\'finance\');setTimeout(function(){TF.setFinFilter(\'expenses\')},100)"':'')+'>';
+  h+='<div style="font-size:22px;font-weight:700;color:var(--red)">'+unreconExps.length+'</div>';
+  h+='<div style="font-size:11px;color:var(--t4);margin-top:2px">Unreconciled</div>';
+  var unreconTotal=0;unreconExps.forEach(function(p){unreconTotal+=p.amount});
+  h+='<div style="font-size:12px;color:var(--red);margin-top:4px">'+fmtUSD(unreconTotal)+'</div>';
+  h+='</div></div>';
+  /* Recent reconciled table */
+  if(reconExps.length){
+    var recent=reconExps.slice().sort(function(a,b){return(b.date||'').localeCompare(a.date||'')}).slice(0,8);
+    h+='<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Recently Reconciled</div>';
+    h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Date</th><th>Expense</th><th class="r">Amount</th><th>Linked To</th></tr></thead><tbody>';
+    recent.forEach(function(p){
+      var linked=S.scheduledItems.find(function(si){return si.id===p.scheduledItemId});
+      h+='<tr class="fin-row" onclick="TF.openExpenseReconcileModal(\''+escAttr(p.id)+'\')" style="cursor:pointer">';
+      h+='<td class="fin-date">'+(p.date?fmtDShort(p.date):'—')+'</td>';
+      h+='<td>'+esc(p.payerName||p.description||'Unknown')+'</td>';
+      h+='<td class="r" style="color:var(--red);font-weight:600">-'+fmtUSD(p.amount)+'</td>';
+      h+='<td style="font-size:12px;color:var(--purple50)">'+icon('link',10)+' '+(linked?esc(linked.name):'—')+'</td>';
+      h+='</tr>'});
+    h+='</tbody></table></div>'}
+  else{h+='<div style="opacity:0.5;font-size:13px;text-align:center;padding:12px">No reconciled expenses yet. Match expenses to recurring items to track them here.</div>'}
+  h+='</div>';
+
   h+='<div class="cp-dash">';
   h+=dashMet('Expected Inflows',fmtUSD(totalIn),'var(--green)');
   h+=dashMet('Expected Outflows',fmtUSD(totalOut),'var(--red)');

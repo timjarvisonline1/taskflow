@@ -1,7 +1,7 @@
 'use strict';
 
 /* ═══════════ PUBLIC API ═══════════ */
-window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addTask:addTask,quickAdd:quickAdd,openAddModal:openAddModal,
+window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,done:tmrDone,addTimeToTask:addTimeToTask,addTask:addTask,quickAdd:quickAdd,openAddModal:openAddModal,
   openDetail:openDetail,saveDetail:saveDetail,markAlreadyCompleted:markAlreadyCompleted,closeModal:closeModal,confirmDelete:confirmDelete,doDelete:doDelete,
   openDoneDetail:openDoneDetail,saveDoneDetail:saveDoneDetail,confirmDeleteDone:confirmDeleteDone,doDeleteDone:doDeleteDone,
   approveReview:approveReview,approveFromModal:approveFromModal,approveAndStart:approveAndStart,openReviewDetail:openReviewDetail,openReviewAt:openReviewAt,dismissReview:dismissReview,dismissFromModal:dismissFromModal,reviewPrev:reviewPrev,reviewNext:reviewNext,
@@ -68,7 +68,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   /* Reconciliation */
   autoReconcile:autoReconcile,
   openExpenseReconcileModal:openExpenseReconcileModal,createScheduledFromExpense:createScheduledFromExpense,setExpenseCategory:setExpenseCategory,
-  linkExpenseToScheduled:linkExpenseToScheduled,unlinkExpenseFromScheduled:unlinkExpenseFromScheduled,
+  linkExpenseToScheduled:linkExpenseToScheduled,unlinkExpenseFromScheduled:unlinkExpenseFromScheduled,saveExpenseAsOneOff:saveExpenseAsOneOff,
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
   atToggleMin:atToggleMin,modalToggle:modalToggle,
