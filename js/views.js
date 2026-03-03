@@ -1505,7 +1505,7 @@ function opCardCompact(op,td_,idx,compact){
     if(op.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:2px 8px">'+esc(op.client)+'</span>';
     if(op.endClient)h+='<span class="bg bg-ec" style="font-size:9px;padding:2px 8px">'+esc(op.endClient)+'</span>';
     h+='</span>'}
-  else{if(op.endClient)h+='<span class="op-card-meta"><span class="bg bg-ec" style="font-size:8px;padding:1px 6px">'+esc(op.endClient)+'</span></span>'}
+  else{if(op.client)h+='<span class="op-card-meta"><span class="bg bg-cl" style="font-size:8px;padding:1px 6px">'+esc(op.client)+'</span></span>'}
   h+='<span class="op-card-meta">';
   if(!compact&&st.totalValue)h+='<span class="op-card-val">'+fmtUSD(st.totalValue)+'</span>';
   h+='<span class="op-prob '+probClass(op.probability)+'"'+(compact?' style="font-size:9px"':'')+'>'+op.probability+'%</span>';
@@ -1643,7 +1643,7 @@ function rOppTypeSection(typeKey){
 
   /* Toolbar: view toggle + partner filter + active/closed toggle */
   h+='<div class="op-toolbar">';
-  h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+  h+='<div style="display:flex;align-items:center;gap:10px">';
   h+='<div class="op-view-toggle">';
   h+='<button class="op-vt-btn'+(vm==='pipeline'?' on':'')+'" onclick="TF.setOpViewMode(\'pipeline\')">'+icon('pipeline',12)+' Pipeline</button>';
   h+='<button class="op-vt-btn'+(vm==='list'?' on':'')+'" onclick="TF.setOpViewMode(\'list\')">'+icon('menu',12)+' List</button>';
