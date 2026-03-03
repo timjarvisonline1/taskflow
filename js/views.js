@@ -17,7 +17,7 @@ function render(){
   if(S.view==='today')initTodayCharts();
   if(S.view==='dashboard')initDashboardCharts();
   if(S.view==='projects')initProjectCharts();
-  if(S.view==='opportunities')initOpportunityCharts();
+  if(S.view==='opportunities'){initOpportunityCharts();if(S.opViewMode==='profitability'&&S.subView&&OPP_TYPES[S.subView])initOppProfitabilityCharts(S.subView)}
   if(S.view==='clients')initClientsCharts();
   if(S.view==='finance')initFinanceCharts();
   if(S.view==='campaigns'&&S.subView==='performance')initCampaignPerformanceCharts();
@@ -1558,10 +1558,10 @@ function oppTypeMetrics(typeKey,partnerFilter){
   var pipelineActive=active.filter(function(o){return!awSt||o.stage!==awSt});
   var won=opps.filter(function(o){return o.stage==='Closed Won'});
   var lost=opps.filter(function(o){return o.stage==='Closed Lost'});
-  var total=0,weighted=0,tasks=0;
-  active.forEach(function(op){var st=getOpportunityStats(op);total+=st.totalValue;weighted+=st.weightedValue;tasks+=st.openCount});
+  var total=0,weighted=0,tasks=0,totalTime=0;
+  active.forEach(function(op){var st=getOpportunityStats(op);total+=st.totalValue;weighted+=st.weightedValue;tasks+=st.openCount;totalTime+=st.totalTime});
   var winRate=won.length+lost.length>0?Math.round(won.length/(won.length+lost.length)*100):0;
-  return{opps:opps,active:active,pipelineActive:pipelineActive,awaiting:awaiting,won:won,lost:lost,total:total,weighted:weighted,tasks:tasks,winRate:winRate}}
+  return{opps:opps,active:active,pipelineActive:pipelineActive,awaiting:awaiting,won:won,lost:lost,total:total,weighted:weighted,tasks:tasks,totalTime:totalTime,winRate:winRate}}
 
 /* ═══════════ ANALYTICS OVERVIEW ═══════════ */
 function rOppAnalytics(){
@@ -1569,8 +1569,8 @@ function rOppAnalytics(){
   var active=allOpps.filter(function(o){return!oppIsClosedStage(o.stage)});
   var won=allOpps.filter(function(o){return o.stage==='Closed Won'});
   var lost=allOpps.filter(function(o){return o.stage==='Closed Lost'});
-  var totalPipeline=0,weightedPipeline=0,openTaskCount=0;
-  active.forEach(function(op){var st=getOpportunityStats(op);totalPipeline+=st.totalValue;weightedPipeline+=st.weightedValue;openTaskCount+=st.openCount});
+  var totalPipeline=0,weightedPipeline=0,openTaskCount=0,totalTimeAll=0;
+  active.forEach(function(op){var st=getOpportunityStats(op);totalPipeline+=st.totalValue;weightedPipeline+=st.weightedValue;openTaskCount+=st.openCount;totalTimeAll+=st.totalTime});
   var winRate=won.length+lost.length>0?Math.round(won.length/(won.length+lost.length)*100):0;
   var avgDeal=active.length>0?Math.round(totalPipeline/active.length):0;
 
@@ -1582,6 +1582,7 @@ function rOppAnalytics(){
   h+='<div class="op-dash-met" style="animation-delay:0.15s"><div class="op-dash-met-v" style="color:'+(winRate>=50?'var(--green)':'var(--amber)')+'">'+winRate+'%</div><div class="op-dash-met-l">Win Rate</div></div>';
   h+='<div class="op-dash-met" style="animation-delay:0.2s"><div class="op-dash-met-v" style="color:var(--blue)">'+openTaskCount+'</div><div class="op-dash-met-l">Open Tasks</div></div>';
   h+='<div class="op-dash-met" style="animation-delay:0.25s"><div class="op-dash-met-v" style="color:var(--purple50)">'+fmtUSD(avgDeal)+'</div><div class="op-dash-met-l">Avg Deal Size</div></div>';
+  h+='<div class="op-dash-met" style="animation-delay:0.3s"><div class="op-dash-met-v" style="color:var(--pink)">'+fmtM(totalTimeAll)+'</div><div class="op-dash-met-l">Total Time</div></div>';
   h+='</div>';
 
   /* Type summary cards */
@@ -1596,6 +1597,7 @@ function rOppAnalytics(){
     h+='<div class="op-type-summary-row"><span>Weighted</span><span style="color:var(--amber);font-weight:700">'+fmtUSD(m.weighted)+'</span></div>';
     h+='<div class="op-type-summary-row"><span>Win Rate</span><span style="color:'+(m.winRate>=50?'var(--green)':'var(--t3)')+'">'+m.winRate+'%</span></div>';
     h+='<div class="op-type-summary-row"><span>Open Tasks</span><span>'+m.tasks+'</span></div>';
+    h+='<div class="op-type-summary-row"><span>Time</span><span style="color:var(--pink)">'+fmtM(m.totalTime)+'</span></div>';
     h+='</div>'});
   h+='</div>';
 
@@ -1633,12 +1635,13 @@ function rOppTypeSection(typeKey){
   var m=oppTypeMetrics(typeKey,pf);
   var vm=S.opViewMode||'pipeline';
 
-  /* Type-specific KPIs (4 cards) */
-  var h='<div class="op-dash" style="grid-template-columns:repeat(4,1fr)">';
+  /* Type-specific KPIs (5 cards) */
+  var h='<div class="op-dash" style="grid-template-columns:repeat(5,1fr)">';
   h+='<div class="op-dash-met" style="animation-delay:0s;border-top:2px solid '+conf.color+'"><div class="op-dash-met-v" style="color:var(--green)">'+fmtUSD(m.total)+'</div><div class="op-dash-met-l">Pipeline Value</div></div>';
   h+='<div class="op-dash-met" style="animation-delay:0.05s"><div class="op-dash-met-v" style="color:var(--amber)">'+fmtUSD(m.weighted)+'</div><div class="op-dash-met-l">Weighted Pipeline</div></div>';
   h+='<div class="op-dash-met" style="animation-delay:0.1s"><div class="op-dash-met-v" style="color:var(--t1)">'+m.active.length+'</div><div class="op-dash-met-l">Active Opps</div></div>';
-  h+='<div class="op-dash-met" style="animation-delay:0.15s"><div class="op-dash-met-v" style="color:'+(m.winRate>=50?'var(--green)':'var(--amber)')+'">'+m.winRate+'%</div><div class="op-dash-met-l">Win Rate</div></div>';
+  h+='<div class="op-dash-met" style="animation-delay:0.15s"><div class="op-dash-met-v" style="color:var(--pink)">'+fmtM(m.totalTime)+'</div><div class="op-dash-met-l">Time Spent</div></div>';
+  h+='<div class="op-dash-met" style="animation-delay:0.2s"><div class="op-dash-met-v" style="color:'+(m.winRate>=50?'var(--green)':'var(--amber)')+'">'+m.winRate+'%</div><div class="op-dash-met-l">Win Rate</div></div>';
   h+='</div>';
 
   /* Toolbar: view toggle + partner filter + active/closed toggle */
@@ -1647,6 +1650,7 @@ function rOppTypeSection(typeKey){
   h+='<div class="op-view-toggle">';
   h+='<button class="op-vt-btn'+(vm==='pipeline'?' on':'')+'" onclick="TF.setOpViewMode(\'pipeline\')">'+icon('pipeline',12)+' Pipeline</button>';
   h+='<button class="op-vt-btn'+(vm==='list'?' on':'')+'" onclick="TF.setOpViewMode(\'list\')">'+icon('menu',12)+' List</button>';
+  h+='<button class="op-vt-btn'+(vm==='profitability'?' on':'')+'" onclick="TF.setOpViewMode(\'profitability\')">'+icon('activity',12)+' Profitability</button>';
   h+='</div>';
   /* Partner filter for F&C Partnership */
   if(typeKey==='fc_partnership'){
@@ -1662,9 +1666,11 @@ function rOppTypeSection(typeKey){
   h+='<span class="cp-status-toggle'+(S.opShowClosed?' active':'')+'" onclick="TF.toggleOpShowClosed()" style="cursor:pointer">Closed <span style="opacity:.6;margin-left:2px">'+(m.won.length+m.lost.length)+'</span></span>';
   h+='</div></div>';
 
-  /* Pipeline or List view */
+  /* Pipeline, List, or Profitability view */
   if(vm==='list'){
     h+=rOppTypeList(typeKey,m);
+  }else if(vm==='profitability'){
+    h+=rOppProfitability(typeKey,m);
   }else{
     h+=renderTypePipeline(typeKey,m.pipelineActive,td_);
   }
@@ -1736,6 +1742,62 @@ function rOppTypeList(typeKey,m){
     h+='</tr>'});
   h+='</tbody></table></div>';
   return h}
+
+/* ── Per-type profitability view ── */
+function rOppProfitability(typeKey,m){
+  var conf=oppTypeConf(typeKey);
+  /* Gather stats across all opps (active + won) for this type */
+  var allRelevant=m.opps.filter(function(o){return o.stage!=='Closed Lost'});
+  var totalRevenue=0,totalTime=0,totalDone=0;
+  allRelevant.forEach(function(op){var st=getOpportunityStats(op);totalRevenue+=st.revenueRealized;totalTime+=st.totalTime;totalDone+=st.doneCount});
+  var avgTime=allRelevant.length>0?Math.round(totalTime/allRelevant.length):0;
+
+  /* KPI cards */
+  var h='<div class="cp-dash" style="margin-bottom:16px">';
+  h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalRevenue)+'</div><div class="cp-dash-met-l">Total Revenue</div></div>';
+  h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--pink)">'+fmtM(totalTime)+'</div><div class="cp-dash-met-l">Total Time</div></div>';
+  h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--t1)">'+m.active.length+'</div><div class="cp-dash-met-l">Active Opps</div></div>';
+  h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--purple50)">'+fmtM(avgTime)+'</div><div class="cp-dash-met-l">Avg Time/Opp</div></div>';
+  h+='</div>';
+
+  /* Charts */
+  h+='<div class="dash-charts" style="margin-bottom:16px">';
+  h+='<div class="chart-card"><h3>Revenue by Opportunity</h3><div class="chart-wrap"><canvas id="op-prof-rev-chart"></canvas></div></div>';
+  h+='<div class="chart-card"><h3>Time by Opportunity</h3><div class="chart-wrap"><canvas id="op-prof-time-chart"></canvas></div></div>';
+  h+='</div>';
+
+  /* Per-opportunity breakdown table */
+  h+='<div class="tb-wrap"><table class="tb"><thead><tr>';
+  h+='<th>Opportunity</th><th>Client</th><th>Stage</th><th class="r">Revenue</th><th class="r">Time Spent</th><th class="r">Tasks Done</th><th class="r">Weighted Value</th>';
+  h+='</tr></thead><tbody>';
+  var sorted=allRelevant.slice().sort(function(a,b){return getOpportunityStats(b).revenueRealized-getOpportunityStats(a).revenueRealized});
+  sorted.forEach(function(op){
+    var st=getOpportunityStats(op);
+    h+='<tr class="op-list-row" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')">';
+    h+='<td><strong>'+esc(op.name)+'</strong></td>';
+    h+='<td>'+esc(op.client)+'</td>';
+    h+='<td><span class="bg '+opStageClass(op.stage,op.type)+'">'+esc(op.stage)+'</span></td>';
+    h+='<td class="r nm" style="color:var(--green)">'+fmtUSD(st.revenueRealized)+'</td>';
+    h+='<td class="r nm" style="color:var(--pink)">'+fmtM(st.totalTime)+'</td>';
+    h+='<td class="r">'+st.doneCount+'</td>';
+    h+='<td class="r nm" style="color:var(--amber)">'+fmtUSD(st.weightedValue)+'</td>';
+    h+='</tr>'});
+  h+='</tbody></table></div>';
+  return h}
+
+function initOppProfitabilityCharts(typeKey){
+  setTimeout(function(){
+    var pf=typeKey==='fc_partnership'?S.opPartnerFilter:'';
+    var opps=S.opportunities.filter(function(o){return o.type===typeKey&&o.stage!=='Closed Lost'});
+    if(pf)opps=opps.filter(function(o){return o.client===pf});
+    var revData={},timeData={};
+    opps.forEach(function(op){
+      var st=getOpportunityStats(op);
+      if(st.revenueRealized>0)revData[op.name]=st.revenueRealized;
+      if(st.totalTime>0)timeData[op.name]=st.totalTime});
+    if(Object.keys(revData).length)mkHBarUSD('op-prof-rev-chart',revData);
+    if(Object.keys(timeData).length)mkHBar('op-prof-time-chart',timeData);
+  },200)}
 
 /* ── Charts ── */
 function initOpportunityCharts(){setTimeout(function(){
@@ -2721,8 +2783,8 @@ function rFinanceUpcoming(){
 
   items.forEach(function(it){
     var eid=escAttr(it.sourceId);
-    var typeColors={campaign:'var(--blue)',scheduled:'var(--purple50)',invoice:'var(--green)',salary:'var(--pink)'};
-    var typeLabels={campaign:'Campaign',scheduled:'Recurring',invoice:'Invoice',salary:'Salary'};
+    var typeColors={campaign:'var(--blue)',scheduled:'var(--purple50)',invoice:'var(--green)',salary:'var(--pink)',pipeline:'var(--amber)',pipeline_monthly:'var(--amber)'};
+    var typeLabels={campaign:'Campaign',scheduled:'Recurring',invoice:'Invoice',salary:'Salary',pipeline:'Pipeline',pipeline_monthly:'Pipeline (Mo)'};
     var typeColor=typeColors[it.type]||'var(--t3)';
     var typeLabel=typeLabels[it.type]||it.type;
     var dirColor=it.direction==='inflow'?'var(--green)':'var(--red)';
@@ -2734,6 +2796,7 @@ function rFinanceUpcoming(){
     else if(it.type==='scheduled')rowClick='TF.openEditScheduledItem(\''+eid+'\')';
     else if(it.type==='invoice')rowClick='TF.openFinancePaymentDetail(\''+eid+'\')';
     else if(it.type==='salary')rowClick='TF.openEditTeamMember(\''+eid+'\')';
+    else if(it.type==='pipeline'||it.type==='pipeline_monthly')rowClick='TF.openOpportunityDetail(\''+eid+'\')';
 
     h+='<tr class="fin-row" onclick="'+rowClick+'">';
 

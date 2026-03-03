@@ -87,7 +87,7 @@ function openDetail(id){
     h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
     h+='</div></div>';
     h+='<div class="mt-fields" id="mb-opp-fields" style="'+(mOpp?'':'display:none')+'"><div class="ed-grid" style="grid-template-columns:1fr">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'')+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'',task.client)+'</select></div>';
     h+='</div></div>';
     h+='<div class="mt-fields" id="mb-proj-fields" style="'+(mProj?'':'display:none')+'"><div class="ed-grid" style="grid-template-columns:1fr">';
     h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(task.project||'')+'</select></div>';
@@ -185,7 +185,7 @@ function openDetail(id){
     h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
     h+='</div></div>';
     h+='<div class="mt-fields" id="dt-opp-fields" style="'+(hasOpp?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'')+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'',task.client)+'</select></div>';
     h+='</div></div>';
     h+='<div class="mt-fields" id="dt-proj-fields" style="'+(hasProj?'':'display:none')+'"><div class="ed-grid ed-grid-2">';
     h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(task.project||'')+'</select></div>';
@@ -349,7 +349,7 @@ function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHou
   h+='</div></div>';
   /* Opportunity fields */
   h+='<div class="mt-fields" id="mt-opp-fields" style="display:none"><div class="ed-grid ed-grid-1">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="f-opportunity" onchange="TF.onProjectChange(\'f\',\'opportunity\')">'+buildOpportunityOptions('')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="f-opportunity" onchange="TF.onProjectChange(\'f\',\'opportunity\')">'+buildOpportunityOptions('','')+'</select></div>';
   h+='</div></div>';
   /* Project fields */
   h+='<div class="mt-fields" id="mt-proj-fields" style="display:none"><div class="ed-grid ed-grid-2">';
@@ -707,7 +707,7 @@ function openDoneDetail(id){
   h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(d.endClient||'',d.client)+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign()">'+buildCampaignOptions(d.campaign||'',d.client,d.endClient)+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" disabled>'+buildProjectOptions(d.project||'')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" disabled>'+buildOpportunityOptions(d.opportunity||'')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" disabled>'+buildOpportunityOptions(d.opportunity||'',d.client)+'</select></div>';
   h+='</div>';
 
   /* ── Notes ── */
@@ -820,7 +820,7 @@ function openReviewDetail(id){
   h+='</div></div>';
   /* Opportunity fields */
   h+='<div class="mt-fields" id="rv-opp-fields" style="'+(rvOpp?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(r.opportunity||'')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(r.opportunity||'',r.client)+'</select></div>';
   h+='</div></div>';
   /* Project fields */
   h+='<div class="mt-fields" id="rv-proj-fields" style="'+(rvProj?'':'display:none')+'"><div class="ed-grid ed-grid-2">';
@@ -1150,24 +1150,33 @@ function ecAddNew(selId){
 function refreshAddEndClients(){
   var client=gel('f-cli')?gel('f-cli').value:'';
   var ecSel=gel('f-ec');if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',client);
-  refreshAddCampaigns()}
+  refreshAddCampaigns();refreshAddOpportunities()}
 function refreshAddCampaigns(){
   var client=gel('f-cli')?gel('f-cli').value:'';
   var ec=gel('f-ec')?gel('f-ec').value:'';if(ec==='__addnew__')ec='';
   var sel=gel('f-campaign');if(!sel)return;
   sel.innerHTML=buildCampaignOptions('',client,ec)}
+function refreshAddOpportunities(){
+  var client=gel('f-cli')?gel('f-cli').value:'';
+  var sel=gel('f-opportunity');if(!sel)return;
+  sel.innerHTML=buildOpportunityOptions('',client)}
 
 /* Cascade refresh for Detail modal (d- prefix) */
 function refreshDetailEndClients(){
   var client=gel('d-cli')?gel('d-cli').value:'';
   var ecSel=gel('d-ec');if(ecSel&&ecSel.tagName==='SELECT'){var cur=ecSel.value;ecSel.innerHTML=buildEndClientOptions(cur,client)}
-  refreshDetailCampaigns()}
+  refreshDetailCampaigns();refreshDetailOpportunities()}
 function refreshDetailCampaigns(){
   var client=gel('d-cli')?gel('d-cli').value:'';
   var ec=gel('d-ec')?gel('d-ec').value:'';if(ec==='__addnew__')ec='';
   var sel=gel('d-campaign');if(!sel)return;
   var cur=sel.value;
   sel.innerHTML=buildCampaignOptions(cur,client,ec)}
+function refreshDetailOpportunities(){
+  var client=gel('d-cli')?gel('d-cli').value:'';
+  var sel=gel('d-opportunity');if(!sel)return;
+  var cur=sel.value;
+  sel.innerHTML=buildOpportunityOptions(cur,client)}
 
 function fillFromCampaign(){
   var sel=gel('f-campaign')||gel('d-campaign');
@@ -1631,9 +1640,12 @@ function onProjectChange(prefix,source){
       var projSel3=gel(prefix+'-project');if(projSel3){projSel3.value=''}
       var phaseSel3=gel(prefix+'-phase');if(phaseSel3){phaseSel3.innerHTML=buildPhaseOptions('','')}}}}
 
-function buildOpportunityOptions(currentValue){
+function buildOpportunityOptions(currentValue,filterClient){
   var opts='<option value="">None</option>';
-  S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'}).forEach(function(o){
+  S.opportunities.filter(function(o){
+    if(o.stage==='Closed Won'||o.stage==='Closed Lost')return false;
+    if(filterClient&&o.client!==filterClient)return false;
+    return true}).forEach(function(o){
     opts+='<option value="'+esc(o.id)+'"'+(currentValue===o.id?' selected':'')+'>'+esc(o.name)+'</option>'});
   return opts}
 

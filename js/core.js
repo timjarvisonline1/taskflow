@@ -1261,6 +1261,36 @@ function buildUpcomingPayments(horizonDays){
         items.push({type:'salary',name:'Salary: '+m.name,amount:m.salary,date:ds,
           sourceId:m.id,direction:'outflow',frequency:m.payFrequency||'monthly',editable:false})}}});
 
+  /* 5. Pipeline opportunities (weighted by probability, requires expectedClose) */
+  var endDate=new Date(today);endDate.setDate(endDate.getDate()+horizonDays);
+  S.opportunities.forEach(function(op){
+    if(op.stage==='Closed Won'||op.stage==='Closed Lost')return;
+    if(!op.expectedClose)return;
+    var closeStr=op.expectedClose instanceof Date?op.expectedClose.toISOString().split('T')[0]:op.expectedClose;
+    var closeDate=new Date(closeStr+'T00:00:00');
+    if(closeDate<today||closeDate>endDate)return;
+    /* Upfront fees (excludes monthlyAdSpend) */
+    var totalVal=(op.strategyFee||0)+(op.setupFee||0);
+    var feePct=(op.processingFeePct||0)/100;
+    var netVal=totalVal*(1-feePct);
+    var prob=(op.probability||0)/100;
+    var weighted=Math.round(netVal*prob);
+    if(weighted>0){
+      items.push({type:'pipeline',name:op.name,amount:weighted,date:closeStr,
+        sourceId:op.id,direction:'inflow',frequency:'once',editable:false})}
+    /* Monthly fee projections post-close */
+    if(op.monthlyFee&&op.monthlyFee>0){
+      var dur=op.expectedMonthlyDuration||12;
+      var monthlyNet=op.monthlyFee*(1-feePct);
+      var monthlyWeighted=Math.round(monthlyNet*prob);
+      if(monthlyWeighted>0){
+        for(var mi=1;mi<=dur;mi++){
+          var md=new Date(closeDate);md.setMonth(md.getMonth()+mi);
+          if(md>endDate)break;
+          var mds=md.toISOString().split('T')[0];
+          items.push({type:'pipeline_monthly',name:op.name+' (monthly)',amount:monthlyWeighted,date:mds,
+            sourceId:op.id,direction:'inflow',frequency:'monthly',editable:false})}}}});
+
   items.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0});
   return items}
 
