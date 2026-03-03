@@ -1404,6 +1404,32 @@ async function triggerSync(platform){
     }
   }catch(e){console.error('Sync error:',e);toast('Sync error: '+e.message,'warn')}}
 
+async function syncAllIntegrations(silent){
+  var platformMap={brex:'brex',mercury:'mercury',zoho_books:'zoho-books',zoho_payments:'zoho-payments'};
+  var active=S.integrations.filter(function(i){return i.is_active});
+  if(!active.length)return;
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    if(!silent)toast('Syncing all integrations...','info');
+    var anyNew=0;
+    for(var i=0;i<active.length;i++){
+      var slug=platformMap[active[i].platform];
+      if(!slug)continue;
+      try{
+        var resp=await fetch('/api/sync/'+slug,{method:'POST',
+          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
+        var result=await resp.json();
+        if(result.success){anyNew+=(result.inserted||0);
+          console.log('[auto-sync]',slug+':',result.inserted+' new,',result.updated+' updated')}
+        else{console.warn('[auto-sync]',slug+' failed:',result.error)}
+      }catch(e){console.warn('[auto-sync]',slug+' error:',e.message)}}
+    await loadFinancePayments();await loadAccountBalances();await loadIntegrations();render();
+    if(!silent&&anyNew)toast(anyNew+' new transactions synced','ok');
+    else if(!silent)toast('All integrations up to date','ok');
+  }catch(e){console.error('syncAllIntegrations:',e)}}
+
 async function cleanupDuplicates(){
   try{
     var sess=await _sb.auth.getSession();

@@ -82,7 +82,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
 
 /* ═══════════ AUTO-REFRESH ═══════════ */
 var arTimer=null;
-function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterval(function(){loadData()},1800000)}
+function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterval(function(){syncAllIntegrations(true).then(function(){loadData()})},1800000)}
 
 
 /* ═══════════ INIT (with auth guard) ═══════════ */
