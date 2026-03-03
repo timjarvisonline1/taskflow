@@ -6,7 +6,7 @@ TaskFlow is a comprehensive task management and business operations platform bui
 - **Tim Jarvis Online LLC** — banking via Brex
 - **Film&Content LLC** — banking via Mercury, accounting via Zoho Books, payment processing via Zoho Payments
 
-It manages tasks, projects, campaigns, opportunities, clients, finance, and daily scheduling in a single-page app.
+It manages tasks, projects, campaigns, opportunities, clients, finance (payments, invoices, recurring expenses, forecasting, team payroll), and daily scheduling in a single-page app.
 
 ## Architecture
 
@@ -62,10 +62,10 @@ taskflow/
 │
 ├── js/
 │   ├── config.js           # Supabase client init, CONFIG object
-│   ├── core.js             # State (S), data loading, CRUD helpers, timers, filters
+│   ├── core.js             # State (S), data loading, CRUD helpers, timers, filters, reconciliation
 │   ├── views.js            # All view rendering (rDash, rToday, rTasks, rFinance, etc.)
-│   ├── modals.js           # All modal UIs (detail, add, done, campaigns, finance, integrations)
-│   ├── features.js         # Focus mode, command palette, drag & drop, scheduling
+│   ├── modals.js           # All modal UIs (detail, add, done, campaigns, finance, projects, opportunities, team, scheduled items)
+│   ├── features.js         # Focus mode, command palette, drag & drop, scheduling, meeting tracking, calendar sync
 │   └── app.js              # TF function registry (window.TF = {...})
 │
 ├── css/
@@ -97,15 +97,22 @@ taskflow/
 │       └── zoho-payments.js # Zoho Payments webhook
 │
 ├── supabase/
-│   ├── schema.sql          # Main schema (tasks, done, review, clients, campaigns, etc.)
-│   ├── add-finance.sql     # finance_payments, payer_client_map tables
-│   ├── add-finance-splits.sql  # finance_payment_splits table
+│   ├── schema.sql                  # Core schema (tasks, done, review, clients, campaigns, projects, opportunities, etc.)
+│   ├── add-finance.sql             # finance_payments, payer_client_map tables
+│   ├── add-finance-splits.sql      # finance_payment_splits table
 │   ├── add-finance-integrations.sql # integration_credentials, sync_log tables
-│   ├── add-activity-logs.sql   # activity_logs table
-│   └── add-meeting-key.sql     # meeting_key column on tasks
+│   ├── add-finance-forecast.sql    # account_balances, scheduled_items, team_members tables
+│   ├── add-scheduled-item-link.sql # scheduled_item_id FK on finance_payments
+│   ├── add-campaign-billing.sql    # Campaign billing metadata columns
+│   ├── add-finance-overhaul.sql    # Enhanced team_members (commission), scheduled_items (end_date/num_payments), opportunities (payment/fees)
+│   ├── add-activity-logs.sql       # activity_logs table
+│   └── add-meeting-key.sql         # meeting_key column on tasks
 │
 └── scripts/
-    └── run-migration.py    # Helper to run SQL migrations
+    ├── run-migration.py    # Helper to run SQL migrations
+    ├── fix-null-dates.py   # Utility for fixing null date issues
+    ├── import-finance.js   # Finance data import (JS)
+    └── import-finance.py   # Finance data import (Python)
 ```
 
 ## Client-Side Architecture
@@ -133,22 +140,51 @@ S = {
   finSplits: [],          // Payment split records
   payerMap: [],           // Payer-to-client mappings
   integrations: [],       // Integration credential records
+  accountBalances: [],    // Live bank account balance snapshots
+  scheduledItems: [],     // Recurring expenses, subscriptions, vendor payments
+  teamMembers: [],        // Team payroll/commission data
 
   // UI state
-  view: 'dash',           // Current view (dash, today, tasks, finance, etc.)
-  filters: {},            // Task filters
+  view: 'dash',           // Current view (dash, today, tasks, finance, campaigns, projects, opportunities, clients)
+  subView: '',            // Sub-view within a section (e.g., finance sub-tabs)
+  filters: {},            // Task filters (client, endClient, campaign, project, opportunity, cat, imp, type, search, dateFrom, dateTo)
   collapsed: {},          // Collapsed sections
   layout: 'board',        // Task layout (board, list)
   groupBy: 'importance',  // Task grouping
-  timers: {},             // Active timers by task ID
+  customOrder: {},        // Custom task ordering
+  timers: {},             // Active timers by task ID {started, elapsed}
   pins: {},               // Pinned tasks
+  schedOrder: {},         // Schedule ordering
+  projTaskOrder: {},      // Project task ordering
 
-  // Finance filters
-  finFilter: '',          // '' | 'unmatched' | 'matched' | 'split'
+  // Bulk operations
+  bulkMode: false,        // Bulk selection active
+  bulkSelected: {},       // Selected task IDs
+
+  // Focus mode
+  focusTask: null,        // Currently focused task ID
+  focusDuration: 25,      // Focus session duration (minutes)
+
+  // Finance UI state
+  finFilter: '',          // '' | 'unmatched' | 'matched' | 'split' | 'expenses'
   finDirection: '',       // '' | 'inflow' | 'outflow'
   finSearch: '',          // Search text
   finRange: '12m',        // Analytics range
   finShowAnalytics: true, // Show/hide analytics
+  finCatFilter: '',       // Category filter
+  finClientFilter: '',    // Client filter
+  finCustomStart: '',     // Custom date range start
+  finCustomEnd: '',       // Custom date range end
+  finBulkMode: false,     // Finance bulk mode
+
+  // Campaign/Opportunity UI state
+  cpShowPaused: false,    // Show paused campaigns
+  cpShowCompleted: false, // Show completed campaigns
+  opShowClosed: false,    // Show closed opportunities
+
+  // Forecast
+  forecastHorizon: 90,    // Forecast lookout period (days)
+  forecastScenario: 'expected', // 'expected' | 'conservative'
 }
 ```
 
@@ -157,7 +193,35 @@ S = {
 All views are rendered by calling `render()`, which calls the appropriate `rXxx()` function based on `S.view`. Views build HTML strings and inject via `innerHTML`. No virtual DOM.
 
 ```
-render() → rDash() | rToday() | rTasks() | rFinance() | rCampaigns() | ...
+render() → rDashboard() | rToday() | rTasks() | rFinance() | rCampaigns() | rProjects() | rOpportunities() | rClients()
+
+Finance sub-views (via rFinance() dispatcher):
+  rFinanceOverview()     — High-level financial overview with expandable bank account cards
+  rFinancePayments()     — Transaction list with filtering, matching, bulk ops
+  rFinanceInvoices()     — Invoice records from Zoho Books
+  rFinanceUpcoming()     — Projected upcoming payments, one-off payments, expense reconciliation review
+  rFinanceRecurring()    — Recurring expenses, subscriptions, vendor payments
+  rFinanceCashFlow()     — Cash flow analysis and projections
+  rFinanceForecast()     — 90-day cash flow forecast with scenario modeling
+  rFinanceTeam()         — Payroll, commissions, team member costs
+  rFinanceDashboard()    — Summary metrics, charts
+
+Campaigns sub-views:
+  rCampaignPipeline()    — Kanban-style pipeline
+  rCampaignList()        — Table view
+  rCampaignPerformance() — Performance charts/metrics
+
+Projects sub-views:
+  rProjectBoard()        — Kanban board by phase
+  rProjectList()         — Table view
+  rProjectTimeline()     — Gantt timeline
+
+Opportunities sub-views:
+  rOpportunityPipeline() — Kanban-style pipeline
+  rOpportunityList()     — Table view
+  rOpportunityChartsHTML() — Analytics
+
+Mobile views: rMobAdd(), rMobToday(), rMobTasks(), rMobOpportunities()
 ```
 
 ### Function Registry
@@ -165,7 +229,7 @@ render() → rDash() | rToday() | rTasks() | rFinance() | rCampaigns() | ...
 All functions callable from HTML `onclick` handlers are registered on `window.TF`:
 
 ```javascript
-window.TF = { nav, load, start, pause, openDetail, ... }
+window.TF = { nav, load, start, pause, openDetail, addTimeToTask, ... }
 ```
 
 HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', this.value)"`, etc.
@@ -175,10 +239,16 @@ HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', th
 - `gel(id)` — `document.getElementById(id)`
 - `cel(tag, cls, html)` — create element
 - `esc(str)` — HTML-escape
+- `escAttr(str)` — attribute-safe escape
 - `icon(name, size)` — Lucide SVG icon
 - `today()` — today as YYYY-MM-DD
 - `fmtT(seconds)` — format timer as H:MM:SS
+- `fmtM(minutes)` — format minutes display
+- `fmtUSD(amount)` — format as USD currency
+- `fmtDShort(date)` — format date short
 - `toast(msg, type)` — show notification ('ok', 'info', 'warn', 'err')
+- `dashMet(label, value, color)` — metrics card widget
+- `taskCard(task)` — reusable task card component
 
 ## Finance System
 
@@ -206,6 +276,50 @@ The Unmatched tab shows only records that need client association. It filters to
 Therefore Zoho Books records are excluded from client matching entirely. They still exist in the database for cash flow forecasting and accounting reconciliation.
 
 Sources eligible for client matching: `zoho_payments`, `mercury`, `stripe`, `stripe2`, `zoho` (legacy CSV).
+
+### Expense Reconciliation
+
+Outflow payments (expenses) can be reconciled against scheduled/recurring items:
+- `openExpenseReconcileModal(paymentId)` — shows expense details, category selector, matching suggestions, and action buttons
+- `linkExpenseToScheduled(paymentId, scheduledItemId)` — links an expense to an existing recurring item, updates last paid date and advances next due
+- `saveExpenseAsOneOff(paymentId)` — creates a one-off scheduled item (`frequency:'once'`) and auto-links the expense to it
+- `autoReconcile()` — bulk auto-matching of expenses to scheduled items
+- Expense Reconciliation Review card in Upcoming tab shows reconciled vs unreconciled counts with totals
+
+### Finance Overview
+
+The Finance Overview (`rFinanceOverview()`) shows expandable bank account cards:
+- **Tim Jarvis Online (Brex)** — card + cash accounts
+- **Film&Content (Mercury)** — checking account
+- **Film&Content (Zoho Payments)** — payment balance
+
+Each card expands to show recent transactions filtered by account source.
+
+### Scheduled Items / Recurring Expenses
+
+Managed via `scheduledItems[]` array. Each item has:
+- `name`, `amount`, `direction` (inflow/outflow), `frequency` (monthly/quarterly/annual/once)
+- `dayOfMonth`, `nextDue`, `lastPaidDate`, `endDate`, `numPayments`
+- `category`, `account`, `type` (expense/subscription), `isActive`
+
+Used in: Upcoming projections, Forecast calculations, Expense reconciliation matching.
+
+### Team Members / Payroll
+
+Managed via `teamMembers[]` array. Each member has:
+- `name`, `role`, `salary`, `payFrequency`, `payDay`
+- `commissionRate`, `commissionBasis`, `commissionFrequency`, `commissionCap`
+- `startDate`, `isActive`
+
+Used in: Upcoming salary projections, Team cost view, Forecast calculations.
+
+### Cash Flow Forecast
+
+`rFinanceForecast()` provides 90-day lookahead with:
+- Scenario toggle: `expected` vs `conservative`
+- Source toggles: campaigns, scheduled items, invoices, salaries
+- Account filter
+- Builds projected inflows/outflows from all sources via `buildUpcomingPayments(horizon)`
 
 ### Data Sources
 
@@ -286,32 +400,64 @@ In `api/_lib/supabase.js`, the `upsertPayment` function:
 ## Database Tables
 
 ### Core Tables
-- `tasks` — active tasks with due dates, importance, client, campaign, project associations
+- `tasks` — active tasks with due dates, importance, client, campaign, project, opportunity associations, meeting_key, duration
 - `done` — completed tasks (moved from tasks on completion)
 - `review` — items to review/approve before becoming tasks
 - `clients` — client/partner records
-- `campaigns` — marketing campaign records with fees, dates, links
+- `campaigns` — marketing campaign records with fees, dates, links, billing frequency/terms
 - `projects` — project records with phases
 - `project_phases` — ordered phases within projects
-- `opportunities` — sales pipeline items
+- `opportunities` — sales pipeline items with payment method, processing fees, receiving account, expected monthly duration
 - `payments` — campaign-related payment records
 - `campaign_meetings` — meeting records linked to campaigns
 - `activity_logs` — per-task log entries
 
 ### Finance Tables
-- `finance_payments` — all financial transactions from all sources
+- `finance_payments` — all financial transactions from all sources (direction, type, external_status, scheduled_item_id, expected_payment_date)
 - `finance_payment_splits` — split payment allocations
 - `payer_client_map` — auto-matching rules (payer email/name → client)
 - `integration_credentials` — API keys and OAuth tokens per platform
 - `sync_log` — audit trail for all sync operations
+- `account_balances` — live snapshots of bank account balances (platform, account_id, current/available balance)
+- `scheduled_items` — recurring expenses/subscriptions (frequency, day_of_month, next_due, last_paid_date, end_date, num_payments, is_active)
+- `team_members` — payroll data (salary, pay_frequency, pay_day, commission_rate, commission_basis, commission_frequency, commission_cap, start_date, is_active)
 
 All tables have RLS policies: users can only read/write their own data.
+
+## DB Helper Functions (core.js)
+
+Each entity has standard CRUD helpers:
+
+- **Tasks**: `dbAddTask()`, `dbEditTask()`, `dbDeleteTask()`, `dbCompleteTask()`, `dbUpdateTaskDuration()`, `dbUpdateMeetingKey()`, `dbDeleteReview()`, `dbAddLog()`
+- **Campaigns**: `dbAddCampaign()`, `dbEditCampaign()`, `dbDeleteCampaign()`, `dbAddPayment()`, `dbAddCampaignMeeting()`
+- **Projects**: `dbAddProject()`, `dbEditProject()`, `dbDeleteProject()`, `dbAddPhase()`, `dbEditPhase()`, `dbDeletePhase()`
+- **Opportunities**: `dbAddOpportunity()`, `dbEditOpportunity()`, `dbDeleteOpportunity()`
+- **Finance**: `dbAddFinancePayment()`, `dbEditFinancePayment()`, `dbDeleteFinancePayment()`, `dbAddFinancePaymentSplit()`, `dbEditFinancePaymentSplit()`, `dbDeleteFinancePaymentSplit()`
+- **Scheduled Items**: `dbAddScheduledItem()`, `dbEditScheduledItem()`, `dbDeleteScheduledItem()`
+- **Team Members**: `dbAddTeamMember()`, `dbEditTeamMember()`, `dbDeleteTeamMember()`
+- **Clients**: `dbAddClient()`, `dbEditClient()`, `dbAssociatePayerToClient()`
+- **Reconciliation**: `linkExpenseToScheduled()`, `unlinkExpenseFromScheduled()`, `saveExpenseAsOneOff()`, `getExpenseAccount()`, `scoreExpenseMatch()`
+
+## Features (features.js)
+
+- **Focus Mode** — full-screen single-task focus with Pomodoro-style timer (`openFocus`, `pauseFocus`, `resumeFocus`, `doneFocus`, `setFocusDur`)
+- **Command Palette** — searchable action launcher (`openCmdPalette`, `cmdSearch`, `closeCmdPalette`)
+- **Drag & Drop** — task reordering, schedule drag, project board drag
+- **Meeting Auto-Tracking** — 30-second poll for ended unlogged meetings from Google Calendar (`startMeetingCheck`, `completeMeetingEnd`, `dismissMeetingEnd`)
+- **Scheduling Engine** — smart task-into-gap scheduling (`calcFreeSlots`, `scheduleTaskIntoSlot`)
+- **Daily Summary** — `openDailySummary()` for end-of-day review
+- **Client Reports** — `openClientReport()`, `genClientReport()` for client-specific reporting
+- **Bulk Operations** — multi-select tasks for batch completion
+- **Pinning** — star/pin important tasks
+- **Activity Logging** — per-task activity trail (`addLog`)
+- **Recurring Task Processing** — `processRecurring()` auto-creates tasks from templates
+- **Add Time to Tasks** — `addTimeToTask(id, mins)` for manually adding worked time when timer wasn't started
 
 ## Deployment
 
 - **Automatic**: Push to `main` branch → Vercel builds and deploys
 - **Manual sync functions**: Triggered via UI "Sync Now" buttons
-- **Cron**: Vercel Hobby plan doesn't support crons. Use external scheduler (cron-job.org) to call `POST /api/cron/sync-all` with `Authorization: Bearer {CRON_SECRET}`
+- **Cron**: Vercel Hobby plan doesn't support crons. The `api/cron/sync-all.js` endpoint exists but is **not currently called** — external cron was disabled due to deployment issues. All platform syncs are manual only via "Sync Now" buttons.
 
 ## Coding Conventions
 
@@ -321,11 +467,13 @@ All tables have RLS policies: users can only read/write their own data.
 4. **String HTML** — views build HTML strings, not DOM nodes
 5. **Semicolons optional** — code uses semicolons inconsistently (ok either way)
 6. **Function names** — camelCase, registered on `window.TF` for HTML access
-7. **CSS variables** — defined in `css/core.css` (--t1, --t2, --bg, --green, --red, etc.)
+7. **CSS variables** — defined in `css/core.css` (--t1, --t2, --t3, --t4, --bg, --bg1, --green, --red, --blue, --purple50, --pink, --gborder, --r, etc.)
 8. **No TypeScript** — all vanilla JS
 9. **API endpoints** — CommonJS modules, `module.exports = async function handler(req, res)`
 10. **Supabase client-side** — uses `_sb` global from config.js (anon key + RLS)
 11. **Supabase server-side** — uses `getServiceClient()` from `api/_lib/supabase.js` (service key, bypasses RLS)
+12. **Modal pattern** — build HTML string → `gel('m-body').innerHTML = h` → `gel('modal').classList.add('on')`
+13. **Toggle pattern** — modal sections use `modalToggle(id)` with `dt-*` checkbox IDs to show/hide field groups
 
 ## Common Tasks
 
@@ -351,6 +499,19 @@ All tables have RLS policies: users can only read/write their own data.
 3. Add to `api/cron/sync-all.js`
 4. Add platform config in `INTG_PLATFORMS` array in `modals.js`
 5. Add source badge color in `css/features.css`
+
+### Adding a new finance sub-view
+1. Add render function `rFinanceNewTab()` in `views.js`
+2. Add tab in the finance sub-nav builder in `rFinance()`
+3. Add case in `rFinance()` dispatcher
+
+### Adding a new entity (e.g., like scheduled items)
+1. Add DB helper functions in `core.js` (`dbAdd/dbEdit/dbDelete`)
+2. Add load function and call from `loadData()`
+3. Add modal functions in `modals.js` (open, save, delete)
+4. Add render in `views.js`
+5. Register all functions in `window.TF` in `app.js`
+6. Create SQL migration in `supabase/`
 
 ## Sync Behavior
 
@@ -379,8 +540,12 @@ All CSV-imported data covers up to 2026-02-28. Live sync data starts from this d
 - Toast messages last 8s for errors, 3.2s for success
 - `vercel.json` maxDuration only applies to `api/sync/*.js` (60s)
 - CSV-imported records use source names `stripe`, `stripe2`, `zoho`, `brex` while live sync uses `zoho_books`, `zoho_payments`, `mercury`, `brex`
+- Client select dropdowns include a blank "Select..." first option to prevent defaulting to first client
+- `saveDetail()` and `markAlreadyCompleted()` check the client toggle checkbox before reading client value — if unchecked, client is cleared
+- `dbCompleteTask()` calls `taskData.due.toISOString()` — due must be a Date object or null, never a string
+- `approveFromModal()` wraps the entire flow in try/catch to always re-enable buttons on error
 
-## Current Status (as of 2026-03-02)
+## Current Status (as of 2026-03-03)
 
 ### Integrations
 - **Brex**: Connected, syncing ~308 transactions
@@ -394,7 +559,19 @@ All CSV-imported data covers up to 2026-02-28. Live sync data starts from this d
 - Unmatched view filters to only actionable customer payments
 - Cleanup endpoint removes historical duplicates
 - Test Connection works without re-entering stored credentials
+- Finance section fully operational: overview, payments, invoices, upcoming, recurring, cash flow, forecast, team
+- Projects with phases, board/list/timeline views
+- Opportunities pipeline with conversion and close-as-lost
+- Expense reconciliation with auto-match, manual link, and one-off save
+- Focus mode, command palette, drag & drop scheduling
+- Meeting auto-tracking from Google Calendar
+- Manual time entry for active tasks (Add Time feature)
+- Task detail client toggle properly clears client when unchecked
+- Add & Complete for review/suggested tasks working with proper Date handling
 
-### Next Steps
-- Set up external cron scheduler (cron-job.org) for automatic 15-minute syncs
-- Build cash flow forecasting feature using all synced financial data
+### Recent Changes (commit f565e01)
+- Fixed client defaulting bug (blank select option + toggle check in saveDetail)
+- Added manual time entry for active tasks (+ Add Time UI + addTimeToTask function)
+- Fixed Add & Complete crash for suggested tasks (Date wrapper + try/catch)
+- Added "Save as One-Off Expense" button in reconcile modal
+- Added Expense Reconciliation review card in Upcoming tab

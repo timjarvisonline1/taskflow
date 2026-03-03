@@ -42,10 +42,12 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   setProjView:function(v){subNav(v)},
   /* Opportunities */
   openOpportunityDetail:openOpportunityDetail,saveOpportunity:saveOpportunity,
-  openAddOpportunity:openAddOpportunity,addOpportunity:addOpportunity,
+  openAddOpportunity:openAddOpportunity,addOpportunity:addOpportunity,selectOpType:selectOpType,
   confirmDeleteOpportunity:confirmDeleteOpportunity,doDeleteOpportunity:doDeleteOpportunity,
-  convertOpportunity:convertOpportunity,closeAsLost:closeAsLost,
+  convertOpportunity:convertOpportunity,convertToClient:convertToClient,closeAsLost:closeAsLost,
+  openAddOpportunityMeeting:openAddOpportunityMeeting,addOpportunityMeeting:addOpportunityMeeting,deleteOpportunityMeeting:deleteOpportunityMeeting,
   setOpView:function(v){subNav(v)},
+  setOpTypeFilter:function(v){S.opTypeFilter=v;save();render()},
   toggleOpShowClosed:function(){S.opShowClosed=!S.opShowClosed;save();render()},
   /* Finance */
   openFinancePaymentDetail:openFinancePaymentDetail,saveFinancePayment:saveFinancePayment,setInvExpDate:setInvExpDate,

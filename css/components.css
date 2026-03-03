@@ -521,30 +521,38 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
 
 /* ═══════════ OPPORTUNITIES ═══════════ */
 
+/* Type filter tabs */
+.op-type-tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.op-type-tab{padding:6px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--gborder);background:var(--glass);color:var(--t3);transition:all .2s var(--ease);user-select:none}
+.op-type-tab:hover{background:rgba(255,255,255,0.04);color:var(--t2)}
+.op-type-tab.active{background:rgba(255,255,255,0.06);color:var(--t1);border-color:rgba(255,255,255,0.15)}
+
+/* Type badges */
+.op-type-rl{background:rgba(61,220,132,0.1);color:var(--green)}
+.op-type-fcp{background:rgba(77,166,255,0.1);color:var(--blue)}
+.op-type-fcd{background:rgba(168,85,247,0.1);color:var(--purple50)}
+
 /* Pipeline board */
-.op-pipeline{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
-.op-column{min-height:200px}
+.op-pipeline{display:grid;gap:14px;overflow-x:auto;min-width:0}
+.op-column{min-height:200px;min-width:160px}
 .op-column-head{font-family:var(--fd);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--t3);padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--gborder);display:flex;align-items:center;justify-content:space-between}
 .op-column-count{font-size:10px;background:var(--bg4);padding:2px 8px;border-radius:8px;color:var(--t4)}
 
+/* Type section headers (stacked "All" pipeline view) */
+.op-type-section{margin-bottom:28px}
+.op-type-section-head{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+
 /* Cards */
-.op-card{display:flex;flex-direction:column;gap:8px;padding:14px 16px;background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);cursor:pointer;transition:all .25s var(--ease);margin-bottom:8px;position:relative;overflow:hidden;animation:cardIn .3s var(--ease-out) backwards}
-.op-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:4px;border-radius:4px 0 0 4px}
+.op-card{display:flex;flex-direction:column;gap:8px;padding:14px 16px;background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);cursor:pointer;transition:all .25s var(--ease);margin-bottom:8px;position:relative;overflow:hidden;animation:cardIn .3s var(--ease-out) backwards;border-left:4px solid var(--gborder)}
 .op-card:hover{border-color:rgba(255,255,255,0.1);background:var(--ghover);transform:translateY(-2px);box-shadow:var(--shadow-md)}
 .op-card-name{font-weight:700;font-size:13px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .op-card-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .op-card-val{font-size:12px;font-weight:800;font-family:var(--fd);color:var(--green);letter-spacing:-0.02em}
 .op-card-stat{font-size:10px;color:var(--t4);font-family:var(--fd);font-weight:600}
 
-/* Stage colors */
-.op-lead::before{background:var(--t4)}
-.op-discovery::before{background:var(--blue)}
-.op-video-tracking::before{background:var(--purple50)}
-.op-proposal::before{background:var(--amber)}
-.op-negotiation::before{background:var(--pink)}
-.op-won::before{background:var(--green)}
-.op-lost::before{background:var(--red)}
-.op-lost{opacity:.7}
+/* Won / Lost card overrides */
+.op-won{border-left-color:var(--green)}
+.op-lost{border-left-color:var(--red);opacity:.7}
 
 /* Probability badge */
 .op-prob{display:inline-flex;align-items:center;gap:3px;font-family:var(--fd);font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px}
@@ -556,12 +564,15 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
 .op-list-row{cursor:pointer;transition:background .2s var(--ease)}
 .op-list-row:hover{background:rgba(255,255,255,0.02)}
 
-/* Stage badges */
-.op-st-lead{background:var(--bg4);color:var(--t3)}
-.op-st-discovery{background:rgba(77,166,255,0.1);color:var(--blue)}
-.op-st-video{background:rgba(255,0,153,0.08);color:var(--accent-hover)}
-.op-st-proposal{background:rgba(255,176,48,0.1);color:var(--amber)}
-.op-st-negotiation{background:rgba(255,0,153,0.1);color:var(--pink)}
+/* Stage badges — indexed system */
+.op-st-0{background:var(--bg4);color:var(--t3)}
+.op-st-1{background:rgba(77,166,255,0.08);color:var(--blue)}
+.op-st-2{background:rgba(168,85,247,0.08);color:var(--purple50)}
+.op-st-3{background:rgba(255,176,48,0.08);color:var(--amber)}
+.op-st-4{background:rgba(255,0,153,0.08);color:var(--accent-hover)}
+.op-st-5{background:rgba(6,182,212,0.08);color:var(--cyan)}
+.op-st-6{background:rgba(245,158,11,0.08);color:#f59e0b}
+.op-st-7{background:rgba(236,72,153,0.08);color:#ec4899}
 .op-st-won{background:rgba(61,220,132,0.1);color:var(--green)}
 .op-st-lost{background:rgba(255,51,88,0.1);color:var(--red)}
 
@@ -583,7 +594,25 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
 /* Closed section */
 .op-closed-section{margin-top:16px}
 
+/* Add Opportunity — type selector cards */
+.op-type-selector{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.op-type-card{padding:18px;border:2px solid var(--gborder);border-radius:var(--r);cursor:pointer;text-align:center;transition:all .2s var(--ease)}
+.op-type-card:hover{border-color:rgba(255,255,255,0.15);background:var(--ghover)}
+.op-type-card.selected{border-color:var(--accent);background:rgba(255,0,153,0.05)}
+.op-type-card-label{font-weight:700;font-size:13px;color:var(--t1);margin-top:6px}
+.op-type-card-desc{font-size:10px;color:var(--t4);margin-top:4px}
+
+/* Opportunity meetings list */
+.op-meeting-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gborder);font-size:12px}
+.op-meeting-row:last-child{border-bottom:none}
+.op-meeting-date{color:var(--t3);font-family:var(--fd);font-weight:600;font-size:11px;min-width:70px}
+.op-meeting-title{color:var(--t1);font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.op-meeting-link{color:var(--blue);font-size:11px;text-decoration:none}
+.op-meeting-link:hover{text-decoration:underline}
+.op-meeting-del{color:var(--t4);cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;transition:color .2s}
+.op-meeting-del:hover{color:var(--red)}
+
 /* Responsive */
-@media(max-width:1200px){.op-pipeline{grid-template-columns:repeat(3,1fr)}.op-dash{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:900px){.op-pipeline{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:600px){.op-pipeline{grid-template-columns:1fr}.op-dash{grid-template-columns:1fr 1fr}.op-chart-grid{grid-template-columns:1fr}}
+@media(max-width:1200px){.op-pipeline{overflow-x:auto}.op-dash{grid-template-columns:repeat(3,1fr)}.op-type-selector{grid-template-columns:1fr}}
+@media(max-width:900px){.op-pipeline{overflow-x:auto}}
+@media(max-width:600px){.op-pipeline{overflow-x:auto}.op-dash{grid-template-columns:1fr 1fr}.op-chart-grid{grid-template-columns:1fr}.op-type-tabs{gap:3px}.op-type-tab{padding:5px 10px;font-size:10px}}

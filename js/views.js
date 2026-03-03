@@ -1424,44 +1424,73 @@ function renderHeatmap(){
 function getOpportunityStats(op){
   var openTasks=S.tasks.filter(function(t){return t.opportunity===op.id});
   var doneTasks=S.done.filter(function(d){return d.opportunity===op.id});
-  var totalTime=doneTasks.reduce(function(s,d){return s+(d.duration||0)},0);
-  var totalValue=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12);
+  var totalTime=openTasks.reduce(function(s,t){return s+(t.duration||0)},0)+doneTasks.reduce(function(s,d){return s+(d.duration||0)},0);
+  var meetings=S.oppMeetings.filter(function(m){return m.opportunityId===op.id});
+  /* Total value depends on type */
+  var totalValue;
+  if(op.type==='retain_live'){totalValue=op.strategyFee||0}
+  else{totalValue=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*(op.expectedMonthlyDuration||12))}
   var weightedValue=totalValue*((op.probability||0)/100);
   var nextDue=openTasks.filter(function(t){return t.due}).sort(function(a,b){return a.due-b.due})[0];
-  /* Revenue realized from converted campaign */
   var revenueRealized=0;
   if(op.convertedCampaignId){
     var cpSt=getCampaignStats({id:op.convertedCampaignId,strategyFee:op.strategyFee||0,setupFee:op.setupFee||0,monthlyFee:op.monthlyFee||0});
     revenueRealized=cpSt.finRevenue}
-  return{openTasks:openTasks,doneTasks:doneTasks,totalTime:totalTime,
+  return{openTasks:openTasks,doneTasks:doneTasks,totalTime:totalTime,meetings:meetings,
     totalValue:totalValue,weightedValue:weightedValue,revenueRealized:revenueRealized,
-    openCount:openTasks.length,doneCount:doneTasks.length,
+    openCount:openTasks.length,doneCount:doneTasks.length,meetingCount:meetings.length,
     nextDue:nextDue?nextDue.due:null}}
 
-function opStageClass(s){
-  if(s==='Lead')return'op-st-lead';if(s==='Discovery')return'op-st-discovery';
-  if(s==='Video Tracking')return'op-st-video';if(s==='Proposal')return'op-st-proposal';
-  if(s==='Negotiation')return'op-st-negotiation';if(s==='Closed Won')return'op-st-won';
-  if(s==='Closed Lost')return'op-st-lost';return'op-st-lead'}
+/* Stage badge class — uses position within type's stages for color progression */
+var _stageColors=['var(--t4)','var(--blue)','rgba(77,166,255,0.8)','var(--purple50)','rgba(168,85,247,0.8)','var(--amber)','rgba(255,176,48,0.8)','var(--pink)'];
+function opStageClass(stage,type){
+  if(stage==='Closed Won')return'op-st-won';
+  if(stage==='Closed Lost')return'op-st-lost';
+  var conf=oppTypeConf(type);
+  var idx=conf.stages.indexOf(stage);
+  if(idx<0)return'op-st-0';
+  return'op-st-'+idx}
 
-function opCardClass(s){
-  if(s==='Lead')return'op-lead';if(s==='Discovery')return'op-discovery';
-  if(s==='Video Tracking')return'op-video-tracking';if(s==='Proposal')return'op-proposal';
-  if(s==='Negotiation')return'op-negotiation';if(s==='Closed Won')return'op-won';
-  if(s==='Closed Lost')return'op-lost';return'op-lead'}
+function opCardClass(stage,type){
+  if(stage==='Closed Won')return'op-won';
+  if(stage==='Closed Lost')return'op-lost';
+  var conf=oppTypeConf(type);
+  var idx=conf.stages.indexOf(stage);
+  if(idx<0)return'op-st0-card';
+  return'op-st'+idx+'-card'}
 
 function probClass(p){return p>=70?'op-prob-high':p>=40?'op-prob-mid':'op-prob-low'}
+
+function opTypeBadgeCls(type){
+  if(type==='retain_live')return'op-type-rl';
+  if(type==='fc_direct')return'op-type-fcd';
+  return'op-type-fcp'}
 
 function rMobOpportunities(){return rOpportunities()}
 
 function rOpportunities(){return '<div class="pg-head"><h1>'+icon('gem',18)+' Opportunities</h1><button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:12px;padding:8px 18px">+ Add Opportunity</button></div>'+rOpportunitiesBody()}
+
 function rOpportunitiesBody(){
   var td_=today();
   var sub=S.subView||'pipeline';
-  var opps=S.opportunities.slice();
+  var allOpps=S.opportunities.slice();
+  var tf=S.opTypeFilter;
+
+  /* Type filter tabs */
+  var typeCounts={retain_live:0,fc_partnership:0,fc_direct:0};
+  allOpps.forEach(function(o){if(typeCounts[o.type]!==undefined)typeCounts[o.type]++});
+  var h='<div class="op-type-tabs">';
+  h+='<span class="op-type-tab'+(!tf?' active':'')+'" onclick="TF.setOpTypeFilter(\'\')">All <span style="opacity:.5;margin-left:2px">'+allOpps.length+'</span></span>';
+  ['retain_live','fc_partnership','fc_direct'].forEach(function(t){
+    var c=oppTypeConf(t);
+    h+='<span class="op-type-tab'+(tf===t?' active':'')+'" onclick="TF.setOpTypeFilter(\''+t+'\')" style="'+(tf===t?'border-color:'+c.color+';color:'+c.color:'')+'">'+c.label+' <span style="opacity:.5;margin-left:2px">'+typeCounts[t]+'</span></span>'});
+  h+='</div>';
+
+  /* Filter by type if selected */
+  var opps=tf?allOpps.filter(function(o){return o.type===tf}):allOpps;
 
   /* Counts & metrics */
-  var activeOpps=opps.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
+  var activeOpps=opps.filter(function(o){return!oppIsClosedStage(o.stage)});
   var wonOpps=opps.filter(function(o){return o.stage==='Closed Won'});
   var lostOpps=opps.filter(function(o){return o.stage==='Closed Lost'});
   var totalPipeline=0,weightedPipeline=0,openTaskCount=0;
@@ -1470,9 +1499,6 @@ function rOpportunitiesBody(){
     totalPipeline+=st.totalValue;weightedPipeline+=st.weightedValue;openTaskCount+=st.openCount});
   var winRate=wonOpps.length+lostOpps.length>0?Math.round(wonOpps.length/(wonOpps.length+lostOpps.length)*100):0;
   var avgDeal=activeOpps.length>0?Math.round(totalPipeline/activeOpps.length):0;
-
-  /* DASHBOARD METRICS */
-  var h='';
 
   /* DASHBOARD METRICS */
   h+='<div class="op-dash">';
@@ -1484,7 +1510,7 @@ function rOpportunitiesBody(){
   h+='<div class="op-dash-met" style="animation-delay:0.25s"><div class="op-dash-met-v" style="color:var(--purple50)">'+fmtUSD(avgDeal)+'</div><div class="op-dash-met-l">Avg Deal Size</div></div>';
   h+='</div>';
 
-  /* STAGE TOGGLE */
+  /* STAGE TOGGLE + view selector */
   h+='<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;justify-content:space-between">';
   h+='<div class="cp-status-filters">';
   h+='<span class="cp-status-toggle always">Active <span style="opacity:.6;margin-left:2px">'+activeOpps.length+'</span></span>';
@@ -1499,14 +1525,19 @@ function rOpportunitiesBody(){
   h+='</div>';
 
   if(sub==='list')return h+rOpportunityList(opps,td_);
-  if(sub==='analytics')return h+rOpportunityChartsHTML();
-  return h+rOpportunityPipeline(opps,td_)+rOpportunityChartsHTML()}
+  if(sub==='analytics')return h+rOpportunityChartsHTML(opps);
+  return h+rOpportunityPipeline(opps,td_)+rOpportunityChartsHTML(opps)}
 
 function opCardCompact(op,td_,idx){
   var st=getOpportunityStats(op);
-  var stageCls=opCardClass(op.stage);
+  var stageCls=opCardClass(op.stage,op.type);
+  var conf=oppTypeConf(op.type);
+  var stageIdx=conf.stages.indexOf(op.stage);
+  var borderColor=oppIsClosedStage(op.stage)?(op.stage==='Closed Won'?'var(--green)':'var(--red)'):(stageIdx>=0&&stageIdx<_stageColors.length?_stageColors[stageIdx]:'var(--t4)');
   var delay=typeof idx==='number'?Math.min(idx*0.03,0.45):0;
-  var h='<div class="op-card '+stageCls+'" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')"'+(delay?' style="animation-delay:'+delay+'s"':'')+'>';
+  var h='<div class="op-card" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')" style="animation-delay:'+delay+'s">';
+  h+='<div style="position:absolute;top:0;left:0;bottom:0;width:4px;border-radius:4px 0 0 4px;background:'+borderColor+'"></div>';
+  h+='<span class="op-card-meta" style="margin-bottom:2px"><span class="bg '+opTypeBadgeCls(op.type)+'" style="font-size:8px;padding:1px 6px">'+conf.short+'</span></span>';
   h+='<span class="op-card-name">'+esc(op.name)+'</span>';
   h+='<span class="op-card-meta">';
   if(op.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:2px 8px">'+esc(op.client)+'</span>';
@@ -1520,28 +1551,29 @@ function opCardCompact(op,td_,idx){
   h+='</span></div>';
   return h}
 
-function rOpportunityPipeline(opps,td_){
-  var OPP_STAGES=['Lead','Discovery','Video Tracking','Proposal','Negotiation'];
-  var grouped={};OPP_STAGES.forEach(function(s){grouped[s]=[]});
-  var closedWon=[],closedLost=[];
+/* Sort opps within columns */
+function sortOpps(arr){
+  arr.sort(function(a,b){
+    if(b.probability!==a.probability)return b.probability-a.probability;
+    var aClose=a.expectedClose?a.expectedClose.getTime():Infinity;
+    var bClose=b.expectedClose?b.expectedClose.getTime():Infinity;
+    if(aClose!==bClose)return aClose-bClose;
+    return(b.created?b.created.getTime():0)-(a.created?a.created.getTime():0)});
+  return arr}
+
+/* Render a single type's pipeline columns */
+function renderTypePipeline(typeKey,opps,td_){
+  var conf=oppTypeConf(typeKey);
+  var stages=conf.stages;
+  var grouped={};stages.forEach(function(s){grouped[s]=[]});
   opps.forEach(function(op){
-    if(op.stage==='Closed Won'){closedWon.push(op);return}
-    if(op.stage==='Closed Lost'){closedLost.push(op);return}
+    if(oppIsClosedStage(op.stage))return;
     if(grouped[op.stage])grouped[op.stage].push(op);
-    else grouped['Lead'].push(op)});
-
-  /* Sort within columns: probability DESC → expected close ASC → created DESC */
-  OPP_STAGES.forEach(function(s){
-    if(!grouped[s])return;
-    grouped[s].sort(function(a,b){
-      if(b.probability!==a.probability)return b.probability-a.probability;
-      var aClose=a.expectedClose?a.expectedClose.getTime():Infinity;
-      var bClose=b.expectedClose?b.expectedClose.getTime():Infinity;
-      if(aClose!==bClose)return aClose-bClose;
-      return(b.created?b.created.getTime():0)-(a.created?a.created.getTime():0)})});
-
-  var h='<div class="op-pipeline">';
-  OPP_STAGES.forEach(function(s){
+    else grouped[stages[0]].push(op)});
+  stages.forEach(function(s){sortOpps(grouped[s])});
+  var colCount=stages.length;
+  var h='<div class="op-pipeline" style="grid-template-columns:repeat('+colCount+',1fr)">';
+  stages.forEach(function(s){
     var items=grouped[s]||[];
     h+='<div class="op-column">';
     h+='<div class="op-column-head">'+esc(s)+' <span class="op-column-count">'+items.length+'</span></div>';
@@ -1549,6 +1581,28 @@ function rOpportunityPipeline(opps,td_){
     items.forEach(function(op,idx){h+=opCardCompact(op,td_,idx)});
     h+='</div>'});
   h+='</div>';
+  return h}
+
+function rOpportunityPipeline(opps,td_){
+  var tf=S.opTypeFilter;
+  var closedWon=opps.filter(function(o){return o.stage==='Closed Won'});
+  var closedLost=opps.filter(function(o){return o.stage==='Closed Lost'});
+  var activeOpps=opps.filter(function(o){return!oppIsClosedStage(o.stage)});
+  var h='';
+
+  if(tf){
+    /* Single type view */
+    h+=renderTypePipeline(tf,activeOpps,td_);
+  }else{
+    /* All types — stacked pipelines */
+    ['retain_live','fc_partnership','fc_direct'].forEach(function(typeKey){
+      var typeOpps=activeOpps.filter(function(o){return o.type===typeKey});
+      var conf=oppTypeConf(typeKey);
+      h+='<div class="op-type-section">';
+      h+='<div class="op-type-section-head"><span class="bg '+opTypeBadgeCls(typeKey)+'" style="font-size:10px;padding:3px 10px">'+conf.label+'</span>';
+      h+='<span style="font-size:11px;color:var(--t4)">'+typeOpps.length+' opportunities</span></div>';
+      h+=renderTypePipeline(typeKey,typeOpps,td_);
+      h+='</div>'})}
 
   /* Closed Won / Closed Lost */
   if(S.opShowClosed&&(closedWon.length||closedLost.length)){
@@ -1568,52 +1622,59 @@ function rOpportunityPipeline(opps,td_){
 
 function rOpportunityList(opps,td_){
   var sorted=opps.slice();
-  var stageOrder={'Lead':0,'Discovery':1,'Video Tracking':2,'Proposal':3,'Negotiation':4,'Closed Won':5,'Closed Lost':6};
+  /* Build dynamic stage order from all types */
+  var allStageOrder={};var idx=0;
+  ['retain_live','fc_partnership','fc_direct'].forEach(function(t){
+    oppTypeConf(t).stages.forEach(function(s){if(allStageOrder[s]===undefined)allStageOrder[s]=idx++})});
+  allStageOrder['Closed Won']=idx++;allStageOrder['Closed Lost']=idx++;
   sorted.sort(function(a,b){
-    var oa=stageOrder[a.stage]!==undefined?stageOrder[a.stage]:9;
-    var ob=stageOrder[b.stage]!==undefined?stageOrder[b.stage]:9;
+    var oa=allStageOrder[a.stage]!==undefined?allStageOrder[a.stage]:99;
+    var ob=allStageOrder[b.stage]!==undefined?allStageOrder[b.stage]:99;
     if(oa!==ob)return oa-ob;return b.probability-a.probability});
-  if(!S.opShowClosed)sorted=sorted.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
+  if(!S.opShowClosed)sorted=sorted.filter(function(o){return!oppIsClosedStage(o.stage)});
 
   var h='<div class="tb-wrap"><table class="tb"><thead><tr>';
-  h+='<th style="width:18%">Name</th><th style="width:12%">Client</th><th style="width:12%">End Client</th>';
-  h+='<th style="width:10%">Stage</th><th class="r" style="width:10%">Value</th>';
-  h+='<th class="c" style="width:6%">Prob</th><th class="r" style="width:10%">Weighted</th>';
-  h+='<th style="width:10%">Expected Close</th><th class="c" style="width:6%">Tasks</th>';
+  h+='<th style="width:16%">Name</th><th style="width:8%">Type</th><th style="width:10%">Client</th><th style="width:10%">End Client</th>';
+  h+='<th style="width:10%">Stage</th><th class="r" style="width:9%">Value</th>';
+  h+='<th class="c" style="width:6%">Prob</th><th class="r" style="width:9%">Weighted</th>';
+  h+='<th style="width:10%">Expected Close</th><th class="c" style="width:5%">Tasks</th>';
   h+='</tr></thead><tbody>';
 
   sorted.forEach(function(op){
     var st=getOpportunityStats(op);
+    var conf=oppTypeConf(op.type);
     h+='<tr class="op-list-row" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')">';
     h+='<td><strong>'+esc(op.name)+'</strong></td>';
+    h+='<td><span class="bg '+opTypeBadgeCls(op.type)+'" style="font-size:9px;padding:2px 8px">'+conf.short+'</span></td>';
     h+='<td>'+esc(op.client)+'</td>';
     h+='<td>'+esc(op.endClient)+'</td>';
-    h+='<td><span class="bg '+opStageClass(op.stage)+'">'+esc(op.stage)+'</span></td>';
+    h+='<td><span class="bg '+opStageClass(op.stage,op.type)+'">'+esc(op.stage)+'</span></td>';
     h+='<td class="nm" style="color:var(--green)">'+fmtUSD(st.totalValue)+'</td>';
     h+='<td class="tc"><span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span></td>';
     h+='<td class="nm" style="color:var(--amber)">'+fmtUSD(st.weightedValue)+'</td>';
-    h+='<td>'+(op.expectedClose?fmtDShort(op.expectedClose):'—')+'</td>';
+    h+='<td>'+(op.expectedClose?fmtDShort(op.expectedClose):'\u2014')+'</td>';
     h+='<td class="tc">'+st.openCount+'</td>';
     h+='</tr>'});
   h+='</tbody></table></div>';
-  return h+rOpportunityChartsHTML()}
+  return h+rOpportunityChartsHTML(opps)}
 
-function rOpportunityChartsHTML(){
+function rOpportunityChartsHTML(opps){
   return'<div class="op-chart-grid">'+
     '<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:12px">Pipeline Value by Stage</div><div style="height:200px"><canvas id="opp-stage-chart"></canvas></div></div>'+
     '<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:12px">Weighted Pipeline</div><div style="height:200px"><canvas id="opp-weighted-chart"></canvas></div></div>'+
     '</div>'}
 
 function initOpportunityCharts(){setTimeout(function(){
+  var tf=S.opTypeFilter;
+  var opps=tf?S.opportunities.filter(function(o){return o.type===tf}):S.opportunities;
+
   /* Pipeline value by stage */
   var stageVals={};
-  var OPP_STAGES=['Lead','Discovery','Video Tracking','Proposal','Negotiation'];
-  OPP_STAGES.forEach(function(s){stageVals[s]=0});
-  S.opportunities.forEach(function(op){
-    if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
-      var v=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12);
-      if(stageVals[op.stage]!==undefined)stageVals[op.stage]+=v}});
-  /* Filter out zero stages */
+  opps.forEach(function(op){
+    if(oppIsClosedStage(op.stage))return;
+    var st=getOpportunityStats(op);
+    if(!stageVals[op.stage])stageVals[op.stage]=0;
+    stageVals[op.stage]+=st.totalValue});
   var filteredStage={};Object.keys(stageVals).forEach(function(k){if(stageVals[k]>0)filteredStage[k]=stageVals[k]});
   if(Object.keys(filteredStage).length){
     var el=gel('opp-stage-chart');if(el){killChart('opp-stage-chart');
@@ -1627,11 +1688,11 @@ function initOpportunityCharts(){setTimeout(function(){
 
   /* Weighted pipeline donut */
   var weightedByStage={};
-  S.opportunities.forEach(function(op){
-    if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
-      var v=((op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12))*((op.probability||0)/100);
-      if(!weightedByStage[op.stage])weightedByStage[op.stage]=0;
-      weightedByStage[op.stage]+=v}});
+  opps.forEach(function(op){
+    if(oppIsClosedStage(op.stage))return;
+    var st=getOpportunityStats(op);
+    if(!weightedByStage[op.stage])weightedByStage[op.stage]=0;
+    weightedByStage[op.stage]+=st.weightedValue});
   var filteredWeighted={};Object.keys(weightedByStage).forEach(function(k){if(weightedByStage[k]>0)filteredWeighted[k]=weightedByStage[k]});
   if(Object.keys(filteredWeighted).length){
     var el2=gel('opp-weighted-chart');if(el2){killChart('opp-weighted-chart');

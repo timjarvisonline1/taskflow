@@ -1636,23 +1636,29 @@ function openOpportunityDetail(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
   var st=getOpportunityStats(op);
   var eid=escAttr(id);
-  var stages=['Lead','Discovery','Video Tracking','Proposal','Negotiation','Closed Won','Closed Lost'];
+  var conf=oppTypeConf(op.type);
+  var stages=oppAllStages(op.type);
   var cliOpts=S.clients.map(function(c){return'<option'+(c===op.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
-  var isClosed=op.stage==='Closed Won'||op.stage==='Closed Lost';
+  var isClosed=oppIsClosedStage(op.stage);
+  var isRL=op.type==='retain_live';
 
   var h='<div class="detail-full-header">';
   h+='<div class="tf-modal-top">';
   h+='<input type="text" class="edf edf-name" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+' style="font-size:18px">';
   h+='<input type="hidden" id="op-id" value="'+esc(op.id)+'">';
+  h+='<input type="hidden" id="op-type" value="'+esc(op.type)+'">';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="tf-modal-badges">';
-  h+='<span class="bg '+opStageClass(op.stage)+'">'+esc(op.stage)+'</span>';
+  h+='<span class="bg '+opTypeBadgeCls(op.type)+'">'+conf.label+'</span>';
+  h+='<span class="bg '+opStageClass(op.stage,op.type)+'">'+esc(op.stage)+'</span>';
   h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'% prob</span>';
   if(st.totalValue)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+fmtUSD(st.totalValue)+'</span>';
   if(st.weightedValue)h+='<span class="bg" style="background:rgba(255,176,48,0.08);color:var(--amber)">'+fmtUSD(st.weightedValue)+' weighted</span>';
   if(st.openCount)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">'+st.openCount+' tasks</span>';
+  if(st.meetingCount)h+='<span class="bg" style="background:rgba(168,85,247,0.08);color:var(--purple50)">'+st.meetingCount+' meetings</span>';
   if(op.client)h+='<span class="bg bg-cl">'+esc(op.client)+'</span>';
   if(op.endClient)h+='<span class="bg bg-ec">'+esc(op.endClient)+'</span>';
+  if(st.totalTime)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">'+icon('clock',12)+' '+fmtM(st.totalTime)+'</span>';
   if(st.revenueRealized>0)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+icon('activity',12)+' '+fmtUSD(st.revenueRealized)+' received</span>';
   if(op.convertedCampaignId){var cpLink=S.campaigns.find(function(c){return c.id===op.convertedCampaignId});
     if(cpLink)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openCampaignDetail(\''+escAttr(cpLink.id)+'\')},100)">'+icon('target',12)+' '+esc(cpLink.name)+'</span>'}
@@ -1663,40 +1669,65 @@ function openOpportunityDetail(id){
   h+='<div class="detail-split-left">';
   h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Prospect':'Client / Partner')+'</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  if(!isRL){h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'"></div>'}
+  else{h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'" placeholder="Company name..."></div>'}
   h+='</div>';
   h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="op-source" value="'+esc(op.source)+'" placeholder="e.g. Referral, Inbound..."></div>';
   h+='</div>';
-  /* Fees */
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01"></div>';
-  h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||50)+'" min="0" max="100"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
-  h+='</div>';
+
+  /* Fee fields — type-specific */
+  if(isRL){
+    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Program Fee</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Payment Plan</span><select class="edf" id="op-payplan">';
+    [['one_time','One-time ($5,000)'],['3_monthly','3x Monthly ($2,000)'],['custom','Custom']].forEach(function(pp){
+      h+='<option value="'+pp[0]+'"'+((op.paymentPlan||'one_time')===pp[0]?' selected':'')+'>'+pp[1]+'</option>'});
+    h+='</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||50)+'" min="0" max="100"></div>';
+    h+='</div>';
+  }else{
+    h+='<div class="ed-grid ed-grid-4">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Ad Spend</span><input type="number" class="edf" id="op-adspend" value="'+(op.monthlyAdSpend||'')+'" min="0" step="0.01"></div>';
+    h+='</div>';
+    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||50)+'" min="0" max="100"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
+    h+='</div>'}
+
+  /* Common extra fields */
+  if(isRL){
+    h+='<div class="ed-grid ed-grid-2">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
+    h+='</div>'}
+
   /* Payment & Processing */
-  h+='<div class="ed-grid ed-grid-4" style="margin-top:4px">';
+  h+='<div class="ed-grid ed-grid-'+(isRL?'2':'4')+'" style="margin-top:4px">';
   h+='<div class="ed-fld"><span class="ed-lbl">Payment Method</span><select class="edf" id="op-paymethod">';
   [['bank_transfer','Bank Transfer'],['card','Card'],['direct_debit','Direct Debit']].forEach(function(pm){h+='<option value="'+pm[0]+'"'+((op.paymentMethod||'bank_transfer')===pm[0]?' selected':'')+'>'+pm[1]+'</option>'});
   h+='</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Processing Fee %</span><input type="number" class="edf" id="op-procfee" value="'+(op.processingFeePct||0)+'" min="0" max="100" step="0.1"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Receiving Account</span><select class="edf" id="op-recvacct"><option value=""'+(!(op.receivingAccount)?' selected':'')+'>Auto</option><option value="brex"'+((op.receivingAccount||'')==='brex'?' selected':'')+'>Brex</option><option value="mercury"'+((op.receivingAccount||'')==='mercury'?' selected':'')+'>Mercury</option></select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Duration</span><input type="number" class="edf" id="op-monthdur" value="'+(op.expectedMonthlyDuration||12)+'" min="1" placeholder="12"></div>';
+  if(!isRL){
+    h+='<div class="ed-fld"><span class="ed-lbl">Processing Fee %</span><input type="number" class="edf" id="op-procfee" value="'+(op.processingFeePct||0)+'" min="0" max="100" step="0.1"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Duration</span><input type="number" class="edf" id="op-monthdur" value="'+(op.expectedMonthlyDuration||12)+'" min="1" placeholder="12"></div>'}
   h+='</div>';
 
   /* Actions */
   h+='<div class="ed-actions" style="margin-top:12px">';
   h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">'+icon('save',12)+' Save</button>';
   if(!isClosed){
-    h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertOpportunity(\''+eid+'\')"> Convert to Campaign</button>';
+    if(conf.conversion==='client'){
+      h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertToClient(\''+eid+'\')">'+icon('check',12)+' Convert to Client</button>';
+    }else{
+      h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertOpportunity(\''+eid+'\')">'+icon('target',12)+' Convert to Campaign</button>'}
     h+='<button class="btn" style="background:rgba(255,51,88,0.1);color:var(--red);border-color:rgba(255,51,88,0.3)" onclick="TF.closeAsLost(\''+eid+'\')">'+icon('x',12)+' Close as Lost</button>'}
   h+='<button class="btn ab-del" style="margin-left:auto" onclick="TF.confirmDeleteOpportunity()">'+icon('trash',12)+' Delete</button>';
   h+='</div>';
@@ -1720,8 +1751,21 @@ function openOpportunityDetail(id){
     h+='<div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden"><div style="background:'+rColor+';height:100%;width:'+pctR+'%;border-radius:4px"></div></div>';
     h+='</div>'}
 
+  /* Meetings */
+  h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Meetings ('+st.meetingCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.openAddOpportunityMeeting(\''+eid+'\')">+ Add</button></span>';
+  if(st.meetings.length){
+    st.meetings.forEach(function(m){
+      h+='<div class="op-meeting-row">';
+      h+='<span style="font-size:11px;color:var(--t3);min-width:80px">'+fmtDShort(m.date)+'</span>';
+      h+='<span style="flex:1;font-size:12px;font-weight:600;color:var(--t1)">'+esc(m.title)+'</span>';
+      if(m.recordingLink)h+='<a href="'+esc(m.recordingLink)+'" target="_blank" style="font-size:10px;color:var(--blue)">'+icon('link',10)+' Recording</a>';
+      h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.5">'+icon('x',10)+'</button>';
+      h+='</div>'})}
+  else{h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px">No meetings yet</div>'}
+  h+='</div>';
+
   /* Open Tasks */
-  h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Open Tasks ('+st.openCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.closeModal();TF.openAddModal()">+ Add</button></span>';
+  h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Open Tasks ('+st.openCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\'})">+ Add</button></span>';
   if(st.openTasks.length){st.openTasks.forEach(function(t){
     var eid2=escAttr(t.id);
     h+='<div class="proj-phase-task">';
@@ -1754,17 +1798,19 @@ async function saveOpportunity(){
   op.name=(gel('op-name').value||'').trim();if(!op.name){toast('Opportunity name required','warn');return}
   op.stage=gel('op-stage').value;
   op.client=gel('op-client').value||'';
-  op.endClient=(gel('op-endclient').value||'').trim();
+  op.endClient=gel('op-endclient')?(gel('op-endclient').value||'').trim():'';
   op.contactName=(gel('op-contact').value||'').trim();
   op.contactEmail=(gel('op-email').value||'').trim();
   op.source=(gel('op-source').value||'').trim();
   op.strategyFee=parseFloat(gel('op-strategy').value)||0;
-  op.setupFee=parseFloat(gel('op-setup').value)||0;
-  op.monthlyFee=parseFloat(gel('op-monthly').value)||0;
+  op.setupFee=gel('op-setup')?parseFloat(gel('op-setup').value)||0:0;
+  op.monthlyFee=gel('op-monthly')?parseFloat(gel('op-monthly').value)||0:0;
+  op.monthlyAdSpend=gel('op-adspend')?parseFloat(gel('op-adspend').value)||0:0;
   op.probability=parseInt(gel('op-prob').value)||50;
-  op.expectedClose=gel('op-close').value?new Date(gel('op-close').value+'T00:00:00'):null;
-  op.description=(gel('op-desc').value||'').trim();
+  op.expectedClose=gel('op-close')&&gel('op-close').value?new Date(gel('op-close').value+'T00:00:00'):null;
+  op.description=gel('op-desc')?(gel('op-desc').value||'').trim():'';
   op.notes=gel('op-notes').value||'';
+  op.paymentPlan=gel('op-payplan')?gel('op-payplan').value||'':'';
   op.paymentMethod=gel('op-paymethod')?gel('op-paymethod').value||'bank_transfer':'bank_transfer';
   op.processingFeePct=gel('op-procfee')?parseFloat(gel('op-procfee').value)||0:0;
   op.receivingAccount=gel('op-recvacct')?gel('op-recvacct').value||'':'';
@@ -1773,65 +1819,110 @@ async function saveOpportunity(){
   toast('Saved: '+op.name,'ok');closeModal();render()}
 
 function openAddOpportunity(){
-  var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('gem',12)+' New Opportunity</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  h+='<div style="padding:6px 0"><input type="text" class="edf" id="nop-name" placeholder="Opportunity name..." autofocus style="font-size:15px;font-weight:600;padding:11px 14px"></div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="nop-stage"><option>Lead</option><option>Discovery</option><option>Video Tracking</option><option>Proposal</option><option>Negotiation</option></select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="nop-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="nop-endclient" placeholder="End client..."></div>';
+
+  /* Type selector */
+  h+='<div class="op-type-selector" id="nop-type-grid">';
+  [['retain_live','Retain Live','Paid training program for video production companies','var(--green)'],
+   ['fc_partnership','F&C Partnership','Production partner brings opportunity','var(--blue)'],
+   ['fc_direct','F&C Direct','Film&Content generates the lead directly','var(--purple50)']].forEach(function(t){
+    h+='<div class="op-type-card" data-type="'+t[0]+'" onclick="TF.selectOpType(\''+t[0]+'\')">';
+    h+='<div style="font-size:14px;font-weight:700;color:'+t[3]+';margin-bottom:6px">'+t[1]+'</div>';
+    h+='<div style="font-size:11px;color:var(--t4)">'+t[2]+'</div></div>'});
   h+='</div>';
+
+  /* Form (hidden until type selected) */
+  h+='<div id="nop-form" style="display:none"></div>';
+
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+/* Populate add form after type selection */
+function selectOpType(type){
+  /* Highlight selected card */
+  var cards=document.querySelectorAll('.op-type-card');
+  cards.forEach(function(c){c.classList.toggle('selected',c.getAttribute('data-type')===type)});
+
+  var conf=oppTypeConf(type);
+  var isRL=type==='retain_live';
+  var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
+
+  var h='<input type="hidden" id="nop-type" value="'+type+'">';
+  h+='<div style="padding:6px 0"><input type="text" class="edf" id="nop-name" placeholder="Opportunity name..." autofocus style="font-size:15px;font-weight:600;padding:11px 14px"></div>';
+
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="nop-stage">'+conf.stages.map(function(s){return'<option>'+s+'</option>'}).join('')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Prospect':'Client / Partner')+'</span><select class="edf" id="nop-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  if(!isRL){h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="nop-endclient" placeholder="End client..."></div>'}
+  else{h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="nop-endclient" placeholder="Company name..."></div>'}
+  h+='</div>';
+
   h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="nop-contact" placeholder="Key contact..."></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="nop-email" placeholder="email@..."></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="nop-source" placeholder="Referral, Inbound..."></div>';
   h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="nop-strategy" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="nop-setup" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="nop-monthly" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="nop-prob" value="50" min="0" max="100"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="nop-close"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="nop-desc" placeholder="Brief description..."></div>';
-  h+='</div>';
-  /* Payment & Processing */
-  h+='<div class="ed-grid ed-grid-4">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Payment Method</span><select class="edf" id="nop-paymethod"><option value="bank_transfer">Bank Transfer</option><option value="card">Card</option><option value="direct_debit">Direct Debit</option></select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Processing Fee %</span><input type="number" class="edf" id="nop-procfee" value="0" min="0" max="100" step="0.1"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Receiving Account</span><select class="edf" id="nop-recvacct"><option value="">Auto</option><option value="brex">Brex</option><option value="mercury">Mercury</option></select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Duration</span><input type="number" class="edf" id="nop-monthdur" value="12" min="1" placeholder="12"></div>';
-  h+='</div>';
+
+  /* Fee fields — type-specific */
+  if(isRL){
+    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Program Fee</span><input type="number" class="edf" id="nop-strategy" value="5000" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Payment Plan</span><select class="edf" id="nop-payplan"><option value="one_time">One-time ($5,000)</option><option value="3_monthly">3x Monthly ($2,000)</option><option value="custom">Custom</option></select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="nop-prob" value="50" min="0" max="100"></div>';
+    h+='</div>';
+  }else{
+    h+='<div class="ed-grid ed-grid-4">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="nop-strategy" min="0" step="0.01" placeholder="0.00"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="nop-setup" min="0" step="0.01" placeholder="0.00"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="nop-monthly" min="0" step="0.01" placeholder="0.00"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Ad Spend</span><input type="number" class="edf" id="nop-adspend" min="0" step="0.01" placeholder="0.00"></div>';
+    h+='</div>';
+    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="nop-prob" value="50" min="0" max="100"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="nop-close"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="nop-desc" placeholder="Brief description..."></div>';
+    h+='</div>'}
+
+  if(isRL){
+    h+='<div class="ed-grid ed-grid-2">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="nop-close"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="nop-desc" placeholder="Brief description..."></div>';
+    h+='</div>'}
+
   h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
   h+='<textarea class="edf edf-notes" id="nop-notes" placeholder="Notes about this opportunity..." rows="2"></textarea></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.addOpportunity()">'+icon('gem',12)+' Create Opportunity</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+
+  gel('nop-form').innerHTML=h;
+  gel('nop-form').style.display='';
   setTimeout(function(){var fi=gel('nop-name');if(fi)fi.focus()},100)}
 
 async function addOpportunity(){
   var name=(gel('nop-name').value||'').trim();if(!name){toast('Enter opportunity name','warn');return}
-  var data={name:name,stage:gel('nop-stage').value||'Lead',
-    client:gel('nop-client').value||'',endClient:(gel('nop-endclient').value||'').trim(),
+  var type=gel('nop-type')?gel('nop-type').value||'fc_partnership':'fc_partnership';
+  var isRL=type==='retain_live';
+  var data={name:name,type:type,stage:gel('nop-stage').value||oppTypeConf(type).stages[0],
+    client:gel('nop-client').value||'',endClient:gel('nop-endclient')?(gel('nop-endclient').value||'').trim():'',
     contactName:(gel('nop-contact').value||'').trim(),contactEmail:(gel('nop-email').value||'').trim(),
     source:(gel('nop-source').value||'').trim(),
-    strategyFee:parseFloat(gel('nop-strategy').value)||0,setupFee:parseFloat(gel('nop-setup').value)||0,
-    monthlyFee:parseFloat(gel('nop-monthly').value)||0,
+    strategyFee:parseFloat(gel('nop-strategy').value)||0,
+    setupFee:gel('nop-setup')?parseFloat(gel('nop-setup').value)||0:0,
+    monthlyFee:gel('nop-monthly')?parseFloat(gel('nop-monthly').value)||0:0,
+    monthlyAdSpend:gel('nop-adspend')?parseFloat(gel('nop-adspend').value)||0:0,
     probability:parseInt(gel('nop-prob').value)||50,
-    expectedClose:gel('nop-close').value||null,
-    description:(gel('nop-desc').value||'').trim(),notes:gel('nop-notes').value||'',
-    paymentMethod:gel('nop-paymethod')?gel('nop-paymethod').value||'bank_transfer':'bank_transfer',
-    processingFeePct:gel('nop-procfee')?parseFloat(gel('nop-procfee').value)||0:0,
-    receivingAccount:gel('nop-recvacct')?gel('nop-recvacct').value||'':'',
-    expectedMonthlyDuration:gel('nop-monthdur')?parseInt(gel('nop-monthdur').value)||12:12};
+    expectedClose:gel('nop-close')&&gel('nop-close').value?gel('nop-close').value:null,
+    description:gel('nop-desc')?(gel('nop-desc').value||'').trim():'',
+    notes:gel('nop-notes').value||'',
+    paymentPlan:gel('nop-payplan')?gel('nop-payplan').value||'':'',
+    paymentMethod:'bank_transfer',processingFeePct:0,receivingAccount:'',
+    expectedMonthlyDuration:isRL?1:12};
   var result=await dbAddOpportunity(data);
   if(!result){toast('Failed to create opportunity','warn');return}
-  S.opportunities.unshift({id:result.id,name:data.name,description:data.description,stage:data.stage,
+  S.opportunities.unshift({id:result.id,name:data.name,description:data.description||'',stage:data.stage,type:data.type,
     client:data.client,endClient:data.endClient,contactName:data.contactName,contactEmail:data.contactEmail,
-    strategyFee:data.strategyFee,setupFee:data.setupFee,monthlyFee:data.monthlyFee,
+    strategyFee:data.strategyFee,setupFee:data.setupFee,monthlyFee:data.monthlyFee,monthlyAdSpend:data.monthlyAdSpend,
     probability:data.probability,expectedClose:data.expectedClose?new Date(data.expectedClose+'T00:00:00'):null,
-    source:data.source,notes:data.notes,closedAt:null,convertedCampaignId:'',created:new Date(),
+    source:data.source,notes:data.notes,paymentPlan:data.paymentPlan,closedAt:null,convertedCampaignId:'',created:new Date(),
     paymentMethod:data.paymentMethod,processingFeePct:data.processingFeePct,
     receivingAccount:data.receivingAccount,expectedMonthlyDuration:data.expectedMonthlyDuration});
   toast('Created: '+data.name,'ok');closeModal();render()}
@@ -1845,20 +1936,19 @@ function confirmDeleteOpportunity(){
 
 async function doDeleteOpportunity(id){
   await dbDeleteOpportunity(id);
-  /* Unlink tasks */
   S.tasks.forEach(function(t){if(t.opportunity===id)t.opportunity=''});
   S.done.forEach(function(d){if(d.opportunity===id)d.opportunity=''});
   S.opportunities=S.opportunities.filter(function(o){return o.id!==id});
+  S.oppMeetings=S.oppMeetings.filter(function(m){return m.opportunityId!==id});
   toast('Deleted opportunity','ok');closeModal();render()}
 
 async function convertOpportunity(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
-  if(!confirm('Convert "'+op.name+'" to a Campaign? This will:\n\n• Create a new Campaign with pre-filled data\n• Move all linked tasks to the new Campaign\n• Mark this opportunity as Closed Won'))return;
+  if(!confirm('Convert "'+op.name+'" to a Campaign? This will:\n\n\u2022 Create a new Campaign with pre-filled data\n\u2022 Move all linked tasks to the new Campaign\n\u2022 Mark this opportunity as Closed Won'))return;
 
-  /* 1. Create campaign from opportunity data */
   var cpData={name:op.name,partner:op.client,endClient:op.endClient,
     status:'Setup',platform:'',strategyFee:op.strategyFee,setupFee:op.setupFee,
-    monthlyFee:op.monthlyFee,monthlyAdSpend:0,campaignTerm:'',
+    monthlyFee:op.monthlyFee,monthlyAdSpend:op.monthlyAdSpend||0,campaignTerm:'',
     plannedLaunch:null,actualLaunch:null,renewalDate:null,
     goal:op.description,proposalLink:'',reportsLink:'',videoAssetsLink:'',
     transcriptsLink:'',awarenessLP:'',considerationLP:'',decisionLP:'',
@@ -1866,32 +1956,28 @@ async function convertOpportunity(id){
   var cpResult=await dbAddCampaign(cpData);
   if(!cpResult){toast('Failed to create campaign','warn');return}
 
-  /* 2. Update opportunity */
   op.stage='Closed Won';op.closedAt=new Date();op.convertedCampaignId=cpResult.id;
   await dbEditOpportunity(id,op);
 
-  /* 3. Batch migrate tasks */
   var taskIds=S.tasks.filter(function(t){return t.opportunity===id}).map(function(t){return t.id});
   if(taskIds.length){
     await _sb.from('tasks').update({campaign:cpResult.id,opportunity:''}).in('id',taskIds);
     S.tasks.forEach(function(t){if(t.opportunity===id){t.campaign=cpResult.id;t.opportunity=''}})}
 
-  /* 4. Batch migrate done items */
   var doneIds=S.done.filter(function(d){return d.opportunity===id}).map(function(d){return d.id});
   if(doneIds.length){
     await _sb.from('done').update({campaign:cpResult.id,opportunity:''}).in('id',doneIds);
     S.done.forEach(function(d){if(d.opportunity===id){d.campaign=cpResult.id;d.opportunity=''}})}
 
-  /* 5. Add campaign to local state */
   S.campaigns.unshift({id:cpResult.id,name:cpData.name,partner:cpData.partner,endClient:cpData.endClient,
     status:'Setup',platform:'',strategyFee:cpData.strategyFee,setupFee:cpData.setupFee,
-    monthlyFee:cpData.monthlyFee,monthlyAdSpend:0,campaignTerm:'',
+    monthlyFee:cpData.monthlyFee,monthlyAdSpend:cpData.monthlyAdSpend||0,campaignTerm:'',
     plannedLaunch:null,actualLaunch:null,renewalDate:null,goal:cpData.goal,
     proposalLink:'',reportsLink:'',videoAssetsLink:'',transcriptsLink:'',
     awarenessLP:'',considerationLP:'',decisionLP:'',contractLink:'',
     notes:cpData.notes,created:new Date()});
 
-  toast(' Converted to campaign: '+op.name,'ok');closeModal();render()}
+  toast('Converted to campaign: '+op.name,'ok');closeModal();render()}
 
 async function closeAsLost(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
@@ -1899,6 +1985,43 @@ async function closeAsLost(id){
   op.stage='Closed Lost';op.closedAt=new Date();
   await dbEditOpportunity(id,op);
   toast('Closed Lost: '+op.name,'warn');closeModal();render()}
+
+/* ═══════════ OPPORTUNITY MEETINGS ═══════════ */
+function openAddOpportunityMeeting(opId){
+  var h='<div class="tf-modal-top"><h2>Add Meeting</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:0 20px 20px">';
+  h+='<input type="hidden" id="nom-opid" value="'+esc(opId)+'">';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Date</span><input type="date" class="edf" id="nom-date" value="'+new Date().toISOString().split('T')[0]+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Title</span><input type="text" class="edf" id="nom-title" placeholder="Meeting title..." autofocus></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Recording Link</span><input type="url" class="edf" id="nom-link" placeholder="https://..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><input type="text" class="edf" id="nom-notes" placeholder="Meeting notes..."></div>';
+  h+='</div>';
+  h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.addOpportunityMeeting()">'+icon('check',14)+' Add Meeting</button></div>';
+  h+='</div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var fi=gel('nom-title');if(fi)fi.focus()},100)}
+
+async function addOpportunityMeeting(){
+  var opId=(gel('nom-opid')||{}).value;if(!opId)return;
+  var title=(gel('nom-title').value||'').trim();if(!title){toast('Meeting title required','warn');return}
+  var data={opportunityId:opId,date:gel('nom-date').value?new Date(gel('nom-date').value+'T12:00:00').toISOString():new Date().toISOString(),
+    title:title,recordingLink:(gel('nom-link').value||'').trim(),notes:(gel('nom-notes').value||'').trim()};
+  var result=await dbAddOpportunityMeeting(data);
+  if(!result)return;
+  S.oppMeetings.unshift({id:result.id,opportunityId:opId,date:new Date(data.date),
+    title:data.title,recordingLink:data.recordingLink,notes:data.notes,created:new Date()});
+  toast('Meeting added','ok');closeModal();
+  setTimeout(function(){openOpportunityDetail(opId)},100)}
+
+async function deleteOpportunityMeeting(meetingId,opId){
+  if(!confirm('Delete this meeting?'))return;
+  await dbDeleteOpportunityMeeting(meetingId);
+  S.oppMeetings=S.oppMeetings.filter(function(m){return m.id!==meetingId});
+  toast('Meeting deleted','ok');
+  openOpportunityDetail(opId)}
 
 /* ═══════════ PROJECT DETAIL MODAL ═══════════ */
 function openProjectDetail(id){

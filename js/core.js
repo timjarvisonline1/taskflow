@@ -58,10 +58,32 @@ function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\
 var PAY_CATS=['Products','Retain Live','F&C Campaign Set-Up','F&C Strategy','F&C Monthly Fees','Other'];
 var EXPENSE_CATS=['Software & SaaS','Advertising & Marketing','Travel','Food & Dining','Office & Supplies','Professional Services','Subscriptions','Insurance','Taxes & Fees','Personal','Uncategorised'];
 
-var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],timers:{},view:'today',subView:'',layout:'grid',groupBy:'importance',
+/* ═══════════ OPPORTUNITY TYPE CONFIG ═══════════ */
+var OPP_TYPES={
+  retain_live:{label:'Retain Live',short:'RL',
+    stages:['Meeting Booked','Agreement Sent'],
+    closedStages:['Closed Won','Closed Lost'],
+    color:'var(--green)',conversion:'client',
+    defaultFees:{strategyFee:5000}},
+  fc_partnership:{label:'F&C Partnership',short:'F&C-P',
+    stages:['Contact Identified','Outreach Initiated','Meeting Booked','Discovery Call','Video Tracking','Audit/Report','Proactive Pitch','Negotiation'],
+    closedStages:['Closed Won','Closed Lost'],
+    color:'var(--blue)',conversion:'campaign',
+    defaultFees:{}},
+  fc_direct:{label:'F&C Direct',short:'F&C-D',
+    stages:['Lead Generated','Discovery Call','Video Tracking','Proactive Pitch','Negotiation'],
+    closedStages:['Closed Won','Closed Lost'],
+    color:'var(--purple50)',conversion:'campaign',
+    defaultFees:{}}
+};
+function oppTypeConf(type){return OPP_TYPES[type]||OPP_TYPES.fc_partnership}
+function oppAllStages(type){var c=oppTypeConf(type);return c.stages.concat(c.closedStages)}
+function oppIsClosedStage(stage){return stage==='Closed Won'||stage==='Closed Lost'}
+
+var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'today',subView:'',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,
+  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected'};
 
@@ -474,7 +496,7 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_pto',JSON.stringify(S.projTaskOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_sv',S.view);localStorage.setItem('tf_sv2',S.subView);localStorage.setItem('tf_ftg',JSON.stringify(S.forecastToggles||{}));localStorage.setItem('tf_fac',S.forecastAccount||'')}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_pto',JSON.stringify(S.projTaskOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_optf',S.opTypeFilter||'');localStorage.setItem('tf_sv',S.view);localStorage.setItem('tf_sv2',S.subView);localStorage.setItem('tf_ftg',JSON.stringify(S.forecastToggles||{}));localStorage.setItem('tf_fac',S.forecastAccount||'')}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
@@ -489,6 +511,7 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var cpsp=localStorage.getItem('tf_cpsp');if(cpsp)S.cpShowPaused=true;
   var cpsc=localStorage.getItem('tf_cpsc');if(cpsc)S.cpShowCompleted=true;
   var opsc=localStorage.getItem('tf_opsc');if(opsc)S.opShowClosed=true;
+  var optf=localStorage.getItem('tf_optf');if(optf)S.opTypeFilter=optf;
   var sv=localStorage.getItem('tf_sv');if(sv)S.view=sv;
   var sv2=localStorage.getItem('tf_sv2');if(sv2)S.subView=sv2;
   var fr=localStorage.getItem('tf_fr');if(fr)S.finRange=fr;
@@ -620,16 +643,26 @@ async function loadOpportunities(){
   if(res.error){console.error('loadOpportunities:',res.error);return}
   S.opportunities=(res.data||[]).map(function(r){
     return{id:r.id,name:r.name||'',description:r.description||'',stage:r.stage||'Lead',
+      type:r.type||'fc_partnership',
       client:r.client||'',endClient:r.end_client||'',contactName:r.contact_name||'',contactEmail:r.contact_email||'',
       strategyFee:parseFloat(r.strategy_fee)||0,setupFee:parseFloat(r.setup_fee)||0,
-      monthlyFee:parseFloat(r.monthly_fee)||0,probability:r.probability||50,
+      monthlyFee:parseFloat(r.monthly_fee)||0,monthlyAdSpend:parseFloat(r.monthly_ad_spend)||0,
+      probability:r.probability||50,
       expectedClose:r.expected_close?new Date(r.expected_close+'T00:00:00'):null,
-      source:r.source||'',notes:r.notes||'',
+      source:r.source||'',notes:r.notes||'',paymentPlan:r.payment_plan||'',
       closedAt:r.closed_at?new Date(r.closed_at):null,
       convertedCampaignId:r.converted_campaign_id||'',
       paymentMethod:r.payment_method||'bank_transfer',processingFeePct:parseFloat(r.processing_fee_pct)||0,
       receivingAccount:r.receiving_account||'',expectedMonthlyDuration:r.expected_monthly_duration||12,
       created:r.created_at?new Date(r.created_at):new Date()}})}
+
+async function loadOpportunityMeetings(){
+  var res=await _sb.from('opportunity_meetings').select('*').order('date',{ascending:false});
+  if(res.error){console.error('loadOpportunityMeetings:',res.error);return}
+  S.oppMeetings=(res.data||[]).map(function(r){
+    return{id:r.id,opportunityId:r.opportunity_id,date:r.date?new Date(r.date):new Date(),
+      title:r.title||'',recordingLink:r.recording_link||'',notes:r.notes||'',
+      created:r.created_at?new Date(r.created_at):new Date()}})}}
 
 /* ═══════════ FINANCE DATA ═══════════ */
 async function loadFinancePayments(){
@@ -1516,7 +1549,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -1703,10 +1736,12 @@ async function dbDeletePhase(id){
 async function dbAddOpportunity(data){
   var uid=await getUserId();if(!uid)return null;
   var row={user_id:uid,name:data.name,description:data.description||'',stage:data.stage||'Lead',
+    type:data.type||'fc_partnership',
     client:data.client||'',end_client:data.endClient||'',contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
+    monthly_ad_spend:data.monthlyAdSpend||0,
     probability:data.probability||50,expected_close:data.expectedClose||null,
-    source:data.source||'',notes:data.notes||'',
+    source:data.source||'',notes:data.notes||'',payment_plan:data.paymentPlan||'',
     payment_method:data.paymentMethod||'bank_transfer',processing_fee_pct:data.processingFeePct||0,
     receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12};
   var res=await _sb.from('opportunities').insert(row).select().single();
@@ -1715,10 +1750,12 @@ async function dbAddOpportunity(data){
 
 async function dbEditOpportunity(id,data){
   var row={name:data.name,description:data.description||'',stage:data.stage||'Lead',
+    type:data.type||'fc_partnership',
     client:data.client||'',end_client:data.endClient||'',contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
+    monthly_ad_spend:data.monthlyAdSpend||0,
     probability:data.probability||50,expected_close:data.expectedClose||null,
-    source:data.source||'',notes:data.notes||'',
+    source:data.source||'',notes:data.notes||'',payment_plan:data.paymentPlan||'',
     closed_at:data.closedAt||null,converted_campaign_id:data.convertedCampaignId||null,
     payment_method:data.paymentMethod||'bank_transfer',processing_fee_pct:data.processingFeePct||0,
     receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12};
@@ -1730,6 +1767,38 @@ async function dbDeleteOpportunity(id){
   var res=await _sb.from('opportunities').delete().eq('id',id);
   if(res.error){toast('Opportunity delete failed: '+res.error.message,'warn');return false}
   return true}
+
+/* ═══════════ OPPORTUNITY MEETINGS CRUD ═══════════ */
+async function dbAddOpportunityMeeting(data){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,opportunity_id:data.opportunityId,date:data.date||new Date().toISOString(),
+    title:data.title||'',recording_link:data.recordingLink||'',notes:data.notes||''};
+  var res=await _sb.from('opportunity_meetings').insert(row).select().single();
+  if(res.error){toast('Meeting save failed: '+res.error.message,'warn');return null}
+  return res.data}
+
+async function dbDeleteOpportunityMeeting(id){
+  var res=await _sb.from('opportunity_meetings').delete().eq('id',id);
+  if(res.error){toast('Meeting delete failed: '+res.error.message,'warn');return false}
+  return true}
+
+/* ═══════════ RETAIN LIVE → CLIENT CONVERSION ═══════════ */
+async function convertToClient(id){
+  var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
+  if(!confirm('Convert "'+op.name+'" to a Client?\n\nThis will:\n\n\u2022 Create a client record for '+op.client+'\n\u2022 Mark this opportunity as Closed Won'))return;
+  /* 1. Create client */
+  var ok=await dbAddClient(op.client,'active');
+  if(!ok){toast('Failed to create client','warn');return}
+  /* 2. Set extra client fields */
+  await loadClientRecords();
+  var newCl=S.clientRecords.find(function(c){return c.name===op.client});
+  if(newCl&&(op.contactEmail||op.client)){
+    await dbEditClient(newCl.id,{name:newCl.name,status:'active',email:op.contactEmail||'',company:op.client,notes:op.notes||''})}
+  /* 3. Close opportunity */
+  op.stage='Closed Won';op.closedAt=new Date();
+  await dbEditOpportunity(id,op);
+  await loadClientRecords();
+  toast('Client created: '+op.client,'ok');closeModal();render()}
 
 async function dbAddClient(name,status){
   var uid=await getUserId();if(!uid)return false;
