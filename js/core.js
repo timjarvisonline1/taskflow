@@ -2134,7 +2134,7 @@ function finGetPreviousPeriodConfig(cfg){
 
 /* ═══════════ NAV ═══════════ */
 function nav(id,sub){
-  if(isMobile()){var mobIds=['mob-add','today','tasks','opportunities'];if(mobIds.indexOf(id)===-1)id='mob-add'}
+  if(isMobile()){var mobIds=['mob-add','tasks','mob-review','opportunities'];if(mobIds.indexOf(id)===-1)id='mob-add'}
   S.view=id;
   if(hasSubs(id)){S.subView=sub||getDefaultSub(id)}else{S.subView=''}
   save();

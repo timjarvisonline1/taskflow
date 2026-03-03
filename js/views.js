@@ -1804,19 +1804,28 @@ function opCardCompact(op,td_,idx,compact){
   /* Name: in compact mode strip client prefix (e.g. "Client — EndClient" → "EndClient") */
   var displayName=op.name;
   if(compact&&op.client&&displayName.indexOf(op.client+' \u2014 ')===0){displayName=displayName.substring(op.client.length+3)}
-  h+='<span class="op-card-name">'+esc(displayName)+'</span>';
-  if(!compact){
+  if(compact){
+    /* Single-row layout: name on left, client pill + probability on right */
+    h+='<span class="op-card-row">';
+    h+='<span class="op-card-name">'+esc(displayName)+'</span>';
+    h+='<span class="op-card-row-r">';
+    if(op.client)h+='<span class="bg bg-cl" style="font-size:8px;padding:1px 6px">'+esc(op.client)+'</span>';
+    h+='<span class="op-prob '+probClass(op.probability)+'" style="font-size:9px">'+op.probability+'%</span>';
+    h+='</span></span>';
+  }else{
+    h+='<span class="op-card-name">'+esc(displayName)+'</span>';
     h+='<span class="op-card-meta">';
     if(op.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:2px 8px">'+esc(op.client)+'</span>';
     if(op.endClient)h+='<span class="bg bg-ec" style="font-size:9px;padding:2px 8px">'+esc(op.endClient)+'</span>';
-    h+='</span>'}
-  else{if(op.client)h+='<span class="op-card-meta"><span class="bg bg-cl" style="font-size:8px;padding:1px 6px">'+esc(op.client)+'</span></span>'}
-  h+='<span class="op-card-meta">';
-  if(!compact&&st.totalValue)h+='<span class="op-card-val">'+fmtUSD(st.totalValue)+'</span>';
-  h+='<span class="op-prob '+probClass(op.probability)+'"'+(compact?' style="font-size:9px"':'')+'>'+op.probability+'%</span>';
-  if(st.openCount)h+='<span class="op-card-stat" style="color:var(--blue)'+(compact?';font-size:9px':'')+'">'+st.openCount+'</span>';
-  if(op.expectedClose)h+='<span class="op-card-stat"'+(compact?' style="font-size:9px"':'')+'>'+icon('calendar',compact?9:11)+' '+fmtDShort(op.expectedClose)+'</span>';
-  h+='</span></div>';
+    h+='</span>';
+    h+='<span class="op-card-meta">';
+    if(st.totalValue)h+='<span class="op-card-val">'+fmtUSD(st.totalValue)+'</span>';
+    h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span>';
+    if(st.openCount)h+='<span class="op-card-stat" style="color:var(--blue)">'+st.openCount+'</span>';
+    if(op.expectedClose)h+='<span class="op-card-stat">'+icon('calendar',11)+' '+fmtDShort(op.expectedClose)+'</span>';
+    h+='</span>';
+  }
+  h+='</div>';
   return h}
 
 /* Sort opps within columns */

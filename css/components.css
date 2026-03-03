@@ -549,10 +549,11 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
 .op-card-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .op-card-val{font-size:12px;font-weight:800;font-family:var(--fd);color:var(--green);letter-spacing:-0.02em}
 .op-card-stat{font-size:10px;color:var(--t4);font-family:var(--fd);font-weight:600}
-/* Compact card variant */
-.op-card-compact{gap:4px;padding:8px 10px 8px 12px;margin-bottom:5px}
-.op-card-compact .op-card-name{font-size:11px}
-.op-card-compact .op-card-meta{gap:4px}
+/* Compact card variant — single-row layout */
+.op-card-compact{gap:0;padding:6px 10px 6px 12px;margin-bottom:4px}
+.op-card-compact .op-card-name{font-size:11px;flex:1;min-width:0}
+.op-card-row{display:flex;align-items:center;gap:8px;width:100%}
+.op-card-row-r{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:auto}
 
 /* Won / Lost card overrides */
 .op-won{border-left-color:var(--green)}

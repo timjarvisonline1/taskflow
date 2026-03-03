@@ -6,7 +6,7 @@ TaskFlow is a comprehensive task management and business operations platform bui
 - **Tim Jarvis Online LLC** — banking via Brex
 - **Film&Content LLC** — banking via Mercury, accounting via Zoho Books, payment processing via Zoho Payments
 
-It manages tasks, projects, campaigns, opportunities, clients, finance (payments, invoices, recurring expenses, forecasting, team payroll), and daily scheduling in a single-page app.
+It manages tasks, projects, campaigns, sales (opportunities), clients, finance (payments, invoices, recurring expenses, forecasting, team payroll), and daily scheduling in a single-page app.
 
 ## Architecture
 
@@ -63,14 +63,14 @@ taskflow/
 ├── js/
 │   ├── config.js           # Supabase client init, CONFIG object
 │   ├── core.js             # State (S), data loading, CRUD helpers, timers, filters, reconciliation
-│   ├── views.js            # All view rendering (rDash, rToday, rTasks, rFinance, etc.)
+│   ├── views.js            # All view rendering (rDashboard, rToday, rTasks, rFinance, etc.)
 │   ├── modals.js           # All modal UIs (detail, add, done, campaigns, finance, projects, opportunities, team, scheduled items)
 │   ├── features.js         # Focus mode, command palette, drag & drop, scheduling, meeting tracking, calendar sync
 │   └── app.js              # TF function registry (window.TF = {...})
 │
 ├── css/
-│   ├── core.css            # CSS variables, layout, sidebar, typography
-│   ├── components.css      # Cards, badges, buttons, forms, tables
+│   ├── core.css            # CSS variables, layout, sidebar, typography, sub-nav badges
+│   ├── components.css      # Cards, badges, buttons, forms, tables (compact task rows)
 │   └── features.css        # Finance, campaigns, projects, opportunities, modals
 │
 ├── api/
@@ -117,6 +117,30 @@ taskflow/
 
 ## Client-Side Architecture
 
+### Navigation Structure
+
+The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered as follows:
+
+| # | ID | Label | Kbd | Sub-views |
+|---|-----|-------|-----|-----------|
+| 1 | `dashboard` | Dashboard | 1 | — |
+| 2 | `today` | Schedule | 2 | Suggested Schedule (default), Today's Schedule, Meeting Prep, Analytics, Daily Summary, Weekly Summary, Weekly Capacity |
+| 3 | `tasks` | Tasks | 3 | Open Tasks, Completed, Review Queue (with badge) |
+| 4 | `opportunities` | Sales | 4 | Analytics, Retain Live, F&C Partnerships, F&C Direct, Profitability |
+| 5 | `campaigns` | Campaigns | 5 | Pipeline, List, Performance |
+| 6 | `projects` | Projects | 6 | Board, List, Timeline |
+| 7 | `clients` | Clients | 7 | Active, Lapsed |
+| 8 | `finance` | Finance | 8 | Overview, Transactions, Invoices, Upcoming, Recurring, Cash Flow, Forecast, Team, Dashboard |
+
+**Mobile bottom tabs** (`MOB_VIEWS`): Add, Tasks, Review, Opps
+
+### ICONS Map
+
+The `ICONS` object in `core.js` maps icon names to Lucide SVG paths. Commonly used icons include:
+- Navigation: `dashboard`, `calendar`, `tasks`, `gem`, `megaphone`, `folder`, `clients`, `dollar`
+- Sub-nav: `users`, `briefcase`, `bar_chart`, `sun`, `layers`, `activity`, `today`, `check`, `inbox`, `zap`
+- UI: `plus`, `edit`, `trash`, `clock`, `arrow_left`, `search`, `star`
+
 ### Global State Object `S`
 
 All app state lives in `window.S`, populated by `loadData()`:
@@ -145,8 +169,8 @@ S = {
   teamMembers: [],        // Team payroll/commission data
 
   // UI state
-  view: 'dash',           // Current view (dash, today, tasks, finance, campaigns, projects, opportunities, clients)
-  subView: '',            // Sub-view within a section (e.g., finance sub-tabs)
+  view: 'dashboard',      // Current view — default is dashboard (was 'dash' previously)
+  subView: '',            // Sub-view within a section
   filters: {},            // Task filters (client, endClient, campaign, project, opportunity, cat, imp, type, search, dateFrom, dateTo)
   collapsed: {},          // Collapsed sections
   layout: 'board',        // Task layout (board, list)
@@ -157,6 +181,9 @@ S = {
   schedOrder: {},         // Schedule ordering
   projTaskOrder: {},      // Project task ordering
 
+  // Client detail view
+  clientDetailName: '',   // When set, renders full-screen client dashboard instead of directory
+
   // Bulk operations
   bulkMode: false,        // Bulk selection active
   bulkSelected: {},       // Selected task IDs
@@ -166,7 +193,7 @@ S = {
   focusDuration: 25,      // Focus session duration (minutes)
 
   // Finance UI state
-  finFilter: '',          // '' | 'unmatched' | 'matched' | 'split' | 'expenses'
+  finFilter: '',          // '' | 'unmatched' | 'matched' | 'expenses' (note: 'split' merged into 'matched')
   finDirection: '',       // '' | 'inflow' | 'outflow'
   finSearch: '',          // Search text
   finRange: '12m',        // Analytics range
@@ -195,41 +222,74 @@ All views are rendered by calling `render()`, which calls the appropriate `rXxx(
 ```
 render() → rDashboard() | rToday() | rTasks() | rFinance() | rCampaigns() | rProjects() | rOpportunities() | rClients()
 
+Dashboard:
+  rDashboard()             — Comprehensive overview: today's focus, productivity, sales pipeline,
+                             finance snapshot, clients summary, activity heatmap, 4 charts
+  initDashboardCharts()    — Importance donut, client time bar, pipeline donut, daily completions line
+
+Schedule sub-views (via rToday() dispatcher):
+  rSchedulePlanner()       — Suggested Schedule (default) — AI-prioritized task list with time slots
+  rScheduleDay()           — Today's Schedule — Google Calendar-style hour-block timeline
+  rSchedulePrep()          — Meeting Prep — all meetings with prep tasks + upcoming meetings without prep
+  rScheduleAnalytics()     — Analytics — heatmap, time-of-day, daily completions, category/client charts
+  rScheduleDaily()         — Daily Summary — inline KPIs, done/in-progress/carry-over/chasing sections
+  rScheduleWeekly()        — Weekly Summary — this week vs last week comparison, streak, charts
+  rScheduleCapacity()      — Weekly Capacity view
+
+Tasks sub-views:
+  rTasks()                 — Open tasks (compact rows with filter bar)
+  (completed)              — Completed tasks list
+  (review)                 — Review queue with badge count in sub-nav
+
+Sales (Opportunities) sub-views (via rOpportunities() dispatcher):
+  rOpportunitiesBody()     — Analytics dashboard (default)
+  rOppTypeSection()        — Per-type pipeline views (Retain Live, F&C Partnerships, F&C Direct)
+  rOppProfitabilityDashboard() — Combined profitability dashboard across all types
+
 Finance sub-views (via rFinance() dispatcher):
-  rFinanceOverview()     — High-level financial overview with expandable bank account cards
-  rFinancePayments()     — Transaction list with filtering, matching, bulk ops
-  rFinanceInvoices()     — Invoice records from Zoho Books
-  rFinanceUpcoming()     — Projected upcoming payments, one-off payments, expense reconciliation review
-  rFinanceRecurring()    — Recurring expenses, subscriptions, vendor payments
-  rFinanceCashFlow()     — Cash flow analysis and projections
-  rFinanceForecast()     — 90-day cash flow forecast with scenario modeling
-  rFinanceTeam()         — Payroll, commissions, team member costs
-  rFinanceDashboard()    — Summary metrics, charts
+  rFinanceOverview()       — High-level overview with expandable bank account cards (deduped transactions)
+  rFinancePayments()       — Transaction list (Unmatched/Matched tabs — Split merged into Matched)
+  rFinanceInvoices()       — Invoice records from Zoho Books
+  rFinanceUpcoming()       — Projected upcoming payments, expense reconciliation review
+  rFinanceRecurring()      — Recurring expenses, subscriptions, vendor payments
+  rFinanceCashFlow()       — Cash flow analysis and projections
+  rFinanceForecast()       — Cash flow forecast with compact toolbar (horizon/scenario/sources/account)
+  rFinanceTeam()           — Payroll, commissions, team member costs
+  rFinanceDashboard()      — Summary metrics, charts
 
 Campaigns sub-views:
-  rCampaignPipeline()    — Kanban-style pipeline
-  rCampaignList()        — Table view
-  rCampaignPerformance() — Performance charts/metrics
+  rCampaignPipeline()      — Kanban-style pipeline
+  rCampaignList()          — Table view
+  rCampaignPerformance()   — Performance charts/metrics
 
 Projects sub-views:
-  rProjectBoard()        — Kanban board by phase
-  rProjectList()         — Table view
-  rProjectTimeline()     — Gantt timeline
+  rProjectBoard()          — Kanban board by phase
+  rProjectList()           — Table view
+  rProjectTimeline()       — Gantt timeline
 
-Opportunities sub-views:
-  rOpportunityPipeline() — Kanban-style pipeline
-  rOpportunityList()     — Table view
-  rOpportunityChartsHTML() — Analytics
+Clients:
+  rClients()               — Active/Lapsed directory with 6 columns (Client, Status, Revenue, Open Tasks, Time Tracked, Last Activity)
+  rClientDashboard()       — Full-screen client dashboard (when S.clientDetailName is set)
 
-Mobile views: rMobAdd(), rMobToday(), rMobTasks(), rMobOpportunities()
+Mobile views:
+  rMobAdd()                — Quick add task
+  rMobTasks()              — Task list
+  rMobReview()             — Review queue with approve/review cards
+  rMobOpportunities()      — Opportunities list
 ```
+
+### Key View Functions
+
+- **`buildClientMap()`** — Shared helper that aggregates client data (revenue, tasks, time, campaigns, opportunities, meetings, payments) while filtering out "Internal" and "N/A" entries. Used by both `rClients()` and `rDashboard()`.
+- **`buildSubNav(subs)`** — Renders sub-navigation panel. Shows a badge with review count when `sub.id === 'review'` and `S.review.length > 0`.
+- **`filterBar()`** — Renders compact filter controls (client, category, importance, type, search, date range). Uses 11px font, 6px border-radius pills.
 
 ### Function Registry
 
 All functions callable from HTML `onclick` handlers are registered on `window.TF`:
 
 ```javascript
-window.TF = { nav, load, start, pause, openDetail, addTimeToTask, ... }
+window.TF = { nav, load, start, pause, openDetail, addTimeToTask, openClientDashboard, closeClientDashboard, openAddMeetingPrepTask, ... }
 ```
 
 HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', this.value)"`, etc.
@@ -240,7 +300,7 @@ HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', th
 - `cel(tag, cls, html)` — create element
 - `esc(str)` — HTML-escape
 - `escAttr(str)` — attribute-safe escape
-- `icon(name, size)` — Lucide SVG icon
+- `icon(name, size)` — Lucide SVG icon from ICONS map
 - `today()` — today as YYYY-MM-DD
 - `fmtT(seconds)` — format timer as H:MM:SS
 - `fmtM(minutes)` — format minutes display
@@ -249,6 +309,22 @@ HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', th
 - `toast(msg, type)` — show notification ('ok', 'info', 'warn', 'err')
 - `dashMet(label, value, color)` — metrics card widget
 - `taskCard(task)` — reusable task card component
+- `renderHeatmap(data, label)` — activity heatmap (used by dashboard + schedule analytics)
+- `mkDonut(id, labels, data, colors)` — Chart.js donut chart helper
+- `mkHBar(id, labels, data, color)` — Chart.js horizontal bar chart
+- `mkHBarUSD(id, labels, data, color)` — Horizontal bar chart with USD formatting
+- `mkLine(id, labels, data, color, label)` — Chart.js line chart
+- `scheduleTasks()` — AI scheduling engine that slots tasks into free calendar gaps
+- `taskScore(task)` — Priority scoring for task ordering
+- `oppTypeMetrics(typeKey)` — Per-type opportunity statistics
+- `buildUpcomingPayments(horizon)` — Builds projected inflows/outflows for forecast
+
+### Opportunity Types (OPP_TYPES)
+
+Defined in `core.js`, each opportunity type has a key, label, color, and icon:
+- `retain_live` — "Retain Live" (blue, users icon)
+- `fc_partnership` — "F&C Partnerships" (purple, briefcase icon) — note: plural
+- `fc_direct` — "F&C Direct" (amber, zap icon)
 
 ## Finance System
 
@@ -256,8 +332,8 @@ HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', th
 
 Payments flow through these states:
 - **unmatched** — new payment, needs client association
-- **matched** — associated with a client (and optionally campaign/end client)
-- **split** — split across multiple clients/campaigns
+- **matched** — associated with a client (and optionally campaign/end client). Also includes split payments.
+- **split** — internally still a status in the database, but displayed under the Matched tab in the UI (Split tab was removed)
 - **excluded** — intentionally excluded (e.g., pre-existing records already handled)
 
 ### Unmatched View (Client Matching)
@@ -276,6 +352,12 @@ The Unmatched tab shows only records that need client association. It filters to
 Therefore Zoho Books records are excluded from client matching entirely. They still exist in the database for cash flow forecasting and accounting reconciliation.
 
 Sources eligible for client matching: `zoho_payments`, `mercury`, `stripe`, `stripe2`, `zoho` (legacy CSV).
+
+### Finance Overview Deduplication
+
+`rFinanceOverview()` applies two levels of dedup to recent transactions:
+1. Filters out `zoho_books` source records (accounting duplicates)
+2. Deduplicates by `date + amount` (within 1 cent) to remove cross-source duplicates
 
 ### Expense Reconciliation
 
@@ -315,11 +397,19 @@ Used in: Upcoming salary projections, Team cost view, Forecast calculations.
 
 ### Cash Flow Forecast
 
-`rFinanceForecast()` provides 90-day lookahead with:
-- Scenario toggle: `expected` vs `conservative`
-- Source toggles: campaigns, scheduled items, invoices, salaries
-- Account filter
+`rFinanceForecast()` provides configurable cash flow forecast with:
+- **Compact toolbar** (single row): Horizon segmented control (30/60/90/180/365d), Scenario toggle (Conservative/Expected/Optimistic), collapsible Sources section with pill toggles, Account dropdown
 - Builds projected inflows/outflows from all sources via `buildUpcomingPayments(horizon)`
+- Both balance and cash flow charts include tooltip callbacks with USD formatting
+
+### Transactions View
+
+`rFinancePayments()` shows transactions with tabs:
+- **Unmatched** — payments needing client association
+- **Matched** — matched payments (includes split records; Split was merged into this tab)
+- **Expenses** — outflow payments
+
+The `finFilteredPayments()` function in `core.js` handles filtering. When `S.finFilter === 'matched'`, it includes both `status === 'matched'` and `status === 'split'`.
 
 ### Data Sources
 
@@ -445,7 +535,7 @@ Each entity has standard CRUD helpers:
 - **Drag & Drop** — task reordering, schedule drag, project board drag
 - **Meeting Auto-Tracking** — 30-second poll for ended unlogged meetings from Google Calendar (`startMeetingCheck`, `completeMeetingEnd`, `dismissMeetingEnd`)
 - **Scheduling Engine** — smart task-into-gap scheduling (`calcFreeSlots`, `scheduleTaskIntoSlot`)
-- **Daily Summary** — `openDailySummary()` for end-of-day review
+- **Daily Summary** — `openDailySummary()` modal + inline `rScheduleDaily()` view
 - **Client Reports** — `openClientReport()`, `genClientReport()` for client-specific reporting
 - **Bulk Operations** — multi-select tasks for batch completion
 - **Pinning** — star/pin important tasks
@@ -481,6 +571,13 @@ Each entity has standard CRUD helpers:
 1. Add render function `rNewView()` in `views.js`
 2. Add navigation case in `render()` function in `core.js`
 3. Add nav item in `buildNav()` in `views.js`
+
+### Adding a new sub-view
+1. Add sub entry to the parent section in `SECTIONS` array (`core.js`)
+2. Add the icon to `ICONS` map if not already present
+3. Add render function in `views.js`
+4. Add case in the parent's dispatcher (e.g., `rToday()`, `rFinance()`, `rOpportunities()`)
+5. If it needs chart initialization, add to the `setTimeout` block in `render()` that calls chart init functions
 
 ### Adding a new modal
 1. Add function in `modals.js` that builds HTML and sets `gel('m-body').innerHTML`
@@ -544,6 +641,10 @@ All CSV-imported data covers up to 2026-02-28. Live sync data starts from this d
 - `saveDetail()` and `markAlreadyCompleted()` check the client toggle checkbox before reading client value — if unchecked, client is cleared
 - `dbCompleteTask()` calls `taskData.due.toISOString()` — due must be a Date object or null, never a string
 - `approveFromModal()` wraps the entire flow in try/catch to always re-enable buttons on error
+- Critical tasks in the calendar timeline use RED (`rgba(239,68,68,0.28)`) — distinct from meeting pink (`rgba(255,0,153,0.2)`)
+- Sub-nav panel has `overflow-y:auto` when open to prevent clipping when sections have many subs (e.g., Schedule has 7, Finance has 9)
+- `buildClientMap()` filters out "Internal" and "N/A" client names from all client views and dashboards
+- The Finance Transactions view has no separate Split tab — split records are included in the Matched tab via `finFilteredPayments()`
 
 ## Current Status (as of 2026-03-03)
 
@@ -559,19 +660,30 @@ All CSV-imported data covers up to 2026-02-28. Live sync data starts from this d
 - Unmatched view filters to only actionable customer payments
 - Cleanup endpoint removes historical duplicates
 - Test Connection works without re-entering stored credentials
-- Finance section fully operational: overview, payments, invoices, upcoming, recurring, cash flow, forecast, team
+- Finance section fully operational: overview (with dedup), transactions (split merged into matched), invoices, upcoming, recurring, cash flow, forecast (with tooltips + compact toolbar), team
 - Projects with phases, board/list/timeline views
-- Opportunities pipeline with conversion and close-as-lost
+- Sales pipeline (renamed from Opportunities) with Profitability as own sub-section
 - Expense reconciliation with auto-match, manual link, and one-off save
 - Focus mode, command palette, drag & drop scheduling
 - Meeting auto-tracking from Google Calendar
 - Manual time entry for active tasks (Add Time feature)
 - Task detail client toggle properly clears client when unchecked
 - Add & Complete for review/suggested tasks working with proper Date handling
+- Dashboard as first nav item with comprehensive overview (today's focus, productivity, pipeline, finance, clients, heatmap, charts)
+- Schedule section with 7 sub-views: Suggested Schedule (default), Today's Schedule, Meeting Prep (enhanced with all meetings), Analytics (heatmap + charts), Daily Summary (inline), Weekly Summary (comparisons), Weekly Capacity
+- Clients with Active/Lapsed filtering, simplified 6-column directory, full-screen client dashboard on click
+- Review queue badge in Tasks sub-nav
+- Mobile bottom tabs: Add, Tasks, Review, Opps
+- Compact task rows (36px min-height) with clean filter bar styling
 
-### Recent Changes (commit f565e01)
-- Fixed client defaulting bug (blank select option + toggle check in saveDetail)
-- Added manual time entry for active tasks (+ Add Time UI + addTimeToTask function)
-- Fixed Add & Complete crash for suggested tasks (Date wrapper + try/catch)
-- Added "Save as One-Off Expense" button in reconcile modal
-- Added Expense Reconciliation review card in Upcoming tab
+### Recent Changes (commit 2466fa5)
+- **Navigation**: Dashboard moved to first position (kbd 1), Opportunities renamed to Sales (kbd 4)
+- **Dashboard**: Complete redesign — today's focus, productivity KPIs, sales pipeline, finance snapshot, clients summary, activity heatmap, 4 analytical charts
+- **Schedule**: 4 new sub-views (Analytics, Daily Summary, Weekly Summary, Today's Schedule), Meeting Prep enhanced with all forthcoming meetings
+- **Sales**: Profitability moved to own sub-section with combined dashboard, F&C Partnership→Partnerships (plural)
+- **Clients**: Active/Lapsed sub-nav replaces Directory/Analytics, full-screen client dashboard, Internal/N/A filtered out, simplified 6-column directory
+- **Tasks**: Thinner compact rows (36px), compact filter bar, review badge in sub-nav
+- **Finance**: Overview dedup (zoho_books filter + date+amount), forecast tooltips, compact forecast toolbar, Split tab removed (merged into Matched), Upcoming clickability fixed
+- **Mobile**: Review tab replaces Schedule in bottom tabs
+- **CSS**: Critical tasks show red (not pink) in calendar, sub-nav overflow-y:auto for scrollability
+- **Icons**: Added users, briefcase, bar_chart, sun, layers, arrow_left to ICONS map
