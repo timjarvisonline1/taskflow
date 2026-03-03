@@ -49,6 +49,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   setOpView:function(v){subNav(v)},
   setOpTypeFilter:function(v){S.opTypeFilter=v;save();render()},
   setOpViewMode:function(v){S.opViewMode=v;save();render()},
+  setOpPartnerFilter:function(v){S.opPartnerFilter=v;save();render()},
   toggleOpShowClosed:function(){S.opShowClosed=!S.opShowClosed;save();render()},
   /* Finance */
   openFinancePaymentDetail:openFinancePaymentDetail,saveFinancePayment:saveFinancePayment,setInvExpDate:setInvExpDate,

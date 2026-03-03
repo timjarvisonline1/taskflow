@@ -384,9 +384,12 @@ function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHou
     var ps=gel('f-project');if(ps){ps.value=prefill.project;refreshAddPhases();
     setTimeout(function(){if(prefill.phase){var ph=gel('f-phase');if(ph)ph.value=prefill.phase}},50)}}
   if(prefill.client){var ctg=gel('mt-cli');if(ctg){ctg.checked=true;modalToggle('mt-cli-fields',true)}
-    var cs=gel('f-cli');if(cs)cs.value=prefill.client}
+    var cs=gel('f-cli');if(cs){cs.value=prefill.client;refreshAddEndClients()}
+    if(prefill.endClient){setTimeout(function(){var ecs=gel('f-ec');if(ecs)ecs.value=prefill.endClient},50)}}
   if(prefill.campaign){var cptg=gel('mt-campaign');if(cptg){cptg.checked=true;modalToggle('mt-campaign-fields',true)}
     var cp=gel('f-campaign');if(cp)cp.value=prefill.campaign}
+  if(prefill.opportunity){var otg=gel('mt-opp');if(otg){otg.checked=true;modalToggle('mt-opp-fields',true)}
+    var os=gel('f-opportunity');if(os)os.value=prefill.opportunity}
   setTimeout(function(){var fi=gel('f-item');if(fi)fi.focus()},100)}
 
 async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('Enter a task name','warn');return}
@@ -1095,6 +1098,9 @@ function buildEndClientOptions(currentValue,filterClient){
   S.tasks.concat(S.done).forEach(function(t){
     if(filterClient&&t.client!==filterClient)return;
     if(t.endClient&&ecs.indexOf(t.endClient)===-1)ecs.push(t.endClient)});
+  S.opportunities.forEach(function(o){
+    if(filterClient&&o.client!==filterClient)return;
+    if(o.endClient&&ecs.indexOf(o.endClient)===-1)ecs.push(o.endClient)});
   ecs.sort();
   var isNew=currentValue&&ecs.indexOf(currentValue)===-1;
   var h='<option value="">None</option>';
@@ -1783,7 +1789,7 @@ function openOpportunityDetail(id){
   h+='</div>';
 
   /* Open Tasks */
-  h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Open Tasks ('+st.openCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\'})">+ Add</button></span>';
+  h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Open Tasks ('+st.openCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\',client:\''+escAttr(op.client||'')+'\',endClient:\''+escAttr(op.endClient||'')+'\'})">+ Add</button></span>';
   if(st.openTasks.length){st.openTasks.forEach(function(t){
     var eid2=escAttr(t.id);
     h+='<div class="proj-phase-task">';
@@ -1875,7 +1881,8 @@ function selectOpType(type){
   h+='<div style="padding:6px 0"><input type="text" class="edf" id="nop-name" placeholder="Opportunity name..." autofocus style="font-size:15px;font-weight:600;padding:11px 14px"></div>';
 
   h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="nop-stage">'+conf.stages.map(function(s){return'<option>'+s+'</option>'}).join('')+'</select></div>';
+  var allStages=conf.stages.slice();if(conf.awaitingStage)allStages.push(conf.awaitingStage);
+  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="nop-stage">'+allStages.map(function(s){return'<option>'+s+'</option>'}).join('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Prospect':'Client / Partner')+'</span><select class="edf" id="nop-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
   if(!isRL){h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="nop-endclient" placeholder="End client..."></div>'}
   else{h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="nop-endclient" placeholder="Company name..."></div>'}

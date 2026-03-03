@@ -66,8 +66,8 @@ var OPP_TYPES={
     color:'var(--green)',conversion:'client',
     defaultFees:{strategyFee:5000}},
   fc_partnership:{label:'F&C Partnership',short:'F&C-P',
-    stages:['Brief Received','Meeting Booked','Discovery Call','Video Tracking','Audit/Report','Proactive Pitch','Proposal Delivered','Negotiation'],
-    closedStages:['Closed Won','Closed Lost'],
+    stages:['Brief Received','Meeting Booked','Meeting Complete','Video Tracking','Pitch Development','Proposal Delivered'],
+    closedStages:['Closed Won','Closed Lost'],awaitingStage:'Awaiting',
     color:'var(--blue)',conversion:'campaign',
     defaultFees:{setupFee:5000,monthlyFee:2000}},
   fc_direct:{label:'F&C Direct',short:'F&C-D',
@@ -77,13 +77,13 @@ var OPP_TYPES={
     defaultFees:{}}
 };
 function oppTypeConf(type){return OPP_TYPES[type]||OPP_TYPES.fc_partnership}
-function oppAllStages(type){var c=oppTypeConf(type);return c.stages.concat(c.closedStages)}
+function oppAllStages(type){var c=oppTypeConf(type);var all=c.stages.concat(c.closedStages);if(c.awaitingStage)all.push(c.awaitingStage);return all}
 function oppIsClosedStage(stage){return stage==='Closed Won'||stage==='Closed Lost'}
 
 var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'today',subView:'',layout:'grid',groupBy:'importance',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',
+  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected'};
 

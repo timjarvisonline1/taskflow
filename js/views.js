@@ -1485,26 +1485,32 @@ function rOpportunitiesBody(){
   if(OPP_TYPES[sub])return h+rOppTypeSection(sub);
   return h+rOppAnalytics()}
 
-function opCardCompact(op,td_,idx){
+function opCardCompact(op,td_,idx,compact){
   var st=getOpportunityStats(op);
-  var stageCls=opCardClass(op.stage,op.type);
   var conf=oppTypeConf(op.type);
   var stageIdx=conf.stages.indexOf(op.stage);
   var borderColor=oppIsClosedStage(op.stage)?(op.stage==='Closed Won'?'var(--green)':'var(--red)'):(stageIdx>=0&&stageIdx<_stageColors.length?_stageColors[stageIdx]:'var(--t4)');
   var delay=typeof idx==='number'?Math.min(idx*0.03,0.45):0;
-  var h='<div class="op-card" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')" style="animation-delay:'+delay+'s">';
-  h+='<div style="position:absolute;top:0;left:0;bottom:0;width:4px;border-radius:4px 0 0 4px;background:'+borderColor+'"></div>';
-  h+='<span class="op-card-meta" style="margin-bottom:2px"><span class="bg '+opTypeBadgeCls(op.type)+'" style="font-size:8px;padding:1px 6px">'+conf.short+'</span></span>';
-  h+='<span class="op-card-name">'+esc(op.name)+'</span>';
+  var cls=compact?'op-card op-card-compact':'op-card';
+  var h='<div class="'+cls+'" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')" style="animation-delay:'+delay+'s">';
+  h+='<div style="position:absolute;top:0;left:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:'+borderColor+'"></div>';
+  if(!compact){
+    h+='<span class="op-card-meta" style="margin-bottom:2px"><span class="bg '+opTypeBadgeCls(op.type)+'" style="font-size:8px;padding:1px 6px">'+conf.short+'</span></span>'}
+  /* Name: in compact mode strip client prefix (e.g. "Client — EndClient" → "EndClient") */
+  var displayName=op.name;
+  if(compact&&op.client&&displayName.indexOf(op.client+' \u2014 ')===0){displayName=displayName.substring(op.client.length+3)}
+  h+='<span class="op-card-name">'+esc(displayName)+'</span>';
+  if(!compact){
+    h+='<span class="op-card-meta">';
+    if(op.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:2px 8px">'+esc(op.client)+'</span>';
+    if(op.endClient)h+='<span class="bg bg-ec" style="font-size:9px;padding:2px 8px">'+esc(op.endClient)+'</span>';
+    h+='</span>'}
+  else{if(op.endClient)h+='<span class="op-card-meta"><span class="bg bg-ec" style="font-size:8px;padding:1px 6px">'+esc(op.endClient)+'</span></span>'}
   h+='<span class="op-card-meta">';
-  if(op.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:2px 8px">'+esc(op.client)+'</span>';
-  if(op.endClient)h+='<span class="bg bg-ec" style="font-size:9px;padding:2px 8px">'+esc(op.endClient)+'</span>';
-  h+='</span>';
-  h+='<span class="op-card-meta">';
-  if(st.totalValue)h+='<span class="op-card-val">'+fmtUSD(st.totalValue)+'</span>';
-  h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span>';
-  if(st.openCount)h+='<span class="op-card-stat" style="color:var(--blue)">'+st.openCount+'</span>';
-  if(op.expectedClose)h+='<span class="op-card-stat">'+icon('calendar',11)+' '+fmtDShort(op.expectedClose)+'</span>';
+  if(!compact&&st.totalValue)h+='<span class="op-card-val">'+fmtUSD(st.totalValue)+'</span>';
+  h+='<span class="op-prob '+probClass(op.probability)+'"'+(compact?' style="font-size:9px"':'')+'>'+op.probability+'%</span>';
+  if(st.openCount)h+='<span class="op-card-stat" style="color:var(--blue)'+(compact?';font-size:9px':'')+'">'+st.openCount+'</span>';
+  if(op.expectedClose)h+='<span class="op-card-stat"'+(compact?' style="font-size:9px"':'')+'>'+icon('calendar',compact?9:11)+' '+fmtDShort(op.expectedClose)+'</span>';
   h+='</span></div>';
   return h}
 
@@ -1523,8 +1529,10 @@ function renderTypePipeline(typeKey,opps,td_){
   var conf=oppTypeConf(typeKey);
   var stages=conf.stages;
   var grouped={};stages.forEach(function(s){grouped[s]=[]});
+  var awSt=conf.awaitingStage||'';
   opps.forEach(function(op){
     if(oppIsClosedStage(op.stage))return;
+    if(awSt&&op.stage===awSt)return;
     if(grouped[op.stage])grouped[op.stage].push(op);
     else grouped[stages[0]].push(op)});
   stages.forEach(function(s){sortOpps(grouped[s])});
@@ -1535,21 +1543,25 @@ function renderTypePipeline(typeKey,opps,td_){
     h+='<div class="op-column">';
     h+='<div class="op-column-head">'+esc(s)+' <span class="op-column-count">'+items.length+'</span></div>';
     if(!items.length){h+='<div style="text-align:center;padding:30px 10px;color:var(--t4);font-size:12px">No opportunities</div>'}
-    items.forEach(function(op,idx){h+=opCardCompact(op,td_,idx)});
+    items.forEach(function(op,idx){h+=opCardCompact(op,td_,idx,true)});
     h+='</div>'});
   h+='</div>';
   return h}
 
 /* ── Opportunity metrics helper ── */
-function oppTypeMetrics(typeKey){
+function oppTypeMetrics(typeKey,partnerFilter){
   var opps=S.opportunities.filter(function(o){return o.type===typeKey});
+  if(partnerFilter)opps=opps.filter(function(o){return o.client===partnerFilter});
+  var conf=oppTypeConf(typeKey);var awSt=conf.awaitingStage||'';
   var active=opps.filter(function(o){return!oppIsClosedStage(o.stage)});
+  var awaiting=awSt?opps.filter(function(o){return o.stage===awSt}):[];
+  var pipelineActive=active.filter(function(o){return!awSt||o.stage!==awSt});
   var won=opps.filter(function(o){return o.stage==='Closed Won'});
   var lost=opps.filter(function(o){return o.stage==='Closed Lost'});
   var total=0,weighted=0,tasks=0;
   active.forEach(function(op){var st=getOpportunityStats(op);total+=st.totalValue;weighted+=st.weightedValue;tasks+=st.openCount});
   var winRate=won.length+lost.length>0?Math.round(won.length/(won.length+lost.length)*100):0;
-  return{opps:opps,active:active,won:won,lost:lost,total:total,weighted:weighted,tasks:tasks,winRate:winRate}}
+  return{opps:opps,active:active,pipelineActive:pipelineActive,awaiting:awaiting,won:won,lost:lost,total:total,weighted:weighted,tasks:tasks,winRate:winRate}}
 
 /* ═══════════ ANALYTICS OVERVIEW ═══════════ */
 function rOppAnalytics(){
@@ -1617,7 +1629,8 @@ function rOppAnalytics(){
 function rOppTypeSection(typeKey){
   var td_=today();
   var conf=oppTypeConf(typeKey);
-  var m=oppTypeMetrics(typeKey);
+  var pf=typeKey==='fc_partnership'?S.opPartnerFilter:'';
+  var m=oppTypeMetrics(typeKey,pf);
   var vm=S.opViewMode||'pipeline';
 
   /* Type-specific KPIs (4 cards) */
@@ -1628,14 +1641,24 @@ function rOppTypeSection(typeKey){
   h+='<div class="op-dash-met" style="animation-delay:0.15s"><div class="op-dash-met-v" style="color:'+(m.winRate>=50?'var(--green)':'var(--amber)')+'">'+m.winRate+'%</div><div class="op-dash-met-l">Win Rate</div></div>';
   h+='</div>';
 
-  /* Toolbar: view toggle + active/closed toggle */
+  /* Toolbar: view toggle + partner filter + active/closed toggle */
   h+='<div class="op-toolbar">';
+  h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
   h+='<div class="op-view-toggle">';
   h+='<button class="op-vt-btn'+(vm==='pipeline'?' on':'')+'" onclick="TF.setOpViewMode(\'pipeline\')">'+icon('pipeline',12)+' Pipeline</button>';
   h+='<button class="op-vt-btn'+(vm==='list'?' on':'')+'" onclick="TF.setOpViewMode(\'list\')">'+icon('menu',12)+' List</button>';
   h+='</div>';
+  /* Partner filter for F&C Partnership */
+  if(typeKey==='fc_partnership'){
+    var activeClients=S.clientRecords.filter(function(c){return c.status==='active'}).map(function(c){return c.name}).sort();
+    h+='<select class="edf" style="font-size:11px;padding:5px 10px;min-width:160px" onchange="TF.setOpPartnerFilter(this.value)">';
+    h+='<option value=""'+(pf?'':' selected')+'>All Production Companies</option>';
+    activeClients.forEach(function(c){h+='<option value="'+esc(c)+'"'+(pf===c?' selected':'')+'>'+esc(c)+'</option>'});
+    h+='</select>'}
+  h+='</div>';
   h+='<div class="cp-status-filters">';
   h+='<span class="cp-status-toggle always">Active <span style="opacity:.6;margin-left:2px">'+m.active.length+'</span></span>';
+  if(m.awaiting.length)h+='<span class="cp-status-toggle always" style="color:var(--amber)">Awaiting <span style="opacity:.6;margin-left:2px">'+m.awaiting.length+'</span></span>';
   h+='<span class="cp-status-toggle'+(S.opShowClosed?' active':'')+'" onclick="TF.toggleOpShowClosed()" style="cursor:pointer">Closed <span style="opacity:.6;margin-left:2px">'+(m.won.length+m.lost.length)+'</span></span>';
   h+='</div></div>';
 
@@ -1643,8 +1666,16 @@ function rOppTypeSection(typeKey){
   if(vm==='list'){
     h+=rOppTypeList(typeKey,m);
   }else{
-    h+=renderTypePipeline(typeKey,m.active,td_);
+    h+=renderTypePipeline(typeKey,m.pipelineActive,td_);
   }
+
+  /* Awaiting section (collapsible) */
+  if(m.awaiting.length){
+    h+='<div style="margin-top:16px">';
+    h+='<details><summary style="cursor:pointer;color:var(--amber);font-size:12px;font-weight:600">'+icon('clock',11)+' Awaiting ('+m.awaiting.length+')</summary>';
+    h+='<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px">';
+    m.awaiting.forEach(function(op,idx){h+='<div style="flex:1;min-width:260px;max-width:340px">'+opCardCompact(op,td_,idx,true)+'</div>'});
+    h+='</div></details></div>'}
 
   /* Closed Won / Closed Lost */
   if(S.opShowClosed&&(m.won.length||m.lost.length)){
@@ -1652,12 +1683,12 @@ function rOppTypeSection(typeKey){
     if(m.won.length){
       h+='<details style="margin-bottom:8px"><summary style="cursor:pointer;color:var(--green);font-size:12px;font-weight:600">'+icon('check',11)+' Closed Won ('+m.won.length+')</summary>';
       h+='<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px">';
-      m.won.forEach(function(op,idx){h+='<div style="flex:1;min-width:260px;max-width:340px">'+opCardCompact(op,td_,idx)+'</div>'});
+      m.won.forEach(function(op,idx){h+='<div style="flex:1;min-width:260px;max-width:340px">'+opCardCompact(op,td_,idx,true)+'</div>'});
       h+='</div></details>'}
     if(m.lost.length){
       h+='<details><summary style="cursor:pointer;color:var(--red);font-size:12px;font-weight:600">'+icon('x',11)+' Closed Lost ('+m.lost.length+')</summary>';
       h+='<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px">';
-      m.lost.forEach(function(op,idx){h+='<div style="flex:1;min-width:260px;max-width:340px">'+opCardCompact(op,td_,idx)+'</div>'});
+      m.lost.forEach(function(op,idx){h+='<div style="flex:1;min-width:260px;max-width:340px">'+opCardCompact(op,td_,idx,true)+'</div>'});
       h+='</div></details>'}
     h+='</div>'}
 
@@ -1673,7 +1704,8 @@ function rOppTypeList(typeKey,m){
   var conf=oppTypeConf(typeKey);
   var stages=conf.stages;
   var stageOrder={};stages.forEach(function(s,i){stageOrder[s]=i});
-  stageOrder['Closed Won']=stages.length;stageOrder['Closed Lost']=stages.length+1;
+  if(conf.awaitingStage)stageOrder[conf.awaitingStage]=stages.length;
+  stageOrder['Closed Won']=stages.length+1;stageOrder['Closed Lost']=stages.length+2;
 
   var sorted=m.opps.slice();
   sorted.sort(function(a,b){
@@ -1709,6 +1741,7 @@ function rOppTypeList(typeKey,m){
 function initOpportunityCharts(){setTimeout(function(){
   var sub=S.subView||'analytics';
   var opps=OPP_TYPES[sub]?S.opportunities.filter(function(o){return o.type===sub}):S.opportunities;
+  if(sub==='fc_partnership'&&S.opPartnerFilter)opps=opps.filter(function(o){return o.client===S.opPartnerFilter});
 
   /* Pipeline value by stage */
   var stageVals={};
