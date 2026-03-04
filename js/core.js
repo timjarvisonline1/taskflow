@@ -767,7 +767,20 @@ async function loadContacts(){
   S.contacts=(res.data||[]).map(function(r){
     return{id:r.id,clientId:r.client_id||'',firstName:r.first_name||'',lastName:r.last_name||'',
       email:r.email||'',role:r.role||'',phone:r.phone||'',company:r.company||'',
-      website:r.website||'',status:r.status||'active',endClient:r.end_client||''}})}
+      website:r.website||'',status:r.status||'active',endClient:r.end_client||''}});
+  _buildDomainMap()}
+
+/* Build domain → end-client/client map from contacts with endClient + email */
+var _FREE_DOMAINS={'gmail.com':1,'yahoo.com':1,'hotmail.com':1,'outlook.com':1,'icloud.com':1,'aol.com':1,'live.com':1,'me.com':1,'msn.com':1,'protonmail.com':1,'mail.com':1,'zoho.com':1};
+function _buildDomainMap(){
+  S._domainMap={};
+  (S.contacts||[]).forEach(function(c){
+    if(!c.email||!c.endClient)return;
+    var domain=c.email.toLowerCase().split('@')[1];
+    if(!domain||_FREE_DOMAINS[domain])return;
+    if(S._domainMap[domain])return;
+    var cr=S.clientRecords.find(function(r){return r.id===c.clientId});
+    S._domainMap[domain]={clientId:c.clientId,clientName:cr?cr.name:'',endClient:c.endClient,clientStatus:cr?cr.status:'active'}})}
 
 function matchEmailToClient(email){
   if(!email)return null;
@@ -785,6 +798,13 @@ function matchEmailToClient(email){
   if(cl)return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:'',
     contactId:'',contactEmail:cl.email,contactPhone:'',contactCompany:cl.company||cl.name,contactWebsite:'',
     endClient:'',clientStatus:cl.status||'active'};
+  /* Domain-based end-client matching */
+  var domain=e.split('@')[1];
+  if(domain&&S._domainMap&&S._domainMap[domain]){
+    var dm=S._domainMap[domain];
+    return{clientId:dm.clientId,clientName:dm.clientName,contactName:'',contactRole:'',
+      contactId:'',contactEmail:email,contactPhone:'',contactCompany:'',contactWebsite:'',
+      endClient:dm.endClient,clientStatus:dm.clientStatus,domainMatch:true}}
   return null}
 
 /* Parse email addresses from a raw header string (e.g. "Name <email>, Other <email2>") */
@@ -895,9 +915,10 @@ async function dbEditContact(id,data){
   if(data.website!==undefined)upd.website=data.website;
   if(data.status!==undefined)upd.status=data.status;
   if(data.endClient!==undefined)upd.end_client=data.endClient;
+  if(data.clientId!==undefined)upd.client_id=data.clientId||null;
   var res=await _sb.from('contacts').update(upd).eq('id',id);
   if(res.error){toast('Edit contact failed: '+res.error.message,'warn');return false}
-  await loadContacts();render();toast('Contact updated','ok');return true}
+  await loadContacts();_buildDomainMap();S._threadCrmCache={};render();toast('Contact updated','ok');return true}
 
 async function dbDeleteContact(id){
   var res=await _sb.from('contacts').delete().eq('id',id);

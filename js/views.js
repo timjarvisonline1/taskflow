@@ -21,7 +21,9 @@ function render(){
   if(S.view==='clients')initClientsCharts();
   if(S.view==='finance')initFinanceCharts();
   if(S.view==='campaigns'&&S.subView==='performance')initCampaignPerformanceCharts();
-  if(S.view==='email'){initEmailIframes();startEmailPolling()}else{stopEmailPolling()}
+  if(S.view==='email'){initEmailIframes();startEmailPolling();
+    /* Auto-scroll to newest message in thread */
+    if(S.gmailThreadId&&S.gmailThread)setTimeout(function(){var lm=document.querySelector('.email-message-last');if(lm)lm.scrollIntoView({behavior:'auto',block:'start'})},120)}else{stopEmailPolling()}
   renderSidebar();renderActiveWidget()}
 
 
@@ -4680,14 +4682,7 @@ function rEmail(){
     }
     return h}
 
-  /* Grouped views for campaign/opportunity smart inboxes */
-  if(sub==='e-campaigns'){
-    h+=rEmailGrouped(threads,'campaign');
-  }else if(sub==='e-opportunities'){
-    h+=rEmailGrouped(threads,'opportunity');
-  }else{
-    h+=rEmailList(threads);
-  }
+  h+=rEmailList(threads);
 
   if(S._gmailNextPage&&!isSmartInbox){
     h+='<div style="text-align:center;padding:16px"><button class="btn" onclick="TF.loadMoreGmailThreads()" style="font-size:12px;padding:8px 20px">Load More</button></div>';

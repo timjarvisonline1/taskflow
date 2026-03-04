@@ -1162,6 +1162,14 @@ function ecAddNew(selId){
   inp.placeholder='Type new End Client name...';inp.style.cssText=sel.style.cssText||'';
   sel.parentNode.replaceChild(inp,sel);inp.focus()}
 
+/* Cascade refresh for Contact modal (fc- prefix) */
+function refreshContactEndClients(){
+  var client='';
+  var sel=gel('fc-client-id');
+  if(sel){var cid=sel.value;var cr=S.clientRecords.find(function(r){return r.id===cid});client=cr?cr.name:''}
+  var ecSel=gel('fc-end-client');
+  if(ecSel&&ecSel.tagName==='SELECT'){ecSel.innerHTML=buildEndClientOptions(ecSel.value,client)}}
+
 /* Cascade refresh for Add modal (f- prefix) */
 function refreshAddEndClients(){
   var client=gel('f-cli')?gel('f-cli').value:'';
@@ -4146,7 +4154,7 @@ function openAddContactModal(clientId,prefill){
     h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId)+'">';
   }else{
     /* Client selector — shown when adding from email or global context */
-    h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fc-client-id"><option value="">— No client —</option>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fc-client-id" onchange="TF.refreshContactEndClients()"><option value="">— No client —</option>';
     (S.clientRecords||[]).forEach(function(cr){
       h+='<option value="'+escAttr(cr.id)+'">'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
     h+='</select></div>';
@@ -4163,19 +4171,17 @@ function openAddContactModal(clientId,prefill){
   h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" placeholder="e.g. Marketing Manager"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="tel" class="edf" id="fc-phone" placeholder="+1 (555) 000-0000"></div>';
   h+='</div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="fc-end-client" list="fc-ec-list" placeholder="End client name"><datalist id="fc-ec-list">';
-  var _ecOpts=[];S.campaigns.forEach(function(c){if(c.endClient&&_ecOpts.indexOf(c.endClient)===-1)_ecOpts.push(c.endClient)});
-  S.tasks.concat(S.done).forEach(function(t){if(t.endClient&&_ecOpts.indexOf(t.endClient)===-1)_ecOpts.push(t.endClient)});
-  S.opportunities.forEach(function(o){if(o.endClient&&_ecOpts.indexOf(o.endClient)===-1)_ecOpts.push(o.endClient)});
-  _ecOpts.sort().forEach(function(ec){h+='<option value="'+esc(ec)+'">'});
-  h+='</datalist></div>';
+  var _fcFilterClient=clientId?(S.clientRecords.find(function(r){return r.id===clientId})||{}).name||'':'';
+  var _fcPrefillEC=prefill&&prefill.endClient?prefill.endClient:'';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="fc-end-client" onchange="TF.ecAddNew(\'fc-end-client\')">';
+  h+=buildEndClientOptions(_fcPrefillEC,_fcFilterClient);
+  h+='</select></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveContact()">Add Contact</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
   if(prefill){
     if(prefill.email){var fe=gel('fc-email');if(fe)fe.value=prefill.email}
     if(prefill.firstName){var fn=gel('fc-first-name');if(fn)fn.value=prefill.firstName}
-    if(prefill.lastName){var ln=gel('fc-last-name');if(ln)ln.value=prefill.lastName}
-    if(prefill.endClient){var ec=gel('fc-end-client');if(ec)ec.value=prefill.endClient}}
+    if(prefill.lastName){var ln=gel('fc-last-name');if(ln)ln.value=prefill.lastName}}
   setTimeout(function(){var n=gel('fc-first-name');if(n)n.focus()},100)}
 
 function openEditContactModal(contactId){
@@ -4183,6 +4189,11 @@ function openEditContactModal(contactId){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Edit Contact</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<input type="hidden" id="fc-contact-id" value="'+escAttr(contactId)+'">';
+  /* Client selector for edit */
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fc-client-id" onchange="TF.refreshContactEndClients()"><option value="">— No client —</option>';
+  (S.clientRecords||[]).forEach(function(cr){
+    h+='<option value="'+escAttr(cr.id)+'"'+(c.clientId===cr.id?' selected':'')+'>'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
+  h+='</select></div>';
   h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">First Name</span><input type="text" class="edf" id="fc-first-name" value="'+escAttr(c.firstName)+'" autofocus></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Last Name</span><input type="text" class="edf" id="fc-last-name" value="'+escAttr(c.lastName)+'"></div>';
@@ -4195,12 +4206,10 @@ function openEditContactModal(contactId){
   h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" value="'+escAttr(c.role)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="tel" class="edf" id="fc-phone" value="'+escAttr(c.phone)+'"></div>';
   h+='</div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="fc-end-client" list="fc-ec-list" value="'+escAttr(c.endClient||'')+'"><datalist id="fc-ec-list">';
-  var _ecOpts2=[];S.campaigns.forEach(function(cp){if(cp.endClient&&_ecOpts2.indexOf(cp.endClient)===-1)_ecOpts2.push(cp.endClient)});
-  S.tasks.concat(S.done).forEach(function(t){if(t.endClient&&_ecOpts2.indexOf(t.endClient)===-1)_ecOpts2.push(t.endClient)});
-  S.opportunities.forEach(function(o){if(o.endClient&&_ecOpts2.indexOf(o.endClient)===-1)_ecOpts2.push(o.endClient)});
-  _ecOpts2.sort().forEach(function(ec){h+='<option value="'+esc(ec)+'">'});
-  h+='</datalist></div>';
+  var _ecFilterClient=(S.clientRecords.find(function(r){return r.id===c.clientId})||{}).name||'';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="fc-end-client" onchange="TF.ecAddNew(\'fc-end-client\')">';
+  h+=buildEndClientOptions(c.endClient||'',_ecFilterClient);
+  h+='</select></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditContact()">Save Contact</button>';
   h+='<button class="btn" onclick="TF.confirmDeleteContact(\''+escAttr(contactId)+'\')" style="color:var(--red)">Delete</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
@@ -4212,12 +4221,13 @@ async function saveContact(){
   var lastName=(gel('fc-last-name')||{}).value||'';
   var email=(gel('fc-email')||{}).value||'';
   if(!firstName.trim()&&!lastName.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
+  var ecVal=(gel('fc-end-client')||{}).value||'';if(ecVal==='__addnew__')ecVal='';
   await dbAddContact(clientId,{firstName:firstName.trim(),lastName:lastName.trim(),email:email.trim(),
     company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||'',
-    endClient:(gel('fc-end-client')||{}).value||''});
+    endClient:ecVal});
   closeModal();
-  /* Invalidate CRM cache so pills/smart inboxes update */
-  S._threadCrmCache={};
+  /* Invalidate CRM + domain caches so pills/smart inboxes update */
+  _buildDomainMap();S._threadCrmCache={};
   /* Re-open client dashboard if it was open, otherwise re-render */
   if(S._lastClientDash)openClientDashboard(S._lastClientDash);
   else render()}
@@ -4227,10 +4237,12 @@ async function saveEditContact(){
   var firstName=(gel('fc-first-name')||{}).value||'';
   var lastName=(gel('fc-last-name')||{}).value||'';
   var email=(gel('fc-email')||{}).value||'';
+  var ecVal=(gel('fc-end-client')||{}).value||'';if(ecVal==='__addnew__')ecVal='';
   if(!firstName.trim()&&!lastName.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
+  var clientId=(gel('fc-client-id')||{}).value||null;
   await dbEditContact(id,{firstName:firstName.trim(),lastName:lastName.trim(),email:email.trim(),
     company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||'',
-    endClient:(gel('fc-end-client')||{}).value||''});
+    endClient:ecVal,clientId:clientId});
   closeModal();
   if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
 
