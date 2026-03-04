@@ -78,6 +78,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openClientDashboard:openClientDashboard,closeClientDashboard:closeClientDashboard,openClientDetailModal:openClientDetailModal,setClientSort:setClientSort,
   addCampaignNote:addCampaignNote,addClientNote:addClientNote,deleteCampaignNote:deleteCampaignNote,deleteClientNote:deleteClientNote,
   setCampaignTab:setCampaignTab,saveCampaignBilling:saveCampaignBilling,
+  /* Email */
+  openEmailThread:openEmailThread,closeEmailThread:closeEmailThread,searchGmail:searchGmail,setGmailFilter:setGmailFilter,loadMoreGmailThreads:loadMoreGmailThreads,refreshGmailInbox:refreshGmailInbox,
   openAddMeetingPrepTask:openAddMeetingPrepTask,
   atToggleMin:atToggleMin,modalToggle:modalToggle,
   signOut:signOut,

@@ -12,7 +12,7 @@ function render(){
   /* Desktop: 8-view experience */
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
-  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break}
+  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
   if(S.view==='dashboard')initDashboardCharts();
@@ -21,6 +21,7 @@ function render(){
   if(S.view==='clients')initClientsCharts();
   if(S.view==='finance')initFinanceCharts();
   if(S.view==='campaigns'&&S.subView==='performance')initCampaignPerformanceCharts();
+  if(S.view==='email')initEmailIframes();
   renderSidebar();renderActiveWidget()}
 
 
@@ -4491,6 +4492,185 @@ function rFinanceTeam(){
       h+='<td>'+esc(m.name)+'</td><td>'+esc(m.role)+'</td><td>'+fmtUSD(m.salary)+'</td>';
       h+='<td colspan="5"></td></tr>'});
     h+='</tbody></table></div></details>'}
+
+  h+='</div>';
+  return h}
+
+/* ═══════════ EMAIL IFRAME INIT ═══════════ */
+function initEmailIframes(){
+  /* Set iframe content from data attributes after render */
+  var iframes=document.querySelectorAll('.email-iframe[data-email-body]');
+  iframes.forEach(function(iframe){
+    var encoded=iframe.getAttribute('data-email-body');
+    if(!encoded)return;
+    try{
+      var html=decodeURIComponent(escape(atob(encoded)));
+      /* Wrap in a styled container for dark theme compatibility */
+      var doc='<!DOCTYPE html><html><head><style>body{font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;color:#222;background:#fff;margin:0;padding:12px;word-wrap:break-word}a{color:#1a73e8}img{max-width:100%;height:auto}blockquote{border-left:3px solid #ddd;margin:8px 0;padding-left:12px;color:#555}</style></head><body>'+html+'</body></html>';
+      iframe.srcdoc=doc;
+      /* Auto-resize iframe height after load */
+      iframe.onload=function(){
+        try{
+          var h=iframe.contentDocument.body.scrollHeight;
+          iframe.style.height=Math.min(h+20,600)+'px';
+        }catch(e){iframe.style.height='300px'}}
+    }catch(e){console.error('Email iframe error:',e)}
+  })}
+
+/* ═══════════ EMAIL VIEWS ═══════════ */
+function rEmail(){
+  var sub=S.subView||'inbox';
+  /* If a thread is open, show thread detail */
+  if(S.gmailThreadId){return rEmailThread()}
+
+  var h='<div class="pg-head"><h1>'+icon('mail',18)+' Email';
+  if(S.gmailUnread>0)h+=' <span style="background:#EA4335;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+S.gmailUnread+'</span>';
+  h+='</h1>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Refresh</button>';
+  h+='</div></div>';
+
+  /* Sub-nav: Inbox / Sent / All */
+  h+='<div class="task-mode-toggle" style="margin-bottom:16px">';
+  h+='<button class="tm-btn'+(sub==='inbox'?' on':'')+'" onclick="TF.setGmailFilter(\'inbox\')">Inbox</button>';
+  h+='<button class="tm-btn'+(sub==='sent'?' on':'')+'" onclick="TF.setGmailFilter(\'sent\')">Sent</button>';
+  h+='<button class="tm-btn'+(sub==='all'?' on':'')+'" onclick="TF.setGmailFilter(\'all\')">All Mail</button>';
+  h+='</div>';
+
+  /* Search bar */
+  h+='<div class="email-search">';
+  h+='<input type="text" class="edf" id="gmail-search" value="'+esc(S.gmailSearch)+'" placeholder="Search emails..." style="max-width:400px;font-size:13px" onkeydown="if(event.key===\'Enter\')TF.searchGmail(this.value)">';
+  if(S.gmailSearch)h+=' <button class="btn" onclick="TF.searchGmail(\'\')" style="font-size:11px;padding:4px 10px">Clear</button>';
+  h+='</div>';
+
+  /* Thread list — use live threads if available, else cached from DB */
+  var threads=S._gmailLiveThreads||null;
+  if(threads===null){
+    /* Use cached threads from DB, filtered by label */
+    threads=S.gmailThreads;
+    if(sub==='inbox')threads=threads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1});
+    else if(sub==='sent')threads=threads.filter(function(t){return(t.labels||'').indexOf('SENT')!==-1});
+  }
+
+  if(!threads.length){
+    var isConnected=S.integrations.some(function(i){return i.platform==='gmail'&&i.is_active});
+    if(!isConnected){
+      h+='<div class="email-empty">'+icon('mail',32)+'<p>Gmail not connected yet.</p><p style="font-size:12px;color:var(--t4)">Go to Finance → Integrations to set up Gmail.</p></div>';
+    }else{
+      h+='<div class="email-empty">'+icon('inbox',32)+'<p>No emails to show.</p><p style="font-size:12px;color:var(--t4)">Try refreshing or syncing your inbox.</p></div>';
+    }
+    return h}
+
+  h+=rEmailList(threads);
+
+  /* Load more button */
+  if(S._gmailNextPage){
+    h+='<div style="text-align:center;padding:16px"><button class="btn" onclick="TF.loadMoreGmailThreads()" style="font-size:12px;padding:8px 20px">Load More</button></div>';
+  }
+
+  return h}
+
+function rEmailList(threads){
+  var h='<div class="email-thread-list">';
+  threads.forEach(function(t){
+    /* Normalize field names (API returns camelCase, DB returns snake_case) */
+    var threadId=t.threadId||t.thread_id||'';
+    var subject=t.subject||'(no subject)';
+    var fromName=t.fromName||t.from_name||'';
+    var fromEmail=t.fromEmail||t.from_email||'';
+    var snippet=t.snippet||'';
+    var dateStr=t.date||t.last_message_at||'';
+    var msgCount=t.messageCount||t.message_count||1;
+    var isUnread=t.isUnread||t.is_unread||false;
+    var clientId=t.client_id||null;
+
+    /* Find client name if associated */
+    var clientName='';
+    if(clientId){
+      var cr=S.clientRecords.find(function(c){return c.id===clientId});
+      if(cr)clientName=cr.name||'';
+    }
+
+    /* Format date */
+    var dateLabel='';
+    if(dateStr){
+      var d=new Date(dateStr);
+      var now=new Date();
+      var diffDays=Math.floor((now-d)/86400000);
+      if(diffDays===0)dateLabel=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+      else if(diffDays===1)dateLabel='Yesterday';
+      else if(diffDays<7)dateLabel=DAYSHORT[d.getDay()];
+      else dateLabel=MO[d.getMonth()]+' '+d.getDate();
+    }
+
+    /* From display */
+    var fromDisplay=fromName||fromEmail;
+    if(fromDisplay.length>30)fromDisplay=fromDisplay.substring(0,28)+'…';
+
+    h+='<div class="email-row'+(isUnread?' email-unread':'')+'" onclick="TF.openEmailThread(\''+esc(threadId)+'\')">';
+    h+='<div class="email-row-from">'+esc(fromDisplay);
+    if(msgCount>1)h+=' <span class="email-count">'+msgCount+'</span>';
+    h+='</div>';
+    h+='<div class="email-row-content">';
+    h+='<span class="email-row-subject">'+esc(subject)+'</span>';
+    h+=' <span class="email-row-snippet">— '+esc(snippet.substring(0,100))+'</span>';
+    h+='</div>';
+    h+='<div class="email-row-meta">';
+    if(clientName)h+='<span class="email-client-badge">'+esc(clientName)+'</span>';
+    h+='<span class="email-row-date">'+dateLabel+'</span>';
+    h+='</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  return h}
+
+function rEmailThread(){
+  var h='';
+  /* Back button */
+  h+='<div class="pg-head"><h1 style="display:flex;align-items:center;gap:8px">';
+  h+='<button class="btn" onclick="TF.closeEmailThread()" style="padding:6px 10px;font-size:12px">'+icon('arrow_left',14)+' Back</button>';
+
+  if(S.gmailThread&&S.gmailThread.messages&&S.gmailThread.messages.length){
+    var firstMsg=S.gmailThread.messages[0];
+    h+='<span style="font-size:16px">'+esc(firstMsg.subject||'(no subject)')+'</span>';
+  }else{
+    h+='<span style="font-size:16px">Loading...</span>';
+  }
+  h+='</h1></div>';
+
+  if(!S.gmailThread){
+    h+='<div style="padding:30px;text-align:center;color:var(--t4)">Loading thread...</div>';
+    return h}
+
+  var msgs=S.gmailThread.messages||[];
+  h+='<div class="email-thread-detail">';
+
+  msgs.forEach(function(msg,idx){
+    var isLast=idx===msgs.length-1;
+    var fromDisplay=msg.fromName||msg.fromEmail||'';
+    var dateD=new Date(msg.date);
+    var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
+
+    h+='<div class="email-message'+(isLast?' email-message-last':'')+'">';
+    h+='<div class="email-msg-header">';
+    h+='<div class="email-msg-from">'+esc(fromDisplay)+' <span class="email-msg-email">&lt;'+esc(msg.fromEmail)+'&gt;</span></div>';
+    h+='<div class="email-msg-date">'+dateLabel+'</div>';
+    h+='</div>';
+    if(msg.to){h+='<div class="email-msg-to">To: '+esc(msg.to.substring(0,100))+'</div>'}
+    if(msg.cc){h+='<div class="email-msg-to">Cc: '+esc(msg.cc.substring(0,100))+'</div>'}
+
+    /* Message body */
+    h+='<div class="email-msg-body">';
+    if(msg.body){
+      /* Render HTML body in a sandboxed iframe */
+      var encoded=btoa(unescape(encodeURIComponent(msg.body)));
+      h+='<iframe class="email-iframe" srcdoc="" data-email-body="'+encoded+'" sandbox="allow-same-origin" style="width:100%;border:none;min-height:100px"></iframe>';
+    }else{
+      h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2)">'+esc(msg.snippet)+'</div>';
+    }
+    h+='</div>';
+    h+='</div>';
+  });
 
   h+='</div>';
   return h}

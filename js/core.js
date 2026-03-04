@@ -140,6 +140,11 @@ var SECTIONS=[
     {id:'recurring',label:'Recurring',icon:'refresh'},
     {id:'forecast',label:'Forecast',icon:'pipeline'},
     {id:'team',label:'Team',icon:'clients'}
+  ]},
+  {id:'email',icon:'mail',label:'Email',kbd:'9',subs:[
+    {id:'inbox',label:'Inbox',icon:'inbox'},
+    {id:'sent',label:'Sent',icon:'mail'},
+    {id:'all',label:'All Mail',icon:'folder'}
   ]}
 ];
 var VIEWS_FLAT=[];
@@ -1494,6 +1499,65 @@ async function loadGmailThreads(){
     S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
   }catch(e){console.error('loadGmailThreads:',e)}}
 
+/* ═══════════ EMAIL FUNCTIONS ═══════════ */
+async function fetchGmailThreads(label,search,pageToken){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return null;
+    var token=sess.data.session.access_token;
+    var params='?label='+(label||'inbox')+'&maxResults=25';
+    if(search)params+='&q='+encodeURIComponent(search);
+    if(pageToken)params+='&pageToken='+encodeURIComponent(pageToken);
+    var resp=await fetch('/api/gmail/threads'+params,{headers:{'Authorization':'Bearer '+token}});
+    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Failed')}
+    return await resp.json();
+  }catch(e){toast('Gmail: '+e.message,'warn');return null}}
+
+async function openEmailThread(threadId){
+  S.gmailThreadId=threadId;S.gmailThread=null;render();
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/gmail/thread?id='+encodeURIComponent(threadId),{headers:{'Authorization':'Bearer '+token}});
+    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Failed')}
+    S.gmailThread=await resp.json();
+    /* Mark as read locally */
+    var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
+    if(cached)cached.is_unread=false;
+    S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
+    render();
+  }catch(e){toast('Gmail: '+e.message,'warn')}}
+
+function closeEmailThread(){S.gmailThread=null;S.gmailThreadId='';render()}
+
+async function searchGmail(query){
+  S.gmailSearch=query;
+  toast('Searching...','info');
+  var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,query);
+  if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null}
+  render()}
+
+function setGmailFilter(filter){
+  S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';S._gmailLiveThreads=null;S._gmailNextPage=null;
+  S.gmailThread=null;S.gmailThreadId='';
+  save();render()}
+
+async function loadMoreGmailThreads(){
+  if(!S._gmailNextPage)return;
+  toast('Loading more...','info');
+  var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch,S._gmailNextPage);
+  if(data){
+    S._gmailLiveThreads=(S._gmailLiveThreads||[]).concat(data.threads||[]);
+    S._gmailNextPage=data.nextPageToken||null;
+    render()}}
+
+async function refreshGmailInbox(){
+  toast('Refreshing inbox...','info');
+  var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
+  if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null}
+  render()}
+
 async function triggerSync(platform){
   try{
     var sess=await _sb.auth.getSession();
@@ -2209,6 +2273,7 @@ function buildNav(){var h='';
   SECTIONS.forEach(function(sec){
     var badge='';
     if(sec.id==='tasks'){var _ib=S.tasks.filter(function(t){return t.isInbox}).length+S.review.length;if(_ib)badge='<span class="nav-badge">'+_ib+'</span>'}
+    if(sec.id==='email'&&S.gmailUnread>0){badge='<span class="nav-badge" style="background:#EA4335">'+S.gmailUnread+'</span>'}
     var isOn=sec.id===S.view;
     if(sec.soon){
       h+='<div class="s-item s-item-soon" data-v="'+sec.id+'">';
