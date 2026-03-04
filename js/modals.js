@@ -3122,6 +3122,33 @@ async function addNewClient(){
       await loadClientRecords()}}
   toast('Client created','ok');closeModal();render()}
 
+/* ═══════════ NOTES (Campaign + Client) ═══════════ */
+async function addCampaignNote(campaignId){
+  var el=gel('cpn-input');if(!el)return;
+  var text=el.value.trim();if(!text)return;
+  el.value='';
+  await dbAddCampaignNote(campaignId,text);
+  await loadCampaignNotes();render();
+  if(S.campaignDetailId===campaignId)openCampaignDashboard(campaignId)}
+
+async function addClientNote(clientId){
+  var el=gel('cln-input');if(!el)return;
+  var text=el.value.trim();if(!text)return;
+  el.value='';
+  await dbAddClientNote(clientId,text);
+  await loadClientNotes();
+  if(S.clientDetailName)openClientDetailModal(S.clientDetailName)}
+
+async function deleteCampaignNote(noteId,campaignId){
+  await dbDeleteCampaignNote(noteId);
+  await loadCampaignNotes();render();
+  if(S.campaignDetailId===campaignId)openCampaignDashboard(campaignId)}
+
+async function deleteClientNote(noteId,clientName){
+  await dbDeleteClientNote(noteId);
+  await loadClientNotes();
+  if(S.clientDetailName)openClientDetailModal(S.clientDetailName)}
+
 /* ═══════════ PAYMENT SPLITS ═══════════ */
 
 /* Temp in-memory splits for the editor */

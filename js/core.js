@@ -91,7 +91,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
-  accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name'};
+  accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignNotes:{},clientNotes:{}};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -681,6 +681,24 @@ async function loadOpportunityMeetings(){
     return{id:r.id,opportunityId:r.opportunity_id,date:r.date?new Date(r.date):new Date(),
       title:r.title||'',recordingLink:r.recording_link||'',notes:r.notes||'',
       created:r.created_at?new Date(r.created_at):new Date()}})}
+
+async function loadCampaignNotes(){
+  var res=await _sb.from('campaign_notes').select('*').order('created_at',{ascending:false});
+  if(res.error){console.error('loadCampaignNotes:',res.error);return}
+  S.campaignNotes={};
+  (res.data||[]).forEach(function(r){
+    var cid=r.campaign_id;if(!cid)return;
+    if(!S.campaignNotes[cid])S.campaignNotes[cid]=[];
+    S.campaignNotes[cid].push({id:r.id,text:r.text||'',created:r.created_at?new Date(r.created_at):new Date()})})}
+
+async function loadClientNotes(){
+  var res=await _sb.from('client_notes').select('*').order('created_at',{ascending:false});
+  if(res.error){console.error('loadClientNotes:',res.error);return}
+  S.clientNotes={};
+  (res.data||[]).forEach(function(r){
+    var cid=r.client_id;if(!cid)return;
+    if(!S.clientNotes[cid])S.clientNotes[cid]=[];
+    S.clientNotes[cid].push({id:r.id,text:r.text||'',created:r.created_at?new Date(r.created_at):new Date()})})}
 
 /* ═══════════ FINANCE DATA ═══════════ */
 async function loadFinancePayments(){
@@ -1604,7 +1622,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -1745,6 +1763,30 @@ async function dbAddCampaignMeeting(data){
   var res=await _sb.from('campaign_meetings').insert(row).select().single();
   if(res.error){toast('Meeting save failed: '+res.error.message,'warn');return null}
   return res.data}
+
+async function dbAddCampaignNote(campaignId,text){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,campaign_id:campaignId,text:text};
+  var res=await _sb.from('campaign_notes').insert(row).select().single();
+  if(res.error){toast('Note save failed: '+res.error.message,'warn');return null}
+  return res.data}
+
+async function dbDeleteCampaignNote(id){
+  var res=await _sb.from('campaign_notes').delete().eq('id',id);
+  if(res.error){toast('Delete failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbAddClientNote(clientId,text){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,client_id:clientId,text:text};
+  var res=await _sb.from('client_notes').insert(row).select().single();
+  if(res.error){toast('Note save failed: '+res.error.message,'warn');return null}
+  return res.data}
+
+async function dbDeleteClientNote(id){
+  var res=await _sb.from('client_notes').delete().eq('id',id);
+  if(res.error){toast('Delete failed: '+res.error.message,'warn');return false}
+  return true}
 
 /* ═══════════ PROJECT CRUD ═══════════ */
 async function dbAddProject(data){
