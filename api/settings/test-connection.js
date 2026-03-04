@@ -37,6 +37,8 @@ module.exports = async function handler(req, res) {
       return await testZohoBooks(res, userId, mergedCreds, mergedConfig);
     } else if (platform === 'zoho_payments') {
       return await testZohoPayments(res, userId, mergedCreds, mergedConfig);
+    } else if (platform === 'gmail') {
+      return await testGmail(res, userId, mergedCreds);
     } else {
       return res.status(400).json({ error: 'Unknown platform: ' + platform });
     }
@@ -186,5 +188,42 @@ async function testZohoPayments(res, userId, creds, config) {
     success: true,
     details: 'Connection successful',
     refresh_token: tokenCreds.refresh_token || null
+  });
+}
+
+async function testGmail(res, userId, creds) {
+  // For Gmail, test connection requires an access token (from OAuth flow).
+  // If we have a refresh_token, try to get profile info.
+  if (!creds.access_token && !creds.refresh_token) {
+    // No tokens yet — just verify client_id and client_secret are present
+    if (!creds.client_id || !creds.client_secret) {
+      throw new Error('Client ID and Client Secret are required. Get these from Google Cloud Console → APIs & Services → Credentials.');
+    }
+    return res.status(200).json({
+      success: true,
+      details: 'Credentials saved. Click "Connect Gmail" to authorize access.',
+      needs_oauth: true
+    });
+  }
+
+  // We have tokens — try to get profile
+  let accessToken = creds.access_token;
+  if (!accessToken && creds.refresh_token) {
+    // Try to refresh
+    const { refreshGmailToken } = require('../_lib/gmail-auth');
+    const credRow = await getCredentials(userId, 'gmail');
+    accessToken = await refreshGmailToken(credRow);
+  }
+
+  const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+    headers: { 'Authorization': 'Bearer ' + accessToken }
+  });
+  if (!resp.ok) throw new Error('Gmail API returned ' + resp.status);
+  const profile = await resp.json();
+
+  return res.status(200).json({
+    success: true,
+    details: 'Connected as ' + profile.emailAddress + ' (' + profile.messagesTotal + ' messages)',
+    email: profile.emailAddress
   });
 }

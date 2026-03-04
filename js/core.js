@@ -91,7 +91,8 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
-  accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{}};
+  accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
+  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1484,6 +1485,15 @@ async function loadIntegrations(){
     S.integrations=data.integrations||[];
   }catch(e){console.error('loadIntegrations:',e)}}
 
+async function loadGmailThreads(){
+  try{
+    var uid=await getUserId();if(!uid)return;
+    var{data,error}=await _sb.from('gmail_threads').select('*').eq('user_id',uid).order('last_message_at',{ascending:false}).limit(200);
+    if(error)throw error;
+    S.gmailThreads=data||[];
+    S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
+  }catch(e){console.error('loadGmailThreads:',e)}}
+
 async function triggerSync(platform){
   try{
     var sess=await _sb.auth.getSession();
@@ -1624,7 +1634,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){

@@ -3418,6 +3418,9 @@ var INTG_PLATFORMS=[
   {id:'zoho_books',label:'Zoho Books',color:'#2196f3',desc:'Accounting (Film&Content LLC)',
     fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'},{key:'refresh_token',label:'Refresh Token',type:'password'},{key:'code',label:'Auth Code (first-time only)',type:'text'}],
     configFields:[{key:'organization_id',label:'Organization ID',type:'text'}]},
+  {id:'gmail',label:'Gmail',color:'#EA4335',desc:'Email (tim.jarvis@timjarvis.online)',oauth:true,
+    fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'}],
+    configFields:[]},
 ];
 
 /* ═══════════ SCHEDULED ITEM MODALS ═══════════ */
@@ -3706,6 +3709,8 @@ function openIntegrationsModal(){
     h+='<div class="intg-actions">';
     h+='<button class="btn" onclick="TF.testIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px">Test Connection</button>';
     h+='<button class="btn btn-p" onclick="TF.saveIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px">Save</button>';
+    if(plat.oauth&&!isConnected){
+      h+='<button class="btn btn-go" onclick="TF.connectGmail()" style="font-size:12px;padding:6px 14px">'+icon('mail',11)+' Connect Gmail</button>'}
     if(isConnected){
       h+='<button class="btn btn-go" onclick="TF.triggerSync(\''+plat.id.replace(/_/g,'-')+'\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Now</button>';
       h+='<button class="btn" onclick="TF.deleteIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:rgba(255,0,0,0.2)">Disconnect</button>';
@@ -3798,4 +3803,38 @@ async function deleteIntegrationBtn(platformId){
   if(!confirm('Disconnect '+platformId+'? This will remove stored credentials.'))return;
   var ok=await deleteIntegration(platformId);
   if(ok){toast(platformId+' disconnected','ok');openIntegrationsModal()}
+}
+
+/* ═══════════ GMAIL OAUTH CONNECT ═══════════ */
+async function connectGmail(){
+  /* First save client_id & client_secret if entered */
+  var vals=intgGetFields('gmail');
+  if(!vals.credentials.client_id||!vals.credentials.client_secret){
+    toast('Enter your Client ID and Client Secret first','warn');return;
+  }
+  await saveIntegrationBtn('gmail');
+
+  /* Get the OAuth URL from the server */
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session){toast('Not signed in','warn');return}
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/auth/gmail-connect',{headers:{'Authorization':'Bearer '+token}});
+    var data=await resp.json();
+    if(!resp.ok||data.error){toast(data.error||'Failed to get OAuth URL','warn');return}
+
+    /* Open Google consent screen in popup */
+    var popup=window.open(data.url,'gmail-oauth','width=600,height=700,left=200,top=100');
+    if(!popup){toast('Popup blocked — please allow popups for this site','warn');return}
+
+    /* Listen for the postMessage callback from the OAuth callback page */
+    function onGmailConnected(e){
+      if(e.data==='gmail-connected'){
+        window.removeEventListener('message',onGmailConnected);
+        toast('Gmail connected!','ok');
+        loadIntegrations().then(function(){loadGmailThreads();openIntegrationsModal()});
+      }
+    }
+    window.addEventListener('message',onGmailConnected);
+  }catch(e){toast('Gmail connect error: '+e.message,'warn')}
 }

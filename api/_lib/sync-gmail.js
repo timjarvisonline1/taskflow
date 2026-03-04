@@ -1,0 +1,134 @@
+const { getServiceClient, getCredentials, updateSyncStatus } = require('./supabase');
+const { refreshGmailToken } = require('./gmail-auth');
+
+const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
+
+/**
+ * Sync Gmail thread metadata to Supabase.
+ * Fetches recent threads and upserts metadata (no message bodies stored).
+ */
+async function syncGmail(userId) {
+  const credRow = await getCredentials(userId, 'gmail');
+  if (!credRow) throw new Error('Gmail not connected');
+
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: null };
+
+  try {
+    const accessToken = await refreshGmailToken(credRow);
+    const client = getServiceClient();
+
+    // Fetch thread list (last 100 threads)
+    const listResp = await fetch(GMAIL_API + '/threads?maxResults=100', {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+    if (!listResp.ok) throw new Error('Gmail API returned ' + listResp.status);
+    const listData = await listResp.json();
+    const threads = listData.threads || [];
+    stats.fetched = threads.length;
+
+    // Load client records for auto-association
+    const { data: clientRecords } = await client
+      .from('clients')
+      .select('id, email, name')
+      .eq('user_id', userId);
+    const clientEmailMap = {};
+    (clientRecords || []).forEach(function(c) {
+      if (c.email) clientEmailMap[c.email.toLowerCase()] = c.id;
+    });
+
+    // Fetch each thread's metadata and upsert
+    for (const thread of threads) {
+      try {
+        const threadResp = await fetch(
+          GMAIL_API + '/threads/' + thread.id + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject',
+          { headers: { 'Authorization': 'Bearer ' + accessToken } }
+        );
+        if (!threadResp.ok) continue;
+        const threadData = await threadResp.json();
+
+        const messages = threadData.messages || [];
+        if (!messages.length) continue;
+
+        // Extract metadata from first and last message
+        const firstMsg = messages[0];
+        const lastMsg = messages[messages.length - 1];
+
+        const getHeader = (msg, name) => {
+          const h = (msg.payload && msg.payload.headers || []).find(h => h.name.toLowerCase() === name.toLowerCase());
+          return h ? h.value : '';
+        };
+
+        const fromRaw = getHeader(firstMsg, 'From');
+        const subject = getHeader(firstMsg, 'Subject');
+        const toRaw = getHeader(firstMsg, 'To');
+
+        // Parse "Name <email>" format
+        const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
+        const fromName = fromMatch ? fromMatch[1].replace(/"/g, '').trim() : '';
+        const fromEmail = fromMatch ? fromMatch[2].trim() : fromRaw.trim();
+
+        // Check labels for unread
+        const lastLabels = lastMsg.labelIds || [];
+        const isUnread = lastLabels.includes('UNREAD');
+        const allLabels = [...new Set(messages.flatMap(m => m.labelIds || []))].join(',');
+
+        // Auto-associate with client by email
+        let clientId = null;
+        const emailsToCheck = [fromEmail.toLowerCase(), ...(toRaw.toLowerCase().split(/[,;]/).map(e => {
+          const m = e.match(/<(.+?)>/);
+          return m ? m[1].trim() : e.trim();
+        }))];
+        for (const email of emailsToCheck) {
+          if (clientEmailMap[email]) {
+            clientId = clientEmailMap[email];
+            break;
+          }
+        }
+
+        // Upsert to gmail_threads
+        const row = {
+          user_id: userId,
+          thread_id: thread.id,
+          subject: subject || '(no subject)',
+          from_email: fromEmail,
+          from_name: fromName,
+          to_emails: toRaw,
+          snippet: lastMsg.snippet || '',
+          last_message_at: new Date(parseInt(lastMsg.internalDate)).toISOString(),
+          message_count: messages.length,
+          is_unread: isUnread,
+          labels: allLabels,
+          client_id: clientId,
+          synced_at: new Date().toISOString()
+        };
+
+        const { data: existing } = await client
+          .from('gmail_threads')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('thread_id', thread.id)
+          .single();
+
+        if (existing) {
+          await client.from('gmail_threads').update(row).eq('id', existing.id);
+          stats.updated++;
+        } else {
+          await client.from('gmail_threads').insert(row);
+          stats.inserted++;
+        }
+      } catch (threadErr) {
+        stats.skipped++;
+      }
+    }
+
+    await updateSyncStatus(userId, 'gmail', 'ok',
+      stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : ''));
+    return stats;
+  } catch (e) {
+    stats.error = e.message;
+    await updateSyncStatus(userId, 'gmail', 'error', e.message);
+    throw e;
+  }
+}
+
+module.exports = { syncGmail };
