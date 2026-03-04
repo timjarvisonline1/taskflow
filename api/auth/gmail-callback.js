@@ -1,65 +1,12 @@
-const { verifyUserToken, cors, getServiceClient, getCredentials } = require('../_lib/supabase');
+const { getServiceClient, getCredentials } = require('../_lib/supabase');
 const { exchangeGmailCode } = require('../_lib/gmail-auth');
 
-const SCOPES = [
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.modify'
-].join(' ');
-
 /**
- * Catch-all handler for /api/auth/:handler
- * Dispatches to gmail-connect or gmail-callback.
+ * GET /api/auth/gmail-callback
+ * OAuth redirect target — exchanges the authorization code for tokens,
+ * stores them in integration_credentials, and returns a success/error page.
  */
 module.exports = async function handler(req, res) {
-  const action = req.query.handler;
-
-  if (action === 'gmail-connect') return handleConnect(req, res);
-  if (action === 'gmail-callback') return handleCallback(req, res);
-
-  return res.status(404).json({ error: 'Unknown auth handler: ' + action });
-};
-
-/* ═══════════ GMAIL CONNECT ═══════════ */
-async function handleConnect(req, res) {
-  cors(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
-
-  const userId = await verifyUserToken(req);
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-  try {
-    const credRow = await getCredentials(userId, 'gmail');
-    const creds = credRow ? credRow.credentials || {} : {};
-    const clientId = creds.client_id;
-
-    if (!clientId) {
-      return res.status(400).json({ error: 'Save your Client ID first in the integrations modal, then click Connect Gmail.' });
-    }
-
-    const protocol = req.headers['x-forwarded-proto'] || 'https';
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
-    const redirectUri = protocol + '://' + host + '/api/auth/gmail-callback';
-
-    const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: SCOPES,
-      access_type: 'offline',
-      prompt: 'consent',
-      state: userId
-    }).toString();
-
-    return res.status(200).json({ url: authUrl });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
-}
-
-/* ═══════════ GMAIL CALLBACK ═══════════ */
-async function handleCallback(req, res) {
   // No CORS needed — this is a redirect target, not an API call
   if (req.method !== 'GET') return res.status(405).send('GET only');
 
@@ -113,7 +60,7 @@ async function handleCallback(req, res) {
   } catch (e) {
     return res.status(200).send(errorPage(e.message));
   }
-}
+};
 
 function successPage() {
   return `<!DOCTYPE html><html><head><title>Gmail Connected</title>
