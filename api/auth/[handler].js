@@ -1,12 +1,65 @@
-const { getServiceClient, getCredentials } = require('../_lib/supabase');
+const { verifyUserToken, cors, getServiceClient, getCredentials } = require('../_lib/supabase');
 const { exchangeGmailCode } = require('../_lib/gmail-auth');
 
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.modify'
+].join(' ');
+
 /**
- * GET /api/auth/gmail-callback
- * Handles the OAuth redirect from Google after user grants permission.
- * Exchanges code for tokens, stores them, returns success HTML.
+ * Catch-all handler for /api/auth/:handler
+ * Dispatches to gmail-connect or gmail-callback.
  */
 module.exports = async function handler(req, res) {
+  const action = req.query.handler;
+
+  if (action === 'gmail-connect') return handleConnect(req, res);
+  if (action === 'gmail-callback') return handleCallback(req, res);
+
+  return res.status(404).json({ error: 'Unknown auth handler: ' + action });
+};
+
+/* ═══════════ GMAIL CONNECT ═══════════ */
+async function handleConnect(req, res) {
+  cors(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
+
+  const userId = await verifyUserToken(req);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const credRow = await getCredentials(userId, 'gmail');
+    const creds = credRow ? credRow.credentials || {} : {};
+    const clientId = creds.client_id;
+
+    if (!clientId) {
+      return res.status(400).json({ error: 'Save your Client ID first in the integrations modal, then click Connect Gmail.' });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const redirectUri = protocol + '://' + host + '/api/auth/gmail-callback';
+
+    const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: SCOPES,
+      access_type: 'offline',
+      prompt: 'consent',
+      state: userId
+    }).toString();
+
+    return res.status(200).json({ url: authUrl });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+/* ═══════════ GMAIL CALLBACK ═══════════ */
+async function handleCallback(req, res) {
   // No CORS needed — this is a redirect target, not an API call
   if (req.method !== 'GET') return res.status(405).send('GET only');
 
@@ -23,7 +76,6 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Get stored client_id and client_secret
     const credRow = await getCredentials(userId, 'gmail');
     if (!credRow) {
       return res.status(400).send(errorPage('Gmail credentials not found. Save your Client ID and Secret first.'));
@@ -34,15 +86,12 @@ module.exports = async function handler(req, res) {
       return res.status(400).send(errorPage('Client ID and Client Secret must be saved before connecting.'));
     }
 
-    // Build redirect URI (must match exactly what was used in gmail-connect)
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const host = req.headers['x-forwarded-host'] || req.headers.host;
     const redirectUri = protocol + '://' + host + '/api/auth/gmail-callback';
 
-    // Exchange code for tokens
     const tokens = await exchangeGmailCode(creds.client_id, creds.client_secret, code, redirectUri);
 
-    // Update stored credentials with tokens
     const newCreds = {
       ...creds,
       access_token: tokens.access_token,
@@ -64,7 +113,7 @@ module.exports = async function handler(req, res) {
   } catch (e) {
     return res.status(200).send(errorPage(e.message));
   }
-};
+}
 
 function successPage() {
   return `<!DOCTYPE html><html><head><title>Gmail Connected</title>
