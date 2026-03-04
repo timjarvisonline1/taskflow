@@ -1137,6 +1137,97 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   transition:all .15s}
 .email-new-btn:hover{background:#d63030;transform:translateY(-1px)}
 
+/* ── Compose modal — wide ── */
+.tf-modal-wide .tf-modal-inner{max-width:720px!important;width:95vw}
+
+/* ── Compose recipient chips ── */
+.compose-recipient-wrap{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:6px 10px;
+  background:rgba(255,255,255,.03);border:1px solid var(--gborder);border-radius:8px;
+  min-height:36px;cursor:text;transition:border-color .2s}
+.compose-recipient-wrap:focus-within{border-color:var(--accent)}
+.compose-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px 2px 6px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+  font-size:12px;color:var(--t2);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.compose-chip-x{cursor:pointer;opacity:.5;font-size:14px;line-height:1;margin-left:2px;
+  transition:opacity .15s}
+.compose-chip-x:hover{opacity:1;color:#EA4335}
+.compose-recipient-input{flex:1;min-width:120px;border:none;background:transparent;outline:none;
+  font-size:13px;color:var(--t1);padding:4px 0}
+.compose-recipient-input::placeholder{color:var(--t4)}
+
+/* ── Autocomplete dropdown ── */
+.compose-ac-dropdown{position:absolute;left:0;top:100%;right:0;z-index:50;max-height:240px;
+  overflow-y:auto;background:var(--bg2);border:1px solid var(--gborder);border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.3);display:none;margin-top:2px}
+.compose-ac-dropdown.open{display:block}
+.compose-ac-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;
+  transition:background .1s;font-size:13px;color:var(--t2)}
+.compose-ac-item:hover,.compose-ac-item.active{background:rgba(255,255,255,.06)}
+.compose-ac-avatar{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+.compose-ac-name{font-weight:600;color:var(--t1)}
+.compose-ac-email{font-size:11px;color:var(--t4)}
+
+/* ── Compose toolbar (formatting) ── */
+.compose-toolbar{display:flex;gap:1px;padding:4px 6px;border-bottom:1px solid var(--gborder);
+  background:rgba(255,255,255,.015);flex-wrap:wrap}
+.compose-toolbar-btn{width:30px;height:28px;border-radius:5px;border:none;background:transparent;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t3);
+  transition:all .12s;font-size:13px;font-weight:600}
+.compose-toolbar-btn:hover{background:rgba(255,255,255,.08);color:var(--t1)}
+.compose-toolbar-btn.active{background:var(--accent);color:#fff}
+.compose-toolbar-sep{width:1px;height:20px;background:var(--gborder);margin:4px 4px;align-self:center}
+
+/* ── Compose editor (contenteditable) ── */
+.compose-editor{min-height:250px;max-height:60vh;overflow-y:auto;padding:14px 16px;
+  font-size:14px;line-height:1.6;color:var(--t1);outline:none;cursor:text}
+.compose-editor:empty::before{content:attr(data-placeholder);color:var(--t4);pointer-events:none}
+.compose-editor blockquote{border-left:3px solid var(--gborder);padding-left:12px;margin:8px 0;
+  color:var(--t3)}
+.compose-editor a{color:var(--accent);text-decoration:underline}
+.compose-editor ul,.compose-editor ol{padding-left:24px;margin:4px 0}
+.compose-editor code{background:rgba(255,255,255,.06);padding:1px 4px;border-radius:3px;font-size:13px}
+
+/* ── Compose body wrapper ── */
+.compose-body-wrap{border:1px solid var(--gborder);border-radius:8px;overflow:hidden;
+  background:rgba(255,255,255,.02);transition:border-color .2s}
+.compose-body-wrap:focus-within{border-color:var(--accent)}
+
+/* ── Compose attachments bar ── */
+.compose-attach-list{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;
+  border-top:1px solid var(--gborder)}
+.compose-attach-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
+  background:rgba(255,255,255,.05);border:1px solid var(--gborder);border-radius:6px;
+  font-size:11px;color:var(--t2)}
+.compose-attach-chip .compose-chip-x{font-size:12px}
+
+/* ── Email attachment cards in thread view ── */
+.email-attachments{display:flex;flex-wrap:wrap;gap:8px;padding:8px 16px 12px}
+.email-attachment-card{display:flex;align-items:center;gap:8px;padding:8px 14px;
+  background:rgba(255,255,255,.04);border:1px solid var(--gborder);border-radius:8px;
+  cursor:pointer;transition:all .15s;font-size:12px;color:var(--t2)}
+.email-attachment-card:hover{background:rgba(255,255,255,.08);border-color:var(--accent);
+  transform:translateY(-1px)}
+.email-att-icon{font-size:18px;flex-shrink:0}
+.email-att-name{font-weight:600;color:var(--t1)}
+.email-att-size{font-size:11px;color:var(--t4)}
+.email-att-dl{color:var(--t4);margin-left:auto;flex-shrink:0;opacity:.5;transition:opacity .15s}
+.email-attachment-card:hover .email-att-dl{opacity:1;color:var(--accent)}
+
+/* ── Per-message action buttons ── */
+.email-msg-actions{display:flex;gap:4px;padding:4px 16px 10px;justify-content:flex-start}
+.email-msg-action-btn{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--gborder);
+  background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;gap:4px;
+  transition:all .15s}
+.email-msg-action-btn:hover{background:rgba(255,255,255,.06);color:var(--t1);border-color:var(--t4)}
+
+/* ── Signature style ── */
+.email-signature{color:var(--t3);font-size:13px;border-top:1px solid var(--gborder);
+  padding-top:8px;margin-top:16px}
+
+/* ── Attachment indicator in thread list ── */
+.email-att-indicator{font-size:12px;color:var(--t4);margin-left:4px;flex-shrink:0}
+
 @media(max-width:700px){
   .email-row{grid-template-columns:8px 32px 1fr;gap:8px;padding:10px 12px}
   .email-row-meta{margin-top:4px}

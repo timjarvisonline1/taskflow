@@ -42,6 +42,7 @@ module.exports = async function handler(req, res) {
       };
 
       const body = extractBody(msg.payload);
+      const attachments = extractAttachments(msg.payload);
       const fromRaw = getHeader('From');
       const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
 
@@ -52,7 +53,7 @@ module.exports = async function handler(req, res) {
         fromEmail: fromMatch ? fromMatch[2].trim() : fromRaw.trim(),
         to: getHeader('To'), cc: getHeader('Cc'), subject: getHeader('Subject'),
         date: new Date(parseInt(msg.internalDate)).toISOString(),
-        snippet: msg.snippet || '', body,
+        snippet: msg.snippet || '', body, attachments,
         labels: msg.labelIds || [],
         isUnread: (msg.labelIds || []).includes('UNREAD')
       };
@@ -74,6 +75,25 @@ module.exports = async function handler(req, res) {
 };
 
 /* ═══════════ HELPERS ═══════════ */
+function extractAttachments(payload) {
+  const attachments = [];
+  function walk(parts) {
+    for (const part of (parts || [])) {
+      if (part.filename && part.filename.length > 0 && part.body) {
+        attachments.push({
+          filename: part.filename,
+          mimeType: part.mimeType || 'application/octet-stream',
+          size: part.body.size || 0,
+          attachmentId: part.body.attachmentId || ''
+        });
+      }
+      if (part.parts) walk(part.parts);
+    }
+  }
+  if (payload && payload.parts) walk(payload.parts);
+  return attachments;
+}
+
 function extractBody(payload) {
   if (!payload) return '';
   if (payload.body && payload.body.data) return decodeBase64Url(payload.body.data);

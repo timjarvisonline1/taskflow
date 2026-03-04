@@ -3848,60 +3848,139 @@ async function connectGmail(){
 /* ═══════════ COMPOSE EMAIL MODAL ═══════════ */
 function openComposeEmail(opts){
   opts=opts||{};
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('mail',14)+' '+(opts.replyToThreadId?'Reply':'New Email')+'</span>';
+  var isReply=!!opts.replyToThreadId;
+  var isForward=!!opts.isForward;
+  var title=isReply?'Reply':isForward?'Forward':'New Email';
+
+  /* Reset compose state */
+  window._composeRecipients={to:[],cc:[],bcc:[]};
+  window._composeAttachments=[];
+  if(opts.to)window._composeRecipients.to=opts.to.split(',').map(function(s){return s.trim()}).filter(Boolean);
+  if(opts.cc)window._composeRecipients.cc=opts.cc.split(',').map(function(s){return s.trim()}).filter(Boolean);
+
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('mail',14)+' '+title+'</span>';
+  h+='<button class="email-toolbar-btn" onclick="TF.openSignatureEditor()" title="Email signature" style="margin-right:4px">'+icon('settings',13)+'</button>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  h+='<div class="edf-body" style="padding:16px">';
+  h+='<div class="edf-body" style="padding:12px 16px">';
 
-  /* To */
-  h+='<div class="ed-fld"><span class="ed-lbl">To</span>';
-  h+='<input type="text" class="edf" id="compose-to" value="'+esc(opts.to||'')+'" placeholder="recipient@example.com">';
-  h+='</div>';
+  /* ── Recipient fields (chip-style) ── */
+  function recipientField(field,label,show){
+    var s='<div class="ed-fld" id="compose-'+field+'-wrap" style="position:relative;'+(show?'':'display:none')+'">';
+    s+='<span class="ed-lbl">'+label+'</span>';
+    s+='<div class="compose-recipient-wrap" onclick="var i=gel(\'compose-'+field+'-input\');if(i)i.focus()">';
+    s+='<span id="compose-'+field+'-chips"></span>';
+    s+='<input class="compose-recipient-input" id="compose-'+field+'-input" placeholder="Add recipients..."';
+    s+=' oninput="TF.acRecipient(\''+field+'\')" onkeydown="TF.recipientKeydown(\''+field+'\',event)"';
+    s+=' onfocus="TF.acRecipient(\''+field+'\')" onblur="setTimeout(function(){var d=gel(\'compose-'+field+'-ac\');if(d)d.classList.remove(\'open\')},200)">';
+    s+='<div class="compose-ac-dropdown" id="compose-'+field+'-ac"></div>';
+    s+='</div></div>';
+    return s}
 
-  /* CC (toggleable) */
-  h+='<div class="ed-fld" id="compose-cc-wrap" style="'+(opts.cc?'':'display:none')+'">';
-  h+='<span class="ed-lbl">Cc</span>';
-  h+='<input type="text" class="edf" id="compose-cc" value="'+esc(opts.cc||'')+'" placeholder="cc@example.com">';
-  h+='</div>';
-  if(!opts.cc){
-    h+='<div style="margin-bottom:8px"><a href="#" onclick="event.preventDefault();gel(\'compose-cc-wrap\').style.display=\'block\';this.style.display=\'none\'" style="font-size:11px;color:var(--accent)">+ Add Cc</a></div>';
-  }
+  h+=recipientField('to','To',true);
+  h+=recipientField('cc','Cc',!!opts.cc);
+  h+=recipientField('bcc','Bcc',false);
+
+  /* Toggle links for Cc/Bcc */
+  var toggleLinks='';
+  if(!opts.cc)toggleLinks+='<a href="#" id="compose-show-cc" onclick="event.preventDefault();gel(\'compose-cc-wrap\').style.display=\'block\';this.style.display=\'none\'" style="font-size:11px;color:var(--accent)">Cc</a>';
+  toggleLinks+=' <a href="#" id="compose-show-bcc" onclick="event.preventDefault();gel(\'compose-bcc-wrap\').style.display=\'block\';this.style.display=\'none\'" style="font-size:11px;color:var(--accent)">Bcc</a>';
+  if(toggleLinks)h+='<div style="margin-bottom:8px;display:flex;gap:12px">'+toggleLinks+'</div>';
 
   /* Subject */
   h+='<div class="ed-fld"><span class="ed-lbl">Subject</span>';
-  h+='<input type="text" class="edf" id="compose-subject" value="'+esc(opts.subject||'')+'" placeholder="Subject">';
+  h+='<input type="text" class="edf" id="compose-subject" value="'+escAttr(opts.subject||'')+'" placeholder="Subject">';
   h+='</div>';
 
-  /* Body */
-  h+='<div class="ed-fld"><span class="ed-lbl">Message</span>';
-  h+='<textarea class="edf" id="compose-body" placeholder="Write your message..." style="min-height:180px;font-size:13px;line-height:1.5">'+esc(opts.body||'')+'</textarea>';
+  /* ── Formatting toolbar + Editor ── */
+  h+='<div class="compose-body-wrap">';
+  h+='<div class="compose-toolbar">';
+  var tbBtns=[
+    {cmd:'bold',icon:'bold',title:'Bold (Ctrl+B)'},
+    {cmd:'italic',icon:'italic',title:'Italic (Ctrl+I)'},
+    {cmd:'underline',icon:'underline',title:'Underline (Ctrl+U)'},
+    {cmd:'strikethrough',icon:'strikethrough',title:'Strikethrough'},
+    {sep:true},
+    {cmd:'insertUnorderedList',icon:'list_ul',title:'Bullet list'},
+    {cmd:'insertOrderedList',icon:'list_ol',title:'Numbered list'},
+    {cmd:'formatBlock_blockquote',icon:'quote',title:'Quote'},
+    {sep:true},
+    {cmd:'createLink',icon:'link',title:'Insert link'}
+  ];
+  tbBtns.forEach(function(b){
+    if(b.sep){h+='<div class="compose-toolbar-sep"></div>';return}
+    h+='<button class="compose-toolbar-btn" data-compose-cmd="'+b.cmd+'" title="'+b.title+'" onclick="event.preventDefault();TF.execComposeCmd(\''+(b.cmd==='formatBlock_blockquote'?'formatBlock\',\'blockquote':b.cmd+'\',\'')+'\')">'+icon(b.icon,13)+'</button>'});
+  h+='</div>';
+
+  /* Contenteditable editor */
+  var bodyContent=opts.body||'';
+  /* Add signature for new emails */
+  if(!isReply&&!isForward){
+    var sig=getEmailSignature();
+    if(sig)bodyContent='<br><br><div class="email-signature">--<br>'+sig+'</div>'}
+  else if(isReply){
+    var sig2=getEmailSignature();
+    if(sig2)bodyContent='<br><div class="email-signature">--<br>'+sig2+'</div>'+bodyContent}
+  h+='<div class="compose-editor" contenteditable="true" id="compose-body" data-placeholder="Write your message..." onselectionchange="TF.updateComposeToolbar&&TF.updateComposeToolbar()">'+bodyContent+'</div>';
+
+  /* Attachments area */
+  h+='<div class="compose-attach-list" id="compose-attach-list" style="display:none"></div>';
   h+='</div>';
 
   /* Hidden fields for reply context */
-  if(opts.replyToThreadId)h+='<input type="hidden" id="compose-threadId" value="'+esc(opts.replyToThreadId)+'">';
-  if(opts.replyToMessageId)h+='<input type="hidden" id="compose-messageId" value="'+esc(opts.replyToMessageId)+'">';
+  if(opts.replyToThreadId)h+='<input type="hidden" id="compose-threadId" value="'+escAttr(opts.replyToThreadId)+'">';
+  if(opts.replyToMessageId)h+='<input type="hidden" id="compose-messageId" value="'+escAttr(opts.replyToMessageId)+'">';
 
-  h+='<div class="intg-actions" style="margin-top:12px">';
-  h+='<button class="btn btn-go" onclick="TF.sendEmail()" style="font-size:13px;padding:8px 20px">'+icon('mail',12)+' Send</button>';
-  h+='<button class="btn" onclick="TF.closeModal()" style="font-size:13px;padding:8px 20px">Cancel</button>';
+  /* ── Bottom bar ── */
+  h+='<div style="display:flex;align-items:center;gap:8px;margin-top:12px">';
+  h+='<button class="btn btn-p" onclick="TF.sendEmail()" style="font-size:13px;padding:8px 24px">'+icon('send',12)+' Send</button>';
+  h+='<button class="btn" onclick="TF.addComposeAttachment()" style="font-size:12px;padding:7px 14px">'+icon('paperclip',12)+' Attach</button>';
+  h+='<div style="flex:1"></div>';
+  h+='<button class="btn" onclick="TF.closeModal()" style="font-size:12px;padding:7px 14px">Discard</button>';
   h+='</div>';
   h+='</div>';
 
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
-}
+  gel('m-body').innerHTML=h;
+  /* Add wide class to modal */
+  var modal=gel('modal');modal.classList.add('on');
+  var inner=modal.querySelector('.tf-modal-inner')||modal;
+  inner.classList.add('tf-modal-wide');
+
+  /* Render initial chips */
+  setTimeout(function(){
+    renderRecipientChips('to');renderRecipientChips('cc');renderRecipientChips('bcc');
+    /* Focus editor for new, or To for forward */
+    if(isForward){var ti=gel('compose-to-input');if(ti)ti.focus()}
+    else if(!isReply){var ed=gel('compose-body');if(ed){ed.focus();
+      /* Move cursor to beginning */
+      var sel=window.getSelection();var rng=document.createRange();rng.setStart(ed,0);rng.collapse(true);sel.removeAllRanges();sel.addRange(rng)}}
+    /* Listen for selection changes to update toolbar */
+    document.addEventListener('selectionchange',updateComposeToolbar)
+  },50)}
 
 async function sendEmail(){
-  var to=(gel('compose-to')||{}).value||'';
-  var cc=(gel('compose-cc')||{}).value||'';
+  var to=window._composeRecipients.to.join(', ');
+  var cc=window._composeRecipients.cc.join(', ');
+  var bcc=window._composeRecipients.bcc.join(', ');
   var subject=(gel('compose-subject')||{}).value||'';
-  var body=(gel('compose-body')||{}).value||'';
+  var editor=gel('compose-body');
+  var body=editor?editor.innerHTML:'';
   var threadId=(gel('compose-threadId')||{}).value||'';
   var messageId=(gel('compose-messageId')||{}).value||'';
 
-  if(!to){toast('Enter a recipient email','warn');return}
-  if(!body){toast('Write a message','warn');return}
+  if(!to){toast('Add at least one recipient','warn');return}
+  if(!body||body==='<br>'||body==='<div><br></div>'){toast('Write a message','warn');return}
 
-  /* Convert plain text body to simple HTML */
-  var htmlBody='<div style="font-family:-apple-system,system-ui,sans-serif;font-size:14px">'+body.replace(/\n/g,'<br>')+'</div>';
+  /* Wrap in styled div */
+  var htmlBody='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>';
+
+  var payload={to:to,subject:subject,body:htmlBody};
+  if(cc)payload.cc=cc;
+  if(bcc)payload.bcc=bcc;
+  if(threadId)payload.threadId=threadId;
+  if(messageId)payload.messageId=messageId;
+  if(window._composeAttachments.length){
+    payload.attachments=window._composeAttachments.map(function(a){
+      return{filename:a.filename,mimeType:a.mimeType,data:a.data}})}
 
   try{
     toast('Sending...','info');
@@ -3912,45 +3991,52 @@ async function sendEmail(){
     var resp=await fetch('/api/gmail/send',{
       method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({to:to,cc:cc||undefined,subject:subject,body:htmlBody,threadId:threadId||undefined,messageId:messageId||undefined})
-    });
+      body:JSON.stringify(payload)});
     var data=await resp.json();
     if(!resp.ok||data.error){throw new Error(data.error||'Send failed')}
 
     toast('Email sent!','ok');
+    /* Clean up */
+    document.removeEventListener('selectionchange',updateComposeToolbar);
+    window._composeAttachments=[];
+    var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
+    inner.classList.remove('tf-modal-wide');
     closeModal();
 
     /* If replying, refresh the thread */
-    if(threadId&&S.gmailThreadId===threadId){
-      openEmailThread(threadId);
-    }
-  }catch(e){toast('Send failed: '+e.message,'warn')}
-}
+    if(threadId&&S.gmailThreadId===threadId){openEmailThread(threadId)}
+  }catch(e){toast('Send failed: '+e.message,'warn')}}
 
-function openReplyEmail(){
+function openReplyEmail(msgIdx){
   if(!S.gmailThread||!S.gmailThread.messages||!S.gmailThread.messages.length)return;
   var msgs=S.gmailThread.messages;
-  var lastMsg=msgs[msgs.length-1];
+  var lastMsg=(typeof msgIdx==='number'&&msgs[msgIdx])?msgs[msgIdx]:msgs[msgs.length-1];
   var subject=lastMsg.subject||'';
   if(subject&&!subject.match(/^Re:/i))subject='Re: '+subject;
-
-  /* Determine who to reply to */
   var replyTo=lastMsg.fromEmail||'';
-
-  /* Build reply quote */
+  /* Build HTML reply quote */
   var dateD=new Date(lastMsg.date);
   var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
-  var quoteHeader='\n\nOn '+dateLabel+', '+(lastMsg.fromName||lastMsg.fromEmail)+' wrote:\n> ';
-  var quotedSnippet=lastMsg.snippet.replace(/\n/g,'\n> ');
+  var quoteBody='<br><br><div style="color:#555">On '+dateLabel+', '+(lastMsg.fromName||lastMsg.fromEmail)+' wrote:<br>';
+  quoteBody+='<blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:8px 0;color:#666">'+(lastMsg.body||lastMsg.snippet||'')+'</blockquote></div>';
+  openComposeEmail({to:replyTo,subject:subject,body:quoteBody,
+    replyToThreadId:S.gmailThread.threadId,replyToMessageId:lastMsg.id})}
 
-  openComposeEmail({
-    to:replyTo,
-    subject:subject,
-    body:quoteHeader+quotedSnippet,
-    replyToThreadId:S.gmailThread.threadId,
-    replyToMessageId:lastMsg.id
-  });
-}
+/* ── Signature Editor ── */
+function openSignatureEditor(){
+  var sig=getEmailSignature();
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('settings',14)+' Email Signature</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="edf-body" style="padding:16px">';
+  h+='<p style="font-size:12px;color:var(--t3);margin:0 0 12px">Your signature will be automatically added to new emails.</p>';
+  h+='<div class="compose-body-wrap">';
+  h+='<div class="compose-editor" contenteditable="true" id="sig-editor" data-placeholder="Write your signature..." style="min-height:120px">'+sig+'</div>';
+  h+='</div>';
+  h+='<div class="intg-actions" style="margin-top:12px">';
+  h+='<button class="btn btn-p" onclick="var e=gel(\'sig-editor\');saveEmailSignature(e?e.innerHTML:\'\');TF.closeModal()">Save Signature</button>';
+  h+='<button class="btn" onclick="saveEmailSignature(\'\');TF.closeModal()" style="color:var(--red)">Clear Signature</button>';
+  h+='</div></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 /* ═══════════ CONTACT MODALS ═══════════ */
 

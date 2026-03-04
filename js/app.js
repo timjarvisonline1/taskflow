@@ -84,6 +84,10 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   applyNewEmails:applyNewEmails,startEmailPolling:startEmailPolling,stopEmailPolling:stopEmailPolling,
   openComposeEmail:openComposeEmail,sendEmail:sendEmail,openReplyEmail:openReplyEmail,dbLinkEmailToTask:dbLinkEmailToTask,
   toggleEmailRead:toggleEmailRead,trashEmail:trashEmail,quickReplyEmail:quickReplyEmail,createTaskFromEmail:createTaskFromEmail,
+  forwardEmail:forwardEmail,replyAllEmail:replyAllEmail,execComposeCmd:execComposeCmd,updateComposeToolbar:updateComposeToolbar,
+  acRecipient:acRecipient,acSelect:acSelect,acRemoveChip:acRemoveChip,recipientKeydown:recipientKeydown,
+  addComposeAttachment:addComposeAttachment,removeComposeAttachment:removeComposeAttachment,downloadAttachment:downloadAttachment,
+  openSignatureEditor:openSignatureEditor,renderRecipientChips:renderRecipientChips,handleComposeFiles:handleComposeFiles,renderComposeAttachments:renderComposeAttachments,
   /* Contacts */
   dbAddContact:dbAddContact,dbEditContact:dbEditContact,dbDeleteContact:dbDeleteContact,
   openAddContactModal:openAddContactModal,openEditContactModal:openEditContactModal,

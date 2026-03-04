@@ -4697,6 +4697,7 @@ function rEmailList(threads){
     h+='<div class="email-row-top">';
     h+='<span class="email-row-from">'+esc(fromDisplay)+'</span>';
     if(msgCount>1)h+='<span class="email-count">'+msgCount+'</span>';
+    if(t.hasAttachments)h+='<span class="email-att-indicator">'+icon('paperclip',11)+'</span>';
     if(clientName)h+='<span class="email-client-badge">'+esc(clientName)+'</span>';
     h+='</div>';
     h+='<div class="email-row-bottom">';
@@ -4742,6 +4743,9 @@ function rEmailThread(){
   h+='<div class="email-toolbar-sep"></div>';
   h+='<button class="email-toolbar-btn btn-create" onclick="TF.createTaskFromEmail()">'+icon('tasks',13)+' Create Task</button>';
   h+='<div style="flex:1"></div>';
+  h+='<button class="email-toolbar-btn" onclick="TF.forwardEmail()">'+icon('forward',13)+' Forward</button>';
+  h+='<button class="email-toolbar-btn" onclick="TF.replyAllEmail()">'+icon('reply_all',13)+' Reply All</button>';
+  h+='<div class="email-toolbar-sep"></div>';
   h+='<button class="email-toolbar-btn" onclick="TF.openComposeEmail()">'+icon('edit',13)+' New</button>';
   h+='</div>';
 
@@ -4794,7 +4798,39 @@ function rEmailThread(){
     }else{
       h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2);line-height:1.6">'+esc(msg.snippet)+'</div>';
     }
-    h+='</div></div>';
+    h+='</div>';
+
+    /* ── Attachments ── */
+    if(msg.attachments&&msg.attachments.length>0){
+      h+='<div class="email-attachments">';
+      msg.attachments.forEach(function(att){
+        var sizeStr='';
+        if(att.size){
+          if(att.size>1048576)sizeStr=(att.size/1048576).toFixed(1)+' MB';
+          else if(att.size>1024)sizeStr=Math.round(att.size/1024)+' KB';
+          else sizeStr=att.size+' B';
+        }
+        var attIcon='file';
+        if(att.mimeType&&att.mimeType.indexOf('image')!==-1)attIcon='image';
+        else if(att.mimeType&&att.mimeType.indexOf('pdf')!==-1)attIcon='file';
+        h+='<div class="email-attachment-card" onclick="TF.downloadAttachment(\''+esc(msg.id)+'\',\''+esc(att.attachmentId)+'\',\''+esc(att.filename)+'\',\''+esc(att.mimeType)+'\')">';
+        h+='<span class="email-att-icon">'+icon('paperclip',14)+'</span>';
+        h+='<span class="email-att-name">'+esc(att.filename)+'</span>';
+        if(sizeStr)h+='<span class="email-att-size">'+sizeStr+'</span>';
+        h+='<span class="email-att-dl">'+icon('download',12)+'</span>';
+        h+='</div>';
+      });
+      h+='</div>';
+    }
+
+    /* ── Per-message action buttons ── */
+    h+='<div class="email-msg-actions">';
+    h+='<button class="email-msg-action-btn" onclick="TF.openReplyEmail('+idx+')">'+icon('reply',12)+' Reply</button>';
+    h+='<button class="email-msg-action-btn" onclick="TF.replyAllEmail('+idx+')">'+icon('reply_all',12)+' Reply All</button>';
+    h+='<button class="email-msg-action-btn" onclick="TF.forwardEmail('+idx+')">'+icon('forward',12)+' Forward</button>';
+    h+='</div>';
+
+    h+='</div>';
   });
 
   /* ── Quick reply ── */
@@ -4804,6 +4840,8 @@ function rEmailThread(){
   h+='<div class="email-quick-reply-actions">';
   h+='<button class="email-quick-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
   h+='<button class="email-quick-reply-full" onclick="TF.openReplyEmail()">Full Reply</button>';
+  h+='<button class="email-quick-reply-full" onclick="TF.replyAllEmail()">Reply All</button>';
+  h+='<button class="email-quick-reply-full" onclick="TF.forwardEmail()">Forward</button>';
   h+='</div></div>';
 
   h+='</div>';

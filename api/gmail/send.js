@@ -21,7 +21,7 @@ module.exports = async function handler(req, res) {
     if (!credRow) return res.status(400).json({ error: 'Gmail not connected' });
 
     const accessToken = await refreshGmailToken(credRow);
-    const { to, cc, subject, body, threadId, messageId } = req.body || {};
+    const { to, cc, bcc, subject, body, threadId, messageId, attachments } = req.body || {};
 
     if (!to) return res.status(400).json({ error: 'Missing "to" field' });
     if (!body) return res.status(400).json({ error: 'Missing email body' });
@@ -32,17 +32,54 @@ module.exports = async function handler(req, res) {
     const profile = await profileResp.json();
     const fromEmail = profile.emailAddress || '';
 
-    const headers = ['From: ' + fromEmail, 'To: ' + to];
-    if (cc) headers.push('Cc: ' + cc);
-    headers.push('Subject: ' + (subject || ''));
-    headers.push('Content-Type: text/html; charset=utf-8');
-    headers.push('MIME-Version: 1.0');
-    if (messageId) {
-      headers.push('In-Reply-To: ' + messageId);
-      headers.push('References: ' + messageId);
+    let rawEmail;
+    const hasAttachments = attachments && attachments.length > 0;
+
+    if (hasAttachments) {
+      /* ── Multipart MIME with attachments ── */
+      const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2);
+      const mimeHeaders = ['From: ' + fromEmail, 'To: ' + to];
+      if (cc) mimeHeaders.push('Cc: ' + cc);
+      if (bcc) mimeHeaders.push('Bcc: ' + bcc);
+      mimeHeaders.push('Subject: ' + (subject || ''));
+      mimeHeaders.push('MIME-Version: 1.0');
+      mimeHeaders.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
+      if (messageId) {
+        mimeHeaders.push('In-Reply-To: ' + messageId);
+        mimeHeaders.push('References: ' + messageId);
+      }
+
+      let mimeParts = mimeHeaders.join('\r\n') + '\r\n\r\n';
+      /* HTML body part */
+      mimeParts += '--' + boundary + '\r\n';
+      mimeParts += 'Content-Type: text/html; charset=utf-8\r\n\r\n';
+      mimeParts += body + '\r\n\r\n';
+
+      /* Attachment parts */
+      for (const att of attachments) {
+        mimeParts += '--' + boundary + '\r\n';
+        mimeParts += 'Content-Type: ' + (att.mimeType || 'application/octet-stream') + '; name="' + att.filename + '"\r\n';
+        mimeParts += 'Content-Disposition: attachment; filename="' + att.filename + '"\r\n';
+        mimeParts += 'Content-Transfer-Encoding: base64\r\n\r\n';
+        mimeParts += att.data + '\r\n\r\n';
+      }
+      mimeParts += '--' + boundary + '--';
+      rawEmail = mimeParts;
+    } else {
+      /* ── Simple single-part email ── */
+      const headers = ['From: ' + fromEmail, 'To: ' + to];
+      if (cc) headers.push('Cc: ' + cc);
+      if (bcc) headers.push('Bcc: ' + bcc);
+      headers.push('Subject: ' + (subject || ''));
+      headers.push('Content-Type: text/html; charset=utf-8');
+      headers.push('MIME-Version: 1.0');
+      if (messageId) {
+        headers.push('In-Reply-To: ' + messageId);
+        headers.push('References: ' + messageId);
+      }
+      rawEmail = headers.join('\r\n') + '\r\n\r\n' + body;
     }
 
-    const rawEmail = headers.join('\r\n') + '\r\n\r\n' + body;
     const encoded = Buffer.from(rawEmail)
       .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 

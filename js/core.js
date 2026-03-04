@@ -63,7 +63,20 @@ var ICONS={
   eye_off:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>',
   send:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>',
   phone:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
-  contact:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v2"/><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M8 2v2"/><rect width="16" height="18" x="4" y="2" rx="2"/><circle cx="12" cy="11" r="3"/></svg>'
+  contact:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v2"/><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M8 2v2"/><rect width="16" height="18" x="4" y="2" rx="2"/><circle cx="12" cy="11" r="3"/></svg>',
+  bold:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/></svg>',
+  italic:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/></svg>',
+  underline:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" x2="20" y1="20" y2="20"/></svg>',
+  strikethrough:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><line x1="4" x2="20" y1="12" y2="12"/></svg>',
+  list_ul:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>',
+  list_ol:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="21" y1="6" y2="6"/><line x1="10" x2="21" y1="12" y2="12"/><line x1="10" x2="21" y1="18" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>',
+  quote:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6H3"/><path d="M21 12H8"/><path d="M21 18H8"/><path d="M3 12v6"/></svg>',
+  paperclip:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+  forward:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>',
+  reply_all:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg>',
+  reply:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>',
+  download:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+  settings:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>'
 };
 function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"')}return s}
 
@@ -1764,6 +1777,215 @@ function createTaskFromEmail(){
   var match=matchEmailToClient(senderEmail);
   var clientName=match?match.clientName:'';
   openAddModal({item:subject,notes:'From email: '+snippet,client:clientName,emailThreadId:S.gmailThreadId})}
+
+/* ── Forward email ── */
+function forwardEmail(msgIdx){
+  if(!S.gmailThread||!S.gmailThread.messages||!S.gmailThread.messages.length)return;
+  var msgs=S.gmailThread.messages;
+  var lastMsg=(typeof msgIdx==='number'&&msgs[msgIdx])?msgs[msgIdx]:msgs[msgs.length-1];
+  var subject=lastMsg.subject||'';
+  if(subject&&!subject.match(/^Fwd:/i))subject='Fwd: '+subject;
+  var dateD=new Date(lastMsg.date);
+  var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
+  var fwdHeader='<br><br><div style="color:#555">---------- Forwarded message ---------<br>';
+  fwdHeader+='From: <b>'+(lastMsg.fromName||lastMsg.fromEmail)+'</b> &lt;'+lastMsg.fromEmail+'&gt;<br>';
+  fwdHeader+='Date: '+dateLabel+'<br>';
+  fwdHeader+='Subject: '+subject+'<br>';
+  if(lastMsg.to)fwdHeader+='To: '+lastMsg.to+'<br>';
+  fwdHeader+='</div><br>';
+  var body=fwdHeader+(lastMsg.body||lastMsg.snippet||'');
+  openComposeEmail({subject:subject,body:body,isForward:true})}
+
+/* ── Reply All ── */
+function replyAllEmail(msgIdx){
+  if(!S.gmailThread||!S.gmailThread.messages||!S.gmailThread.messages.length)return;
+  var msgs=S.gmailThread.messages;
+  var lastMsg=(typeof msgIdx==='number'&&msgs[msgIdx])?msgs[msgIdx]:msgs[msgs.length-1];
+  var subject=lastMsg.subject||'';
+  if(subject&&!subject.match(/^Re:/i))subject='Re: '+subject;
+  /* Determine recipients */
+  var replyTo=lastMsg.fromEmail||'';
+  var allRecipients=[];
+  /* Parse To and Cc to get all emails */
+  function parseEmails(str){if(!str)return[];return str.split(',').map(function(s){var m=s.match(/<(.+?)>/);return m?m[1].trim():s.trim()}).filter(Boolean)}
+  var toEmails=parseEmails(lastMsg.to);
+  var ccEmails=parseEmails(lastMsg.cc);
+  /* Remove user's own email */
+  var userEmail=(S._userEmail||'').toLowerCase();
+  var allCC=toEmails.concat(ccEmails).filter(function(e){
+    var el=e.toLowerCase();return el!==userEmail&&el!==replyTo.toLowerCase()});
+  /* Build reply quote */
+  var dateD=new Date(lastMsg.date);
+  var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
+  var quoteBody='<br><br><div style="color:#555">On '+dateLabel+', '+(lastMsg.fromName||lastMsg.fromEmail)+' wrote:<br>';
+  quoteBody+='<blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:8px 0;color:#666">'+(lastMsg.body||lastMsg.snippet||'')+'</blockquote></div>';
+  openComposeEmail({to:replyTo,cc:allCC.join(', '),subject:subject,body:quoteBody,
+    replyToThreadId:S.gmailThread.threadId,replyToMessageId:lastMsg.id})}
+
+/* ── Compose command helper ── */
+function execComposeCmd(cmd,val){
+  var editor=gel('compose-body');if(!editor)return;
+  editor.focus();
+  if(cmd==='createLink'){
+    val=prompt('Enter URL:','https://');if(!val)return}
+  document.execCommand(cmd,false,val||null);
+  updateComposeToolbar()}
+
+function updateComposeToolbar(){
+  var cmds=['bold','italic','underline','strikethrough'];
+  cmds.forEach(function(c){
+    var btn=document.querySelector('[data-compose-cmd="'+c+'"]');
+    if(btn){try{btn.classList.toggle('active',document.queryCommandState(c))}catch(e){}}})}
+
+/* ── Contact autocomplete ── */
+window._composeRecipients={to:[],cc:[],bcc:[]};
+
+function acRecipient(field){
+  var input=gel('compose-'+field+'-input');if(!input)return;
+  var q=input.value.toLowerCase().trim();
+  var dd=gel('compose-'+field+'-ac');if(!dd)return;
+  if(!q||q.length<1){dd.classList.remove('open');return}
+  /* Search contacts */
+  var results=S.contacts.filter(function(c){
+    var fn=(c.firstName||'').toLowerCase();
+    var ln=(c.lastName||'').toLowerCase();
+    var em=(c.email||'').toLowerCase();
+    return em.indexOf(q)!==-1||fn.indexOf(q)!==-1||ln.indexOf(q)!==-1||(fn+' '+ln).indexOf(q)!==-1;
+  }).slice(0,8);
+  if(!results.length){dd.classList.remove('open');return}
+  var h='';
+  results.forEach(function(c,i){
+    var fullName=((c.firstName||'')+' '+(c.lastName||'')).trim();
+    var initial=(c.firstName||c.email||'?').charAt(0).toUpperCase();
+    var bg=emailAvatarColor(c.email);
+    h+='<div class="compose-ac-item" onclick="TF.acSelect(\''+field+'\',\''+escAttr(c.email)+'\',\''+escAttr(fullName)+'\')">';
+    h+='<div class="compose-ac-avatar" style="background:'+bg+'">'+initial+'</div>';
+    h+='<div><span class="compose-ac-name">'+esc(fullName)+'</span> <span class="compose-ac-email">'+esc(c.email)+'</span></div>';
+    h+='</div>'});
+  dd.innerHTML=h;dd.classList.add('open')}
+
+function acSelect(field,email,name){
+  var display=name?name+' <'+email+'>':email;
+  window._composeRecipients[field].push(email);
+  renderRecipientChips(field);
+  var input=gel('compose-'+field+'-input');if(input){input.value='';input.focus()}
+  var dd=gel('compose-'+field+'-ac');if(dd)dd.classList.remove('open')}
+
+function acRemoveChip(field,idx){
+  window._composeRecipients[field].splice(idx,1);
+  renderRecipientChips(field)}
+
+function renderRecipientChips(field){
+  var wrap=gel('compose-'+field+'-chips');if(!wrap)return;
+  var h='';
+  window._composeRecipients[field].forEach(function(email,i){
+    /* Find contact name for display */
+    var c=S.contacts.find(function(ct){return ct.email&&ct.email.toLowerCase()===email.toLowerCase()});
+    var display=c?((c.firstName||'')+' '+(c.lastName||'')).trim():email;
+    if(!display)display=email;
+    h+='<span class="compose-chip">'+esc(display)+' <span class="compose-chip-x" onclick="event.stopPropagation();TF.acRemoveChip(\''+field+'\','+i+')">&times;</span></span>'});
+  wrap.innerHTML=h}
+
+function recipientKeydown(field,e){
+  var input=gel('compose-'+field+'-input');if(!input)return;
+  if(e.key==='Enter'||e.key===','||e.key==='Tab'){
+    e.preventDefault();
+    var val=input.value.trim().replace(/,$/,'');
+    if(val&&val.indexOf('@')!==-1){
+      window._composeRecipients[field].push(val);
+      renderRecipientChips(field);
+      input.value=''}
+    var dd=gel('compose-'+field+'-ac');if(dd)dd.classList.remove('open')}
+  else if(e.key==='Backspace'&&!input.value&&window._composeRecipients[field].length>0){
+    window._composeRecipients[field].pop();
+    renderRecipientChips(field)}}
+
+/* ── Compose attachments ── */
+window._composeAttachments=[];
+
+function addComposeAttachment(){
+  var fi=gel('compose-file-input');
+  if(!fi){fi=document.createElement('input');fi.type='file';fi.multiple=true;fi.id='compose-file-input';fi.style.display='none';
+    fi.onchange=function(){handleComposeFiles(fi.files);fi.value=''};document.body.appendChild(fi)}
+  fi.click()}
+
+function handleComposeFiles(files){
+  if(!files||!files.length)return;
+  Array.from(files).forEach(function(f){
+    var reader=new FileReader();
+    reader.onload=function(){
+      var base64=reader.result.split(',')[1];
+      window._composeAttachments.push({filename:f.name,mimeType:f.type||'application/octet-stream',size:f.size,data:base64});
+      renderComposeAttachments()};
+    reader.readAsDataURL(f)})}
+
+function removeComposeAttachment(idx){
+  window._composeAttachments.splice(idx,1);
+  renderComposeAttachments()}
+
+function renderComposeAttachments(){
+  var wrap=gel('compose-attach-list');if(!wrap)return;
+  if(!window._composeAttachments.length){wrap.style.display='none';return}
+  wrap.style.display='flex';
+  var h='';
+  window._composeAttachments.forEach(function(a,i){
+    var sizeStr=a.size<1024?(a.size+'B'):a.size<1048576?(Math.round(a.size/1024)+'KB'):(Math.round(a.size/1048576*10)/10+'MB');
+    h+='<span class="compose-attach-chip">'+icon('paperclip',10)+' '+esc(a.filename)+' <span style="color:var(--t4)">('+sizeStr+')</span>';
+    h+=' <span class="compose-chip-x" onclick="TF.removeComposeAttachment('+i+')">&times;</span></span>'});
+  wrap.innerHTML=h}
+
+/* ── Download attachment ── */
+async function downloadAttachment(messageId,attachmentId,filename,mimeType){
+  try{
+    toast('Downloading...','info');
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/gmail/attachment?messageId='+encodeURIComponent(messageId)+'&attachmentId='+encodeURIComponent(attachmentId),{
+      headers:{'Authorization':'Bearer '+token}});
+    var data=await resp.json();
+    if(!resp.ok||data.error)throw new Error(data.error||'Download failed');
+    /* Convert base64 to blob and trigger download */
+    var raw=atob(data.data.replace(/-/g,'+').replace(/_/g,'/'));
+    var arr=new Uint8Array(raw.length);
+    for(var i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+    var blob=new Blob([arr],{type:mimeType||'application/octet-stream'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download=filename||'download';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Downloaded '+filename,'ok')
+  }catch(e){toast('Download failed: '+e.message,'warn')}}
+
+/* ── Email keyboard shortcuts ── */
+function handleEmailKeyboard(e){
+  if(S.view!=='email')return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable)return;
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  switch(e.key){
+    case 'c':e.preventDefault();openComposeEmail();break;
+    case 'e':if(S.gmailThreadId){e.preventDefault();archiveEmail(S.gmailThreadId)}break;
+    case 'r':if(S.gmailThreadId&&S.gmailThread){e.preventDefault();openReplyEmail()}break;
+    case 'a':if(S.gmailThreadId&&S.gmailThread){e.preventDefault();replyAllEmail()}break;
+    case 'f':if(S.gmailThreadId&&S.gmailThread){e.preventDefault();forwardEmail()}break;
+    case 'Escape':if(S.gmailThreadId){e.preventDefault();closeEmailThread()}break;
+  }}
+document.addEventListener('keydown',handleEmailKeyboard);
+
+/* ── Email signature ── */
+function getEmailSignature(){return localStorage.getItem('tf_email_signature')||''}
+function saveEmailSignature(html){localStorage.setItem('tf_email_signature',html);toast('Signature saved','ok')}
+
+/* ── Cache user email ── */
+async function cacheUserEmail(){
+  if(S._userEmail)return;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/gmail/threads?maxResults=1&label=sent',{headers:{'Authorization':'Bearer '+token}});
+    var data=await resp.json();
+    /* Try to get from user session email */
+    S._userEmail=sess.data.session.user.email||'';
+  }catch(e){}}
 
 async function triggerSync(platform){
   try{
