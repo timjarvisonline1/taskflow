@@ -793,9 +793,10 @@ function resolveThreadCrmContext(fromEmail,toEmails,ccEmails){
   if(fromEmail)allAddrs.push(fromEmail.toLowerCase().trim());
   _parseEmails(toEmails).forEach(function(e){if(allAddrs.indexOf(e)===-1)allAddrs.push(e)});
   _parseEmails(ccEmails).forEach(function(e){if(allAddrs.indexOf(e)===-1)allAddrs.push(e)});
-  /* Remove user's own email */
-  var userE=(S._userEmail||'').toLowerCase();
-  if(userE)allAddrs=allAddrs.filter(function(a){return a!==userE});
+  /* Remove user's own email(s) — Supabase login + connected Gmail */
+  var ue=S._userEmails||[];
+  if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
+  if(ue.length)allAddrs=allAddrs.filter(function(a){return ue.indexOf(a)===-1});
 
   var clients=[],endClients=[],contacts=[],unknownAddrs=[],seenClients={},seenEC={};
   allAddrs.forEach(function(addr){
@@ -1939,10 +1940,10 @@ function replyAllEmail(msgIdx){
   function parseEmails(str){if(!str)return[];return str.split(',').map(function(s){var m=s.match(/<(.+?)>/);return m?m[1].trim():s.trim()}).filter(Boolean)}
   var toEmails=parseEmails(lastMsg.to);
   var ccEmails=parseEmails(lastMsg.cc);
-  /* Remove user's own email */
-  var userEmail=(S._userEmail||'').toLowerCase();
+  /* Remove user's own email(s) */
+  var _ueList=S._userEmails||[];if(!_ueList.length){var _uf2=(S._userEmail||'').toLowerCase();if(_uf2)_ueList=[_uf2]}
   var allCC=toEmails.concat(ccEmails).filter(function(e){
-    var el=e.toLowerCase();return el!==userEmail&&el!==replyTo.toLowerCase()});
+    var el=e.toLowerCase();return _ueList.indexOf(el)===-1&&el!==replyTo.toLowerCase()});
   /* Build reply quote */
   var dateD=new Date(lastMsg.date);
   var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
@@ -2108,16 +2109,23 @@ document.addEventListener('keydown',handleEmailKeyboard);
 function getEmailSignature(){return localStorage.getItem('tf_email_signature')||''}
 function saveEmailSignature(html){localStorage.setItem('tf_email_signature',html);toast('Signature saved','ok')}
 
-/* ── Cache user email ── */
+/* ── Cache user email(s) — Supabase + Gmail ── */
+S._userEmails=[];
 async function cacheUserEmail(){
   if(S._userEmail)return;
   try{
     var sess=await _sb.auth.getSession();if(!sess.data.session)return;
     var token=sess.data.session.access_token;
-    var resp=await fetch('/api/gmail/threads?maxResults=1&label=sent',{headers:{'Authorization':'Bearer '+token}});
-    var data=await resp.json();
-    /* Try to get from user session email */
     S._userEmail=sess.data.session.user.email||'';
+    var emails=[S._userEmail.toLowerCase()];
+    /* Also grab Gmail address from a sent thread (may differ from Supabase email) */
+    var resp=await fetch('/api/gmail/threads?maxResults=1&label=sent',{headers:{'Authorization':'Bearer '+token}});
+    if(resp.ok){
+      var data=await resp.json();
+      if(data.threads&&data.threads.length){
+        var gmailAddr=(data.threads[0].fromEmail||'').toLowerCase().trim();
+        if(gmailAddr&&emails.indexOf(gmailAddr)===-1)emails.push(gmailAddr)}}
+    S._userEmails=emails.filter(function(e){return!!e});
   }catch(e){}}
 
 /* ── Add contact from email sender ── */

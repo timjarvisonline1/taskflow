@@ -26,6 +26,24 @@ async function syncGmail(userId) {
     const threads = listData.threads || [];
     stats.fetched = threads.length;
 
+    // Collect user's own email addresses to exclude from matching
+    const userEmails = [];
+    try {
+      const { data: userData } = await client.auth.admin.getUserById(userId);
+      if (userData && userData.user && userData.user.email)
+        userEmails.push(userData.user.email.toLowerCase());
+    } catch(e) { /* ignore */ }
+    try {
+      const profileResp = await fetch(GMAIL_API + '/profile', {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      if (profileResp.ok) {
+        const profile = await profileResp.json();
+        if (profile.emailAddress && userEmails.indexOf(profile.emailAddress.toLowerCase()) === -1)
+          userEmails.push(profile.emailAddress.toLowerCase());
+      }
+    } catch(e) { /* ignore */ }
+
     // Load client records + contacts for auto-association
     const { data: clientRecords } = await client
       .from('clients')
@@ -95,7 +113,8 @@ async function syncGmail(userId) {
           const m = e.match(/<(.+?)>/);
           return m ? m[1].trim() : e.trim();
         }).filter(e => e && e.includes('@')) : [];
-        const emailsToCheck = [fromEmail.toLowerCase(), ...parseEmails(toRaw), ...parseEmails(ccRaw)];
+        const emailsToCheck = [fromEmail.toLowerCase(), ...parseEmails(toRaw), ...parseEmails(ccRaw)]
+          .filter(e => userEmails.indexOf(e) === -1);
         for (const email of emailsToCheck) {
           if (clientEmailMap[email]) {
             clientId = clientEmailMap[email];

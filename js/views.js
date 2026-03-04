@@ -4780,10 +4780,10 @@ function rEmailList(threads){
       h+='</span>'}
     /* Communication direction badges */
     var lastFrom=(t.lastMessageFromEmail||t.last_message_from||fromEmail||'').toLowerCase();
-    var userEmail=(S._userEmail||'').toLowerCase();
-    if(userEmail&&lastFrom){
-      if(lastFrom!==userEmail){h+='<span class="email-needs-reply">Needs Reply</span>'}
-      else if(lastFrom===userEmail){h+='<span class="email-awaiting">Awaiting</span>'}}
+    var _ueDir=S._userEmails||[];if(!_ueDir.length){var _ud=(S._userEmail||'').toLowerCase();if(_ud)_ueDir=[_ud]}
+    if(_ueDir.length&&lastFrom){
+      if(_ueDir.indexOf(lastFrom)===-1){h+='<span class="email-needs-reply">Needs Reply</span>'}
+      else{h+='<span class="email-awaiting">Awaiting</span>'}}
     /* Participant count */
     var toEmails=t.toEmails||t.to_emails||'';
     if(toEmails){var pCount=1;var toParts=toEmails.split(',');pCount+=toParts.length;
