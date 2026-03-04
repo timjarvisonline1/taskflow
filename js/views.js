@@ -4640,12 +4640,10 @@ function rEmail(){
   h+='</div>';
 
   /* Thread list — smart inboxes ALWAYS use cached S.gmailThreads, never live */
+  /* Thread list — smart inboxes ALWAYS use cached S.gmailThreads, never live */
   var threads;
   if(isSmartInbox){
-    threads=S.gmailThreads;
-    console.log('[Smart Inbox] sub='+sub+' | gmailThreads='+threads.length+' | userEmails='+JSON.stringify(S._userEmails));
-    var beforeLen=threads.length;
-    threads=threads.filter(function(t){
+    threads=S.gmailThreads.filter(function(t){
       var ctx=getThreadCrmContext(t);if(!ctx)return false;
       if(sub==='e-active')return ctx.hasActiveClient;
       if(sub==='e-lapsed')return ctx.hasLapsedClient;
@@ -4655,8 +4653,6 @@ function rEmail(){
       if(sub==='e-other')return !ctx.hasActiveClient&&!ctx.hasLapsedClient&&!ctx.isProspect&&!ctx.hasCampaign&&!ctx.hasOpportunity;
       return false
     });
-    console.log('[Smart Inbox] Filtered: '+beforeLen+' → '+threads.length);
-    if(threads.length>0){var sample=getThreadCrmContext(threads[0]);console.log('[Smart Inbox] Sample ctx:',JSON.stringify({hasActive:sample.hasActiveClient,hasLapsed:sample.hasLapsedClient,isProspect:sample.isProspect,hasCamp:sample.hasCampaign,hasOpp:sample.hasOpportunity,clients:sample.clients.map(function(c){return c.clientName+':'+c.status}),unknowns:sample.unknownAddrs}))}
   }else{
     threads=S._gmailLiveThreads||null;
     if(threads===null){
