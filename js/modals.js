@@ -1197,6 +1197,7 @@ function fillFromCampaign(){
 
 /* ═══════════ CAMPAIGN DETAIL MODAL ═══════════ */
 function openCampaignDetail(id){
+  if(!isMobile()){S.view='campaigns';S.campaignDetailId=id;render();return}
   var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
   var st=getCampaignStats(cp);var td_=today();
   var statusCls=cp.status.toLowerCase().replace(/ /g,'-');
@@ -1528,6 +1529,77 @@ async function saveCampaign(){
   await dbEditCampaign(id,cp);
   toast(icon('save',12)+' Saved: '+cp.name,'ok');closeModal();render()}
 
+function openEditCampaignModal(id){
+  var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
+  var PLATFORMS=['Meta','Google Ads','YouTube','LinkedIn','TikTok','Microsoft Ads','Programmatic','Multiple','Other'];
+  var STATUSES=['Setup','Active','Paused','Completed','Archived'];
+  var TERMS=['1 month','2 months','3 months','4 months','5 months','6 months','7 months','8 months','9 months','10 months','11 months','12 months','18 months','24 months','Ongoing'];
+
+  var h='<div class="tf-modal-top"><h2>Edit Campaign</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:0 20px 20px;max-height:70vh;overflow-y:auto">';
+  h+='<input type="hidden" id="cp-id" value="'+esc(cp.id)+'">';
+
+  /* Campaign Details */
+  h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin:12px 0 8px;text-transform:uppercase;letter-spacing:1px">Campaign Details</div>';
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld full"><span class="ed-lbl">Name</span><input type="text" class="edf" id="cp-name" value="'+escAttr(cp.name)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Partner</span><select class="edf" id="cp-partner"><option value="">Select...</option>';
+  S.clients.forEach(function(c){h+='<option'+(c===cp.partner?' selected':'')+'>'+esc(c)+'</option>'});h+='</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="cp-ec" onchange="TF.ecAddNew(\'cp-ec\')">'+buildEndClientOptions(cp.endClient||'')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="cp-status">';
+  STATUSES.forEach(function(s){h+='<option'+(s===cp.status?' selected':'')+'>'+s+'</option>'});h+='</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Platform</span><select class="edf" id="cp-platform"><option value="">Select...</option>';
+  PLATFORMS.forEach(function(p){h+='<option'+(p===cp.platform?' selected':'')+'>'+p+'</option>'});h+='</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Campaign Term</span><select class="edf" id="cp-term"><option value="">Select...</option>';
+  TERMS.forEach(function(t){h+='<option'+(t===cp.campaignTerm?' selected':'')+'>'+t+'</option>'});h+='</select></div>';
+  h+='<div class="ed-fld full"><span class="ed-lbl">Goal</span><input type="text" class="edf" id="cp-goal" value="'+escAttr(cp.goal||'')+'" placeholder="Campaign goal..."></div>';
+  h+='</div>';
+
+  /* Dates */
+  h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin:16px 0 8px;text-transform:uppercase;letter-spacing:1px">Dates</div>';
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Planned Launch</span><input type="date" class="edf" id="cp-planned" value="'+(cp.plannedLaunch?cp.plannedLaunch.toISOString().slice(0,10):'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Actual Launch</span><input type="date" class="edf" id="cp-actual" value="'+(cp.actualLaunch?cp.actualLaunch.toISOString().slice(0,10):'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Renewal Date</span><input type="date" class="edf" id="cp-renewal" value="'+(cp.renewalDate?cp.renewalDate.toISOString().slice(0,10):'')+'"></div>';
+  h+='</div>';
+
+  /* Fees */
+  h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin:16px 0 8px;text-transform:uppercase;letter-spacing:1px">Fees</div>';
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="cp-strategyFee" value="'+(cp.strategyFee||'')+'" placeholder="0" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="cp-setupFee" value="'+(cp.setupFee||'')+'" placeholder="0" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="cp-monthlyFee" value="'+(cp.monthlyFee||'')+'" placeholder="0" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Ad Spend</span><input type="number" class="edf" id="cp-monthlyAdSpend" value="'+(cp.monthlyAdSpend||'')+'" placeholder="0" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Billing Frequency</span><select class="edf" id="cp-billingFreq"><option value="monthly"'+(cp.billingFrequency==='monthly'?' selected':'')+'>Monthly</option><option value="quarterly"'+(cp.billingFrequency==='quarterly'?' selected':'')+'>Quarterly</option><option value="annually"'+(cp.billingFrequency==='annually'?' selected':'')+'>Annually</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Next Billing Date</span><input type="date" class="edf" id="cp-nextBilling" value="'+(cp.nextBillingDate||'')+'"></div>';
+  h+='</div>';
+
+  /* Links */
+  h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin:16px 0 8px;text-transform:uppercase;letter-spacing:1px">Links</div>';
+  h+='<div class="cp-links-grid">';
+  var lnks=[['Proposal','cp-proposalLink',cp.proposalLink],['Monthly Reports','cp-reportsLink',cp.reportsLink],['Video Assets','cp-videoAssetsLink',cp.videoAssetsLink],['Transcripts','cp-transcriptsLink',cp.transcriptsLink],['Contract','cp-contractLink',cp.contractLink],['Awareness LP','cp-awarenessLP',cp.awarenessLP],['Consideration LP','cp-considerationLP',cp.considerationLP],['Decision LP','cp-decisionLP',cp.decisionLP]];
+  lnks.forEach(function(l){
+    h+='<div class="cp-link-item"><span class="cp-link-label">'+l[0]+'</span>';
+    if(l[2])h+='<a href="'+esc(l[2])+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--pink);font-size:11px">Open &#8599;</a>';
+    h+='<input type="url" class="edf" id="'+l[1]+'" value="'+escAttr(l[2]||'')+'" placeholder="https://..." style="flex:1;font-size:11px">';
+    h+='</div>'});
+  h+='</div>';
+
+  /* Notes */
+  h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin:16px 0 8px;text-transform:uppercase;letter-spacing:1px">Notes</div>';
+  h+='<textarea class="edf edf-notes" id="cp-notes" placeholder="Campaign notes, strategy details...">'+esc(cp.notes||'')+'</textarea>';
+
+  /* Actions */
+  h+='<div class="ed-actions" style="margin-top:16px">';
+  h+='<button class="btn btn-p" onclick="TF.saveCampaign()">'+icon('save',14)+' Save</button>';
+  h+='<button class="btn" onclick="TF.closeModal()">Cancel</button>';
+  h+='<span class="spacer"></span>';
+  h+='<button class="btn btn-d" onclick="TF.confirmDeleteCampaign()">'+icon('trash',12)+' Delete</button>';
+  h+='</div><div id="del-zone"></div>';
+  h+='</div>';
+
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
 function openAddCampaign(){
   var PLATFORMS=['Meta','Google Ads','YouTube','LinkedIn','TikTok','Microsoft Ads','Programmatic','Multiple','Other'];
   var TERMS=['1 month','2 months','3 months','4 months','5 months','6 months','7 months','8 months','9 months','10 months','11 months','12 months','18 months','24 months','Ongoing'];
@@ -1604,8 +1676,7 @@ async function addPayment(){
   if(result){pay.id=result.id;pay.campaignName=cp.name;pay.partner=cp.partner;pay.endClient=cp.endClient;
     pay.date=pay.date?new Date(pay.date):new Date();S.payments.push(pay)}
   toast(' Payment added: '+fmtUSD(amount),'ok');closeModal();
-  /* Refresh campaign detail if it was open */
-  if(gel('cp-id')&&gel('cp-id').value===cpId){openCampaignDetail(cpId)}
+  if(S.campaignDetailId===cpId){render();return}
   render()}
 
 /* ═══════════ CAMPAIGN MEETING MODAL ═══════════ */
@@ -2435,7 +2506,7 @@ async function addCampaignMeeting(){
   if(result){mtg.id=result.id;mtg.campaignName=cp.name;mtg.partner=cp.partner;mtg.endClient=cp.endClient;
     mtg.date=mtg.date?new Date(mtg.date):new Date();S.campaignMeetings.push(mtg)}
   toast(icon('mic',12)+' Meeting added: '+mtg.title,'ok');closeModal();
-  if(gel('cp-id')&&gel('cp-id').value===cpId){openCampaignDetail(cpId)}
+  if(S.campaignDetailId===cpId){render();return}
   render()}
 
 /* ═══════════ FINANCE MODALS ═══════════ */

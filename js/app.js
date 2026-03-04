@@ -27,7 +27,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   schedPanelDrop:schedPanelDrop,resetSchedule:resetSchedule,resetAllSchedules:resetAllSchedules,
   showCalSetup:showCalSetup,
   syncCal:function(){loadCalendar(true)},
-  openCampaignDetail:openCampaignDetail,saveCampaign:saveCampaign,
+  openCampaignDetail:openCampaignDetail,openCampaignDashboard:openCampaignDashboard,closeCampaignDashboard:closeCampaignDashboard,openEditCampaignModal:openEditCampaignModal,saveCampaign:saveCampaign,
   openAddCampaign:openAddCampaign,addCampaign:addCampaign,
   confirmDeleteCampaign:confirmDeleteCampaign,doDeleteCampaign:doDeleteCampaign,
   openAddPayment:openAddPayment,addPayment:addPayment,

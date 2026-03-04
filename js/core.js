@@ -86,7 +86,7 @@ function oppTypeConf(type){return OPP_TYPES[type]||OPP_TYPES.fc_partnership}
 function oppAllStages(type){var c=oppTypeConf(type);var all=c.stages.concat(c.closedStages);if(c.awaitingStage)all.push(c.awaitingStage);return all}
 function oppIsClosedStage(stage){return stage==='Closed Won'||stage==='Closed Lost'}
 
-var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'dashboard',subView:'',layout:'grid',groupBy:'importance',clientDetailName:'',
+var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'dashboard',subView:'',layout:'grid',groupBy:'importance',clientDetailName:'',campaignDetailId:'',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
