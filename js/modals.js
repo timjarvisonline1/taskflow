@@ -398,6 +398,11 @@ function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHou
     var ms=gel('f-mtg');if(ms)ms.value=prefill.meetingKey}
   if(prefill.category){var cs=gel('f-cat');if(cs)cs.value=prefill.category}
   if(prefill.importance){var is=gel('f-imp');if(is)is.value=prefill.importance}
+  if(prefill.item){var fi2=gel('f-item');if(fi2)fi2.value=prefill.item}
+  if(prefill.notes){var fn=gel('f-notes');if(fn)fn.value=prefill.notes}
+  if(prefill.emailThreadId){
+    var hid=document.createElement('input');hid.type='hidden';hid.id='f-email-tid';hid.value=prefill.emailThreadId;
+    gel('m-body').appendChild(hid)}
   setTimeout(function(){var fi=gel('f-item');if(fi)fi.focus()},100)}
 
 async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('Enter a task name','warn');return}
@@ -426,7 +431,8 @@ async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim
   else{
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox})}
+      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox});
+      var emailTid=gel('f-email-tid');if(emailTid&&emailTid.value)dbLinkEmailToTask(result.id,emailTid.value)}
     toast('Added: '+data.item,'ok')}
   closeModal();render()}
 
@@ -3945,3 +3951,63 @@ function openReplyEmail(){
     replyToMessageId:lastMsg.id
   });
 }
+
+/* ═══════════ CONTACT MODALS ═══════════ */
+
+function openAddContactModal(clientId){
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Add Contact</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId)+'">';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="fc-name" placeholder="Full name" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="email" class="edf" id="fc-email" placeholder="email@company.com"></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" placeholder="e.g. Marketing Manager"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="tel" class="edf" id="fc-phone" placeholder="+1 (555) 000-0000"></div>';
+  h+='</div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveContact()">Add Contact</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('fc-name');if(n)n.focus()},100)}
+
+function openEditContactModal(contactId){
+  var c=S.clientContacts.find(function(cc){return cc.id===contactId});if(!c)return;
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Edit Contact</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="fc-contact-id" value="'+escAttr(contactId)+'">';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="fc-name" value="'+escAttr(c.name)+'" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="email" class="edf" id="fc-email" value="'+escAttr(c.email)+'"></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" value="'+escAttr(c.role)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="tel" class="edf" id="fc-phone" value="'+escAttr(c.phone)+'"></div>';
+  h+='</div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditContact()">Save Contact</button>';
+  h+='<button class="btn" onclick="TF.confirmDeleteContact(\''+escAttr(contactId)+'\')" style="color:var(--red)">Delete</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('fc-name');if(n)n.focus()},100)}
+
+async function saveContact(){
+  var clientId=(gel('fc-client-id')||{}).value;if(!clientId)return;
+  var name=(gel('fc-name')||{}).value||'';
+  var email=(gel('fc-email')||{}).value||'';
+  if(!name.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
+  await dbAddContact(clientId,{name:name.trim(),email:email.trim(),role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||''});
+  closeModal();
+  /* Re-open client dashboard if it was open */
+  if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
+
+async function saveEditContact(){
+  var id=(gel('fc-contact-id')||{}).value;if(!id)return;
+  var name=(gel('fc-name')||{}).value||'';
+  var email=(gel('fc-email')||{}).value||'';
+  if(!name.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
+  await dbEditContact(id,{name:name.trim(),email:email.trim(),role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||''});
+  closeModal();
+  if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
+
+function confirmDeleteContact(id){
+  if(!confirm('Delete this contact?'))return;
+  dbDeleteContact(id);closeModal();
+  if(S._lastClientDash)openClientDashboard(S._lastClientDash)}

@@ -405,6 +405,7 @@ function openClientDetailModal(name){
   var clientMap=buildClientMap();
   var c=clientMap[name];if(!c)return;
   S.clientDetailName=name;
+  S._lastClientDash=name;
   var h=rClientDashboard(c);
   gel('detail-body').innerHTML=h;
   gel('detail-modal').classList.add('on','full-detail')}
@@ -431,6 +432,29 @@ function rClientDashboard(c){
   h+=dashMet('Campaigns',c.activeCampaigns+'/'+c.campaigns,'var(--amber)');
   h+=dashMet('Pipeline',fmtUSD(c.pipelineValue),'var(--purple50)');
   h+='</div>';
+
+  /* Contacts */
+  if(c.clientId){
+    var contacts=S.clientContacts.filter(function(cc){return cc.clientId===c.clientId});
+    h+='<div class="dash-section" style="display:flex;align-items:center;justify-content:space-between">'+icon('contact',13)+' Contacts ('+contacts.length+')';
+    h+=' <button class="btn" onclick="TF.openAddContactModal(\''+escAttr(c.clientId)+'\')" style="font-size:11px;padding:4px 10px">'+icon('plus',10)+' Add</button></div>';
+    if(contacts.length){
+      h+='<div class="contact-list" style="margin-bottom:16px;display:flex;flex-direction:column;gap:4px">';
+      contacts.forEach(function(cc){
+        h+='<div class="contact-card" onclick="TF.openEditContactModal(\''+escAttr(cc.id)+'\')" style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s">';
+        var initial=(cc.name||cc.email||'?').charAt(0).toUpperCase();
+        var avatarBg=emailAvatarColor(cc.email);
+        h+='<div style="width:32px;height:32px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+        h+='<div style="flex:1;min-width:0">';
+        h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(cc.name||'Unnamed')+'</div>';
+        h+='<div style="font-size:11px;color:var(--t4);display:flex;gap:12px;flex-wrap:wrap">';
+        if(cc.role)h+='<span>'+esc(cc.role)+'</span>';
+        if(cc.email)h+='<span>'+esc(cc.email)+'</span>';
+        if(cc.phone)h+='<span>'+esc(cc.phone)+'</span>';
+        h+='</div></div></div>'});
+      h+='</div>'}
+    else{
+      h+='<div style="padding:8px 0 16px;font-size:12px;color:var(--t4)">No contacts added yet.</div>'}}
 
   /* Notes Timeline */
   if(c.clientId){
@@ -4689,58 +4713,98 @@ function rEmailList(threads){
 
 function rEmailThread(){
   var h='';
-  h+='<div class="pg-head"><h1 style="display:flex;align-items:center;gap:8px">';
-  h+='<button class="btn" onclick="TF.closeEmailThread()" style="padding:6px 10px;font-size:12px">'+icon('arrow_left',14)+' Back</button>';
-  h+='</h1></div>';
 
   if(!S.gmailThread){
+    h+='<div class="pg-head"><h1 style="display:flex;align-items:center;gap:8px">';
+    h+='<button class="btn" onclick="TF.closeEmailThread()" style="padding:6px 10px;font-size:12px">'+icon('arrow_left',14)+' Back</button>';
+    h+='</h1></div>';
     h+=rEmailSkeleton();
     return h}
 
   var msgs=S.gmailThread.messages||[];
   var firstMsg=msgs[0]||{};
+  var lastMsg=msgs[msgs.length-1]||{};
   var totalMsgs=msgs.length;
+  var threadId=S.gmailThreadId;
+
+  /* Try matching sender to client */
+  var senderEmail=lastMsg.fromEmail||firstMsg.fromEmail||'';
+  var clientMatch=matchEmailToClient(senderEmail);
+
+  /* ── Toolbar ── */
+  h+='<div class="email-toolbar">';
+  h+='<button class="email-toolbar-btn" onclick="TF.closeEmailThread()">'+icon('arrow_left',14)+' Back</button>';
+  h+='<div class="email-toolbar-sep"></div>';
+  h+='<button class="email-toolbar-btn" onclick="TF.archiveEmail(\''+esc(threadId)+'\')">'+icon('archive',13)+' Archive</button>';
+  h+='<button class="email-toolbar-btn btn-danger" onclick="TF.trashEmail(\''+esc(threadId)+'\')">'+icon('trash',13)+' Trash</button>';
+  h+='<button class="email-toolbar-btn" onclick="TF.toggleEmailRead(\''+esc(threadId)+'\',true)">'+icon('eye_off',13)+' Unread</button>';
+  h+='<div class="email-toolbar-sep"></div>';
+  h+='<button class="email-toolbar-btn btn-create" onclick="TF.createTaskFromEmail()">'+icon('tasks',13)+' Create Task</button>';
+  h+='<div style="flex:1"></div>';
+  h+='<button class="email-toolbar-btn" onclick="TF.openComposeEmail()">'+icon('edit',13)+' New</button>';
+  h+='</div>';
 
   h+='<div class="email-thread-detail">';
-  h+='<div class="email-thread-subject">'+esc(firstMsg.subject||'(no subject)')+'</div>';
-  h+='<div class="email-thread-meta"><span>'+totalMsgs+' message'+(totalMsgs>1?'s':'')+'</span></div>';
 
+  /* ── Subject header ── */
+  h+='<div class="email-thread-subject">'+esc(firstMsg.subject||'(no subject)')+'</div>';
+  h+='<div class="email-thread-meta">';
+  h+='<span>'+totalMsgs+' message'+(totalMsgs>1?'s':'')+'</span>';
+  if(clientMatch&&clientMatch.clientName){
+    h+='<span class="email-client-badge" style="cursor:pointer" onclick="TF.openClientDashboard(\''+escAttr(clientMatch.clientName)+'\')">'+esc(clientMatch.clientName)+'</span>';
+    if(clientMatch.contactName)h+='<span style="color:var(--t3)">'+esc(clientMatch.contactName)+(clientMatch.contactRole?' · '+esc(clientMatch.contactRole):'')+'</span>';
+  }
+  h+='</div>';
+
+  /* ── Messages ── */
   msgs.forEach(function(msg,idx){
     var isLast=idx===msgs.length-1;
-    var isCollapsed=totalMsgs>2&&!isLast;
+    var isCollapsed=totalMsgs>1&&!isLast;
     var fromDisplay=msg.fromName||msg.fromEmail||'';
     var initial=(msg.fromName||msg.fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(msg.fromEmail);
     var dateD=new Date(msg.date);
     var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
 
+    /* Match this message sender to a contact */
+    var msgMatch=matchEmailToClient(msg.fromEmail);
+
     h+='<div class="email-message'+(isLast?' email-message-last':'')+(isCollapsed?' collapsed':'')+'" data-msg-idx="'+idx+'">';
     h+='<div class="email-msg-header" onclick="TF.toggleEmailMsg('+idx+')">';
     h+='<div class="email-msg-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
     h+='<div class="email-msg-info">';
-    h+='<div class="email-msg-from">'+esc(fromDisplay)+' <span class="email-msg-email">&lt;'+esc(msg.fromEmail)+'&gt;</span></div>';
+    h+='<div class="email-msg-from">'+esc(fromDisplay);
+    if(msg.fromEmail)h+=' <span class="email-msg-email">&lt;'+esc(msg.fromEmail)+'&gt;</span>';
+    if(msgMatch&&msgMatch.contactName)h+='<span class="email-msg-contact-badge">'+esc(msgMatch.contactName)+'</span>';
+    h+='</div>';
+    /* Snippet preview for collapsed messages */
+    if(isCollapsed&&msg.snippet){h+='<div class="email-msg-snippet">'+esc(msg.snippet.substring(0,120))+'</div>'}
     h+='</div>';
     h+='<div class="email-msg-date">'+dateLabel+'</div>';
-    if(totalMsgs>2)h+='<button class="email-msg-collapse" onclick="event.stopPropagation();TF.toggleEmailMsg('+idx+')">'+(isCollapsed?'Expand':'Collapse')+'</button>';
+    if(totalMsgs>1)h+='<button class="email-msg-collapse" onclick="event.stopPropagation();TF.toggleEmailMsg('+idx+')">'+(isCollapsed?icon('chevron_right',10):icon('chevron_down',10))+'</button>';
     h+='</div>';
-    if(msg.to){h+='<div class="email-msg-to">To: '+esc(msg.to.substring(0,100))+'</div>'}
-    if(msg.cc){h+='<div class="email-msg-to">Cc: '+esc(msg.cc.substring(0,100))+'</div>'}
+    if(msg.to){h+='<div class="email-msg-to">To: '+esc(msg.to.substring(0,200))+'</div>'}
+    if(msg.cc){h+='<div class="email-msg-to">Cc: '+esc(msg.cc.substring(0,200))+'</div>'}
 
     h+='<div class="email-msg-body">';
     if(msg.body){
       var encoded=btoa(unescape(encodeURIComponent(msg.body)));
       h+='<iframe class="email-iframe" srcdoc="" data-email-body="'+encoded+'" sandbox="allow-same-origin" style="width:100%;border:none;min-height:100px"></iframe>';
     }else{
-      h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2)">'+esc(msg.snippet)+'</div>';
+      h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2);line-height:1.6">'+esc(msg.snippet)+'</div>';
     }
     h+='</div></div>';
   });
 
-  h+='<div class="email-actions">';
-  h+='<button class="btn btn-go" onclick="TF.openReplyEmail()" style="font-size:13px;padding:8px 20px">'+icon('mail',12)+' Reply</button>';
-  h+='<button class="btn" onclick="TF.archiveEmail(\''+esc(S.gmailThreadId)+'\')" style="font-size:13px;padding:8px 20px">'+icon('archive',12)+' Archive</button>';
-  h+='<button class="btn" onclick="TF.openComposeEmail()" style="font-size:13px;padding:8px 20px">'+icon('edit',12)+' New Email</button>';
-  h+='</div>';
+  /* ── Quick reply ── */
+  var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
+  h+='<div class="email-quick-reply-wrap">';
+  h+='<textarea class="email-quick-reply-ta" id="email-quick-reply" placeholder="Reply to '+esc(replyTo)+'..."></textarea>';
+  h+='<div class="email-quick-reply-actions">';
+  h+='<button class="email-quick-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
+  h+='<button class="email-quick-reply-full" onclick="TF.openReplyEmail()">Full Reply</button>';
+  h+='</div></div>';
+
   h+='</div>';
   return h}
 

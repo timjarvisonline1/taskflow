@@ -59,7 +59,11 @@ var ICONS={
   layers:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22.54 12.43-1.96-.89-8.58 3.91a2 2 0 0 1-1.66 0l-8.58-3.9-1.96.89a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22.54 16.43-1.96-.89-8.58 3.91a2 2 0 0 1-1.66 0l-8.58-3.9-1.96.89a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/></svg>',
   arrow_left:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>',
   archive:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
-  chevron_down:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+  eye:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>',
+  eye_off:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>',
+  send:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>',
+  phone:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+  contact:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 2v2"/><path d="M7 22v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><path d="M8 2v2"/><rect width="16" height="18" x="4" y="2" rx="2"/><circle cx="12" cy="11" r="3"/></svg>'
 };
 function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"')}return s}
 
@@ -94,7 +98,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
-  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false};
+  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,clientContacts:[]};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -732,6 +736,47 @@ async function loadClientRecords(){
   var cls=S.clientRecords.filter(function(r){return r.status==='active'}).map(function(r){return r.name});
   cls.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
   S.clients=cls}
+
+async function loadClientContacts(){
+  var res=await _sb.from('client_contacts').select('*').order('name');
+  if(res.error){console.error('loadClientContacts:',res.error);return}
+  S.clientContacts=(res.data||[]).map(function(r){
+    return{id:r.id,clientId:r.client_id||'',name:r.name||'',email:r.email||'',role:r.role||'',phone:r.phone||''}})}
+
+function matchEmailToClient(email){
+  if(!email)return null;
+  var e=email.toLowerCase().trim();
+  /* Check client_contacts first */
+  var cc=S.clientContacts.find(function(c){return c.email&&c.email.toLowerCase()===e});
+  if(cc){
+    var cr=S.clientRecords.find(function(r){return r.id===cc.clientId});
+    return{clientId:cc.clientId,clientName:cr?cr.name:'',contactName:cc.name,contactRole:cc.role}}
+  /* Fall back to client.email field */
+  var cl=S.clientRecords.find(function(r){return r.email&&r.email.toLowerCase()===e});
+  if(cl)return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:''};
+  return null}
+
+async function dbAddContact(clientId,data){
+  var uid=await getUserId();if(!uid)return null;
+  var row={user_id:uid,client_id:clientId,name:data.name||'',email:data.email||'',role:data.role||'',phone:data.phone||''};
+  var res=await _sb.from('client_contacts').insert(row).select().single();
+  if(res.error){toast('Add contact failed: '+res.error.message,'warn');return null}
+  await loadClientContacts();render();toast('Contact added','ok');return res.data}
+
+async function dbEditContact(id,data){
+  var upd={};
+  if(data.name!==undefined)upd.name=data.name;
+  if(data.email!==undefined)upd.email=data.email;
+  if(data.role!==undefined)upd.role=data.role;
+  if(data.phone!==undefined)upd.phone=data.phone;
+  var res=await _sb.from('client_contacts').update(upd).eq('id',id);
+  if(res.error){toast('Edit contact failed: '+res.error.message,'warn');return false}
+  await loadClientContacts();render();toast('Contact updated','ok');return true}
+
+async function dbDeleteContact(id){
+  var res=await _sb.from('client_contacts').delete().eq('id',id);
+  if(res.error){toast('Delete contact failed: '+res.error.message,'warn');return false}
+  await loadClientContacts();render();toast('Contact deleted','ok');return true}
 
 async function loadPayerMap(){
   var res=await _sb.from('payer_client_map').select('*');
@@ -1640,6 +1685,77 @@ function toggleEmailMsg(idx){
   var btn=el.querySelector('.email-msg-collapse');
   if(btn)btn.textContent=el.classList.contains('collapsed')?'Expand':'Collapse'}
 
+async function toggleEmailRead(threadId,markUnread){
+  if(!threadId)return;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/gmail/mark-read',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({threadId:threadId,unread:!!markUnread})});
+    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Mark read failed')}
+    /* Update local state */
+    var updateThread=function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=!!markUnread;t.is_unread=!!markUnread}};
+    S.gmailThreads.forEach(updateThread);
+    if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(updateThread);
+    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+    if(markUnread){S.gmailThread=null;S.gmailThreadId=''}
+    render();toast(markUnread?'Marked as unread':'Marked as read','ok')
+  }catch(e){toast('Failed: '+e.message,'warn')}}
+
+async function trashEmail(threadId){
+  if(!threadId)return;
+  if(!confirm('Move this email to trash?'))return;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/gmail/trash',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({threadId:threadId})});
+    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Trash failed')}
+    if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
+    S.gmailThreads=S.gmailThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
+    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+    S.gmailThread=null;S.gmailThreadId='';
+    render();toast('Email moved to trash','ok')
+  }catch(e){toast('Trash failed: '+e.message,'warn')}}
+
+async function quickReplyEmail(){
+  var ta=gel('email-quick-reply');if(!ta||!ta.value.trim()){toast('Type a reply first','warn');return}
+  var thread=S.gmailThread;if(!thread)return;
+  var msgs=thread.messages||[];
+  var lastMsg=msgs[msgs.length-1];if(!lastMsg)return;
+  var replyTo=lastMsg.fromEmail||'';
+  var subject=lastMsg.subject||'';
+  if(subject.indexOf('Re:')!==0)subject='Re: '+subject;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    toast('Sending reply...','info');
+    var resp=await fetch('/api/gmail/send',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({to:replyTo,subject:subject,body:'<div>'+ta.value.trim().replace(/\n/g,'<br>')+'</div>',
+        threadId:S.gmailThreadId,messageId:lastMsg.messageId||lastMsg.id||''})});
+    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Send failed')}
+    toast('Reply sent','ok');ta.value='';
+    /* Refresh thread to show the new message */
+    openEmailThread(S.gmailThreadId)
+  }catch(e){toast('Reply failed: '+e.message,'warn')}}
+
+function createTaskFromEmail(){
+  if(!S.gmailThread)return;
+  var msgs=S.gmailThread.messages||[];
+  var firstMsg=msgs[0]||{};
+  var lastMsg=msgs[msgs.length-1]||{};
+  var subject=firstMsg.subject||'(no subject)';
+  var snippet=lastMsg.snippet||'';
+  if(snippet.length>200)snippet=snippet.substring(0,200)+'...';
+  /* Try to match sender to a client */
+  var senderEmail=lastMsg.fromEmail||firstMsg.fromEmail||'';
+  var match=matchEmailToClient(senderEmail);
+  var clientName=match?match.clientName:'';
+  openAddModal({item:subject,notes:'From email: '+snippet,client:clientName,emailThreadId:S.gmailThreadId})}
+
 async function triggerSync(platform){
   try{
     var sess=await _sb.auth.getSession();
@@ -1780,7 +1896,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadClientContacts()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
