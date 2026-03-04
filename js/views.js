@@ -4662,6 +4662,7 @@ function rEmail(){
 
 function rEmailList(threads){
   var h='<div class="email-thread-list">';
+  var lastGroup='';
   threads.forEach(function(t,idx){
     var threadId=t.threadId||t.thread_id||'';
     var subject=t.subject||'(no subject)';
@@ -4677,13 +4678,15 @@ function rEmailList(threads){
     if(clientId){var cr=S.clientRecords.find(function(c){return c.id===clientId});if(cr)clientName=cr.name||''}
 
     var dateLabel='';
+    var dateGroup='Earlier';
     if(dateStr){
       var d=new Date(dateStr);var now=new Date();var diffDays=Math.floor((now-d)/86400000);
-      if(diffDays===0)dateLabel=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-      else if(diffDays===1)dateLabel='Yesterday';
-      else if(diffDays<7)dateLabel=DAYSHORT[d.getDay()];
-      else dateLabel=MO[d.getMonth()]+' '+d.getDate();
+      if(diffDays===0){dateLabel=d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});dateGroup='Today'}
+      else if(diffDays===1){dateLabel='Yesterday';dateGroup='Yesterday'}
+      else if(diffDays<7){dateLabel=DAYSHORT[d.getDay()];dateGroup='This Week'}
+      else{dateLabel=MO[d.getMonth()]+' '+d.getDate();dateGroup='Earlier'}
     }
+    if(dateGroup!==lastGroup){h+='<div class="email-group-header">'+dateGroup+'</div>';lastGroup=dateGroup}
 
     var fromDisplay=fromName||fromEmail;
     if(fromDisplay.length>30)fromDisplay=fromDisplay.substring(0,28)+'…';

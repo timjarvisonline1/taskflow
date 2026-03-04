@@ -1964,6 +1964,7 @@ function handleEmailKeyboard(e){
   switch(e.key){
     case 'c':e.preventDefault();openComposeEmail();break;
     case 'e':if(S.gmailThreadId){e.preventDefault();archiveEmail(S.gmailThreadId)}break;
+    case '#':if(S.gmailThreadId){e.preventDefault();trashEmail(S.gmailThreadId)}break;
     case 'r':if(S.gmailThreadId&&S.gmailThread){e.preventDefault();openReplyEmail()}break;
     case 'a':if(S.gmailThreadId&&S.gmailThread){e.preventDefault();replyAllEmail()}break;
     case 'f':if(S.gmailThreadId&&S.gmailThread){e.preventDefault();forwardEmail()}break;
@@ -2127,7 +2128,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
