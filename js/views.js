@@ -4623,6 +4623,7 @@ function rEmail(){
   h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Refresh</button>';
   h+='</div></div>';
 
+  var _smartLabels={'e-active':'Clients (Active)','e-lapsed':'Clients (Lapsed)','e-prospects':'Prospects','e-campaigns':'By Campaign','e-opportunities':'By Opportunity','e-other':'Other'};
   if(!isSmartInbox){
     h+='<div class="task-mode-toggle" style="margin-bottom:16px">';
     h+='<button class="tm-btn'+(sub==='inbox'?' on':'')+'" onclick="TF.setGmailFilter(\'inbox\')">Inbox</button>';
@@ -4630,8 +4631,6 @@ function rEmail(){
     h+='<button class="tm-btn'+(sub==='all'?' on':'')+'" onclick="TF.setGmailFilter(\'all\')">All Mail</button>';
     h+='</div>';
   } else {
-    /* Smart inbox header */
-    var _smartLabels={'e-active':'Clients (Active)','e-lapsed':'Clients (Lapsed)','e-prospects':'Prospects','e-campaigns':'By Campaign','e-opportunities':'By Opportunity','e-other':'Other'};
     h+='<div style="margin-bottom:16px;font-size:13px;color:var(--t3)">'+icon('filter',12)+' Showing: <strong style="color:var(--t1)">'+(_smartLabels[sub]||sub)+'</strong></div>';
   }
 
@@ -4664,6 +4663,10 @@ function rEmail(){
     var isConnected=S.integrations.some(function(i){return i.platform==='gmail'&&i.is_active});
     if(!isConnected){
       h+='<div class="email-empty">'+icon('mail',32)+'<p>Gmail not connected yet.</p><p style="font-size:12px;color:var(--t4)">Go to Finance → Integrations to set up Gmail.</p></div>';
+    }else if(isSmartInbox){
+      /* Smart inboxes filter cached data — no live fetch needed */
+      var _siLabel=(_smartLabels&&_smartLabels[sub])||sub;
+      h+='<div class="email-empty">'+icon('filter',32)+'<p>No emails in '+esc(_siLabel)+'.</p><p style="font-size:12px;color:var(--t4)">Emails will appear here when addresses match your CRM data.</p></div>';
     }else if(S._gmailFetching){
       h+=rEmailSkeleton();
     }else{

@@ -182,7 +182,12 @@ SECTIONS.forEach(function(sec){
 function currentSection(){return SECTIONS.find(function(s){return s.id===S.view})}
 function hasSubs(sectionId){var sec=SECTIONS.find(function(s){return s.id===(sectionId||S.view)});return sec&&sec.subs&&sec.subs.length>0}
 function getDefaultSub(sectionId){var sec=SECTIONS.find(function(s){return s.id===sectionId});return sec&&sec.subs?sec.subs[0].id:''}
-function subNav(subId){if(S.gmailThreadId)_flushEmailTimer();S.subView=subId;save();render()}
+function subNav(subId){
+  if(S.gmailThreadId)_flushEmailTimer();
+  S.subView=subId;
+  /* Clear live threads when switching email sub-views so smart inbox filtering runs against cached data */
+  if(S.view==='email'){S._gmailLiveThreads=null;S._gmailNextPage=null;S.gmailThreadId='';S.gmailThread=null}
+  save();render()}
 
 /* ═══════════ MOBILE ═══════════ */
 function isMobile(){return window.innerWidth<=860}
