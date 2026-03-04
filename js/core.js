@@ -2781,15 +2781,19 @@ document.addEventListener('keydown',function(e){
       var isTextarea=e.target.tagName==='TEXTAREA';if(!isTextarea){
         e.preventDefault();
         var saveBtn=modal.querySelector('.btn-p');if(saveBtn)saveBtn.click();return}}}
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-  var n=parseInt(e.key);if(n>=0&&n<=9){var v=VIEWS_FLAT.find(function(vv){return vv.kbd===e.key&&!vv.soon});if(v)nav(v.id)}
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.target.isContentEditable)return;
+  /* Skip all single-key shortcuts when a modal is open or on the email view */
+  var _modal=gel('modal');var _detModal=gel('detail-modal');
+  var _modalOpen=(_modal&&_modal.classList.contains('on'))||(_detModal&&_detModal.classList.contains('on'));
+  var _inEmail=S.view==='email';
+  var n=parseInt(e.key);if(!_modalOpen&&!_inEmail&&n>=0&&n<=9){var v=VIEWS_FLAT.find(function(vv){return vv.kbd===e.key&&!vv.soon});if(v)nav(v.id)}
   if(e.key==='Escape'){closeModal();closeCmdPalette();closeFocus()}
-  if(e.key==='n'||e.key==='N'){if(isMobile())nav('mob-add');else openAddModal()}
-  if(e.key==='s'||e.key==='S'){openDailySummary()}
-  if(e.key==='/'){e.preventDefault();setTimeout(function(){var si=document.querySelector('.fl-s');if(si)si.focus()},50)}
+  if(!_modalOpen&&!_inEmail&&(e.key==='n'||e.key==='N')){if(isMobile())nav('mob-add');else openAddModal()}
+  if(!_modalOpen&&!_inEmail&&(e.key==='s'||e.key==='S')){openDailySummary()}
+  if(!_modalOpen&&!_inEmail&&e.key==='/'){e.preventDefault();setTimeout(function(){var si=document.querySelector('.fl-s');if(si)si.focus()},50)}
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCmdPalette()}
   if((e.ctrlKey||e.metaKey)&&e.key==='b'&&S.view==='tasks'){e.preventDefault();toggleBulk()}
-  if(e.key==='['||e.key===']'){var _sec=currentSection();if(_sec&&_sec.subs){var _idx=-1;_sec.subs.forEach(function(s,i){if(s.id===S.subView)_idx=i});if(_idx===-1)_idx=0;if(e.key===']')_idx=(_idx+1)%_sec.subs.length;else _idx=(_idx-1+_sec.subs.length)%_sec.subs.length;subNav(_sec.subs[_idx].id)}}});
+  if(!_modalOpen&&!_inEmail&&(e.key==='['||e.key===']')){var _sec=currentSection();if(_sec&&_sec.subs){var _idx=-1;_sec.subs.forEach(function(s,i){if(s.id===S.subView)_idx=i});if(_idx===-1)_idx=0;if(e.key===']')_idx=(_idx+1)%_sec.subs.length;else _idx=(_idx-1+_sec.subs.length)%_sec.subs.length;subNav(_sec.subs[_idx].id)}}});
 /* Swipe to close sidebar */
 (function(){var ov=gel('mob-overlay'),sx=0;if(!ov)return;
   ov.addEventListener('touchstart',function(e){sx=e.touches[0].clientX},{passive:true});
