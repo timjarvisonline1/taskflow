@@ -126,7 +126,7 @@ The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered 
 |---|-----|-------|-----|-----------|
 | 1 | `dashboard` | Dashboard | 1 | — |
 | 2 | `today` | Schedule | 2 | Suggested Schedule (default), Today's Schedule, Meeting Prep, Analytics, Daily Summary, Weekly Summary, Weekly Capacity |
-| 3 | `tasks` | Tasks | 3 | Inbox (with badge), Open Tasks, Completed, Review Queue (with badge) |
+| 3 | `tasks` | Tasks | 3 | Open Tasks, Completed, Review Queue (with badge), Quick Add Queue (with badge) |
 | 4 | `opportunities` | Sales | 4 | Analytics, Retain Live, F&C Partnerships, F&C Direct, Profitability |
 | 5 | `campaigns` | Campaigns | 5 | Pipeline, List, Performance |
 | 6 | `projects` | Projects | 6 | Board, List, Timeline |
@@ -238,8 +238,8 @@ Schedule sub-views (via rToday() dispatcher):
   rScheduleCapacity()      — Weekly Capacity view
 
 Tasks sub-views (via rTasks() dispatcher):
-  (inbox)                  — Inbox: quick-added tasks awaiting detail review (badge count in sub-nav)
-  (open)                   — Open tasks (compact rows with filter bar, excludes inbox items)
+  (open)                   — Open tasks (compact rows with filter bar, excludes quick-add items)
+  (inbox)                  — Quick Add Queue: quick-added tasks awaiting detail review (badge count in sub-nav)
   (completed)              — Completed tasks list
   (review)                 — Review queue with badge count in sub-nav
 
@@ -677,7 +677,7 @@ All CSV-imported data covers up to 2026-02-28. Live sync data starts from this d
 - Dashboard as first nav item with comprehensive overview (today's focus, productivity, pipeline, finance, clients, heatmap, charts)
 - Schedule section with 7 sub-views: Suggested Schedule (default), Today's Schedule, Meeting Prep (enhanced with all meetings), Analytics (heatmap + charts), Daily Summary (inline), Weekly Summary (comparisons), Weekly Capacity
 - Clients with Active/Lapsed filtering, simplified 6-column directory, full-screen client dashboard on click
-- Inbox sub-view in Tasks: quick-added tasks flagged with `is_inbox=true`, cleared on save from detail modal, badge count in sub-nav and sidebar
+- Quick Add Queue sub-view in Tasks: quick-added tasks flagged with `is_inbox=true`, cleared on save from detail modal, badge count in sub-nav and sidebar
 - Review queue badge in Tasks sub-nav
 - Mobile bottom tabs: Add, Tasks, Review, Opps
 - Compact task rows (36px min-height) with clean filter bar styling

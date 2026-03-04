@@ -1180,10 +1180,10 @@ function rTasks(){
   var h='<div class="pg-head"><h1>Tasks</h1>';
   if(isMobile()){
     h+='<div class="task-mode-toggle">';
-    h+='<button class="tm-btn'+(mode==='inbox'?' on':'')+'" onclick="TF.subNav(\'inbox\')">Inbox'+(ibxCount?'<span class="nav-badge" style="margin-left:6px">'+ibxCount+'</span>':'')+'</button>';
     h+='<button class="tm-btn'+(mode==='open'?' on':'')+'" onclick="TF.subNav(\'open\')">Open</button>';
     h+='<button class="tm-btn'+(mode==='done'?' on':'')+'" onclick="TF.subNav(\'done\')">Completed</button>';
     h+='<button class="tm-btn'+(mode==='review'?' on':'')+'" onclick="TF.subNav(\'review\')">Review'+(rvCount?'<span class="nav-badge" style="margin-left:6px">'+rvCount+'</span>':'')+'</button>';
+    h+='<button class="tm-btn'+(mode==='inbox'?' on':'')+'" onclick="TF.subNav(\'inbox\')">Quick Add'+(ibxCount?'<span class="nav-badge" style="margin-left:6px">'+ibxCount+'</span>':'')+'</button>';
     h+='</div>'}
   h+='</div>';
 
@@ -1219,12 +1219,12 @@ function rTasks(){
     var ibxEst=0;inboxTasks.forEach(function(t){ibxEst+=t.est});
 
     h+='<div class="td-metrics">';
-    h+='<div class="td-met"><div class="td-met-v" style="color:var(--t1)">'+inboxTasks.length+'</div><div class="td-met-l">In Inbox</div></div>';
+    h+='<div class="td-met"><div class="td-met-v" style="color:var(--t1)">'+inboxTasks.length+'</div><div class="td-met-l">In Queue</div></div>';
     h+='<div class="td-met"><div class="td-met-v" style="color:var(--amber)">'+fmtM(ibxEst)+'</div><div class="td-met-l">Estimated</div></div>';
     h+='</div>';
 
     if(!inboxTasks.length){
-      h+='<div class="no-data" style="padding:64px 20px"><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">Inbox is empty</div><div style="font-size:13px;color:var(--t4)">Tasks added via Quick Add will appear here for review.</div></div>';
+      h+='<div class="no-data" style="padding:64px 20px"><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">Quick Add Queue is empty</div><div style="font-size:13px;color:var(--t4)">Tasks added via Quick Add will appear here for review.</div></div>';
     } else {
       h+='<div class="tk-'+S.layout+'">';
       inboxTasks.forEach(function(t,i){h+=taskCard(t,td,i)});

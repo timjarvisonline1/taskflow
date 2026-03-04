@@ -105,10 +105,10 @@ var SECTIONS=[
     {id:'capacity',label:'Weekly Capacity',icon:'activity'}
   ]},
   {id:'tasks',icon:'tasks',label:'Tasks',kbd:'3',subs:[
-    {id:'inbox',label:'Inbox',icon:'inbox'},
     {id:'open',label:'Open Tasks',icon:'tasks'},
     {id:'done',label:'Completed',icon:'check'},
-    {id:'review',label:'Review Queue',icon:'mail'}
+    {id:'review',label:'Review Queue',icon:'mail'},
+    {id:'inbox',label:'Quick Add Queue',icon:'inbox'}
   ]},
   {id:'opportunities',icon:'gem',label:'Sales',kbd:'4',subs:[
     {id:'analytics',label:'Analytics',icon:'dashboard'},
@@ -337,6 +337,8 @@ setInterval(function(){
 /* ═══════════ SIDEBAR ═══════════ */
 function renderSidebar(){
   var c=gel('s-active');if(!c)return;
+  /* Skip rebuild if quick-add input is focused (prevents losing typed text) */
+  var qa=gel('qa-item');if(qa&&document.activeElement===qa)return;
   var h='';
   h+='<div class="sb-qa"><input type="text" id="qa-item" class="sb-qa-input" placeholder="Quick add task..." onkeydown="if(event.key===\'Enter\')TF.quickAdd()"><button class="sb-qa-btn" onclick="TF.quickAdd()">+</button></div>';
   c.innerHTML=h}
