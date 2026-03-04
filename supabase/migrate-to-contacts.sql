@@ -17,7 +17,6 @@ CREATE TABLE contacts (
   company     text NOT NULL DEFAULT '',
   website     text NOT NULL DEFAULT '',
   status      text NOT NULL DEFAULT 'active',   -- 'active' or 'lapsed'
-  unique_key  text NOT NULL DEFAULT '',          -- unique client key from Retain
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 
@@ -31,4 +30,3 @@ CREATE INDEX idx_contacts_user ON contacts(user_id);
 CREATE INDEX idx_contacts_client ON contacts(client_id);
 CREATE INDEX idx_contacts_email ON contacts(user_id, email);
 CREATE INDEX idx_contacts_company ON contacts(user_id, company);
-CREATE INDEX idx_contacts_unique_key ON contacts(user_id, unique_key);

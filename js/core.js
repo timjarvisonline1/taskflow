@@ -743,7 +743,7 @@ async function loadContacts(){
   S.contacts=(res.data||[]).map(function(r){
     return{id:r.id,clientId:r.client_id||'',firstName:r.first_name||'',lastName:r.last_name||'',
       email:r.email||'',role:r.role||'',phone:r.phone||'',company:r.company||'',
-      website:r.website||'',status:r.status||'active',uniqueKey:r.unique_key||''}})}
+      website:r.website||'',status:r.status||'active'}})}
 
 function matchEmailToClient(email){
   if(!email)return null;
@@ -763,7 +763,7 @@ async function dbAddContact(clientId,data){
   var uid=await getUserId();if(!uid)return null;
   var row={user_id:uid,client_id:clientId||null,first_name:data.firstName||'',last_name:data.lastName||'',
     email:data.email||'',role:data.role||'',phone:data.phone||'',
-    company:data.company||'',website:data.website||'',status:data.status||'active',unique_key:data.uniqueKey||''};
+    company:data.company||'',website:data.website||'',status:data.status||'active'};
   var res=await _sb.from('contacts').insert(row).select().single();
   if(res.error){toast('Add contact failed: '+res.error.message,'warn');return null}
   await loadContacts();render();toast('Contact added','ok');return res.data}
