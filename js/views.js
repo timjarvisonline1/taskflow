@@ -495,6 +495,23 @@ function rClientDashboard(c){
       h+='</div>'});
     h+='</div>'}
 
+  /* Emails */
+  var clientEmail=c.clientId?(S.clientRecords.find(function(cr){return cr.id===c.clientId})||{}).email:'';
+  var clientEmailThreads=c.clientId?S.gmailThreads.filter(function(t){return t.client_id===c.clientId}).slice(0,10):[];
+  if(clientEmailThreads.length||clientEmail){
+    h+='<div class="dash-section" style="display:flex;align-items:center;justify-content:space-between">'+icon('mail',13)+' Emails';
+    if(clientEmail)h+=' <button class="btn" onclick="TF.openComposeEmail({to:\''+escAttr(clientEmail)+'\'})" style="font-size:11px;padding:4px 10px;margin-left:auto">'+icon('edit',11)+' Email</button>';
+    h+='</div>';
+    if(clientEmailThreads.length){
+      h+=rEmailList(clientEmailThreads);
+      if(S.gmailThreads.filter(function(t){return t.client_id===c.clientId}).length>10){
+        h+='<div style="margin-top:6px"><a href="#" onclick="event.preventDefault();TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all emails →</a></div>';
+      }
+    }else{
+      h+='<div style="padding:12px;font-size:12px;color:var(--t4)">No email threads found. Try syncing Gmail.</div>';
+    }
+  }
+
   /* Summary */
   h+='<div class="dash-section">Summary</div>';
   h+='<div class="dash-mets">';
@@ -2574,7 +2591,7 @@ function rCampaignDashboard(cp,st){
 
   /* Tab bar */
   h+='<div class="cp-tabs">';
-  var tabs=[['overview','Overview'],['tasks','Tasks'],['billing','Billing'],['details','Details']];
+  var tabs=[['overview','Overview'],['tasks','Tasks'],['billing','Billing'],['emails','Emails'],['details','Details']];
   tabs.forEach(function(t){h+='<div class="cp-tab'+(tab===t[0]?' on':'')+'" onclick="TF.setCampaignTab(\''+t[0]+'\')">'+t[1]+'</div>'});
   h+='</div>';
 
@@ -2582,6 +2599,7 @@ function rCampaignDashboard(cp,st){
   switch(tab){
     case'tasks':h+=rCpTabTasks(cp,st,td_);break;
     case'billing':h+=rCpTabBilling(cp,st);break;
+    case'emails':h+=rCpTabEmails(cp,st);break;
     case'details':h+=rCpTabDetails(cp,st);break;
     default:h+=rCpTabOverview(cp,st)}
   return h}
@@ -2750,6 +2768,41 @@ function renderBillingSchedule(cp,st){
     h+='</div>'});
   h+='<div style="margin-top:10px;font-size:10px;color:var(--t4)">This schedule feeds directly into the Financial Forecast</div>';
   h+='</div>';
+  return h}
+
+/* ── Campaign Tab: Emails ── */
+function rCpTabEmails(cp,st){
+  var h='';
+  /* Find client email from client record */
+  var clientEmail='';
+  var clientRec=null;
+  if(cp.client){
+    clientRec=S.clientRecords.find(function(c){return c.name===cp.client});
+    if(clientRec)clientEmail=clientRec.email||'';
+  }
+
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+  h+='<span style="font-size:13px;color:var(--t2)">Email threads'+( clientEmail?' with <strong>'+esc(clientEmail)+'</strong>':'')+'</span>';
+  if(clientEmail){
+    h+='<button class="btn btn-go" onclick="TF.openComposeEmail({to:\''+escAttr(clientEmail)+'\',subject:\''+escAttr(cp.name)+'\'})" style="font-size:12px;padding:6px 14px">'+icon('mail',11)+' Email Client</button>';
+  }
+  h+='</div>';
+
+  /* Filter threads by client_id */
+  var threads=[];
+  if(clientRec){
+    threads=S.gmailThreads.filter(function(t){return t.client_id===clientRec.id});
+  }
+
+  if(!threads.length){
+    if(!clientEmail){
+      h+='<div class="email-empty" style="padding:30px">'+icon('mail',24)+'<p style="font-size:12px">No client email on file. Add an email to the client record to see threads here.</p></div>';
+    }else{
+      h+='<div class="email-empty" style="padding:30px">'+icon('inbox',24)+'<p style="font-size:12px">No email threads found for this client. Try syncing Gmail.</p></div>';
+    }
+    return h}
+
+  h+=rEmailList(threads);
   return h}
 
 /* ── Campaign Tab: Details ── */

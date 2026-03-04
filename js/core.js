@@ -566,7 +566,7 @@ async function loadTasks(){
   S.tasks=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,due:r.due?new Date(r.due+'T00:00:00'):null,importance:r.importance||'When Time Allows',est:r.est||0,
       category:r.category||'',client:r.client||'',endClient:r.end_client||'',type:r.type||'Business',
-      duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||'',meetingKey:r.meeting_key||'',project:r.project||'',phase:r.phase||'',opportunity:r.opportunity||'',isInbox:!!r.is_inbox}})}
+      duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||'',meetingKey:r.meeting_key||'',project:r.project||'',phase:r.phase||'',opportunity:r.opportunity||'',isInbox:!!r.is_inbox,emailThreadId:r.email_thread_id||''}})}
 
 async function loadDone(){
   var res=await _sb.from('done').select('*').order('completed',{ascending:false});
@@ -1738,6 +1738,14 @@ async function dbEditTask(id,taskData){
   var res=await _sb.from('tasks').update(row).eq('id',id);
   if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
   return true}
+
+async function dbLinkEmailToTask(taskId,threadId){
+  var res=await _sb.from('tasks').update({email_thread_id:threadId||''}).eq('id',taskId);
+  if(res.error){toast('Link failed: '+res.error.message,'warn');return false}
+  /* Update local state */
+  var t=S.tasks.find(function(tk){return tk.id===taskId});
+  if(t)t.emailThreadId=threadId||'';
+  render();toast(threadId?'Email linked to task':'Email unlinked','ok');return true}
 
 async function dbDeleteTask(id){
   var res=await _sb.from('tasks').delete().eq('id',id);
