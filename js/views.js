@@ -1137,24 +1137,8 @@ function rScheduleDaily(ctx){
     h+='<div class="td-panel" style="border-color:rgba(255,176,48,0.15);margin-bottom:14px"><div class="td-panel-h"><span class="td-panel-t" style="color:var(--amber)">'+icon('alert',12)+' Carrying Over</span><span class="td-panel-c">'+carryOver.length+'</span></div>';
     tiers.forEach(function(tier){
       if(!tier.items.length)return;
-      h+='<div style="margin-bottom:10px">';
-      h+='<div style="font-size:10px;font-weight:700;color:'+tier.color+';text-transform:uppercase;letter-spacing:0.5px;padding:6px 0 4px;border-bottom:1px solid rgba(255,255,255,0.04);margin-bottom:4px">'+tier.label+' ('+tier.items.length+')</div>';
-      tier.items.forEach(function(ci){
-        var t=ci.task;
-        h+='<div class="mini-row" onclick="TF.openDetail(\''+escAttr(t.id)+'\')" style="flex-wrap:wrap;row-gap:2px;padding:6px 0">';
-        h+='<span class="bg '+impCls(t.importance||'When Time Allows')+'" style="font-size:8px;padding:1px 5px">'+(t.importance||'W').charAt(0)+'</span>';
-        h+='<span class="mini-row-name" style="flex:1;min-width:150px">'+esc(t.item)+'</span>';
-        if(ci.days>0)h+='<span style="font-size:10px;font-weight:600;color:'+tier.color+';font-family:var(--fd);white-space:nowrap">'+ci.days+'d overdue</span>';
-        /* Second line: metadata */
-        var hasMeta=t.client||t.category||t.estimate;
-        if(hasMeta){
-          h+='<div style="width:100%;display:flex;align-items:center;gap:6px;padding-left:22px">';
-          if(t.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:1px 6px">'+esc(t.client)+'</span>';
-          if(t.category)h+='<span style="font-size:10px;color:var(--t4)">'+esc(t.category)+'</span>';
-          if(t.estimate)h+='<span style="font-size:10px;color:var(--t3);font-family:var(--fd)">'+fmtM(t.estimate)+'</span>';
-          h+='</div>'}
-        h+='</div>'});
-      h+='</div>'});
+      h+='<div style="font-size:10px;font-weight:700;color:'+tier.color+';text-transform:uppercase;letter-spacing:0.5px;padding:6px 0 4px;border-bottom:1px solid rgba(255,255,255,0.04);margin-bottom:2px">'+tier.label+' ('+tier.items.length+')</div>';
+      tier.items.forEach(function(ci){h+=miniRow(ci.task,effDay)})});
     h+='</div>'}
 
   /* Needs Chasing */
