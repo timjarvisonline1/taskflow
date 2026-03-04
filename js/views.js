@@ -4527,6 +4527,7 @@ function rEmail(){
   if(S.gmailUnread>0)h+=' <span style="background:#EA4335;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+S.gmailUnread+'</span>';
   h+='</h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn btn-p" onclick="TF.openComposeEmail()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('edit',12)+' Compose</button>';
   h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Refresh</button>';
   h+='</div></div>';
 
@@ -4671,6 +4672,12 @@ function rEmailThread(){
     h+='</div>';
     h+='</div>';
   });
+
+  /* Reply + Compose buttons */
+  h+='<div style="display:flex;gap:8px;margin-top:16px">';
+  h+='<button class="btn btn-go" onclick="TF.openReplyEmail()" style="font-size:13px;padding:8px 20px">'+icon('mail',12)+' Reply</button>';
+  h+='<button class="btn" onclick="TF.openComposeEmail()" style="font-size:13px;padding:8px 20px">'+icon('edit',12)+' New Email</button>';
+  h+='</div>';
 
   h+='</div>';
   return h}

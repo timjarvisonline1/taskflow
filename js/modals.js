@@ -3838,3 +3838,110 @@ async function connectGmail(){
     window.addEventListener('message',onGmailConnected);
   }catch(e){toast('Gmail connect error: '+e.message,'warn')}
 }
+
+/* ═══════════ COMPOSE EMAIL MODAL ═══════════ */
+function openComposeEmail(opts){
+  opts=opts||{};
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('mail',14)+' '+(opts.replyToThreadId?'Reply':'New Email')+'</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="edf-body" style="padding:16px">';
+
+  /* To */
+  h+='<div class="ed-fld"><span class="ed-lbl">To</span>';
+  h+='<input type="text" class="edf" id="compose-to" value="'+esc(opts.to||'')+'" placeholder="recipient@example.com">';
+  h+='</div>';
+
+  /* CC (toggleable) */
+  h+='<div class="ed-fld" id="compose-cc-wrap" style="'+(opts.cc?'':'display:none')+'">';
+  h+='<span class="ed-lbl">Cc</span>';
+  h+='<input type="text" class="edf" id="compose-cc" value="'+esc(opts.cc||'')+'" placeholder="cc@example.com">';
+  h+='</div>';
+  if(!opts.cc){
+    h+='<div style="margin-bottom:8px"><a href="#" onclick="event.preventDefault();gel(\'compose-cc-wrap\').style.display=\'block\';this.style.display=\'none\'" style="font-size:11px;color:var(--accent)">+ Add Cc</a></div>';
+  }
+
+  /* Subject */
+  h+='<div class="ed-fld"><span class="ed-lbl">Subject</span>';
+  h+='<input type="text" class="edf" id="compose-subject" value="'+esc(opts.subject||'')+'" placeholder="Subject">';
+  h+='</div>';
+
+  /* Body */
+  h+='<div class="ed-fld"><span class="ed-lbl">Message</span>';
+  h+='<textarea class="edf" id="compose-body" placeholder="Write your message..." style="min-height:180px;font-size:13px;line-height:1.5">'+esc(opts.body||'')+'</textarea>';
+  h+='</div>';
+
+  /* Hidden fields for reply context */
+  if(opts.replyToThreadId)h+='<input type="hidden" id="compose-threadId" value="'+esc(opts.replyToThreadId)+'">';
+  if(opts.replyToMessageId)h+='<input type="hidden" id="compose-messageId" value="'+esc(opts.replyToMessageId)+'">';
+
+  h+='<div class="intg-actions" style="margin-top:12px">';
+  h+='<button class="btn btn-go" onclick="TF.sendEmail()" style="font-size:13px;padding:8px 20px">'+icon('mail',12)+' Send</button>';
+  h+='<button class="btn" onclick="TF.closeModal()" style="font-size:13px;padding:8px 20px">Cancel</button>';
+  h+='</div>';
+  h+='</div>';
+
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+}
+
+async function sendEmail(){
+  var to=(gel('compose-to')||{}).value||'';
+  var cc=(gel('compose-cc')||{}).value||'';
+  var subject=(gel('compose-subject')||{}).value||'';
+  var body=(gel('compose-body')||{}).value||'';
+  var threadId=(gel('compose-threadId')||{}).value||'';
+  var messageId=(gel('compose-messageId')||{}).value||'';
+
+  if(!to){toast('Enter a recipient email','warn');return}
+  if(!body){toast('Write a message','warn');return}
+
+  /* Convert plain text body to simple HTML */
+  var htmlBody='<div style="font-family:-apple-system,system-ui,sans-serif;font-size:14px">'+body.replace(/\n/g,'<br>')+'</div>';
+
+  try{
+    toast('Sending...','info');
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session){toast('Not signed in','warn');return}
+    var token=sess.data.session.access_token;
+
+    var resp=await fetch('/api/gmail/send',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({to:to,cc:cc||undefined,subject:subject,body:htmlBody,threadId:threadId||undefined,messageId:messageId||undefined})
+    });
+    var data=await resp.json();
+    if(!resp.ok||data.error){throw new Error(data.error||'Send failed')}
+
+    toast('Email sent!','ok');
+    closeModal();
+
+    /* If replying, refresh the thread */
+    if(threadId&&S.gmailThreadId===threadId){
+      openEmailThread(threadId);
+    }
+  }catch(e){toast('Send failed: '+e.message,'warn')}
+}
+
+function openReplyEmail(){
+  if(!S.gmailThread||!S.gmailThread.messages||!S.gmailThread.messages.length)return;
+  var msgs=S.gmailThread.messages;
+  var lastMsg=msgs[msgs.length-1];
+  var subject=lastMsg.subject||'';
+  if(subject&&!subject.match(/^Re:/i))subject='Re: '+subject;
+
+  /* Determine who to reply to */
+  var replyTo=lastMsg.fromEmail||'';
+
+  /* Build reply quote */
+  var dateD=new Date(lastMsg.date);
+  var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
+  var quoteHeader='\n\nOn '+dateLabel+', '+(lastMsg.fromName||lastMsg.fromEmail)+' wrote:\n> ';
+  var quotedSnippet=lastMsg.snippet.replace(/\n/g,'\n> ');
+
+  openComposeEmail({
+    to:replyTo,
+    subject:subject,
+    body:quoteHeader+quotedSnippet,
+    replyToThreadId:S.gmailThread.threadId,
+    replyToMessageId:lastMsg.id
+  });
+}
