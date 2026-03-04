@@ -823,6 +823,13 @@ function resolveThreadCrmContext(fromEmail,toEmails,ccEmails){
     return false
   }).map(function(o){return{id:o.id,name:o.name,stage:o.stage,value:o.monthlyFee,client:o.client,endClient:o.endClient}});
 
+  /* Directly-linked opportunities: only those where the opportunity's contactEmail
+     is actually one of the addresses on this thread (not just because the client matches) */
+  var directOpps=S.opportunities.filter(function(o){
+    if(o.closedAt)return false;
+    if(o.contactEmail){var oe=o.contactEmail.toLowerCase();if(allAddrs.indexOf(oe)!==-1)return true}
+    return false});
+
   /* Find related active campaigns */
   var camps=S.campaigns.filter(function(c){
     if(c.status!=='Active'&&c.status!=='Setup')return false;
@@ -831,7 +838,11 @@ function resolveThreadCrmContext(fromEmail,toEmails,ccEmails){
     return false
   }).map(function(c){return{id:c.id,name:c.name,status:c.status,client:c.partner,endClient:c.endClient}});
 
-  var isProspect=opps.length>0&&camps.length===0;
+  /* isProspect: true only when someone on this thread is directly the contact
+     on an open opportunity — not just because their client happens to have one.
+     Also excludes active clients (they're clients, not prospects). */
+  var hasActiveClient=clients.some(function(c){return c.status==='active'});
+  var isProspect=directOpps.length>0&&!hasActiveClient;
 
   return{
     clients:clients,endClients:endClients,opportunities:opps,campaigns:camps,contacts:contacts,
