@@ -1959,6 +1959,9 @@ async function downloadAttachment(messageId,attachmentId,filename,mimeType){
 /* ── Email keyboard shortcuts ── */
 function handleEmailKeyboard(e){
   if(S.view!=='email')return;
+  /* Bail if any modal is open or focus is in an editable element */
+  var modal=gel('modal');var detModal=gel('detail-modal');
+  if((modal&&modal.classList.contains('on'))||(detModal&&detModal.classList.contains('on')))return;
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable)return;
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   switch(e.key){
