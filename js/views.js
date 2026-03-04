@@ -1141,13 +1141,18 @@ function rScheduleDaily(ctx){
       h+='<div style="font-size:10px;font-weight:700;color:'+tier.color+';text-transform:uppercase;letter-spacing:0.5px;padding:6px 0 4px;border-bottom:1px solid rgba(255,255,255,0.04);margin-bottom:4px">'+tier.label+' ('+tier.items.length+')</div>';
       tier.items.forEach(function(ci){
         var t=ci.task;
-        h+='<div class="mini-row" onclick="TF.openDetail(\''+escAttr(t.id)+'\')" style="gap:6px">';
+        h+='<div class="mini-row" onclick="TF.openDetail(\''+escAttr(t.id)+'\')" style="flex-wrap:wrap;row-gap:2px;padding:6px 0">';
         h+='<span class="bg '+impCls(t.importance||'When Time Allows')+'" style="font-size:8px;padding:1px 5px">'+(t.importance||'W').charAt(0)+'</span>';
-        h+='<span class="mini-row-name">'+esc(t.item)+'</span>';
-        if(t.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:1px 6px">'+esc(t.client)+'</span>';
-        if(t.category)h+='<span style="font-size:10px;color:var(--t4)">'+esc(t.category)+'</span>';
-        if(t.estimate)h+='<span style="font-size:10px;color:var(--t3);font-family:var(--fd)">'+fmtM(t.estimate)+'</span>';
-        if(ci.days>0)h+='<span style="font-size:10px;font-weight:600;color:'+tier.color+';font-family:var(--fd);white-space:nowrap">'+ci.days+'d</span>';
+        h+='<span class="mini-row-name" style="flex:1;min-width:150px">'+esc(t.item)+'</span>';
+        if(ci.days>0)h+='<span style="font-size:10px;font-weight:600;color:'+tier.color+';font-family:var(--fd);white-space:nowrap">'+ci.days+'d overdue</span>';
+        /* Second line: metadata */
+        var hasMeta=t.client||t.category||t.estimate;
+        if(hasMeta){
+          h+='<div style="width:100%;display:flex;align-items:center;gap:6px;padding-left:22px">';
+          if(t.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:1px 6px">'+esc(t.client)+'</span>';
+          if(t.category)h+='<span style="font-size:10px;color:var(--t4)">'+esc(t.category)+'</span>';
+          if(t.estimate)h+='<span style="font-size:10px;color:var(--t3);font-family:var(--fd)">'+fmtM(t.estimate)+'</span>';
+          h+='</div>'}
         h+='</div>'});
       h+='</div>'});
     h+='</div>'}
@@ -1349,7 +1354,7 @@ function initScheduleWeeklyCharts(){
       var wkKeys=Object.keys(wkBuckets).sort();
       if(wkKeys.length>1){
         var wkVals=wkKeys.map(function(k){return wkBuckets[k]});
-        mkLine('weekly-tasks-trend',wkKeys,wkVals,'var(--green)');
+        mkLine('weekly-tasks-trend',wkKeys,wkVals,'#10b981');
       }
 
       /* Weekly time tracked trend */
@@ -1358,7 +1363,7 @@ function initScheduleWeeklyCharts(){
       var tmKeys=Object.keys(timeBuckets).sort();
       if(tmKeys.length>1){
         var tmVals=tmKeys.map(function(k){return Math.round(timeBuckets[k]/60*10)/10});
-        mkLine('weekly-time-trend',tmKeys,tmVals,'var(--blue)');
+        mkLine('weekly-time-trend',tmKeys,tmVals,'#3b82f6');
       }
     }
 
@@ -1375,11 +1380,12 @@ function initScheduleWeeklyCharts(){
     for(var pi=0;pi<prodDays;pi++){var pd=new Date(prodStart.getTime()+pi*864e5);prodData[fmtDShort(pd)]=0}
     periodDone.forEach(function(d){var k=fmtDShort(d.completed);if(prodData.hasOwnProperty(k))prodData[k]++});
     var _pk=Object.keys(prodData),_pv=_pk.map(function(k){return prodData[k]});
-    if(_pk.length>1)mkLine('weekly-productivity-trend',_pk,_pv,'var(--amber)');
+    if(_pk.length>1)mkLine('weekly-productivity-trend',_pk,_pv,'#f59e0b');
 
-    /* Client time donut */
+    /* Client time donut (exclude unassigned) */
     var clientData={};periodDone.forEach(function(d){
-      var cl=d.client||'Unassigned';clientData[cl]=(clientData[cl]||0)+(d.duration||0)});
+      if(!d.client)return;
+      clientData[d.client]=(clientData[d.client]||0)+(d.duration||0)});
     if(Object.keys(clientData).length)mkDonut('weekly-client-dist',clientData);
   },200)}
 
