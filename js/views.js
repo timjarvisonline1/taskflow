@@ -4644,6 +4644,8 @@ function rEmail(){
   var threads;
   if(isSmartInbox){
     threads=S.gmailThreads.filter(function(t){
+      /* Only show inbox threads (exclude archived) */
+      if((t.labels||'').indexOf('INBOX')===-1)return false;
       var ctx=getThreadCrmContext(t);if(!ctx)return false;
       if(sub==='e-active')return ctx.hasActiveClient;
       if(sub==='e-lapsed')return ctx.hasLapsedClient;

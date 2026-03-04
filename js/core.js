@@ -2946,6 +2946,8 @@ function _countSmartInbox(subId){
   var threads=S.gmailThreads;if(!threads||!threads.length)return 0;
   var count=0;
   threads.forEach(function(t){
+    /* Only count inbox threads (exclude archived) */
+    if((t.labels||'').indexOf('INBOX')===-1)return;
     var ctx=getThreadCrmContext(t);if(!ctx)return;
     if(subId==='e-active')     {if(ctx.hasActiveClient)count++}
     else if(subId==='e-lapsed'){if(ctx.hasLapsedClient)count++}
