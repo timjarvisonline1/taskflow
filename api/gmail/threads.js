@@ -50,7 +50,7 @@ module.exports = async function handler(req, res) {
     for (const thread of threads) {
       try {
         const threadResp = await fetch(
-          GMAIL_API + '/threads/' + thread.id + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date',
+          GMAIL_API + '/threads/' + thread.id + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Cc',
           { headers: { 'Authorization': 'Bearer ' + accessToken } }
         );
         if (!threadResp.ok) continue;
@@ -86,6 +86,7 @@ module.exports = async function handler(req, res) {
           subject: getHeader(firstMsg, 'Subject') || '(no subject)',
           fromName, fromEmail,
           toEmails: getHeader(firstMsg, 'To'),
+          ccEmails: getHeader(firstMsg, 'Cc') || '',
           snippet: lastMsg.snippet || '',
           date: new Date(parseInt(lastMsg.internalDate)).toISOString(),
           messageCount: messages.length,

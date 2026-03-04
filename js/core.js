@@ -2,7 +2,7 @@
 
 /* ═══════════ CONSTANTS ═══════════ */
 var P=['#ff0099','#7928ca','#ff9800','#3ddc84','#4da6ff','#2dd4bf','#ff3358','#a855f7','#ccff00','#ff66c4','#22d3ee','#e6007a'];
-var CATS=['One-on-One','Internal Meeting','Workshop / Training','Deep Work','Content Creation','Communication','Admin / Ops','Finance','Strategy / Planning','Sales / Outreach','Research','Review / QA','Travel / Offsite'];
+var CATS=['One-on-One','Internal Meeting','Workshop / Training','Deep Work','Content Creation','Communication','Email','Admin / Ops','Finance','Strategy / Planning','Sales / Outreach','Research','Review / QA','Travel / Offsite'];
 var IMPS=['Critical','Important','When Time Allows'];
 var TYPES=['Business','Personal'];
 var DAYNAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -163,7 +163,12 @@ var SECTIONS=[
   {id:'email',icon:'mail',label:'Email',kbd:'9',subs:[
     {id:'inbox',label:'Inbox',icon:'inbox'},
     {id:'sent',label:'Sent',icon:'mail'},
-    {id:'all',label:'All Mail',icon:'folder'}
+    {id:'all',label:'All Mail',icon:'folder'},
+    {id:'e-active',label:'Clients (Active)',icon:'users',smart:true},
+    {id:'e-lapsed',label:'Clients (Lapsed)',icon:'clock',smart:true},
+    {id:'e-prospects',label:'Prospects',icon:'gem',smart:true},
+    {id:'e-campaigns',label:'By Campaign',icon:'target',smart:true},
+    {id:'e-opportunities',label:'By Opportunity',icon:'trending_up',smart:true}
   ]}
 ];
 var VIEWS_FLAT=[];
@@ -176,7 +181,7 @@ SECTIONS.forEach(function(sec){
 function currentSection(){return SECTIONS.find(function(s){return s.id===S.view})}
 function hasSubs(sectionId){var sec=SECTIONS.find(function(s){return s.id===(sectionId||S.view)});return sec&&sec.subs&&sec.subs.length>0}
 function getDefaultSub(sectionId){var sec=SECTIONS.find(function(s){return s.id===sectionId});return sec&&sec.subs?sec.subs[0].id:''}
-function subNav(subId){S.subView=subId;save();render()}
+function subNav(subId){if(S.gmailThreadId)_flushEmailTimer();S.subView=subId;save();render()}
 
 /* ═══════════ MOBILE ═══════════ */
 function isMobile(){return window.innerWidth<=860}
@@ -756,7 +761,7 @@ async function loadContacts(){
   S.contacts=(res.data||[]).map(function(r){
     return{id:r.id,clientId:r.client_id||'',firstName:r.first_name||'',lastName:r.last_name||'',
       email:r.email||'',role:r.role||'',phone:r.phone||'',company:r.company||'',
-      website:r.website||'',status:r.status||'active'}})}
+      website:r.website||'',status:r.status||'active',endClient:r.end_client||''}})}
 
 function matchEmailToClient(email){
   if(!email)return null;
@@ -767,18 +772,92 @@ function matchEmailToClient(email){
     var cr=S.clientRecords.find(function(r){return r.id===cc.clientId});
     var cName=(cc.firstName+' '+cc.lastName).trim();
     return{clientId:cc.clientId,clientName:cr?cr.name:'',contactName:cName,contactRole:cc.role,
-      contactId:cc.id,contactEmail:cc.email,contactPhone:cc.phone,contactCompany:cc.company,contactWebsite:cc.website}}
+      contactId:cc.id,contactEmail:cc.email,contactPhone:cc.phone,contactCompany:cc.company,contactWebsite:cc.website,
+      endClient:cc.endClient||'',clientStatus:cr?cr.status:'active'}}
   /* Fall back to client.email field */
   var cl=S.clientRecords.find(function(r){return r.email&&r.email.toLowerCase()===e});
   if(cl)return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:'',
-    contactId:'',contactEmail:cl.email,contactPhone:'',contactCompany:cl.company||cl.name,contactWebsite:''};
+    contactId:'',contactEmail:cl.email,contactPhone:'',contactCompany:cl.company||cl.name,contactWebsite:'',
+    endClient:'',clientStatus:cl.status||'active'};
   return null}
+
+/* Parse email addresses from a raw header string (e.g. "Name <email>, Other <email2>") */
+function _parseEmails(raw){
+  if(!raw)return[];
+  return raw.split(/[,;]/).map(function(s){var m=s.match(/<(.+?)>/);return m?m[1].trim().toLowerCase():s.trim().toLowerCase()}).filter(function(e){return e&&e.indexOf('@')!==-1})}
+
+/* Resolve full CRM context for a thread by checking all email addresses (From + To + CC) */
+function resolveThreadCrmContext(fromEmail,toEmails,ccEmails){
+  var allAddrs=[];
+  if(fromEmail)allAddrs.push(fromEmail.toLowerCase().trim());
+  _parseEmails(toEmails).forEach(function(e){if(allAddrs.indexOf(e)===-1)allAddrs.push(e)});
+  _parseEmails(ccEmails).forEach(function(e){if(allAddrs.indexOf(e)===-1)allAddrs.push(e)});
+  /* Remove user's own email */
+  var userE=(S._userEmail||'').toLowerCase();
+  if(userE)allAddrs=allAddrs.filter(function(a){return a!==userE});
+
+  var clients=[],endClients=[],contacts=[],seenClients={},seenEC={};
+  allAddrs.forEach(function(addr){
+    var m=matchEmailToClient(addr);if(!m)return;
+    if(m.clientId&&!seenClients[m.clientId]){
+      seenClients[m.clientId]=true;
+      var cr=S.clientRecords.find(function(r){return r.id===m.clientId});
+      clients.push({clientId:m.clientId,clientName:m.clientName,status:cr?cr.status:'active'})}
+    if(m.endClient&&!seenEC[m.endClient]){
+      seenEC[m.endClient]=true;
+      endClients.push({name:m.endClient,clientName:m.clientName})}
+    if(m.contactId)contacts.push({contactName:m.contactName,contactEmail:m.contactEmail,contactRole:m.contactRole,
+      contactPhone:m.contactPhone,contactCompany:m.contactCompany,endClient:m.endClient,clientId:m.clientId,clientName:m.clientName})
+  });
+
+  /* Find related opportunities */
+  var clientNames=clients.map(function(c){return c.clientName});
+  var ecNames=endClients.map(function(e){return e.name});
+  var opps=S.opportunities.filter(function(o){
+    if(o.closedAt)return false;
+    /* Match by contact email */
+    if(o.contactEmail){var oe=o.contactEmail.toLowerCase();if(allAddrs.indexOf(oe)!==-1)return true}
+    /* Match by client + endClient */
+    if(clientNames.indexOf(o.client)!==-1)return true;
+    if(o.endClient&&ecNames.indexOf(o.endClient)!==-1)return true;
+    return false
+  }).map(function(o){return{id:o.id,name:o.name,stage:o.stage,value:o.monthlyFee,client:o.client,endClient:o.endClient}});
+
+  /* Find related active campaigns */
+  var camps=S.campaigns.filter(function(c){
+    if(c.status!=='Active'&&c.status!=='Setup')return false;
+    if(clientNames.indexOf(c.partner)!==-1)return true;
+    if(c.endClient&&ecNames.indexOf(c.endClient)!==-1)return true;
+    return false
+  }).map(function(c){return{id:c.id,name:c.name,status:c.status,client:c.partner,endClient:c.endClient}});
+
+  var isProspect=opps.length>0&&camps.length===0;
+
+  return{
+    clients:clients,endClients:endClients,opportunities:opps,campaigns:camps,contacts:contacts,
+    isProspect:isProspect,
+    primaryClient:clients.length?clients[0]:null,
+    primaryEndClient:endClients.length?endClients[0].name:''}
+}
+
+/* Thread CRM cache — invalidated on loadData */
+S._threadCrmCache={};
+function getThreadCrmContext(t){
+  var tid=t.thread_id||t.threadId;if(!tid)return null;
+  if(S._threadCrmCache[tid])return S._threadCrmCache[tid];
+  var from=t.from_email||t.fromEmail||'';
+  var to=t.to_emails||t.toEmails||'';
+  var cc=t.cc_emails||t.ccEmails||'';
+  var ctx=resolveThreadCrmContext(from,to,cc);
+  S._threadCrmCache[tid]=ctx;
+  return ctx}
 
 async function dbAddContact(clientId,data){
   var uid=await getUserId();if(!uid)return null;
   var row={user_id:uid,client_id:clientId||null,first_name:data.firstName||'',last_name:data.lastName||'',
     email:data.email||'',role:data.role||'',phone:data.phone||'',
-    company:data.company||'',website:data.website||'',status:data.status||'active'};
+    company:data.company||'',website:data.website||'',status:data.status||'active',
+    end_client:data.endClient||''};
   var res=await _sb.from('contacts').insert(row).select().single();
   if(res.error){toast('Add contact failed: '+res.error.message,'warn');return null}
   await loadContacts();render();toast('Contact added','ok');return res.data}
@@ -793,6 +872,7 @@ async function dbEditContact(id,data){
   if(data.company!==undefined)upd.company=data.company;
   if(data.website!==undefined)upd.website=data.website;
   if(data.status!==undefined)upd.status=data.status;
+  if(data.endClient!==undefined)upd.end_client=data.endClient;
   var res=await _sb.from('contacts').update(upd).eq('id',id);
   if(res.error){toast('Edit contact failed: '+res.error.message,'warn');return false}
   await loadContacts();render();toast('Contact updated','ok');return true}
@@ -1585,6 +1665,11 @@ async function fetchGmailThreads(label,search,pageToken){
   }catch(e){toast('Gmail: '+e.message,'warn');return null}}
 
 async function openEmailThread(threadId){
+  /* Flush any existing email timer before starting a new one */
+  _flushEmailTimer();
+  /* Start silent email timer */
+  S._emailTimer={threadId:threadId,started:Date.now(),subject:'',categorization:null};
+
   S.gmailThreadId=threadId;S.gmailThread=null;render();
   try{
     var sess=await _sb.auth.getSession();
@@ -1593,6 +1678,9 @@ async function openEmailThread(threadId){
     var resp=await fetch('/api/gmail/thread?id='+encodeURIComponent(threadId),{headers:{'Authorization':'Bearer '+token}});
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Failed')}
     S.gmailThread=await resp.json();
+    /* Capture subject for timer task */
+    if(S._emailTimer&&S.gmailThread&&S.gmailThread.messages&&S.gmailThread.messages.length){
+      S._emailTimer.subject=S.gmailThread.messages[0].subject||S.gmailThread.subject||''}
     /* Mark as read locally */
     var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
     if(cached)cached.is_unread=false;
@@ -1600,7 +1688,29 @@ async function openEmailThread(threadId){
     render();
   }catch(e){toast('Gmail: '+e.message,'warn')}}
 
-function closeEmailThread(){S.gmailThread=null;S.gmailThreadId='';render()}
+function _flushEmailTimer(){
+  if(!S._emailTimer||!S._emailTimer.started)return;
+  var elapsed=Math.round((Date.now()-S._emailTimer.started)/1000);
+  if(elapsed<5){S._emailTimer=null;return}  /* Ignore misclicks under 5 seconds */
+  var mins=Math.max(1,Math.round(elapsed/60));
+  var cat=S._emailTimer.categorization;
+  var taskData={
+    item:'Email: '+(S._emailTimer.subject||'(no subject)'),
+    category:'Email',type:'Business',
+    duration:mins,importance:'When Time Allows',
+    client:cat?cat.client:'',
+    endClient:cat?cat.endClient:'',
+    campaign:cat?cat.campaignId:'',
+    opportunity:cat?cat.opportunityId:''};
+  dbCompleteTask(taskData).then(function(res){
+    if(res){S.done.unshift({id:res.id,item:taskData.item,completed:new Date(),
+      duration:taskData.duration,category:'Email',type:'Business',
+      client:taskData.client,endClient:taskData.endClient,
+      campaign:taskData.campaign,opportunity:taskData.opportunity,
+      importance:'When Time Allows',est:0,notes:''})}});
+  S._emailTimer=null}
+
+function closeEmailThread(){_flushEmailTimer();S.gmailThread=null;S.gmailThreadId='';render()}
 
 async function searchGmail(query){
   S.gmailSearch=query;
@@ -1613,7 +1723,8 @@ function setGmailFilter(filter){
   S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';S._gmailLiveThreads=null;S._gmailNextPage=null;
   S.gmailThread=null;S.gmailThreadId='';
   save();render();
-  ensureGmailThreads()}
+  /* Smart inboxes use cached threads, not live fetch */
+  if(filter.indexOf('e-')!==0)ensureGmailThreads()}
 
 async function loadMoreGmailThreads(){
   if(!S._gmailNextPage)return;
@@ -2163,6 +2274,7 @@ async function loadData(){toast('Loading data...','info');
           if(!existing)S.timers[t.id]={started:null,elapsed:t.duration*60};
           else S.timers[t.id].elapsed=t.duration*60;
           save()}}});
+    S._threadCrmCache={};  /* Invalidate CRM context cache */
     gel('last-refresh').textContent='Updated '+new Date().toLocaleTimeString();
     processRecurring();
     if(typeof cleanMtgPrompted==='function')cleanMtgPrompted();
@@ -2724,6 +2836,7 @@ function finGetPreviousPeriodConfig(cfg){
 
 /* ═══════════ NAV ═══════════ */
 function nav(id,sub){
+  _flushEmailTimer();  /* Log email time when navigating away */
   if(isMobile()){var mobIds=['mob-add','tasks','mob-review','opportunities'];if(mobIds.indexOf(id)===-1)id='mob-add'}
   S.view=id;
   if(hasSubs(id)){S.subView=sub||getDefaultSub(id)}else{S.subView=''}
@@ -2784,14 +2897,34 @@ function buildNav(){var h='';
 function buildSubNav(sec){
   var el=gel('sub-nav');if(!el)return;
   var h='<div class="sub-nav-header"><span class="sub-nav-header-ico">'+icon(sec.icon,14)+'</span> '+sec.label+'</div>';
+  var _smartDivShown=false;
   sec.subs.forEach(function(sub){
+    /* Smart inbox divider */
+    if(sub.smart&&!_smartDivShown){_smartDivShown=true;h+='<div class="sub-nav-divider"><span>Smart Inboxes</span></div>'}
     var isOn=S.subView===sub.id;
     h+='<div class="sub-nav-item'+(isOn?' on':'')+'" onclick="TF.subNav(\''+sub.id+'\')">';
     h+='<span class="ico">'+icon(sub.icon,14)+'</span>'+sub.label;
     if(sub.id==='inbox'){var _sib=S.tasks.filter(function(t){return t.isInbox}).length;if(_sib>0)h+='<span class="sub-badge">'+_sib+'</span>'}
     if(sub.id==='review'&&S.review.length>0)h+='<span class="sub-badge">'+S.review.length+'</span>';
+    /* Smart inbox badges */
+    if(sub.smart&&sec.id==='email'){
+      var _sc=_countSmartInbox(sub.id);
+      if(_sc>0)h+='<span class="sub-badge">'+_sc+'</span>'}
     h+='</div>'});
   el.innerHTML=h;el.classList.add('open')}
+
+function _countSmartInbox(subId){
+  var threads=S.gmailThreads;if(!threads||!threads.length)return 0;
+  var count=0;
+  threads.forEach(function(t){
+    var ctx=getThreadCrmContext(t);if(!ctx)return;
+    if(subId==='e-active'&&ctx.clients.some(function(c){return c.status==='active'}))count++;
+    else if(subId==='e-lapsed'&&ctx.clients.some(function(c){return c.status==='lapsed'})&&!ctx.clients.some(function(c){return c.status==='active'}))count++;
+    else if(subId==='e-prospects'&&ctx.isProspect)count++;
+    else if(subId==='e-campaigns'&&t.campaign_id)count++;
+    else if(subId==='e-opportunities'&&t.opportunity_id)count++;
+  });
+  return count}
 function openMenu(){if(isMobile())return;gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on');
   var mt=document.querySelector('.btm-tab[data-v="more"]');if(mt)mt.classList.add('on')}
 function closeMenu(){gel('sidebar').classList.remove('open');gel('mob-overlay').classList.remove('on');

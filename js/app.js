@@ -89,6 +89,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   addComposeAttachment:addComposeAttachment,removeComposeAttachment:removeComposeAttachment,downloadAttachment:downloadAttachment,
   openSignatureEditor:openSignatureEditor,renderRecipientChips:renderRecipientChips,handleComposeFiles:handleComposeFiles,renderComposeAttachments:renderComposeAttachments,
   addContactFromEmail:addContactFromEmail,openAddNoteFromEmail:openAddNoteFromEmail,
+  composeCatClientChange:composeCatClientChange,composeCatNoneChange:composeCatNoneChange,composeCatValidate:_composeCatValidate,
   /* Contacts */
   dbAddContact:dbAddContact,dbEditContact:dbEditContact,dbDeleteContact:dbDeleteContact,
   openAddContactModal:openAddContactModal,openEditContactModal:openEditContactModal,

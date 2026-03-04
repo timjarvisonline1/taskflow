@@ -3930,9 +3930,23 @@ function openComposeEmail(opts){
   if(opts.replyToThreadId)h+='<input type="hidden" id="compose-threadId" value="'+escAttr(opts.replyToThreadId)+'">';
   if(opts.replyToMessageId)h+='<input type="hidden" id="compose-messageId" value="'+escAttr(opts.replyToMessageId)+'">';
 
+  /* ── Categorization bar ── */
+  h+='<div class="compose-cat-bar" id="compose-cat-bar">';
+  h+='<div class="compose-cat-header">'+icon('tag',11)+' Categorize <span style="font-weight:400;color:var(--t4)">(required before sending)</span></div>';
+  h+='<div class="compose-cat-grid">';
+  h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">Client</span><select class="edf" id="compose-cat-client" onchange="TF.composeCatClientChange()" style="font-size:11px;padding:5px 8px"><option value="">— Select —</option>';
+  S.clientRecords.forEach(function(cr){h+='<option value="'+esc(cr.name)+'">'+esc(cr.name)+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">End Client</span><select class="edf" id="compose-cat-ec" onchange="TF.composeCatValidate()" style="font-size:11px;padding:5px 8px"><option value="">— Select —</option></select></div>';
+  h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">Campaign</span><select class="edf" id="compose-cat-campaign" onchange="TF.composeCatValidate()" style="font-size:11px;padding:5px 8px"><option value="">— Select —</option></select></div>';
+  h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">Opportunity</span><select class="edf" id="compose-cat-opportunity" onchange="TF.composeCatValidate()" style="font-size:11px;padding:5px 8px"><option value="">— Select —</option></select></div>';
+  h+='</div>';
+  h+='<label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--t3);cursor:pointer"><input type="checkbox" id="compose-cat-none" onchange="TF.composeCatNoneChange()"> None / Internal</label>';
+  h+='</div>';
+
   /* ── Bottom bar ── */
   h+='<div style="display:flex;align-items:center;gap:8px;margin-top:12px">';
-  h+='<button class="btn btn-p" onclick="TF.sendEmail()" style="font-size:13px;padding:8px 24px">'+icon('send',12)+' Send</button>';
+  h+='<button class="btn btn-p compose-send-btn" id="compose-send-btn" onclick="TF.sendEmail()" style="font-size:13px;padding:8px 24px;opacity:.5;pointer-events:none" disabled>'+icon('send',12)+' Send</button>';
   h+='<button class="btn" onclick="TF.addComposeAttachment()" style="font-size:12px;padding:7px 14px">'+icon('paperclip',12)+' Attach</button>';
   h+='<div style="flex:1"></div>';
   h+='<button class="btn" onclick="TF.closeModal()" style="font-size:12px;padding:7px 14px">Discard</button>';
@@ -3954,8 +3968,72 @@ function openComposeEmail(opts){
       /* Move cursor to beginning */
       var sel=window.getSelection();var rng=document.createRange();rng.setStart(ed,0);rng.collapse(true);sel.removeAllRanges();sel.addRange(rng)}}
     /* Listen for selection changes to update toolbar */
-    document.addEventListener('selectionchange',updateComposeToolbar)
+    document.addEventListener('selectionchange',updateComposeToolbar);
+    /* Auto-detect CRM context from recipients */
+    _composeCatAutoDetect();
   },50)}
+
+function _composeCatAutoDetect(){
+  var allRecips=[].concat(window._composeRecipients.to||[],window._composeRecipients.cc||[]);
+  if(!allRecips.length)return;
+  var ctx=resolveThreadCrmContext('',allRecips.join(','),'');
+  if(ctx.primaryClient){
+    var sel=gel('compose-cat-client');if(sel){sel.value=ctx.primaryClient.clientName;composeCatClientChange()}}
+  if(ctx.primaryEndClient){
+    setTimeout(function(){var sel=gel('compose-cat-ec');if(sel)sel.value=ctx.primaryEndClient},50)}
+  if(ctx.campaigns.length){
+    setTimeout(function(){var sel=gel('compose-cat-campaign');if(sel)sel.value=ctx.campaigns[0].id},100)}
+  if(ctx.opportunities.length){
+    setTimeout(function(){var sel=gel('compose-cat-opportunity');if(sel)sel.value=ctx.opportunities[0].id},100)}
+  setTimeout(_composeCatValidate,150)}
+
+function composeCatClientChange(){
+  var client=(gel('compose-cat-client')||{}).value||'';
+  /* Refresh end-client options */
+  var ecSel=gel('compose-cat-ec');if(ecSel){
+    var oh='<option value="">— Select —</option>';
+    var ecs=[];
+    S.campaigns.forEach(function(c){if(!client||c.partner===client){if(c.endClient&&ecs.indexOf(c.endClient)===-1)ecs.push(c.endClient)}});
+    S.tasks.concat(S.done).forEach(function(t){if(!client||t.client===client){if(t.endClient&&ecs.indexOf(t.endClient)===-1)ecs.push(t.endClient)}});
+    S.opportunities.forEach(function(o){if(!client||o.client===client){if(o.endClient&&ecs.indexOf(o.endClient)===-1)ecs.push(o.endClient)}});
+    ecs.sort().forEach(function(ec){oh+='<option value="'+esc(ec)+'">'+esc(ec)+'</option>'});
+    ecSel.innerHTML=oh}
+  /* Refresh campaign options */
+  var cpSel=gel('compose-cat-campaign');if(cpSel){
+    var ch='<option value="">— Select —</option>';
+    S.campaigns.filter(function(c){return!client||c.partner===client}).forEach(function(c){
+      ch+='<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>'});
+    cpSel.innerHTML=ch}
+  /* Refresh opportunity options */
+  var opSel=gel('compose-cat-opportunity');if(opSel){
+    var oph='<option value="">— Select —</option>';
+    S.opportunities.filter(function(o){return!o.closedAt&&(!client||o.client===client)}).forEach(function(o){
+      oph+='<option value="'+esc(o.id)+'">'+esc(o.name)+'</option>'});
+    opSel.innerHTML=oph}
+  _composeCatValidate()}
+
+function composeCatNoneChange(){
+  var none=gel('compose-cat-none');
+  if(none&&none.checked){
+    ['compose-cat-client','compose-cat-ec','compose-cat-campaign','compose-cat-opportunity'].forEach(function(id){
+      var el=gel(id);if(el){el.value='';el.disabled=true}})
+  }else{
+    ['compose-cat-client','compose-cat-ec','compose-cat-campaign','compose-cat-opportunity'].forEach(function(id){
+      var el=gel(id);if(el)el.disabled=false})
+  }
+  _composeCatValidate()}
+
+function _composeCatValidate(){
+  var btn=gel('compose-send-btn');if(!btn)return;
+  var none=gel('compose-cat-none');
+  var client=(gel('compose-cat-client')||{}).value||'';
+  var ec=(gel('compose-cat-ec')||{}).value||'';
+  var camp=(gel('compose-cat-campaign')||{}).value||'';
+  var opp=(gel('compose-cat-opportunity')||{}).value||'';
+  var valid=(none&&none.checked)||client||ec||camp||opp;
+  btn.disabled=!valid;
+  btn.style.opacity=valid?'1':'.5';
+  btn.style.pointerEvents=valid?'auto':'none'}
 
 async function sendEmail(){
   var to=window._composeRecipients.to.join(', ');
@@ -3995,6 +4073,27 @@ async function sendEmail(){
     var data=await resp.json();
     if(!resp.ok||data.error){throw new Error(data.error||'Send failed')}
 
+    /* Capture categorization for email timer */
+    var _catClient=(gel('compose-cat-client')||{}).value||'';
+    var _catEC=(gel('compose-cat-ec')||{}).value||'';
+    var _catCampaign=(gel('compose-cat-campaign')||{}).value||'';
+    var _catOpp=(gel('compose-cat-opportunity')||{}).value||'';
+    if(S._emailTimer&&threadId&&S._emailTimer.threadId===threadId){
+      S._emailTimer.categorization={client:_catClient,endClient:_catEC,campaignId:_catCampaign,opportunityId:_catOpp}}
+
+    /* Persist categorization to gmail_threads */
+    if(threadId&&(_catClient||_catEC||_catCampaign||_catOpp)){
+      var _catClientId='';
+      if(_catClient){var _cr=S.clientRecords.find(function(r){return r.name===_catClient});if(_cr)_catClientId=_cr.id}
+      _sb.from('gmail_threads').update({
+        client_id:_catClientId||null,end_client:_catEC,
+        campaign_id:_catCampaign||null,opportunity_id:_catOpp||null
+      }).eq('thread_id',threadId).then(function(){
+        /* Update local cache too */
+        var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
+        if(cached){cached.client_id=_catClientId;cached.end_client=_catEC;cached.campaign_id=_catCampaign;cached.opportunity_id=_catOpp}
+        S._threadCrmCache={}})}
+
     toast('Email sent!','ok');
     /* Clean up */
     document.removeEventListener('selectionchange',updateComposeToolbar);
@@ -4003,8 +4102,8 @@ async function sendEmail(){
     inner.classList.remove('tf-modal-wide');
     closeModal();
 
-    /* If replying, refresh the thread */
-    if(threadId&&S.gmailThreadId===threadId){openEmailThread(threadId)}
+    /* Auto-archive replies/forwards */
+    if(threadId){archiveEmail(threadId)}
   }catch(e){toast('Send failed: '+e.message,'warn')}}
 
 function openReplyEmail(msgIdx){
@@ -4056,12 +4155,19 @@ function openAddContactModal(clientId,prefill){
   h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" placeholder="e.g. Marketing Manager"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="tel" class="edf" id="fc-phone" placeholder="+1 (555) 000-0000"></div>';
   h+='</div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="fc-end-client" list="fc-ec-list" placeholder="End client name"><datalist id="fc-ec-list">';
+  var _ecOpts=[];S.campaigns.forEach(function(c){if(c.endClient&&_ecOpts.indexOf(c.endClient)===-1)_ecOpts.push(c.endClient)});
+  S.tasks.concat(S.done).forEach(function(t){if(t.endClient&&_ecOpts.indexOf(t.endClient)===-1)_ecOpts.push(t.endClient)});
+  S.opportunities.forEach(function(o){if(o.endClient&&_ecOpts.indexOf(o.endClient)===-1)_ecOpts.push(o.endClient)});
+  _ecOpts.sort().forEach(function(ec){h+='<option value="'+esc(ec)+'">'});
+  h+='</datalist></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveContact()">Add Contact</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
   if(prefill){
     if(prefill.email){var fe=gel('fc-email');if(fe)fe.value=prefill.email}
     if(prefill.firstName){var fn=gel('fc-first-name');if(fn)fn.value=prefill.firstName}
-    if(prefill.lastName){var ln=gel('fc-last-name');if(ln)ln.value=prefill.lastName}}
+    if(prefill.lastName){var ln=gel('fc-last-name');if(ln)ln.value=prefill.lastName}
+    if(prefill.endClient){var ec=gel('fc-end-client');if(ec)ec.value=prefill.endClient}}
   setTimeout(function(){var n=gel('fc-first-name');if(n)n.focus()},100)}
 
 function openEditContactModal(contactId){
@@ -4081,6 +4187,12 @@ function openEditContactModal(contactId){
   h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" value="'+escAttr(c.role)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="tel" class="edf" id="fc-phone" value="'+escAttr(c.phone)+'"></div>';
   h+='</div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="fc-end-client" list="fc-ec-list" value="'+escAttr(c.endClient||'')+'"><datalist id="fc-ec-list">';
+  var _ecOpts2=[];S.campaigns.forEach(function(cp){if(cp.endClient&&_ecOpts2.indexOf(cp.endClient)===-1)_ecOpts2.push(cp.endClient)});
+  S.tasks.concat(S.done).forEach(function(t){if(t.endClient&&_ecOpts2.indexOf(t.endClient)===-1)_ecOpts2.push(t.endClient)});
+  S.opportunities.forEach(function(o){if(o.endClient&&_ecOpts2.indexOf(o.endClient)===-1)_ecOpts2.push(o.endClient)});
+  _ecOpts2.sort().forEach(function(ec){h+='<option value="'+esc(ec)+'">'});
+  h+='</datalist></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditContact()">Save Contact</button>';
   h+='<button class="btn" onclick="TF.confirmDeleteContact(\''+escAttr(contactId)+'\')" style="color:var(--red)">Delete</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
@@ -4093,7 +4205,8 @@ async function saveContact(){
   var email=(gel('fc-email')||{}).value||'';
   if(!firstName.trim()&&!lastName.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
   await dbAddContact(clientId,{firstName:firstName.trim(),lastName:lastName.trim(),email:email.trim(),
-    company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||''});
+    company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||'',
+    endClient:(gel('fc-end-client')||{}).value||''});
   closeModal();
   /* Re-open client dashboard if it was open */
   if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
@@ -4105,7 +4218,8 @@ async function saveEditContact(){
   var email=(gel('fc-email')||{}).value||'';
   if(!firstName.trim()&&!lastName.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
   await dbEditContact(id,{firstName:firstName.trim(),lastName:lastName.trim(),email:email.trim(),
-    company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||''});
+    company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||'',
+    endClient:(gel('fc-end-client')||{}).value||''});
   closeModal();
   if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
 

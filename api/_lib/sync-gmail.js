@@ -50,7 +50,7 @@ async function syncGmail(userId) {
     for (const thread of threads) {
       try {
         const threadResp = await fetch(
-          GMAIL_API + '/threads/' + thread.id + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject',
+          GMAIL_API + '/threads/' + thread.id + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Cc',
           { headers: { 'Authorization': 'Bearer ' + accessToken } }
         );
         if (!threadResp.ok) continue;
@@ -71,6 +71,7 @@ async function syncGmail(userId) {
         const fromRaw = getHeader(firstMsg, 'From');
         const subject = getHeader(firstMsg, 'Subject');
         const toRaw = getHeader(firstMsg, 'To');
+        const ccRaw = getHeader(firstMsg, 'Cc') || '';
 
         // Parse "Name <email>" format
         const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
@@ -88,11 +89,13 @@ async function syncGmail(userId) {
         const lastFromEmail = lastFromMatch ? lastFromMatch[1].trim() : lastFromRaw.trim();
 
         // Auto-associate with client by email (clients first, then contacts)
+        // Check From, To, AND CC addresses
         let clientId = null;
-        const emailsToCheck = [fromEmail.toLowerCase(), ...(toRaw.toLowerCase().split(/[,;]/).map(e => {
+        const parseEmails = (raw) => raw ? raw.toLowerCase().split(/[,;]/).map(e => {
           const m = e.match(/<(.+?)>/);
           return m ? m[1].trim() : e.trim();
-        }))];
+        }).filter(e => e && e.includes('@')) : [];
+        const emailsToCheck = [fromEmail.toLowerCase(), ...parseEmails(toRaw), ...parseEmails(ccRaw)];
         for (const email of emailsToCheck) {
           if (clientEmailMap[email]) {
             clientId = clientEmailMap[email];
@@ -112,6 +115,7 @@ async function syncGmail(userId) {
           from_email: fromEmail,
           from_name: fromName,
           to_emails: toRaw,
+          cc_emails: ccRaw,
           snippet: lastMsg.snippet || '',
           last_message_at: new Date(parseInt(lastMsg.internalDate)).toISOString(),
           message_count: messages.length,
