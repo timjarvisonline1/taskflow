@@ -106,7 +106,8 @@ taskflow/
 │   ├── add-campaign-billing.sql    # Campaign billing metadata columns
 │   ├── add-finance-overhaul.sql    # Enhanced team_members (commission), scheduled_items (end_date/num_payments), opportunities (payment/fees)
 │   ├── add-activity-logs.sql       # activity_logs table
-│   └── add-meeting-key.sql         # meeting_key column on tasks
+│   ├── add-meeting-key.sql         # meeting_key column on tasks
+│   └── add-inbox.sql              # is_inbox boolean column on tasks
 │
 └── scripts/
     ├── run-migration.py    # Helper to run SQL migrations
@@ -125,7 +126,7 @@ The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered 
 |---|-----|-------|-----|-----------|
 | 1 | `dashboard` | Dashboard | 1 | — |
 | 2 | `today` | Schedule | 2 | Suggested Schedule (default), Today's Schedule, Meeting Prep, Analytics, Daily Summary, Weekly Summary, Weekly Capacity |
-| 3 | `tasks` | Tasks | 3 | Open Tasks, Completed, Review Queue (with badge) |
+| 3 | `tasks` | Tasks | 3 | Inbox (with badge), Open Tasks, Completed, Review Queue (with badge) |
 | 4 | `opportunities` | Sales | 4 | Analytics, Retain Live, F&C Partnerships, F&C Direct, Profitability |
 | 5 | `campaigns` | Campaigns | 5 | Pipeline, List, Performance |
 | 6 | `projects` | Projects | 6 | Board, List, Timeline |
@@ -148,7 +149,7 @@ All app state lives in `window.S`, populated by `loadData()`:
 ```javascript
 S = {
   // Data arrays (from Supabase)
-  tasks: [],              // Active tasks
+  tasks: [],              // Active tasks (includes inbox items where isInbox=true)
   done: [],               // Completed tasks
   review: [],             // Review queue items
   clients: [],            // Client name strings (legacy)
@@ -236,8 +237,9 @@ Schedule sub-views (via rToday() dispatcher):
   rScheduleWeekly()        — Weekly Summary — this week vs last week comparison, streak, charts
   rScheduleCapacity()      — Weekly Capacity view
 
-Tasks sub-views:
-  rTasks()                 — Open tasks (compact rows with filter bar)
+Tasks sub-views (via rTasks() dispatcher):
+  (inbox)                  — Inbox: quick-added tasks awaiting detail review (badge count in sub-nav)
+  (open)                   — Open tasks (compact rows with filter bar, excludes inbox items)
   (completed)              — Completed tasks list
   (review)                 — Review queue with badge count in sub-nav
 
@@ -490,7 +492,7 @@ In `api/_lib/supabase.js`, the `upsertPayment` function:
 ## Database Tables
 
 ### Core Tables
-- `tasks` — active tasks with due dates, importance, client, campaign, project, opportunity associations, meeting_key, duration
+- `tasks` — active tasks with due dates, importance, client, campaign, project, opportunity associations, meeting_key, duration, is_inbox
 - `done` — completed tasks (moved from tasks on completion)
 - `review` — items to review/approve before becoming tasks
 - `clients` — client/partner records
@@ -645,6 +647,9 @@ All CSV-imported data covers up to 2026-02-28. Live sync data starts from this d
 - Sub-nav panel has `overflow-y:auto` when open to prevent clipping when sections have many subs (e.g., Schedule has 7, Finance has 9)
 - `buildClientMap()` filters out "Internal" and "N/A" client names from all client views and dashboards
 - The Finance Transactions view has no separate Split tab — split records are included in the Matched tab via `finFilteredPayments()`
+- Quick Add (mobile + sidebar) sets `is_inbox=true`. Desktop Add Modal does not (no `f-inbox` hidden input). Saving from the detail modal always clears `isInbox`
+- Open Tasks view excludes inbox items (`!t.isInbox`); mobile tasks view also excludes them
+- Sidebar and bottom tab badges combine inbox count + review count
 
 ## Current Status (as of 2026-03-03)
 
@@ -672,6 +677,7 @@ All CSV-imported data covers up to 2026-02-28. Live sync data starts from this d
 - Dashboard as first nav item with comprehensive overview (today's focus, productivity, pipeline, finance, clients, heatmap, charts)
 - Schedule section with 7 sub-views: Suggested Schedule (default), Today's Schedule, Meeting Prep (enhanced with all meetings), Analytics (heatmap + charts), Daily Summary (inline), Weekly Summary (comparisons), Weekly Capacity
 - Clients with Active/Lapsed filtering, simplified 6-column directory, full-screen client dashboard on click
+- Inbox sub-view in Tasks: quick-added tasks flagged with `is_inbox=true`, cleared on save from detail modal, badge count in sub-nav and sidebar
 - Review queue badge in Tasks sub-nav
 - Mobile bottom tabs: Add, Tasks, Review, Opps
 - Compact task rows (36px min-height) with clean filter bar styling

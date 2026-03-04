@@ -265,6 +265,7 @@ async function saveDetail(){
   task.flag=gel('d-flag').checked;
   if(task.flag){task.status='Need Client Input'}
   else if(wasFlagged&&!task.flag){task.status='Planned'}
+  task.isInbox=false;
   save();
   await dbEditTask(id,task);
   toast(icon('save',12)+' Saved: '+task.item,'ok');closeModal();render()}
@@ -402,6 +403,7 @@ function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHou
 async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('Enter a task name','warn');return}
   var flagged=gel('f-flag').checked;
   var markDone=gel('f-done')&&gel('f-done').checked;
+  var isInbox=gel('f-inbox')&&gel('f-inbox').value==='true';
   var cpVal=(gel('f-campaign')||{}).value||'';
   var ecVal=(gel('f-ec')?gel('f-ec').value:'').trim();
   if(cpVal&&!ecVal){var _cpaf=S.campaigns.find(function(c){return c.id===cpVal});if(_cpaf)ecVal=_cpaf.endClient}
@@ -412,7 +414,7 @@ async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim
   var data={item:item.trim(),due:gel('f-due').value,importance:gel('f-imp').value,category:gel('f-cat').value,
     client:gel('f-cli').value||'',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal,
-    project:projVal,phase:phaseVal,opportunity:oppVal};
+    project:projVal,phase:phaseVal,opportunity:oppVal,isInbox:isInbox};
   if(markDone){
     var mins=parseInt((gel('f-done-dur')||{}).value)||data.est||0;
     var doneData={item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,category:data.category,
@@ -424,12 +426,13 @@ async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim
   else{
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity})}
+      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox})}
     toast('Added: '+data.item,'ok')}
   closeModal();render()}
 
 async function addAndStart(){var item=(gel('f-item')||{}).value;if(!item||!item.trim()){toast('Enter a task name','warn');return}
   var flagged=gel('f-flag').checked;
+  var isInbox2=gel('f-inbox')&&gel('f-inbox').value==='true';
   var cpVal=(gel('f-campaign')||{}).value||'';
   var ecVal=(gel('f-ec')?gel('f-ec').value:'').trim();
   if(cpVal&&!ecVal){var _cpas=S.campaigns.find(function(c){return c.id===cpVal});if(_cpas)ecVal=_cpas.endClient}
@@ -440,12 +443,12 @@ async function addAndStart(){var item=(gel('f-item')||{}).value;if(!item||!item.
   var data={item:item.trim(),due:gel('f-due').value,importance:gel('f-imp').value,category:gel('f-cat').value,
     client:gel('f-cli').value||'',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal2,
-    project:projVal2,phase:phaseVal2,opportunity:oppVal2};
+    project:projVal2,phase:phaseVal2,opportunity:oppVal2,isInbox:isInbox2};
   var result=await dbAddTask(data);
   if(!result){toast('Failed to add task','warn');return}
   var id=result.id;
   S.tasks.push({id:id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
-    category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
+    category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox2});
   save();
   /* Start timer + enter Focus Mode */
   var t=tmrGet(id);t.started=Date.now();S.timers[id]=t;save();

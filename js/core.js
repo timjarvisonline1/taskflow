@@ -105,9 +105,10 @@ var SECTIONS=[
     {id:'capacity',label:'Weekly Capacity',icon:'activity'}
   ]},
   {id:'tasks',icon:'tasks',label:'Tasks',kbd:'3',subs:[
+    {id:'inbox',label:'Inbox',icon:'inbox'},
     {id:'open',label:'Open Tasks',icon:'tasks'},
     {id:'done',label:'Completed',icon:'check'},
-    {id:'review',label:'Review Queue',icon:'inbox'}
+    {id:'review',label:'Review Queue',icon:'mail'}
   ]},
   {id:'opportunities',icon:'gem',label:'Sales',kbd:'4',subs:[
     {id:'analytics',label:'Analytics',icon:'dashboard'},
@@ -557,7 +558,7 @@ async function loadTasks(){
   S.tasks=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,due:r.due?new Date(r.due+'T00:00:00'):null,importance:r.importance||'When Time Allows',est:r.est||0,
       category:r.category||'',client:r.client||'',endClient:r.end_client||'',type:r.type||'Business',
-      duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||'',meetingKey:r.meeting_key||'',project:r.project||'',phase:r.phase||'',opportunity:r.opportunity||''}})}
+      duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||'',meetingKey:r.meeting_key||'',project:r.project||'',phase:r.phase||'',opportunity:r.opportunity||'',isInbox:!!r.is_inbox}})}
 
 async function loadDone(){
   var res=await _sb.from('done').select('*').order('completed',{ascending:false});
@@ -1620,7 +1621,7 @@ async function dbAddTask(taskData){
     est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:taskData.endClient||'',
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
     flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||'',
-    project:taskData.project||'',phase:taskData.phase||'',opportunity:taskData.opportunity||''};
+    project:taskData.project||'',phase:taskData.phase||'',opportunity:taskData.opportunity||'',is_inbox:!!taskData.isInbox};
   var res=await _sb.from('tasks').insert(row).select().single();
   if(res.error){toast('Save failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -1630,7 +1631,7 @@ async function dbEditTask(id,taskData){
     est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:taskData.endClient||'',
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
     flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||'',
-    project:taskData.project||'',phase:taskData.phase||'',opportunity:taskData.opportunity||''};
+    project:taskData.project||'',phase:taskData.phase||'',opportunity:taskData.opportunity||'',is_inbox:!!taskData.isInbox};
   var res=await _sb.from('tasks').update(row).eq('id',id);
   if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
   return true}
@@ -2144,7 +2145,7 @@ function nav(id,sub){
 function buildNav(){var h='';
   SECTIONS.forEach(function(sec){
     var badge='';
-    if(sec.id==='tasks'&&S.review.length)badge='<span class="nav-badge">'+S.review.length+'</span>';
+    if(sec.id==='tasks'){var _ib=S.tasks.filter(function(t){return t.isInbox}).length+S.review.length;if(_ib)badge='<span class="nav-badge">'+_ib+'</span>'}
     var isOn=sec.id===S.view;
     if(sec.soon){
       h+='<div class="s-item s-item-soon" data-v="'+sec.id+'">';
@@ -2181,14 +2182,14 @@ function buildNav(){var h='';
     if(isMobile()){
       var bh='';MOB_VIEWS.forEach(function(mv){
         var isOn=mv.id===S.view;
-        var badge='';if(mv.id==='tasks'&&S.review.length)badge='<span class="btm-badge" id="btm-badge">'+S.review.length+'</span>';
+        var badge='';if(mv.id==='tasks'){var _mib=S.tasks.filter(function(t){return t.isInbox}).length+S.review.length;if(_mib)badge='<span class="btm-badge" id="btm-badge">'+_mib+'</span>'}
         bh+='<button class="btm-tab'+(isOn?' on':'')+'" data-v="'+mv.id+'" onclick="TF.nav(\''+mv.id+'\')">';
         bh+='<span class="btm-ico">'+icon(mv.icon)+'</span><span class="btm-lbl">'+mv.label+'</span>'+badge+'</button>'});
       btmNav.innerHTML=bh;
     } else {
       btmNav.querySelectorAll('.btm-tab').forEach(function(tab){
         tab.classList.toggle('on',tab.dataset.v===S.view)});
-      var btmBadge=gel('btm-badge');if(btmBadge)btmBadge.textContent=S.review.length?S.review.length:'';
+      var btmBadge=gel('btm-badge');if(btmBadge){var _bib=S.tasks.filter(function(t){return t.isInbox}).length+S.review.length;btmBadge.textContent=_bib?_bib:''}
     }}}
 function buildSubNav(sec){
   var el=gel('sub-nav');if(!el)return;
@@ -2197,6 +2198,7 @@ function buildSubNav(sec){
     var isOn=S.subView===sub.id;
     h+='<div class="sub-nav-item'+(isOn?' on':'')+'" onclick="TF.subNav(\''+sub.id+'\')">';
     h+='<span class="ico">'+icon(sub.icon,14)+'</span>'+sub.label;
+    if(sub.id==='inbox'){var _sib=S.tasks.filter(function(t){return t.isInbox}).length;if(_sib>0)h+='<span class="sub-badge">'+_sib+'</span>'}
     if(sub.id==='review'&&S.review.length>0)h+='<span class="sub-badge">'+S.review.length+'</span>';
     h+='</div>'});
   el.innerHTML=h;el.classList.add('open')}

@@ -1165,9 +1165,9 @@ function initTodayCharts(){
 
 async function quickAdd(){var input=gel('qa-item');if(!input)return;var item=input.value.trim();if(!item){toast('Enter a task name','warn');return}
   var now=new Date();now.setHours(17,0,0,0);
-  var data={item:item,due:now.toISOString(),importance:qaImp,category:'',client:'',endClient:'',type:'Business',est:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:''};
+  var data={item:item,due:now.toISOString(),importance:qaImp,category:'',client:'',endClient:'',type:'Business',est:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:'',isInbox:true};
   var result=await dbAddTask(data);
-  if(result){S.tasks.push({id:result.id,item:item,due:now,importance:qaImp,est:0,category:'',client:'',endClient:'',type:'Business',duration:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:''})}
+  if(result){S.tasks.push({id:result.id,item:item,due:now,importance:qaImp,est:0,category:'',client:'',endClient:'',type:'Business',duration:0,notes:'',status:'Planned',flag:false,campaign:'',meetingKey:'',isInbox:true})}
   input.value='';toast('Added: '+item,'ok');render()}
 
 /* ═══════════ TASKS (UNIFIED: Open / Completed / All) ═══════════ */
@@ -1176,9 +1176,11 @@ function rTasks(){
 
   /* ── Header ── */
   var rvCount=S.review.length;
+  var ibxCount=S.tasks.filter(function(t){return t.isInbox}).length;
   var h='<div class="pg-head"><h1>Tasks</h1>';
   if(isMobile()){
     h+='<div class="task-mode-toggle">';
+    h+='<button class="tm-btn'+(mode==='inbox'?' on':'')+'" onclick="TF.subNav(\'inbox\')">Inbox'+(ibxCount?'<span class="nav-badge" style="margin-left:6px">'+ibxCount+'</span>':'')+'</button>';
     h+='<button class="tm-btn'+(mode==='open'?' on':'')+'" onclick="TF.subNav(\'open\')">Open</button>';
     h+='<button class="tm-btn'+(mode==='done'?' on':'')+'" onclick="TF.subNav(\'done\')">Completed</button>';
     h+='<button class="tm-btn'+(mode==='review'?' on':'')+'" onclick="TF.subNav(\'review\')">Review'+(rvCount?'<span class="nav-badge" style="margin-left:6px">'+rvCount+'</span>':'')+'</button>';
@@ -1187,7 +1189,8 @@ function rTasks(){
 
   /* ── Toolbar: filters + view controls ── */
   h+='<div class="task-toolbar">';
-  if(mode==='open')h+=filterBar(S.tasks);
+  if(mode==='open')h+=filterBar(S.tasks.filter(function(t){return !t.isInbox}));
+  else if(mode==='inbox')h+=filterBar(S.tasks.filter(function(t){return t.isInbox}));
   else if(mode==='done')h+=filterBar(S.done,true);
   else h+=filterBar(S.tasks.concat(S.done),true);
   h+='<div class="task-controls">';
@@ -1208,9 +1211,30 @@ function rTasks(){
   }
   h+='</div></div>';
 
+  /* ═══ INBOX MODE ═══ */
+  if(mode==='inbox'){
+    var inboxTasks=applyFilters(S.tasks.filter(function(t){return t.isInbox}));
+    inboxTasks.forEach(function(t){t._score=taskScore(t)});
+    inboxTasks.sort(function(a,b){return(b._score||0)-(a._score||0)});
+    var ibxEst=0;inboxTasks.forEach(function(t){ibxEst+=t.est});
+
+    h+='<div class="td-metrics">';
+    h+='<div class="td-met"><div class="td-met-v" style="color:var(--t1)">'+inboxTasks.length+'</div><div class="td-met-l">In Inbox</div></div>';
+    h+='<div class="td-met"><div class="td-met-v" style="color:var(--amber)">'+fmtM(ibxEst)+'</div><div class="td-met-l">Estimated</div></div>';
+    h+='</div>';
+
+    if(!inboxTasks.length){
+      h+='<div class="no-data" style="padding:64px 20px"><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">Inbox is empty</div><div style="font-size:13px;color:var(--t4)">Tasks added via Quick Add will appear here for review.</div></div>';
+    } else {
+      h+='<div class="tk-'+S.layout+'">';
+      inboxTasks.forEach(function(t,i){h+=taskCard(t,td,i)});
+      h+='</div>';
+    }
+  }
+
   /* ═══ OPEN MODE ═══ */
-  if(mode==='open'){
-    var filtered=applyFilters(S.tasks);
+  else if(mode==='open'){
+    var filtered=applyFilters(S.tasks.filter(function(t){return !t.isInbox}));
     filtered.forEach(function(t){t._score=taskScore(t)});
     var totEst=0,od=0,totRemain=0;
     filtered.forEach(function(t){totEst+=t.est;if(t.due&&t.due<td)od++;totRemain+=Math.max(0,t.est-Math.round(tmrElapsed(t.id)/60))});
@@ -2448,6 +2472,7 @@ function rMobAdd(){
   var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
   var h='<div class="mob-add-view">';
   h+='<h1 style="margin-bottom:20px">Quick Add</h1>';
+  h+='<input type="hidden" id="f-inbox" value="true">';
   /* Task name */
   h+='<input type="text" class="mob-add-input" id="f-item" placeholder="What needs doing?" autofocus>';
   /* Importance pills */
@@ -2718,8 +2743,9 @@ function rMobToday(){
 
 /* ── Mobile Tasks ── */
 function rMobTasks(){
-  S.tasks.forEach(function(t){t._score=taskScore(t)});
-  var sorted=S.tasks.slice().sort(function(a,b){return(b._score||0)-(a._score||0)});
+  var nonInbox=S.tasks.filter(function(t){return !t.isInbox});
+  nonInbox.forEach(function(t){t._score=taskScore(t)});
+  var sorted=nonInbox.slice().sort(function(a,b){return(b._score||0)-(a._score||0)});
   var td=today();
   var h='<h1 style="margin-bottom:12px">Tasks</h1>';
   h+='<input class="edf" placeholder="Search tasks..." style="width:100%;margin-bottom:16px;padding:12px 14px;font-size:14px;box-sizing:border-box" oninput="TF.mobSearchTasks(this.value)" id="mob-task-search">';
