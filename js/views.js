@@ -4639,23 +4639,30 @@ function rEmail(){
   if(S.gmailSearch)h+=' <button class="btn" onclick="TF.searchGmail(\'\')" style="font-size:11px;padding:4px 10px">Clear</button>';
   h+='</div>';
 
-  /* Thread list */
-  var threads=S._gmailLiveThreads||null;
-  if(threads===null){
+  /* Thread list — smart inboxes ALWAYS use cached S.gmailThreads, never live */
+  var threads;
+  if(isSmartInbox){
     threads=S.gmailThreads;
-    if(sub==='inbox')threads=threads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1});
-    else if(sub==='sent')threads=threads.filter(function(t){return(t.labels||'').indexOf('SENT')!==-1});
-    else if(isSmartInbox){
-      threads=threads.filter(function(t){
-        var ctx=getThreadCrmContext(t);if(!ctx)return false;
-        if(sub==='e-active')return ctx.hasActiveClient;
-        if(sub==='e-lapsed')return ctx.hasLapsedClient;
-        if(sub==='e-prospects')return ctx.isProspect;
-        if(sub==='e-campaigns')return ctx.hasCampaign;
-        if(sub==='e-opportunities')return ctx.hasOpportunity;
-        if(sub==='e-other')return !ctx.hasActiveClient&&!ctx.hasLapsedClient&&!ctx.isProspect&&!ctx.hasCampaign&&!ctx.hasOpportunity;
-        return false
-      });
+    console.log('[Smart Inbox] sub='+sub+' | gmailThreads='+threads.length+' | userEmails='+JSON.stringify(S._userEmails));
+    var beforeLen=threads.length;
+    threads=threads.filter(function(t){
+      var ctx=getThreadCrmContext(t);if(!ctx)return false;
+      if(sub==='e-active')return ctx.hasActiveClient;
+      if(sub==='e-lapsed')return ctx.hasLapsedClient;
+      if(sub==='e-prospects')return ctx.isProspect;
+      if(sub==='e-campaigns')return ctx.hasCampaign;
+      if(sub==='e-opportunities')return ctx.hasOpportunity;
+      if(sub==='e-other')return !ctx.hasActiveClient&&!ctx.hasLapsedClient&&!ctx.isProspect&&!ctx.hasCampaign&&!ctx.hasOpportunity;
+      return false
+    });
+    console.log('[Smart Inbox] Filtered: '+beforeLen+' → '+threads.length);
+    if(threads.length>0){var sample=getThreadCrmContext(threads[0]);console.log('[Smart Inbox] Sample ctx:',JSON.stringify({hasActive:sample.hasActiveClient,hasLapsed:sample.hasLapsedClient,isProspect:sample.isProspect,hasCamp:sample.hasCampaign,hasOpp:sample.hasOpportunity,clients:sample.clients.map(function(c){return c.clientName+':'+c.status}),unknowns:sample.unknownAddrs}))}
+  }else{
+    threads=S._gmailLiveThreads||null;
+    if(threads===null){
+      threads=S.gmailThreads;
+      if(sub==='inbox')threads=threads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1});
+      else if(sub==='sent')threads=threads.filter(function(t){return(t.labels||'').indexOf('SENT')!==-1});
     }
   }
 
