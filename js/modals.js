@@ -3122,14 +3122,28 @@ async function addNewClient(){
       await loadClientRecords()}}
   toast('Client created','ok');closeModal();render()}
 
+/* ═══════════ INLINE BILLING EDIT ═══════════ */
+async function saveCampaignBilling(cpId){
+  var data={
+    monthlyFee:parseFloat((gel('cpb-fee')||{}).value)||0,
+    billingFrequency:(gel('cpb-freq')||{}).value||'monthly',
+    nextBillingDate:(gel('cpb-next')||{}).value||null,
+    strategyFee:parseFloat((gel('cpb-strategy')||{}).value)||0,
+    setupFee:parseFloat((gel('cpb-setup')||{}).value)||0,
+    monthlyAdSpend:parseFloat((gel('cpb-adspend')||{}).value)||0};
+  var cp=S.campaigns.find(function(c){return c.id===cpId});
+  if(cp){cp.monthlyFee=data.monthlyFee;cp.billingFrequency=data.billingFrequency;cp.nextBillingDate=data.nextBillingDate;
+    cp.strategyFee=data.strategyFee;cp.setupFee=data.setupFee;cp.monthlyAdSpend=data.monthlyAdSpend}
+  await dbEditCampaign(cpId,data);
+  toast('Billing updated','ok');render()}
+
 /* ═══════════ NOTES (Campaign + Client) ═══════════ */
 async function addCampaignNote(campaignId){
   var el=gel('cpn-input');if(!el)return;
   var text=el.value.trim();if(!text)return;
   el.value='';
   await dbAddCampaignNote(campaignId,text);
-  await loadCampaignNotes();render();
-  if(S.campaignDetailId===campaignId)openCampaignDashboard(campaignId)}
+  await loadCampaignNotes();render()}
 
 async function addClientNote(clientId){
   var el=gel('cln-input');if(!el)return;

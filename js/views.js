@@ -2545,7 +2545,7 @@ function getCampaignStats(cp){
     estOneOff:estOneOff,estMonthly:estMonthly,estTotal:estTotal,
     billingAmt:billingAmt,cycleMonths:cycleMonths,daysUntilBilling:daysUntilBilling}}
 
-function openCampaignDashboard(id){S.campaignDetailId=id;render()}
+function openCampaignDashboard(id){S.campaignDetailId=id;S.campaignTab='overview';render()}
 function closeCampaignDashboard(){S.campaignDetailId='';render()}
 
 function rCampaigns(){
@@ -2559,6 +2559,7 @@ function rCampaigns(){
 function rCampaignDashboard(cp,st){
   var td_=today();
   var statusCls=cp.status==='Active'?'im':cp.status==='Setup'?'mt':cp.status==='Paused'?'wt':'cr';
+  var tab=S.campaignTab||'overview';
 
   /* Header */
   var h='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
@@ -2568,10 +2569,26 @@ function rCampaignDashboard(cp,st){
   if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
   if(cp.partner)h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
   if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
-  h+='<button class="btn" onclick="TF.openEditCampaignModal(\''+escAttr(cp.id)+'\')" style="font-size:11px;padding:5px 12px;margin-left:auto">'+icon('edit',11)+' Edit</button>';
   h+='</div>';
 
-  /* KPI strip — simplified */
+  /* Tab bar */
+  h+='<div class="cp-tabs">';
+  var tabs=[['overview','Overview'],['tasks','Tasks'],['billing','Billing'],['details','Details']];
+  tabs.forEach(function(t){h+='<div class="cp-tab'+(tab===t[0]?' on':'')+'" onclick="TF.setCampaignTab(\''+t[0]+'\')">'+t[1]+'</div>'});
+  h+='</div>';
+
+  /* Tab content */
+  switch(tab){
+    case'tasks':h+=rCpTabTasks(cp,st,td_);break;
+    case'billing':h+=rCpTabBilling(cp,st);break;
+    case'details':h+=rCpTabDetails(cp,st);break;
+    default:h+=rCpTabOverview(cp,st)}
+  return h}
+
+/* ── Campaign Tab: Overview ── */
+function rCpTabOverview(cp,st){
+  var h='';
+  /* KPI strip */
   h+='<div class="dash-mets">';
   h+=dashMet('Open Tasks',st.openCount,'var(--blue)');
   h+=dashMet('Time Tracked',fmtM(st.totalTime),'var(--pink)');
@@ -2579,7 +2596,7 @@ function rCampaignDashboard(cp,st){
   h+=dashMet('Done Tasks',st.doneCount,'var(--green)');
   h+='</div>';
 
-  /* ── Billing Card ── */
+  /* Billing summary card */
   var freq=cp.billingFrequency||'monthly';
   var freqLbl=freq==='quarterly'?'Quarterly':freq==='annually'?'Annually':'Monthly';
   h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:18px 20px;margin-bottom:16px">';
@@ -2593,14 +2610,12 @@ function rCampaignDashboard(cp,st){
       h+='<div style="font-size:13px;color:var(--t3);margin-bottom:4px">Next billing: <strong style="color:var(--t1)">'+esc(cp.nextBillingDate)+'</strong> · <strong style="color:var(--t1)">'+fmtUSD(st.billingAmt)+'</strong><span style="color:'+daysColor+'">'+daysLbl+'</span></div>'}
   }else{
     h+='<div style="font-size:14px;color:var(--t4)">No recurring fee set</div>'}
-  /* One-time fees */
   if(st.estOneOff>0){
     var parts=[];
     if(cp.strategyFee)parts.push(fmtUSD(cp.strategyFee)+' strategy');
     if(cp.setupFee)parts.push(fmtUSD(cp.setupFee)+' setup');
     h+='<div style="font-size:11px;color:var(--t4);margin-top:4px">One-time: '+parts.join(' + ')+'</div>'}
   if(cp.monthlyAdSpend)h+='<div style="font-size:11px;color:var(--t4);margin-top:2px">Ad spend: '+fmtUSD(cp.monthlyAdSpend)+'/mo</div>';
-  /* Revenue progress */
   if(st.estTotal>0){
     var pct=Math.min(100,Math.round((st.finRevenue/st.estTotal)*100));
     var barColor=pct>=100?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
@@ -2610,12 +2625,15 @@ function rCampaignDashboard(cp,st){
     h+='</div>'}
   h+='</div>';
 
-  /* ── Notes Timeline ── */
+  /* Notes timeline */
   var cpNotes=S.campaignNotes[cp.id]||[];
   h+='<div class="dash-section">'+icon('edit',13)+' Notes ('+cpNotes.length+')</div>';
   h+=renderNoteTimeline(cpNotes,'cpn-input','TF.addCampaignNote(\''+escAttr(cp.id)+'\')');
+  return h}
 
-  /* ── Open Tasks ── */
+/* ── Campaign Tab: Tasks ── */
+function rCpTabTasks(cp,st,td_){
+  var h='';
   h+='<div class="dash-section">'+icon('tasks',13)+' Open Tasks ('+st.openCount+') <button class="btn" onclick="TF.openAddModal({client:\''+escAttr(cp.partner||'')+'\',endClient:\''+escAttr(cp.endClient||'')+'\',campaign:\''+escAttr(cp.id)+'\'})" style="font-size:11px;padding:4px 10px;margin-left:auto">+ Add Task</button></div>';
   if(st.openTasks.length){
     h+='<div class="tk-list" style="margin-bottom:16px">';
@@ -2624,40 +2642,13 @@ function rCampaignDashboard(cp,st){
   }else{
     h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px;margin-bottom:16px">No open tasks</div>'}
 
-  /* ── Campaign Details (compact) ── */
-  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:14px 16px;margin-bottom:16px">';
-  if(cp.goal)h+='<div style="margin-bottom:10px;font-size:13px;color:var(--t2)"><span style="color:var(--t4);font-size:10px;text-transform:uppercase;letter-spacing:1px">Goal</span><div style="margin-top:2px">'+esc(cp.goal)+'</div></div>';
-  h+='<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px">';
-  var details=[['Term',cp.campaignTerm],['Platform',cp.platform],['Planned Launch',cp.plannedLaunch?fmtDShort(cp.plannedLaunch):null],['Launched',cp.actualLaunch?fmtDShort(cp.actualLaunch):null],['Renewal',cp.renewalDate?fmtDShort(cp.renewalDate):null]];
-  details.forEach(function(d){if(d[1])h+='<div><span style="color:var(--t4);font-size:10px">'+d[0]+'</span><div style="color:var(--t1);font-weight:600;margin-top:1px">'+esc(d[1])+'</div></div>'});
-  h+='</div>';
-  /* Links inline */
-  var links=[['Proposal',cp.proposalLink],['Reports',cp.reportsLink],['Video Assets',cp.videoAssetsLink],['Transcripts',cp.transcriptsLink],['Contract',cp.contractLink],['Awareness LP',cp.awarenessLP],['Consideration LP',cp.considerationLP],['Decision LP',cp.decisionLP]];
-  var popLinks=links.filter(function(l){return l[1]});
-  if(popLinks.length){
-    h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.04)">';
-    popLinks.forEach(function(l){h+='<a href="'+esc(l[1])+'" target="_blank" class="btn" style="font-size:10px;padding:3px 10px;text-decoration:none">'+esc(l[0])+' &#8599;</a>'});
-    h+='</div>'}
-  h+='</div>';
-
-  /* ── Meetings ── */
-  h+='<div class="dash-section">'+icon('mic',13)+' Meetings ('+st.meetings.length+') <button class="btn" onclick="TF.openAddCampaignMeeting(\''+escAttr(cp.id)+'\')" style="font-size:11px;padding:4px 10px;margin-left:auto">+ Add Meeting</button></div>';
-  if(st.meetings.length){
-    var sortedMtgs=st.meetings.slice().sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)});
-    h+='<div class="tb-wrap" style="margin-bottom:16px"><table class="tb"><thead><tr><th>Date</th><th>Title</th><th>Recording</th><th>Notes</th></tr></thead><tbody>';
-    sortedMtgs.forEach(function(m){
-      h+='<tr><td>'+(m.date?fmtDShort(m.date):'')+'</td><td>'+esc(m.title||'')+'</td><td>'+(m.recordingLink?'<a href="'+esc(m.recordingLink)+'" target="_blank" style="color:var(--pink)">Watch &#8599;</a>':'')+'</td><td style="color:var(--t3);font-size:11px">'+esc(m.notes||'')+'</td></tr>'});
-    h+='</tbody></table></div>';
-  }else{
-    h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px;margin-bottom:16px">No meetings recorded yet</div>'}
-
-  /* ── Completed Tasks ── */
+  /* Completed tasks — full list */
   if(st.doneTasks.length){
     h+='<div class="dash-section">'+CK_S+' Completed ('+st.doneCount+')';
     if(st.totalTime)h+='<span style="font-size:12px;color:var(--green);font-weight:700;margin-left:auto">Total: '+fmtM(st.totalTime)+'</span>';
     h+='</div>';
     h+='<div class="dash-recent" style="margin-bottom:16px">';
-    st.doneTasks.slice(0,10).forEach(function(d){
+    st.doneTasks.forEach(function(d){
       h+='<div class="dash-recent-item">';
       h+='<span class="dash-recent-check">'+CK_XS+'</span>';
       h+='<span class="dash-recent-name">'+esc(d.item)+'</span>';
@@ -2666,15 +2657,51 @@ function rCampaignDashboard(cp,st){
       if(d.completed)h+='<span>'+fmtDShort(d.completed)+'</span>';
       h+='</span></div>'});
     h+='</div>'}
+  return h}
 
-  /* ── Revenue ── */
+/* ── Campaign Tab: Billing ── */
+function rCpTabBilling(cp,st){
+  var h='';
+  var eid=escAttr(cp.id);
+  var freq=cp.billingFrequency||'monthly';
+
+  /* Billing configuration — inline editable */
+  h+='<div class="dash-section">'+icon('activity',13)+' Billing Configuration</div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:18px 20px;margin-bottom:16px">';
+  h+='<div class="ed-grid" style="gap:12px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="cpb-fee" value="'+(cp.monthlyFee||0)+'" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Billing Frequency</span><select class="edf" id="cpb-freq"><option value="monthly"'+(freq==='monthly'?' selected':'')+'>Monthly</option><option value="quarterly"'+(freq==='quarterly'?' selected':'')+'>Quarterly</option><option value="annually"'+(freq==='annually'?' selected':'')+'>Annually</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Next Billing Date</span><input type="date" class="edf" id="cpb-next" value="'+(cp.nextBillingDate||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="cpb-strategy" value="'+(cp.strategyFee||0)+'" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="cpb-setup" value="'+(cp.setupFee||0)+'" min="0" step="0.01"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Ad Spend / mo</span><input type="number" class="edf" id="cpb-adspend" value="'+(cp.monthlyAdSpend||0)+'" min="0" step="0.01"></div>';
+  h+='</div>';
+  h+='<div style="margin-top:14px"><button class="btn btn-p" onclick="TF.saveCampaignBilling(\''+eid+'\')" style="font-size:12px;padding:8px 20px">'+icon('save',12)+' Save Billing</button></div>';
+  h+='</div>';
+
+  /* Billing schedule — auto-generated */
+  h+='<div class="dash-section">'+icon('calendar',13)+' Billing Schedule</div>';
+  h+=renderBillingSchedule(cp,st);
+
+  /* Revenue progress */
+  if(st.estTotal>0){
+    h+='<div class="dash-section">Revenue Progress</div>';
+    h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:18px 20px;margin-bottom:16px">';
+    var pct=Math.min(100,Math.round((st.finRevenue/st.estTotal)*100));
+    var barColor=pct>=100?'var(--green)':pct>=60?'var(--amber)':'var(--red)';
+    h+='<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-bottom:6px"><span>Collected: <strong style="color:var(--green)">'+fmtUSD(st.finRevenue)+'</strong></span><span>Expected: <strong>'+fmtUSD(st.estTotal)+'</strong></span></div>';
+    h+='<div style="background:var(--bg3);border-radius:6px;height:10px;overflow:hidden"><div style="background:'+barColor+';height:100%;width:'+pct+'%;border-radius:6px;transition:width .4s var(--ease)"></div></div>';
+    h+='<div style="text-align:center;font-size:11px;color:var(--t3);margin-top:4px">'+pct+'% collected</div>';
+    h+='</div>'}
+
+  /* Revenue payments table */
   var allCpPayments=[];
   st.finPayments.forEach(function(fp){allCpPayments.push({date:fp.date,amount:fp.amount,source:fp.source,desc:fp.description||fp.payerName||'',id:fp.id,type:'direct'})});
   st.finSplits.forEach(function(sp){var parent=S.financePayments.find(function(fp){return fp.id===sp.paymentId});
     allCpPayments.push({date:parent?parent.date:null,amount:sp.amount,source:parent?parent.source:'',desc:sp.notes||(parent?parent.description||parent.payerName||'':''),id:parent?parent.id:'',type:'split'})});
   allCpPayments.sort(function(a,b){return(b.date||0)-(a.date||0)});
 
-  h+='<div class="dash-section">'+icon('activity',13)+' Revenue ('+allCpPayments.length+') <span style="font-weight:700;color:var(--green);margin-left:auto">'+fmtUSD(st.finRevenue)+'</span></div>';
+  h+='<div class="dash-section">'+icon('activity',13)+' Payments Received ('+allCpPayments.length+') <span style="font-weight:700;color:var(--green);margin-left:auto">'+fmtUSD(st.finRevenue)+'</span></div>';
   if(allCpPayments.length){
     h+='<div class="tb-wrap" style="margin-bottom:16px"><table class="tb"><thead><tr><th>Date</th><th class="r">Amount</th><th>Source</th><th>Description</th></tr></thead><tbody>';
     allCpPayments.forEach(function(fp){
@@ -2689,7 +2716,75 @@ function rCampaignDashboard(cp,st){
     h+='</tbody></table></div>';
   }else{
     h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px;margin-bottom:16px">No payments linked yet</div>'}
+  return h}
 
+/* ── Billing Schedule Helper ── */
+function renderBillingSchedule(cp,st){
+  var freq=cp.billingFrequency||'monthly';
+  var cycleMonths=freq==='quarterly'?3:freq==='annually'?12:1;
+  var billingAmt=(cp.monthlyFee||0)*cycleMonths;
+  if(!cp.monthlyFee||!cp.nextBillingDate){
+    return'<div style="padding:16px;text-align:center;color:var(--t4);font-size:12px;margin-bottom:16px;background:var(--glass);border:1px solid var(--gborder);border-radius:8px">Set a monthly fee and next billing date to see the projected schedule</div>'}
+  var h='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px 18px;margin-bottom:16px">';
+  var today_=new Date();today_.setHours(0,0,0,0);
+  var entries=[];
+  for(var i=0;i<365&&entries.length<8;i++){
+    var d=new Date(today_);d.setDate(d.getDate()+i);
+    var ds=d.toISOString().split('T')[0];
+    if(campaignBillingFallsOnDay(cp,ds)){
+      var daysUntil=Math.round((d-today_)/86400000);
+      entries.push({date:d,dateStr:ds,daysUntil:daysUntil})}}
+  /* If no entries in next 365 days, show message */
+  if(!entries.length){
+    h+='<div style="color:var(--t4);font-size:12px;text-align:center">No billing dates projected in the next 12 months</div>';
+    h+='</div>';return h}
+  h+='<div style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Upcoming Billings</div>';
+  entries.forEach(function(e,idx){
+    var daysColor=e.daysUntil<=0?'var(--red)':e.daysUntil<=7?'var(--amber)':e.daysUntil<=30?'var(--blue)':'var(--t3)';
+    var daysLbl=e.daysUntil===0?'Today':e.daysUntil>0?'in '+e.daysUntil+' day'+(e.daysUntil>1?'s':''):Math.abs(e.daysUntil)+' day'+(Math.abs(e.daysUntil)>1?'s':'')+' overdue';
+    h+='<div style="display:flex;align-items:center;gap:12px;padding:8px 0'+(idx<entries.length-1?';border-bottom:1px solid rgba(255,255,255,.04)':'')+'">';
+    h+='<span style="color:var(--t1);font-weight:600;font-size:13px;min-width:110px;font-family:var(--fd)">'+fmtDShort(e.date)+'</span>';
+    h+='<span style="color:var(--green);font-weight:700;font-size:13px;min-width:90px">'+fmtUSD(billingAmt)+'</span>';
+    h+='<span style="color:'+daysColor+';font-size:11px">'+daysLbl+'</span>';
+    h+='</div>'});
+  h+='<div style="margin-top:10px;font-size:10px;color:var(--t4)">This schedule feeds directly into the Financial Forecast</div>';
+  h+='</div>';
+  return h}
+
+/* ── Campaign Tab: Details ── */
+function rCpTabDetails(cp,st){
+  var h='';
+  /* Campaign info with edit button */
+  h+='<div class="dash-section">'+icon('target',13)+' Campaign Info <button class="btn" onclick="TF.openEditCampaignModal(\''+escAttr(cp.id)+'\')" style="font-size:11px;padding:4px 10px;margin-left:auto">'+icon('edit',11)+' Edit</button></div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:14px 16px;margin-bottom:16px">';
+  if(cp.goal)h+='<div style="margin-bottom:10px;font-size:13px;color:var(--t2)"><span style="color:var(--t4);font-size:10px;text-transform:uppercase;letter-spacing:1px">Goal</span><div style="margin-top:2px">'+esc(cp.goal)+'</div></div>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px">';
+  var details=[['Term',cp.campaignTerm],['Platform',cp.platform],['Planned Launch',cp.plannedLaunch?fmtDShort(cp.plannedLaunch):null],['Launched',cp.actualLaunch?fmtDShort(cp.actualLaunch):null],['Renewal',cp.renewalDate?fmtDShort(cp.renewalDate):null]];
+  details.forEach(function(d){if(d[1])h+='<div><span style="color:var(--t4);font-size:10px">'+d[0]+'</span><div style="color:var(--t1);font-weight:600;margin-top:1px">'+esc(d[1])+'</div></div>'});
+  h+='</div>';
+  /* Notes field */
+  if(cp.notes)h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.04);font-size:12px;color:var(--t3)">'+esc(cp.notes)+'</div>';
+  h+='</div>';
+
+  /* Links */
+  var links=[['Proposal',cp.proposalLink],['Reports',cp.reportsLink],['Video Assets',cp.videoAssetsLink],['Transcripts',cp.transcriptsLink],['Contract',cp.contractLink],['Awareness LP',cp.awarenessLP],['Consideration LP',cp.considerationLP],['Decision LP',cp.decisionLP]];
+  var popLinks=links.filter(function(l){return l[1]});
+  if(popLinks.length){
+    h+='<div class="dash-section">'+icon('link',13)+' Links</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+    popLinks.forEach(function(l){h+='<a href="'+esc(l[1])+'" target="_blank" class="btn" style="font-size:11px;padding:6px 14px;text-decoration:none">'+esc(l[0])+' &#8599;</a>'});
+    h+='</div>'}
+
+  /* Meetings */
+  h+='<div class="dash-section">'+icon('mic',13)+' Meetings ('+st.meetings.length+') <button class="btn" onclick="TF.openAddCampaignMeeting(\''+escAttr(cp.id)+'\')" style="font-size:11px;padding:4px 10px;margin-left:auto">+ Add Meeting</button></div>';
+  if(st.meetings.length){
+    var sortedMtgs=st.meetings.slice().sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)});
+    h+='<div class="tb-wrap" style="margin-bottom:16px"><table class="tb"><thead><tr><th>Date</th><th>Title</th><th>Recording</th><th>Notes</th></tr></thead><tbody>';
+    sortedMtgs.forEach(function(m){
+      h+='<tr><td>'+(m.date?fmtDShort(m.date):'')+'</td><td>'+esc(m.title||'')+'</td><td>'+(m.recordingLink?'<a href="'+esc(m.recordingLink)+'" target="_blank" style="color:var(--pink)">Watch &#8599;</a>':'')+'</td><td style="color:var(--t3);font-size:11px">'+esc(m.notes||'')+'</td></tr>'});
+    h+='</tbody></table></div>';
+  }else{
+    h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px;margin-bottom:16px">No meetings recorded yet</div>'}
   return h}
 function rCampaignsBody(){
   var td_=today();
