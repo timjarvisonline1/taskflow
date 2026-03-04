@@ -75,7 +75,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   linkExpenseToScheduled:linkExpenseToScheduled,unlinkExpenseFromScheduled:unlinkExpenseFromScheduled,saveExpenseAsOneOff:saveExpenseAsOneOff,
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
-  openClientDashboard:openClientDashboard,closeClientDashboard:closeClientDashboard,
+  openClientDashboard:openClientDashboard,closeClientDashboard:closeClientDashboard,openClientDetailModal:openClientDetailModal,setClientSort:setClientSort,
   openAddMeetingPrepTask:openAddMeetingPrepTask,
   atToggleMin:atToggleMin,modalToggle:modalToggle,
   signOut:signOut,

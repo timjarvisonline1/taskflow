@@ -91,7 +91,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
-  accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all'};
+  accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name'};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1197,6 +1197,7 @@ function getForecastMetrics(fc){
 function setForecastHorizon(days){S.forecastHorizon=days;render()}
 function setForecastScenario(s){S.forecastScenario=s;render()}
 function setWeeklyRange(v){S.weeklyRange=v;render()}
+function setClientSort(v){S.clientSort=v;render()}
 
 /* Check if a campaign billing falls on a given day based on billingFrequency + nextBillingDate */
 function campaignBillingFallsOnDay(cp,dayStr){

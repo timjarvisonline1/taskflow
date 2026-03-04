@@ -3087,7 +3087,8 @@ async function saveClient(){
     notes:(gel('ecl-notes')||{}).value||''};
   if(!data.name.trim()){toast('Client name required','warn');return}
   var ok=await dbEditClient(id,data);
-  if(ok){await loadClientRecords();toast('Client updated','ok');closeModal();render()}}
+  if(ok){await loadClientRecords();toast('Client updated','ok');closeModal();render();
+    if(S.clientDetailName){setTimeout(function(){openClientDetailModal(S.clientDetailName)},50)}}}
 
 /* ─── Add Client Modal ─── */
 function openAddClientModal(){

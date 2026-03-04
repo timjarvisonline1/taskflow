@@ -278,28 +278,30 @@ function buildClientMap(){
   var td_=today();
   var clientMap={};
   function ensureClient(name){
-    if(!name||name===''||name==='Internal'||name==='N/A')return;
+    if(!name||name===''||name==='Internal'||name==='N/A'||name==='Internal / N/A')return;
     if(!clientMap[name])clientMap[name]={name:name,campaigns:0,activeCampaigns:0,monthlyRev:0,
       opportunities:0,pipelineValue:0,openTasks:0,overdueTasks:0,doneTasks:0,timeTracked:0,
       meetings:0,lastActivity:null,campaignList:[],oppList:[],recentDone:[],
       totalRevenue:0,paymentCount:0,clientStatus:'active',clientId:''}}
   S.campaigns.forEach(function(cp){
-    ensureClient(cp.partner);if(!cp.partner||cp.partner===''||cp.partner==='Internal'||cp.partner==='N/A')return;
+    ensureClient(cp.partner);if(!cp.partner||cp.partner===''||cp.partner==='Internal'||cp.partner==='N/A'||cp.partner==='Internal / N/A')return;
     var c=clientMap[cp.partner];c.campaigns++;
     if(cp.status==='Active'){c.activeCampaigns++;c.monthlyRev+=(cp.monthlyFee||0)}
     c.campaignList.push({name:cp.name,status:cp.status,id:cp.id})});
   S.opportunities.forEach(function(op){
-    ensureClient(op.client);if(!op.client||op.client===''||op.client==='Internal'||op.client==='N/A')return;
+    var isRetainProspect=op.type==='retain_live'&&op.stage!=='Closed Won';
+    if(!isRetainProspect){ensureClient(op.client)}
+    if(!op.client||!clientMap[op.client])return;
     var c=clientMap[op.client];
     if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
       c.opportunities++;c.pipelineValue+=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12)}
     c.oppList.push({name:op.name,stage:op.stage,id:op.id,type:op.type})});
   S.tasks.forEach(function(t){
-    ensureClient(t.client);if(!t.client||t.client===''||t.client==='Internal'||t.client==='N/A')return;
+    ensureClient(t.client);if(!t.client||t.client===''||t.client==='Internal'||t.client==='N/A'||t.client==='Internal / N/A')return;
     clientMap[t.client].openTasks++;
     if(t.due&&t.due<td_)clientMap[t.client].overdueTasks++});
   S.done.forEach(function(d){
-    ensureClient(d.client);if(!d.client||d.client===''||d.client==='Internal'||d.client==='N/A')return;
+    ensureClient(d.client);if(!d.client||d.client===''||d.client==='Internal'||d.client==='N/A'||d.client==='Internal / N/A')return;
     var c=clientMap[d.client];c.doneTasks++;c.timeTracked+=(d.duration||0);
     if(d.completed&&(!c.lastActivity||d.completed>c.lastActivity))c.lastActivity=d.completed;
     if(c.recentDone.length<10)c.recentDone.push({item:d.item,duration:d.duration,completed:d.completed})});
@@ -324,84 +326,93 @@ function rClients(){
   var td_=today();
   var clientMap=buildClientMap();
   var clients=Object.keys(clientMap).map(function(k){return clientMap[k]});
-  clients.sort(function(a,b){return(b.activeCampaigns+b.openTasks+b.opportunities)-(a.activeCampaigns+a.openTasks+a.opportunities)});
-
-  var totalClients=clients.length;
-  var totalActive=clients.filter(function(c){return c.clientStatus==='active'}).length;
-  var totalOpenTasks=clients.reduce(function(s,c){return s+c.openTasks},0);
-  var totalRevenue=clients.reduce(function(s,c){return s+c.totalRevenue},0);
 
   var h='<div class="pg-head"><h1>'+icon('clients',18)+' Clients</h1>';
   h+='<button class="btn btn-p" onclick="TF.openAddClientModal()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Client</button></div>';
-
-  h+='<div class="dash-mets">';
-  h+=dashMet('Total Clients',totalClients,'var(--t1)');
-  h+=dashMet('Active',totalActive,'var(--green)');
-  h+=dashMet('Total Revenue',fmtUSD(totalRevenue),'var(--green)');
-  h+=dashMet('Open Tasks',totalOpenTasks,'var(--blue)');
-  h+='</div>';
 
   if(!clients.length){
     h+='<div style="padding:30px;text-align:center;color:var(--t4);font-size:13px">No client data yet.</div>';
     return h}
 
-  /* If a client detail is open, render full-screen dashboard */
-  if(S.clientDetailName){
-    var cl=clientMap[S.clientDetailName];
-    if(cl)return h+rClientDashboard(cl);
-    else S.clientDetailName=''}
-
+  /* Active / Lapsed toggle */
   var sub=S.subView||'active';
-  if(isMobile()){
-    h+='<div class="task-mode-toggle" style="margin-bottom:16px">';
-    h+='<button class="tm-btn'+(sub==='active'?' on':'')+'" onclick="TF.subNav(\'active\')">Active</button>';
-    h+='<button class="tm-btn'+(sub==='lapsed'?' on':'')+'" onclick="TF.subNav(\'lapsed\')">Lapsed</button>';
-    h+='</div>'}
+  h+='<div class="task-mode-toggle" style="margin-bottom:12px">';
+  h+='<button class="tm-btn'+(sub==='active'?' on':'')+'" onclick="TF.subNav(\'active\')">Active</button>';
+  h+='<button class="tm-btn'+(sub==='lapsed'?' on':'')+'" onclick="TF.subNav(\'lapsed\')">Lapsed</button>';
+  h+='</div>';
+
+  /* Sort pills */
+  var srt=S.clientSort||'name';
+  var sorts=[['name','Name'],['revenue','Revenue'],['tasks','Open Tasks'],['time','Time Tracked'],['recent','Recent Activity'],['oldest','Oldest Activity']];
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">';
+  sorts.forEach(function(s){
+    h+='<button class="btn'+(srt===s[0]?' btn-p':'')+'" onclick="TF.setClientSort(\''+s[0]+'\')" style="font-size:11px;padding:4px 12px;border-radius:8px">'+s[1]+'</button>'});
+  h+='</div>';
 
   /* Filter by active/lapsed */
   var filtered=clients.filter(function(c){
     if(sub==='lapsed')return c.clientStatus!=='active';
     return c.clientStatus==='active'});
 
-  /* Client table — simplified 6 columns */
-  h+='<div class="tb-wrap"><table class="tb"><thead><tr>';
-  h+='<th style="text-align:left">Client</th>';
-  h+='<th style="text-align:center;width:70px">Status</th>';
-  h+='<th style="text-align:right">Revenue</th>';
-  h+='<th style="text-align:right">Open Tasks</th>';
-  h+='<th style="text-align:right">Time Tracked</th>';
-  h+='<th style="text-align:right">Last Activity</th>';
-  h+='</tr></thead><tbody>';
+  /* Sort */
+  filtered.sort(function(a,b){
+    if(srt==='name')return(a.name||'').localeCompare(b.name||'');
+    if(srt==='revenue')return(b.totalRevenue||0)-(a.totalRevenue||0);
+    if(srt==='tasks')return(b.openTasks||0)-(a.openTasks||0);
+    if(srt==='time')return(b.timeTracked||0)-(a.timeTracked||0);
+    if(srt==='recent')return(b.lastActivity||0)-(a.lastActivity||0);
+    if(srt==='oldest'){var aT=a.lastActivity||Infinity,bT=b.lastActivity||Infinity;return aT-bT}
+    return 0});
 
+  /* Card rows */
   filtered.forEach(function(c){
-    var st=c.clientStatus||'active';
-    h+='<tr class="cl-row" style="cursor:pointer" onclick="TF.openClientDashboard(\''+escAttr(c.name)+'\')">';
-    h+='<td style="font-weight:600;color:var(--t1)">';
-    h+=esc(c.name);
-    if(c.clientId)h+=' <span class="cl-edit-btn" onclick="event.stopPropagation();TF.openEditClient(\''+escAttr(c.clientId)+'\')">'+icon('edit',10)+'</span>';
-    h+='</td>';
-    h+='<td style="text-align:center"><span class="cl-status-dot '+(st==='active'?'cl-status-active':'cl-status-lapsed')+'"></span><span style="font-size:11px;color:var(--t3)">'+esc(st)+'</span></td>';
-    h+='<td style="text-align:right;color:'+(c.totalRevenue?'var(--green)':'var(--t4)')+'">'+fmtUSD(c.totalRevenue)+'</td>';
-    h+='<td style="text-align:right;color:'+(c.overdueTasks?'var(--red)':'var(--t2)')+'">'+c.openTasks+(c.overdueTasks?' <span style="color:var(--red);font-size:10px">('+c.overdueTasks+')</span>':'')+'</td>';
-    h+='<td style="text-align:right;color:var(--pink)">'+fmtM(c.timeTracked)+'</td>';
-    h+='<td style="text-align:right;color:var(--t3)">'+(c.lastActivity?fmtDShort(c.lastActivity):'-')+'</td>';
-    h+='</tr>'});
+    var openOpps=c.oppList.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
+    h+='<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--gborder);cursor:pointer;transition:background .15s" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'transparent\'" onclick="TF.openClientDetailModal(\''+escAttr(c.name)+'\')">';
+    /* Left: name + status */
+    h+='<div style="flex:1;min-width:0">';
+    h+='<div style="display:flex;align-items:center;gap:8px">';
+    h+='<span style="font-weight:600;font-size:14px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(c.name)+'</span>';
+    h+='<span style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:.5px">'+esc(c.clientStatus||'active')+'</span>';
+    if(openOpps.length){
+      h+='<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--purple50);color:#fff">'+openOpps.length+' opp'+(openOpps.length>1?'s':'')+' · '+fmtUSD(c.pipelineValue)+'</span>'}
+    h+='</div></div>';
+    /* Right: metrics */
+    h+='<div style="display:flex;align-items:center;gap:16px;flex-shrink:0;font-size:12px">';
+    if(c.totalRevenue)h+='<span style="color:var(--green)" title="Revenue">'+fmtUSD(c.totalRevenue)+'</span>';
+    if(c.openTasks)h+='<span style="color:'+(c.overdueTasks?'var(--red)':'var(--blue)')+'" title="Open Tasks">'+c.openTasks+' task'+(c.openTasks>1?'s':'')+'</span>';
+    if(c.timeTracked)h+='<span style="color:var(--pink)" title="Time Tracked">'+fmtM(c.timeTracked)+'</span>';
+    if(c.lastActivity)h+='<span style="color:var(--t4)" title="Last Activity">'+fmtDShort(c.lastActivity)+'</span>';
+    if(c.clientId)h+='<span class="cl-edit-btn" onclick="event.stopPropagation();TF.openEditClient(\''+escAttr(c.clientId)+'\')" style="opacity:.4;transition:opacity .15s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.4">'+icon('edit',11)+'</span>';
+    h+='</div>';
+    h+='</div>'});
 
-  h+='</tbody></table></div>';
+  if(!filtered.length){
+    h+='<div style="padding:30px;text-align:center;color:var(--t4);font-size:13px">No '+(sub==='lapsed'?'lapsed':'active')+' clients.</div>'}
+
   return h}
 
-function openClientDashboard(name){S.clientDetailName=name;render()}
-function closeClientDashboard(){S.clientDetailName='';render()}
+function openClientDashboard(name){openClientDetailModal(name)}
+function closeClientDashboard(){S.clientDetailName='';closeModal()}
+function openClientDetailModal(name){
+  var clientMap=buildClientMap();
+  var c=clientMap[name];if(!c)return;
+  S.clientDetailName=name;
+  var h=rClientDashboard(c);
+  gel('detail-body').innerHTML=h;
+  gel('detail-modal').classList.add('on','full-detail')}
 
 function rClientDashboard(c){
   var td_=today();
-  var h='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">';
-  h+='<button class="btn" onclick="TF.closeClientDashboard()" style="font-size:11px;padding:5px 12px">'+icon('arrow_left',12)+' Back</button>';
-  h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(c.name)+'</h2>';
   var st=c.clientStatus||'active';
-  h+='<span class="cl-status-dot '+(st==='active'?'cl-status-active':'cl-status-lapsed')+'"></span><span style="font-size:12px;color:var(--t3)">'+esc(st)+'</span>';
+  var h='<div class="tf-modal-top" style="padding:20px 28px 16px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;flex:1">';
+  h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(c.name)+'</h2>';
+  h+='<span style="font-size:10px;padding:3px 10px;border-radius:10px;background:'+(st==='active'?'rgba(16,185,129,.15)':'rgba(156,163,175,.15)')+';color:'+(st==='active'?'var(--green)':'var(--t3)')+';text-transform:uppercase;letter-spacing:.5px;font-weight:600">'+esc(st)+'</span>';
   if(c.clientId)h+='<button class="btn" onclick="TF.openEditClient(\''+escAttr(c.clientId)+'\')" style="font-size:11px;padding:5px 12px;margin-left:auto">'+icon('edit',11)+' Edit</button>';
   h+='</div>';
+  h+='<button class="tf-modal-close" onclick="TF.closeClientDashboard()">&times;</button>';
+  h+='</div>';
+  h+='<div style="padding:0 28px 28px;overflow-y:auto;flex:1">';
 
   /* KPI strip */
   h+='<div class="dash-mets">';
@@ -477,6 +488,7 @@ function rClientDashboard(c){
   if(c.monthlyRev)h+=dashMet('Monthly Revenue',fmtUSD(c.monthlyRev),'var(--green)');
   h+=dashMet('Meetings',c.meetings,'var(--amber)');
   h+='</div>';
+  h+='</div>';/* close scrollable content wrapper */
   return h}
 
 function initClientsCharts(){
