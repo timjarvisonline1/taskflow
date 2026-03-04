@@ -367,22 +367,22 @@ function rClients(){
   /* Card rows */
   filtered.forEach(function(c){
     var openOpps=c.oppList.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
-    h+='<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--gborder);cursor:pointer;transition:background .15s" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'transparent\'" onclick="TF.openClientDetailModal(\''+escAttr(c.name)+'\')">';
-    /* Left: name + status */
-    h+='<div style="flex:1;min-width:0">';
-    h+='<div style="display:flex;align-items:center;gap:8px">';
-    h+='<span style="font-weight:600;font-size:14px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(c.name)+'</span>';
-    h+='<span style="font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:.5px">'+esc(c.clientStatus||'active')+'</span>';
+    var st=c.clientStatus||'active';
+    h+='<div class="cl-row" onclick="TF.openClientDetailModal(\''+escAttr(c.name)+'\')">';
+    /* Left: name + badges */
+    h+='<div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px">';
+    h+='<span class="cl-name">'+esc(c.name)+'</span>';
+    h+='<span class="cl-badge cl-badge-'+esc(st)+'">'+esc(st)+'</span>';
     if(openOpps.length){
-      h+='<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--purple50);color:#fff">'+openOpps.length+' opp'+(openOpps.length>1?'s':'')+' · '+fmtUSD(c.pipelineValue)+'</span>'}
-    h+='</div></div>';
+      h+='<span class="cl-opp-badge">'+openOpps.length+' opp'+(openOpps.length>1?'s':'')+' · '+fmtUSD(c.pipelineValue)+'</span>'}
+    h+='</div>';
     /* Right: metrics */
-    h+='<div style="display:flex;align-items:center;gap:16px;flex-shrink:0;font-size:12px">';
-    if(c.totalRevenue)h+='<span style="color:var(--green)" title="Revenue">'+fmtUSD(c.totalRevenue)+'</span>';
-    if(c.openTasks)h+='<span style="color:'+(c.overdueTasks?'var(--red)':'var(--blue)')+'" title="Open Tasks">'+c.openTasks+' task'+(c.openTasks>1?'s':'')+'</span>';
-    if(c.timeTracked)h+='<span style="color:var(--pink)" title="Time Tracked">'+fmtM(c.timeTracked)+'</span>';
-    if(c.lastActivity)h+='<span style="color:var(--t4)" title="Last Activity">'+fmtDShort(c.lastActivity)+'</span>';
-    if(c.clientId)h+='<span class="cl-edit-btn" onclick="event.stopPropagation();TF.openEditClient(\''+escAttr(c.clientId)+'\')" style="opacity:.4;transition:opacity .15s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.4">'+icon('edit',11)+'</span>';
+    h+='<div style="display:flex;align-items:center;gap:14px;flex-shrink:0">';
+    if(c.totalRevenue)h+='<span class="cl-stat" style="color:var(--green)" title="Revenue">'+fmtUSD(c.totalRevenue)+'</span>';
+    if(c.openTasks)h+='<span class="cl-stat" style="color:'+(c.overdueTasks?'var(--red)':'var(--blue)')+'" title="Open Tasks">'+c.openTasks+' task'+(c.openTasks>1?'s':'')+'</span>';
+    if(c.timeTracked)h+='<span class="cl-stat" style="color:var(--pink)" title="Time Tracked">'+fmtM(c.timeTracked)+'</span>';
+    if(c.lastActivity)h+='<span class="cl-stat" style="color:var(--t4)" title="Last Activity">'+fmtDShort(c.lastActivity)+'</span>';
+    if(c.clientId)h+='<span class="cl-edit-btn" onclick="event.stopPropagation();TF.openEditClient(\''+escAttr(c.clientId)+'\')">'+icon('edit',11)+'</span>';
     h+='</div>';
     h+='</div>'});
 
