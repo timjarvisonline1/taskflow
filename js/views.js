@@ -336,17 +336,9 @@ function rClients(){
 
   /* Active / Lapsed toggle */
   var sub=S.subView||'active';
-  h+='<div class="task-mode-toggle" style="margin-bottom:12px">';
+  h+='<div class="task-mode-toggle" style="margin-bottom:16px">';
   h+='<button class="tm-btn'+(sub==='active'?' on':'')+'" onclick="TF.subNav(\'active\')">Active</button>';
   h+='<button class="tm-btn'+(sub==='lapsed'?' on':'')+'" onclick="TF.subNav(\'lapsed\')">Lapsed</button>';
-  h+='</div>';
-
-  /* Sort pills */
-  var srt=S.clientSort||'name';
-  var sorts=[['name','Name'],['revenue','Revenue'],['tasks','Open Tasks'],['time','Time Tracked'],['recent','Recent Activity'],['oldest','Oldest Activity']];
-  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">';
-  sorts.forEach(function(s){
-    h+='<button class="btn'+(srt===s[0]?' btn-p':'')+'" onclick="TF.setClientSort(\''+s[0]+'\')" style="font-size:11px;padding:4px 12px;border-radius:8px">'+s[1]+'</button>'});
   h+='</div>';
 
   /* Filter by active/lapsed */
@@ -355,36 +347,51 @@ function rClients(){
     return c.clientStatus==='active'});
 
   /* Sort */
+  var srt=S.clientSort||'name';
+  var desc=srt.charAt(0)==='-';
+  var col=desc?srt.slice(1):srt;
+  function sortArrow(c){
+    if(col!==c)return '';
+    return ' <span style="font-size:8px;opacity:.7">'+(desc?'▼':'▲')+'</span>'}
   filtered.sort(function(a,b){
-    if(srt==='name')return(a.name||'').localeCompare(b.name||'');
-    if(srt==='revenue')return(b.totalRevenue||0)-(a.totalRevenue||0);
-    if(srt==='tasks')return(b.openTasks||0)-(a.openTasks||0);
-    if(srt==='time')return(b.timeTracked||0)-(a.timeTracked||0);
-    if(srt==='recent')return(b.lastActivity||0)-(a.lastActivity||0);
-    if(srt==='oldest'){var aT=a.lastActivity||Infinity,bT=b.lastActivity||Infinity;return aT-bT}
-    return 0});
+    var v=0;
+    if(col==='name')v=(a.name||'').localeCompare(b.name||'');
+    else if(col==='revenue')v=(a.totalRevenue||0)-(b.totalRevenue||0);
+    else if(col==='tasks')v=(a.openTasks||0)-(b.openTasks||0);
+    else if(col==='time')v=(a.timeTracked||0)-(b.timeTracked||0);
+    else if(col==='activity'){var aT=a.lastActivity||0,bT=b.lastActivity||0;v=aT-bT}
+    else if(col==='opps')v=(a.pipelineValue||0)-(b.pipelineValue||0);
+    return desc?-v:v});
 
-  /* Card rows */
+  /* Table */
+  var thStyle='cursor:pointer;user-select:none;transition:color .15s';
+  h+='<div class="tb-wrap"><table class="tb"><thead><tr>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setClientSort(\'name\')">Client'+sortArrow('name')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setClientSort(\'revenue\')">Revenue'+sortArrow('revenue')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setClientSort(\'tasks\')">Open Tasks'+sortArrow('tasks')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setClientSort(\'time\')">Time Tracked'+sortArrow('time')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setClientSort(\'activity\')">Last Activity'+sortArrow('activity')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setClientSort(\'opps\')">Opportunities'+sortArrow('opps')+'</th>';
+  h+='</tr></thead><tbody>';
+
   filtered.forEach(function(c){
     var openOpps=c.oppList.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
-    var st=c.clientStatus||'active';
-    h+='<div class="cl-row" onclick="TF.openClientDetailModal(\''+escAttr(c.name)+'\')">';
-    /* Left: name + badges */
-    h+='<div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px">';
-    h+='<span class="cl-name">'+esc(c.name)+'</span>';
-    h+='<span class="cl-badge cl-badge-'+esc(st)+'">'+esc(st)+'</span>';
-    if(openOpps.length){
-      h+='<span class="cl-opp-badge">'+openOpps.length+' opp'+(openOpps.length>1?'s':'')+' · '+fmtUSD(c.pipelineValue)+'</span>'}
-    h+='</div>';
-    /* Right: metrics */
-    h+='<div style="display:flex;align-items:center;gap:14px;flex-shrink:0">';
-    if(c.totalRevenue)h+='<span class="cl-stat" style="color:var(--green)" title="Revenue">'+fmtUSD(c.totalRevenue)+'</span>';
-    if(c.openTasks)h+='<span class="cl-stat" style="color:'+(c.overdueTasks?'var(--red)':'var(--blue)')+'" title="Open Tasks">'+c.openTasks+' task'+(c.openTasks>1?'s':'')+'</span>';
-    if(c.timeTracked)h+='<span class="cl-stat" style="color:var(--pink)" title="Time Tracked">'+fmtM(c.timeTracked)+'</span>';
-    if(c.lastActivity)h+='<span class="cl-stat" style="color:var(--t4)" title="Last Activity">'+fmtDShort(c.lastActivity)+'</span>';
-    if(c.clientId)h+='<span class="cl-edit-btn" onclick="event.stopPropagation();TF.openEditClient(\''+escAttr(c.clientId)+'\')">'+icon('edit',11)+'</span>';
-    h+='</div>';
-    h+='</div>'});
+    h+='<tr style="cursor:pointer" onclick="TF.openClientDetailModal(\''+escAttr(c.name)+'\')">';
+    h+='<td style="font-weight:600;color:var(--t1)" data-label="Client">';
+    h+=esc(c.name);
+    if(c.clientId)h+=' <span class="cl-edit-btn" onclick="event.stopPropagation();TF.openEditClient(\''+escAttr(c.clientId)+'\')">'+icon('edit',10)+'</span>';
+    h+='</td>';
+    h+='<td class="nm" style="color:'+(c.totalRevenue?'var(--green)':'var(--t4)')+'" data-label="Revenue">'+fmtUSD(c.totalRevenue)+'</td>';
+    h+='<td class="nm" style="color:'+(c.overdueTasks?'var(--red)':'var(--t2)')+'" data-label="Open Tasks">'+c.openTasks+(c.overdueTasks?' <span style="color:var(--red);font-size:10px">('+c.overdueTasks+' overdue)</span>':'')+'</td>';
+    h+='<td class="nm" style="color:var(--pink)" data-label="Time Tracked">'+fmtM(c.timeTracked)+'</td>';
+    h+='<td class="nm" style="color:var(--t3)" data-label="Last Activity">'+(c.lastActivity?fmtDShort(c.lastActivity):'-')+'</td>';
+    h+='<td class="nm" data-label="Opportunities">';
+    if(openOpps.length){h+='<span style="color:var(--purple50)">'+openOpps.length+'</span> <span style="color:var(--t4);font-size:10px">· '+fmtUSD(c.pipelineValue)+'</span>'}
+    else{h+='<span style="color:var(--t4)">-</span>'}
+    h+='</td>';
+    h+='</tr>'});
+
+  h+='</tbody></table></div>';
 
   if(!filtered.length){
     h+='<div style="padding:30px;text-align:center;color:var(--t4);font-size:13px">No '+(sub==='lapsed'?'lapsed':'active')+' clients.</div>'}

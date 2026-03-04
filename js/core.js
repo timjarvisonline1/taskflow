@@ -1197,7 +1197,12 @@ function getForecastMetrics(fc){
 function setForecastHorizon(days){S.forecastHorizon=days;render()}
 function setForecastScenario(s){S.forecastScenario=s;render()}
 function setWeeklyRange(v){S.weeklyRange=v;render()}
-function setClientSort(v){S.clientSort=v;render()}
+function setClientSort(v){
+  var cur=S.clientSort||'name';
+  var col=cur.replace(/^-/,'');
+  if(col===v){S.clientSort=cur.charAt(0)==='-'?v:'-'+v}
+  else{S.clientSort=(v==='name')?v:'-'+v}
+  render()}
 
 /* Check if a campaign billing falls on a given day based on billingFrequency + nextBillingDate */
 function campaignBillingFallsOnDay(cp,dayStr){

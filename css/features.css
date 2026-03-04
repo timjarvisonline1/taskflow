@@ -683,15 +683,8 @@
 .cl-detail-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--t4);margin-bottom:6px}
 .cl-detail-item{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;color:var(--t2)}
 .cl-detail-item .bg{font-size:10px;padding:2px 8px}
-.cl-row{display:flex;align-items:center;gap:14px;padding:12px 18px;background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);margin-bottom:6px;cursor:pointer;transition:all .25s var(--ease)}
-.cl-row:hover{background:var(--ghover);border-color:rgba(255,255,255,0.1);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
-.cl-row:hover .cl-edit-btn{opacity:1}
-.cl-name{font-weight:700;font-size:14px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cl-badge{font-size:10px;padding:3px 10px;border-radius:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-.cl-badge-active{background:rgba(16,185,129,.15);color:var(--green)}
-.cl-badge-lapsed{background:rgba(156,163,175,.15);color:var(--t3)}
-.cl-opp-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:var(--purple50);color:#fff}
-.cl-stat{font-size:11px;font-family:var(--fd);font-weight:600;min-width:50px;text-align:right}
+.tb th[onclick]{cursor:pointer;user-select:none;transition:color .15s var(--ease)}
+.tb th[onclick]:hover{color:var(--t1)}
 .cl-expand{font-size:10px;color:var(--t4);transition:transform .2s var(--ease);display:inline-block}
 .cl-expand.open{transform:rotate(90deg)}
 
