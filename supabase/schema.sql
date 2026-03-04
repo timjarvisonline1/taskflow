@@ -59,7 +59,7 @@ CREATE TABLE review (
   notes      text NOT NULL DEFAULT '',
   importance text NOT NULL DEFAULT 'Important',
   category   text NOT NULL DEFAULT '',
-  client     text NOT NULL DEFAULT 'Internal / N/A',
+  client     text NOT NULL DEFAULT '',
   end_client text NOT NULL DEFAULT '',
   type       text NOT NULL DEFAULT 'Business',
   est        integer NOT NULL DEFAULT 0,
