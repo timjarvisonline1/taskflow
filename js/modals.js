@@ -4142,7 +4142,15 @@ function openSignatureEditor(){
 function openAddContactModal(clientId,prefill){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Add Contact</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId||'')+'">';
+  if(clientId){
+    h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId)+'">';
+  }else{
+    /* Client selector — shown when adding from email or global context */
+    h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fc-client-id"><option value="">— No client —</option>';
+    (S.clientRecords||[]).forEach(function(cr){
+      h+='<option value="'+escAttr(cr.id)+'">'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
+    h+='</select></div>';
+  }
   h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">First Name</span><input type="text" class="edf" id="fc-first-name" placeholder="First name" autofocus></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Last Name</span><input type="text" class="edf" id="fc-last-name" placeholder="Last name"></div>';
@@ -4208,8 +4216,11 @@ async function saveContact(){
     company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||'',
     endClient:(gel('fc-end-client')||{}).value||''});
   closeModal();
-  /* Re-open client dashboard if it was open */
-  if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
+  /* Invalidate CRM cache so pills/smart inboxes update */
+  S._threadCrmCache={};
+  /* Re-open client dashboard if it was open, otherwise re-render */
+  if(S._lastClientDash)openClientDashboard(S._lastClientDash);
+  else render()}
 
 async function saveEditContact(){
   var id=(gel('fc-contact-id')||{}).value;if(!id)return;

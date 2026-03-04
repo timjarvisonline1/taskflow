@@ -168,7 +168,8 @@ var SECTIONS=[
     {id:'e-lapsed',label:'Clients (Lapsed)',icon:'clock',smart:true},
     {id:'e-prospects',label:'Prospects',icon:'gem',smart:true},
     {id:'e-campaigns',label:'By Campaign',icon:'target',smart:true},
-    {id:'e-opportunities',label:'By Opportunity',icon:'trending_up',smart:true}
+    {id:'e-opportunities',label:'By Opportunity',icon:'trending_up',smart:true},
+    {id:'e-other',label:'Other',icon:'mail',smart:true}
   ]}
 ];
 var VIEWS_FLAT=[];
@@ -796,9 +797,10 @@ function resolveThreadCrmContext(fromEmail,toEmails,ccEmails){
   var userE=(S._userEmail||'').toLowerCase();
   if(userE)allAddrs=allAddrs.filter(function(a){return a!==userE});
 
-  var clients=[],endClients=[],contacts=[],seenClients={},seenEC={};
+  var clients=[],endClients=[],contacts=[],unknownAddrs=[],seenClients={},seenEC={};
   allAddrs.forEach(function(addr){
-    var m=matchEmailToClient(addr);if(!m)return;
+    var m=matchEmailToClient(addr);
+    if(!m){unknownAddrs.push(addr);return}
     if(m.clientId&&!seenClients[m.clientId]){
       seenClients[m.clientId]=true;
       var cr=S.clientRecords.find(function(r){return r.id===m.clientId});
@@ -810,27 +812,20 @@ function resolveThreadCrmContext(fromEmail,toEmails,ccEmails){
       contactPhone:m.contactPhone,contactCompany:m.contactCompany,endClient:m.endClient,clientId:m.clientId,clientName:m.clientName})
   });
 
-  /* Find related opportunities */
   var clientNames=clients.map(function(c){return c.clientName});
   var ecNames=endClients.map(function(e){return e.name});
+
+  /* Opportunities: any open opp where an address on this thread is the opp's contactEmail,
+     OR the opp's client/endClient matches a resolved client/endClient on this thread */
   var opps=S.opportunities.filter(function(o){
     if(o.closedAt)return false;
-    /* Match by contact email */
     if(o.contactEmail){var oe=o.contactEmail.toLowerCase();if(allAddrs.indexOf(oe)!==-1)return true}
-    /* Match by client + endClient */
     if(clientNames.indexOf(o.client)!==-1)return true;
     if(o.endClient&&ecNames.indexOf(o.endClient)!==-1)return true;
     return false
   }).map(function(o){return{id:o.id,name:o.name,stage:o.stage,value:o.monthlyFee,client:o.client,endClient:o.endClient}});
 
-  /* Directly-linked opportunities: only those where the opportunity's contactEmail
-     is actually one of the addresses on this thread (not just because the client matches) */
-  var directOpps=S.opportunities.filter(function(o){
-    if(o.closedAt)return false;
-    if(o.contactEmail){var oe=o.contactEmail.toLowerCase();if(allAddrs.indexOf(oe)!==-1)return true}
-    return false});
-
-  /* Find related active campaigns */
+  /* Campaigns: any active/setup campaign where client or endClient matches */
   var camps=S.campaigns.filter(function(c){
     if(c.status!=='Active'&&c.status!=='Setup')return false;
     if(clientNames.indexOf(c.partner)!==-1)return true;
@@ -838,15 +833,25 @@ function resolveThreadCrmContext(fromEmail,toEmails,ccEmails){
     return false
   }).map(function(c){return{id:c.id,name:c.name,status:c.status,client:c.partner,endClient:c.endClient}});
 
-  /* isProspect: true only when someone on this thread is directly the contact
-     on an open opportunity — not just because their client happens to have one.
-     Also excludes active clients (they're clients, not prospects). */
+  /* Prospect: an address on this thread is directly the contactEmail on an open opportunity */
+  var isProspect=S.opportunities.some(function(o){
+    if(o.closedAt)return false;
+    if(!o.contactEmail)return false;
+    return allAddrs.indexOf(o.contactEmail.toLowerCase())!==-1});
+
+  /* Classification flags for smart inboxes */
   var hasActiveClient=clients.some(function(c){return c.status==='active'});
-  var isProspect=directOpps.length>0&&!hasActiveClient;
+  var hasLapsedClient=clients.some(function(c){return c.status!=='active'})&&!hasActiveClient;
 
   return{
     clients:clients,endClients:endClients,opportunities:opps,campaigns:camps,contacts:contacts,
+    unknownAddrs:unknownAddrs,
+    hasUnknown:unknownAddrs.length>0,
     isProspect:isProspect,
+    hasActiveClient:hasActiveClient,
+    hasLapsedClient:hasLapsedClient,
+    hasCampaign:camps.length>0,
+    hasOpportunity:opps.length>0,
     primaryClient:clients.length?clients[0]:null,
     primaryEndClient:endClients.length?endClients[0].name:''}
 }
@@ -2116,9 +2121,9 @@ async function cacheUserEmail(){
   }catch(e){}}
 
 /* ── Add contact from email sender ── */
-function addContactFromEmail(email){
-  var name='';
-  if(S.gmailThread&&S.gmailThread.messages){
+function addContactFromEmail(email,optName){
+  var name=optName||'';
+  if(!name&&S.gmailThread&&S.gmailThread.messages){
     var msgs=S.gmailThread.messages;
     for(var i=0;i<msgs.length;i++){
       if(msgs[i].fromEmail&&msgs[i].fromEmail.toLowerCase()===email.toLowerCase()){
@@ -2929,11 +2934,12 @@ function _countSmartInbox(subId){
   var count=0;
   threads.forEach(function(t){
     var ctx=getThreadCrmContext(t);if(!ctx)return;
-    if(subId==='e-active'&&ctx.clients.some(function(c){return c.status==='active'}))count++;
-    else if(subId==='e-lapsed'&&ctx.clients.some(function(c){return c.status==='lapsed'})&&!ctx.clients.some(function(c){return c.status==='active'}))count++;
-    else if(subId==='e-prospects'&&ctx.isProspect)count++;
-    else if(subId==='e-campaigns'&&t.campaign_id)count++;
-    else if(subId==='e-opportunities'&&t.opportunity_id)count++;
+    if(subId==='e-active')     {if(ctx.hasActiveClient)count++}
+    else if(subId==='e-lapsed'){if(ctx.hasLapsedClient)count++}
+    else if(subId==='e-prospects'){if(ctx.isProspect)count++}
+    else if(subId==='e-campaigns'){if(ctx.hasCampaign)count++}
+    else if(subId==='e-opportunities'){if(ctx.hasOpportunity)count++}
+    else if(subId==='e-other'){if(!ctx.hasActiveClient&&!ctx.hasLapsedClient&&!ctx.isProspect&&!ctx.hasCampaign&&!ctx.hasOpportunity)count++}
   });
   return count}
 function openMenu(){if(isMobile())return;gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on');

@@ -4631,7 +4631,7 @@ function rEmail(){
     h+='</div>';
   } else {
     /* Smart inbox header */
-    var _smartLabels={'e-active':'Clients (Active)','e-lapsed':'Clients (Lapsed)','e-prospects':'Prospects','e-campaigns':'By Campaign','e-opportunities':'By Opportunity'};
+    var _smartLabels={'e-active':'Clients (Active)','e-lapsed':'Clients (Lapsed)','e-prospects':'Prospects','e-campaigns':'By Campaign','e-opportunities':'By Opportunity','e-other':'Other'};
     h+='<div style="margin-bottom:16px;font-size:13px;color:var(--t3)">'+icon('filter',12)+' Showing: <strong style="color:var(--t1)">'+(_smartLabels[sub]||sub)+'</strong></div>';
   }
 
@@ -4649,11 +4649,12 @@ function rEmail(){
     else if(isSmartInbox){
       threads=threads.filter(function(t){
         var ctx=getThreadCrmContext(t);if(!ctx)return false;
-        if(sub==='e-active')return ctx.clients.some(function(c){return c.status==='active'});
-        if(sub==='e-lapsed')return ctx.clients.some(function(c){return c.status==='lapsed'})&&!ctx.clients.some(function(c){return c.status==='active'});
+        if(sub==='e-active')return ctx.hasActiveClient;
+        if(sub==='e-lapsed')return ctx.hasLapsedClient;
         if(sub==='e-prospects')return ctx.isProspect;
-        if(sub==='e-campaigns')return!!t.campaign_id;
-        if(sub==='e-opportunities')return!!t.opportunity_id;
+        if(sub==='e-campaigns')return ctx.hasCampaign;
+        if(sub==='e-opportunities')return ctx.hasOpportunity;
+        if(sub==='e-other')return !ctx.hasActiveClient&&!ctx.hasLapsedClient&&!ctx.isProspect&&!ctx.hasCampaign&&!ctx.hasOpportunity;
         return false
       });
     }
@@ -4688,16 +4689,16 @@ function rEmail(){
 function rEmailGrouped(threads,groupBy){
   var groups={};var noGroup=[];
   threads.forEach(function(t){
-    var key='';
-    if(groupBy==='campaign'&&t.campaign_id){
-      var cp=S.campaigns.find(function(c){return c.id===t.campaign_id});
-      key=cp?cp.name:'Unknown Campaign';
-    }else if(groupBy==='opportunity'&&t.opportunity_id){
-      var op=S.opportunities.find(function(o){return o.id===t.opportunity_id});
-      key=op?op.name:'Unknown Opportunity';
+    var ctx=getThreadCrmContext(t);
+    var keys=[];
+    if(groupBy==='campaign'&&ctx&&ctx.campaigns.length){
+      ctx.campaigns.forEach(function(c){keys.push(c.name)});
+    }else if(groupBy==='opportunity'&&ctx&&ctx.opportunities.length){
+      ctx.opportunities.forEach(function(o){keys.push(o.name)});
     }
-    if(key){if(!groups[key])groups[key]=[];groups[key].push(t)}
-    else{noGroup.push(t)}
+    if(keys.length){
+      keys.forEach(function(key){if(!groups[key])groups[key]=[];groups[key].push(t)});
+    }else{noGroup.push(t)}
   });
   var h='';
   var gKeys=Object.keys(groups).sort();
@@ -4713,7 +4714,7 @@ function rEmailGrouped(threads,groupBy){
     h+=rEmailList(noGroup);
   }
   if(!gKeys.length&&!noGroup.length){
-    h+='<div class="email-empty">'+icon('mail',32)+'<p>No categorized emails yet.</p><p style="font-size:12px;color:var(--t4)">Categorize emails when you reply to see them here.</p></div>';
+    h+='<div class="email-empty">'+icon('mail',32)+'<p>No emails matched.</p><p style="font-size:12px;color:var(--t4)">Emails will appear here when addresses match your campaigns or opportunities.</p></div>';
   }
   return h}
 
@@ -4769,6 +4770,14 @@ function rEmailList(threads){
       var _oppMax=Math.min(crmCtx.opportunities.length,2);
       for(var oi=0;oi<_oppMax;oi++){h+='<span class="email-opp-pill">'+esc(crmCtx.opportunities[oi].name)+'</span>'}
       if(crmCtx.opportunities.length>2)h+='<span class="email-opp-pill">+'+(crmCtx.opportunities.length-2)+'</span>'}
+    /* Add as Contact — for unknown addresses */
+    if(crmCtx&&crmCtx.hasUnknown){
+      var _unknAddr=crmCtx.unknownAddrs[0]||'';
+      var _unknName=(fromEmail.toLowerCase()===_unknAddr?fromName:'').replace(/'/g,"\\'");
+      h+='<span class="email-add-contact-pill" onclick="event.stopPropagation();TF.addContactFromEmail(\''+esc(_unknAddr)+'\',\''+_unknName+'\')">';
+      h+=icon('contact',9)+' + Contact';
+      if(crmCtx.unknownAddrs.length>1)h+=' <span style="opacity:.7">('+crmCtx.unknownAddrs.length+')</span>';
+      h+='</span>'}
     /* Communication direction badges */
     var lastFrom=(t.lastMessageFromEmail||t.last_message_from||fromEmail||'').toLowerCase();
     var userEmail=(S._userEmail||'').toLowerCase();
