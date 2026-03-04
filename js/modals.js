@@ -3957,10 +3957,14 @@ function openReplyEmail(){
 function openAddContactModal(clientId){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Add Contact</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId)+'">';
+  h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId||'')+'">';
   h+='<div class="ed-grid ed-grid-2">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="fc-name" placeholder="Full name" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">First Name</span><input type="text" class="edf" id="fc-first-name" placeholder="First name" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Last Name</span><input type="text" class="edf" id="fc-last-name" placeholder="Last name"></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="email" class="edf" id="fc-email" placeholder="email@company.com"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="fc-company" placeholder="Company name"></div>';
   h+='</div>';
   h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" placeholder="e.g. Marketing Manager"></div>';
@@ -3968,16 +3972,20 @@ function openAddContactModal(clientId){
   h+='</div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveContact()">Add Contact</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
-  setTimeout(function(){var n=gel('fc-name');if(n)n.focus()},100)}
+  setTimeout(function(){var n=gel('fc-first-name');if(n)n.focus()},100)}
 
 function openEditContactModal(contactId){
-  var c=S.clientContacts.find(function(cc){return cc.id===contactId});if(!c)return;
+  var c=S.contacts.find(function(cc){return cc.id===contactId});if(!c)return;
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Edit Contact</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<input type="hidden" id="fc-contact-id" value="'+escAttr(contactId)+'">';
   h+='<div class="ed-grid ed-grid-2">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="fc-name" value="'+escAttr(c.name)+'" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">First Name</span><input type="text" class="edf" id="fc-first-name" value="'+escAttr(c.firstName)+'" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Last Name</span><input type="text" class="edf" id="fc-last-name" value="'+escAttr(c.lastName)+'"></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="email" class="edf" id="fc-email" value="'+escAttr(c.email)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="fc-company" value="'+escAttr(c.company)+'"></div>';
   h+='</div>';
   h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" value="'+escAttr(c.role)+'"></div>';
@@ -3986,24 +3994,28 @@ function openEditContactModal(contactId){
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditContact()">Save Contact</button>';
   h+='<button class="btn" onclick="TF.confirmDeleteContact(\''+escAttr(contactId)+'\')" style="color:var(--red)">Delete</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
-  setTimeout(function(){var n=gel('fc-name');if(n)n.focus()},100)}
+  setTimeout(function(){var n=gel('fc-first-name');if(n)n.focus()},100)}
 
 async function saveContact(){
-  var clientId=(gel('fc-client-id')||{}).value;if(!clientId)return;
-  var name=(gel('fc-name')||{}).value||'';
+  var clientId=(gel('fc-client-id')||{}).value||null;
+  var firstName=(gel('fc-first-name')||{}).value||'';
+  var lastName=(gel('fc-last-name')||{}).value||'';
   var email=(gel('fc-email')||{}).value||'';
-  if(!name.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
-  await dbAddContact(clientId,{name:name.trim(),email:email.trim(),role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||''});
+  if(!firstName.trim()&&!lastName.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
+  await dbAddContact(clientId,{firstName:firstName.trim(),lastName:lastName.trim(),email:email.trim(),
+    company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||''});
   closeModal();
   /* Re-open client dashboard if it was open */
   if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
 
 async function saveEditContact(){
   var id=(gel('fc-contact-id')||{}).value;if(!id)return;
-  var name=(gel('fc-name')||{}).value||'';
+  var firstName=(gel('fc-first-name')||{}).value||'';
+  var lastName=(gel('fc-last-name')||{}).value||'';
   var email=(gel('fc-email')||{}).value||'';
-  if(!name.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
-  await dbEditContact(id,{name:name.trim(),email:email.trim(),role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||''});
+  if(!firstName.trim()&&!lastName.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
+  await dbEditContact(id,{firstName:firstName.trim(),lastName:lastName.trim(),email:email.trim(),
+    company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||''});
   closeModal();
   if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
 

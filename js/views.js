@@ -435,18 +435,19 @@ function rClientDashboard(c){
 
   /* Contacts */
   if(c.clientId){
-    var contacts=S.clientContacts.filter(function(cc){return cc.clientId===c.clientId});
+    var contacts=S.contacts.filter(function(cc){return cc.clientId===c.clientId});
     h+='<div class="dash-section" style="display:flex;align-items:center;justify-content:space-between">'+icon('contact',13)+' Contacts ('+contacts.length+')';
     h+=' <button class="btn" onclick="TF.openAddContactModal(\''+escAttr(c.clientId)+'\')" style="font-size:11px;padding:4px 10px">'+icon('plus',10)+' Add</button></div>';
     if(contacts.length){
       h+='<div class="contact-list" style="margin-bottom:16px;display:flex;flex-direction:column;gap:4px">';
       contacts.forEach(function(cc){
         h+='<div class="contact-card" onclick="TF.openEditContactModal(\''+escAttr(cc.id)+'\')" style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s">';
-        var initial=(cc.name||cc.email||'?').charAt(0).toUpperCase();
+        var fullName=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
+        var initial=(cc.firstName||cc.lastName||cc.email||'?').charAt(0).toUpperCase();
         var avatarBg=emailAvatarColor(cc.email);
         h+='<div style="width:32px;height:32px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
         h+='<div style="flex:1;min-width:0">';
-        h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(cc.name||'Unnamed')+'</div>';
+        h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(fullName||'Unnamed')+'</div>';
         h+='<div style="font-size:11px;color:var(--t4);display:flex;gap:12px;flex-wrap:wrap">';
         if(cc.role)h+='<span>'+esc(cc.role)+'</span>';
         if(cc.email)h+='<span>'+esc(cc.email)+'</span>';

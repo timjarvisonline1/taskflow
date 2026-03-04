@@ -98,7 +98,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
-  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,clientContacts:[]};
+  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,contacts:[]};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -737,20 +737,23 @@ async function loadClientRecords(){
   cls.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
   S.clients=cls}
 
-async function loadClientContacts(){
-  var res=await _sb.from('client_contacts').select('*').order('name');
-  if(res.error){console.error('loadClientContacts:',res.error);return}
-  S.clientContacts=(res.data||[]).map(function(r){
-    return{id:r.id,clientId:r.client_id||'',name:r.name||'',email:r.email||'',role:r.role||'',phone:r.phone||''}})}
+async function loadContacts(){
+  var res=await _sb.from('contacts').select('*').order('last_name');
+  if(res.error){console.error('loadContacts:',res.error);return}
+  S.contacts=(res.data||[]).map(function(r){
+    return{id:r.id,clientId:r.client_id||'',firstName:r.first_name||'',lastName:r.last_name||'',
+      email:r.email||'',role:r.role||'',phone:r.phone||'',company:r.company||'',
+      website:r.website||'',status:r.status||'active',uniqueKey:r.unique_key||''}})}
 
 function matchEmailToClient(email){
   if(!email)return null;
   var e=email.toLowerCase().trim();
-  /* Check client_contacts first */
-  var cc=S.clientContacts.find(function(c){return c.email&&c.email.toLowerCase()===e});
+  /* Check contacts first */
+  var cc=S.contacts.find(function(c){return c.email&&c.email.toLowerCase()===e});
   if(cc){
     var cr=S.clientRecords.find(function(r){return r.id===cc.clientId});
-    return{clientId:cc.clientId,clientName:cr?cr.name:'',contactName:cc.name,contactRole:cc.role}}
+    var cName=(cc.firstName+' '+cc.lastName).trim();
+    return{clientId:cc.clientId,clientName:cr?cr.name:'',contactName:cName,contactRole:cc.role}}
   /* Fall back to client.email field */
   var cl=S.clientRecords.find(function(r){return r.email&&r.email.toLowerCase()===e});
   if(cl)return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:''};
@@ -758,25 +761,31 @@ function matchEmailToClient(email){
 
 async function dbAddContact(clientId,data){
   var uid=await getUserId();if(!uid)return null;
-  var row={user_id:uid,client_id:clientId,name:data.name||'',email:data.email||'',role:data.role||'',phone:data.phone||''};
-  var res=await _sb.from('client_contacts').insert(row).select().single();
+  var row={user_id:uid,client_id:clientId||null,first_name:data.firstName||'',last_name:data.lastName||'',
+    email:data.email||'',role:data.role||'',phone:data.phone||'',
+    company:data.company||'',website:data.website||'',status:data.status||'active',unique_key:data.uniqueKey||''};
+  var res=await _sb.from('contacts').insert(row).select().single();
   if(res.error){toast('Add contact failed: '+res.error.message,'warn');return null}
-  await loadClientContacts();render();toast('Contact added','ok');return res.data}
+  await loadContacts();render();toast('Contact added','ok');return res.data}
 
 async function dbEditContact(id,data){
   var upd={};
-  if(data.name!==undefined)upd.name=data.name;
+  if(data.firstName!==undefined)upd.first_name=data.firstName;
+  if(data.lastName!==undefined)upd.last_name=data.lastName;
   if(data.email!==undefined)upd.email=data.email;
   if(data.role!==undefined)upd.role=data.role;
   if(data.phone!==undefined)upd.phone=data.phone;
-  var res=await _sb.from('client_contacts').update(upd).eq('id',id);
+  if(data.company!==undefined)upd.company=data.company;
+  if(data.website!==undefined)upd.website=data.website;
+  if(data.status!==undefined)upd.status=data.status;
+  var res=await _sb.from('contacts').update(upd).eq('id',id);
   if(res.error){toast('Edit contact failed: '+res.error.message,'warn');return false}
-  await loadClientContacts();render();toast('Contact updated','ok');return true}
+  await loadContacts();render();toast('Contact updated','ok');return true}
 
 async function dbDeleteContact(id){
-  var res=await _sb.from('client_contacts').delete().eq('id',id);
+  var res=await _sb.from('contacts').delete().eq('id',id);
   if(res.error){toast('Delete contact failed: '+res.error.message,'warn');return false}
-  await loadClientContacts();render();toast('Contact deleted','ok');return true}
+  await loadContacts();render();toast('Contact deleted','ok');return true}
 
 async function loadPayerMap(){
   var res=await _sb.from('payer_client_map').select('*');
@@ -1896,7 +1905,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadClientContacts()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
