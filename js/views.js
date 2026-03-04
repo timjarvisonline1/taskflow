@@ -14,7 +14,7 @@ function render(){
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
   switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
-  if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts()}
+  if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
   if(S.view==='dashboard')initDashboardCharts();
   if(S.view==='projects')initProjectCharts();
   if(S.view==='opportunities'){initOpportunityCharts();if(S.opViewMode==='profitability'&&S.subView&&OPP_TYPES[S.subView])initOppProfitabilityCharts(S.subView);if(S.subView==='profitability')initOppProfitabilityDashboard()}
@@ -268,7 +268,7 @@ function initDashboardCharts(){
     for(var i=29;i>=0;i--){var d=new Date(td_.getTime()-i*864e5);var k=fmtDShort(d);dailyData[k]=0}
     var cut30=new Date(td_.getTime()-30*864e5);
     S.done.filter(function(d){return d.completed&&d.completed>=cut30}).forEach(function(d){var k=fmtDShort(d.completed);if(dailyData.hasOwnProperty(k))dailyData[k]++});
-    if(Object.keys(dailyData).length)mkLine('dash-daily-chart',dailyData,'Tasks');
+    if(Object.keys(dailyData).length){var _dlk=Object.keys(dailyData),_dlv=_dlk.map(function(k){return dailyData[k]});mkLine('dash-daily-chart',_dlk,_dlv,'#ff0099')}
     /* Heatmap */
     renderHeatmap();
   },200)}
@@ -623,6 +623,13 @@ function rScheduleCapacity(ctx){
     if(capUnscheduled>0)h+='<span>'+icon('alert',11)+' Overflow <b style="color:var(--red)">'+capUnscheduled+' tasks</b> ('+fmtM(capUnschedMins)+')</span>';
     else h+='<span>'+icon('check',11)+' <b style="color:var(--green)">All scheduled</b></span>';
     h+='</div></div>';
+
+    /* Charts row */
+    h+='<div class="dash-charts" style="margin-bottom:18px">';
+    h+='<div class="chart-card"><h3>Capacity Breakdown</h3><div class="chart-wrap"><canvas id="cap-breakdown-chart"></canvas></div></div>';
+    h+='<div class="chart-card"><h3>Daily Time Allocation</h3><div class="chart-wrap"><canvas id="cap-daily-alloc-chart"></canvas></div></div>';
+    h+='</div>';
+
     h+='<div class="cap-days">';
     capDays.forEach(function(d){
       var dayClr=d.pct>95?'var(--red)':d.pct>70?'var(--amber)':'var(--green)';
@@ -642,19 +649,109 @@ function rScheduleCapacity(ctx){
       if(d.ooo>0)h+='<span class="cap-day-info"><b style="color:var(--purple50)">'+fmtM(d.ooo)+'</b> OOO</span>';
       h+='<span class="cap-day-info"><b style="color:var(--blue)">'+fmtM(d.sched)+'</b> tasks ('+d.tasks+')</span>';
       if(d.free>0)h+='<span class="cap-day-info"><b style="color:var(--green)">'+fmtM(d.free)+'</b> free</span>';
+      if(d.schedCrit>0||d.schedImp>0||d.schedWta>0){
+        h+='<span class="cap-day-info" style="gap:3px">';
+        if(d.schedCrit>0)h+='<span class="bg bg-cr" style="font-size:8px;padding:1px 5px" title="Critical">C</span>';
+        if(d.schedImp>0)h+='<span class="bg bg-im" style="font-size:8px;padding:1px 5px" title="Important">I</span>';
+        if(d.schedWta>0)h+='<span class="bg bg-wt" style="font-size:8px;padding:1px 5px" title="Flex">F</span>';
+        h+='</span>'}
       h+='</div></div>'});
-    h+='</div></div>'}
+    h+='</div>';
+
+    /* Capacity Forecast Panel */
+    var capFreeMins=Math.max(0,capWeekFreeMins-capWeekSchedMins);
+    h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:16px 18px;margin-top:14px;display:flex;align-items:center;gap:12px">';
+    if(capUnscheduled>0){
+      h+='<span style="font-size:18px;color:var(--red)">'+icon('alert',18)+'</span>';
+      h+='<div><div style="font-size:13px;font-weight:600;color:var(--red)">Capacity Overflow</div>';
+      h+='<div style="font-size:11px;color:var(--t3)">'+capUnscheduled+' task'+(capUnscheduled>1?'s':'')+' ('+fmtM(capUnschedMins)+') won\'t fit this week. '+fmtM(capFreeMins)+' free time remaining.</div></div>';
+    }else{
+      h+='<span style="font-size:18px;color:var(--green)">'+icon('check',18)+'</span>';
+      h+='<div><div style="font-size:13px;font-weight:600;color:var(--green)">All Tasks Scheduled</div>';
+      h+='<div style="font-size:11px;color:var(--t3)">All estimated tasks fit within the week. '+fmtM(capFreeMins)+' free time remaining.</div></div>';
+    }
+    h+='</div>';
+
+    h+='</div>'}
   else{h+='<div class="no-data" style="padding:36px">No working days configured for capacity planning.</div>'}
   return h}
+
+function initScheduleCapacityCharts(){
+  setTimeout(function(){
+    var td=today();
+    var schedDaysConf=CONFIG.schedDays||[1,2,3,4];
+    var wSC=CONFIG.workStart||9,wEC=CONFIG.workEnd||20;
+    var workMinsPerDay=(wEC-wSC)*60;
+    var usedMap={};
+    var totalOoo=0,totalMtg=0,totalCrit=0,totalImp=0,totalWta=0,totalFree=0;
+    var dayLabels=[],dayOoo=[],dayMtg=[],dayCrit=[],dayImp=[],dayWta=[],dayFree=[];
+
+    for(var wd=0;wd<7;wd++){
+      var wdd=new Date(td.getTime()+wd*864e5);
+      if(schedDaysConf.indexOf(wdd.getDay())===-1)continue;
+      var wdEnd=new Date(wdd.getTime()+864e5);
+      var wdEvents=S.calEvents.filter(function(e){return e.start>=wdd&&e.start<wdEnd});
+      var wdFreeSlots=calcFreeSlots(wdEvents,wSC,wEC,wdd);
+      var wdFreeMins=0;wdFreeSlots.forEach(function(s){wdFreeMins+=Math.round((s.end-s.start)/60000)});
+      var wdMtg=0,wdOoo=0;wdEvents.forEach(function(e){
+        var es=Math.max(e.start.getTime(),new Date(wdd).setHours(wSC,0,0,0));
+        var ee=Math.min(e.end.getTime(),new Date(wdd).setHours(wEC,0,0,0));
+        if(ee>es){var m=Math.round((ee-es)/60000);if(e.title&&e.title.indexOf('OOO')===0)wdOoo+=m;else wdMtg+=m}});
+      var wdSched=scheduleTasks(wdd,usedMap);
+      var wdC=0,wdI=0,wdW=0;
+      wdSched.forEach(function(s){usedMap[s.task.id]=true;
+        if(s.task.importance==='Critical')wdC+=s.mins;
+        else if(s.task.importance==='When Time Allows')wdW+=s.mins;
+        else wdI+=s.mins});
+      var wdSchedMins=wdC+wdI+wdW;
+      var wdFr=Math.max(0,wdFreeMins-wdSchedMins);
+
+      totalOoo+=wdOoo;totalMtg+=wdMtg;totalCrit+=wdC;totalImp+=wdI;totalWta+=wdW;totalFree+=wdFr;
+      dayLabels.push(DAYSHORT[wdd.getDay()]+' '+wdd.getDate());
+      dayOoo.push(wdOoo);dayMtg.push(wdMtg);dayCrit.push(wdC);dayImp.push(wdI);dayWta.push(wdW);dayFree.push(wdFr);
+    }
+
+    /* Capacity breakdown donut */
+    var breakdownData={};
+    if(totalOoo>0)breakdownData['OOO']=totalOoo;
+    if(totalMtg>0)breakdownData['Meetings']=totalMtg;
+    if(totalCrit>0)breakdownData['Critical']=totalCrit;
+    if(totalImp>0)breakdownData['Important']=totalImp;
+    if(totalWta>0)breakdownData['Flex']=totalWta;
+    if(totalFree>0)breakdownData['Free']=totalFree;
+    if(Object.keys(breakdownData).length)mkDonut('cap-breakdown-chart',breakdownData);
+
+    /* Daily time allocation stacked bar */
+    var el=document.getElementById('cap-daily-alloc-chart');
+    if(el&&dayLabels.length){
+      var cx=el.getContext('2d');
+      if(charts['cap-daily-alloc-chart'])charts['cap-daily-alloc-chart'].destroy();
+      charts['cap-daily-alloc-chart']=new Chart(cx,{type:'bar',data:{labels:dayLabels,datasets:[
+        {label:'OOO',data:dayOoo,backgroundColor:'rgba(139,92,246,0.5)',borderWidth:0},
+        {label:'Meetings',data:dayMtg,backgroundColor:'rgba(255,0,153,0.5)',borderWidth:0},
+        {label:'Critical',data:dayCrit,backgroundColor:'rgba(239,68,68,0.5)',borderWidth:0},
+        {label:'Important',data:dayImp,backgroundColor:'rgba(59,130,246,0.5)',borderWidth:0},
+        {label:'Flex',data:dayWta,backgroundColor:'rgba(16,185,129,0.5)',borderWidth:0},
+        {label:'Free',data:dayFree,backgroundColor:'rgba(255,255,255,0.07)',borderWidth:0}
+      ]},options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#999',font:{size:10}}}},
+        scales:{x:{stacked:true,ticks:{color:'#666',font:{size:10}},grid:{display:false}},
+          y:{stacked:true,ticks:{color:'#666',font:{size:10},callback:function(v){return fmtM(v)}},grid:{color:'rgba(255,255,255,0.04)'}}}}})
+    }
+  },200)}
 
 /* ── Sub-view: Suggested Schedule (Calendar + Day Planner) ── */
 function rSchedulePlanner(ctx){
   var h='';
-  var effDay=ctx.effDay,isShifted=ctx.isShifted,now=ctx.now;
-  var dayCalEvents=ctx.dayCalEvents,dayCalEventsAll=ctx.dayCalEventsAll;
-
   /* CALENDAR + 2-DAY PLANNER */
   h+='<div id="cal-section">'+renderCalSection()+'</div>';
+  return h}
+
+/* ── Sub-view: Today's Schedule (Alerts + Pinned) ── */
+function rScheduleDay(ctx){
+  var h='';
+  var effDay=ctx.effDay,effDayEnd=ctx.effDayEnd,isShifted=ctx.isShifted,sorted=ctx.sorted;
+  var now=ctx.now,dayCalEvents=ctx.dayCalEvents,dayCalEventsAll=ctx.dayCalEventsAll;
 
   /* TODAY'S SCHEDULE (calendar-style day planner) */
   var wS=CONFIG.workStart||9,wE=CONFIG.workEnd||20;
@@ -786,12 +883,6 @@ function rSchedulePlanner(ctx){
   if(!dayItems.length){
     h+='<div class="today-cal-empty">No meetings or tasks scheduled</div>'}
   h+='</div></div>';
-  return h}
-
-/* ── Sub-view: Today's Schedule (Alerts + Pinned) ── */
-function rScheduleDay(ctx){
-  var h='';
-  var effDay=ctx.effDay,effDayEnd=ctx.effDayEnd,isShifted=ctx.isShifted,sorted=ctx.sorted;
 
   /* Chase items */
   var chaseItems=[];
@@ -970,7 +1061,7 @@ function initScheduleAnalyticsCharts(){
     for(var j=29;j>=0;j--){var d=new Date(td_.getTime()-j*864e5);dailyData[fmtDShort(d)]=0}
     var cut30=new Date(td_.getTime()-30*864e5);
     S.done.filter(function(d){return d.completed&&d.completed>=cut30}).forEach(function(d){var k=fmtDShort(d.completed);if(dailyData.hasOwnProperty(k))dailyData[k]++});
-    mkLine('sched-daily-chart',dailyData,'Tasks');
+    var _sdk=Object.keys(dailyData),_sdv=_sdk.map(function(k){return dailyData[k]});mkLine('sched-daily-chart',_sdk,_sdv,'#ff0099');
     /* Category donut */
     var catData={};S.done.forEach(function(d){var c=d.category||'Uncategorised';catData[c]=(catData[c]||0)+1});
     if(Object.keys(catData).length)mkDonut('sched-cat-chart',catData);
@@ -983,7 +1074,7 @@ function initScheduleAnalyticsCharts(){
 /* ── Sub-view: Daily Summary (inline, beautiful cards) ── */
 function rScheduleDaily(ctx){
   var h='';
-  var effDay=ctx.effDay,effDayEnd=ctx.effDayEnd;
+  var effDay=ctx.effDay,effDayEnd=ctx.effDayEnd,isShifted=ctx.isShifted;
   var todayDone=ctx.todayDone,todayMins=ctx.todayMins;
   var inProg=ctx.inProg;
 
@@ -991,6 +1082,10 @@ function rScheduleDaily(ctx){
   var carryOver=S.tasks.filter(function(t){return t.due&&t.due<=effDay&&!ctx.inProgIds[t.id]});
   /* Needs chasing */
   var chasing=S.tasks.filter(function(t){return t.flag||t.status==='Need Client Input'});
+
+  /* Efficiency: done / (done + carry + chasing) */
+  var effTotal=todayDone.length+carryOver.length+chasing.length;
+  var efficiency=effTotal>0?Math.round(todayDone.length/effTotal*100):0;
 
   h+='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn" onclick="TF.openSummary()" style="font-size:11px;padding:5px 12px">'+icon('mail',11)+' Copy Summary</button></div>';
 
@@ -1000,6 +1095,7 @@ function rScheduleDaily(ctx){
   h+=dashMet('Time Tracked',fmtM(todayMins),'var(--pink)');
   h+=dashMet('Carrying Over',carryOver.length,carryOver.length?'var(--amber)':'var(--green)');
   h+=dashMet('Needs Chasing',chasing.length,chasing.length?'var(--red)':'var(--green)');
+  h+=dashMet('Efficiency',efficiency+'%',efficiency>=70?'var(--green)':efficiency>=40?'var(--amber)':'var(--red)');
   h+='</div>';
 
   /* Done today */
@@ -1009,6 +1105,7 @@ function rScheduleDaily(ctx){
       h+='<div class="mini-row" onclick="TF.openDoneDetail(\''+escAttr(d.id)+'\')">';
       h+='<span class="bg '+impCls(d.importance||'When Time Allows')+'" style="font-size:8px;padding:1px 5px">'+(d.importance||'W').charAt(0)+'</span>';
       h+='<span class="mini-row-name">'+esc(d.item)+'</span>';
+      if(d.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:1px 6px;margin-left:auto">'+esc(d.client)+'</span>';
       if(d.duration)h+='<span class="mini-row-meta" style="color:var(--green)">'+fmtM(d.duration)+'</span>';
       h+='</div>'});
     h+='</div>'}
@@ -1019,14 +1116,39 @@ function rScheduleDaily(ctx){
     inProg.forEach(function(t){h+=miniRow(t,effDay)});
     h+='</div>'}
 
-  /* Carrying Over */
+  /* Carrying Over — grouped by urgency tiers */
   if(carryOver.length){
-    h+='<div class="td-panel" style="border-color:rgba(255,176,48,0.15);margin-bottom:14px"><div class="td-panel-h"><span class="td-panel-t" style="color:var(--amber)">'+icon('alert',12)+' Carrying Over</span><span class="td-panel-c">'+carryOver.length+'</span></div>';
+    /* Sort most overdue first */
+    carryOver.sort(function(a,b){return(a.due?a.due.getTime():Infinity)-(b.due?b.due.getTime():Infinity)});
+    /* Group into tiers */
+    var tiers=[
+      {label:'7+ Days Overdue',color:'var(--red)',items:[]},
+      {label:'4-7 Days Overdue',color:'var(--red)',items:[]},
+      {label:'1-3 Days Overdue',color:'var(--amber)',items:[]},
+      {label:'Due Today',color:'var(--blue)',items:[]}];
     carryOver.forEach(function(t){
       var diff=dayDiff(effDay,t.due);
-      h+='<div class="mini-row" onclick="TF.openDetail(\''+escAttr(t.id)+'\')">';
-      h+='<span class="mini-row-name">'+esc(t.item)+'</span>';
-      if(diff<0)h+='<span class="mini-row-meta" style="color:var(--red)">'+Math.abs(diff)+'d overdue</span>';
+      var absDiff=Math.abs(diff);
+      if(diff===0)tiers[3].items.push({task:t,days:0});
+      else if(absDiff<=3)tiers[2].items.push({task:t,days:absDiff});
+      else if(absDiff<=7)tiers[1].items.push({task:t,days:absDiff});
+      else tiers[0].items.push({task:t,days:absDiff})});
+
+    h+='<div class="td-panel" style="border-color:rgba(255,176,48,0.15);margin-bottom:14px"><div class="td-panel-h"><span class="td-panel-t" style="color:var(--amber)">'+icon('alert',12)+' Carrying Over</span><span class="td-panel-c">'+carryOver.length+'</span></div>';
+    tiers.forEach(function(tier){
+      if(!tier.items.length)return;
+      h+='<div style="margin-bottom:10px">';
+      h+='<div style="font-size:10px;font-weight:700;color:'+tier.color+';text-transform:uppercase;letter-spacing:0.5px;padding:6px 0 4px;border-bottom:1px solid rgba(255,255,255,0.04);margin-bottom:4px">'+tier.label+' ('+tier.items.length+')</div>';
+      tier.items.forEach(function(ci){
+        var t=ci.task;
+        h+='<div class="mini-row" onclick="TF.openDetail(\''+escAttr(t.id)+'\')" style="gap:6px">';
+        h+='<span class="bg '+impCls(t.importance||'When Time Allows')+'" style="font-size:8px;padding:1px 5px">'+(t.importance||'W').charAt(0)+'</span>';
+        h+='<span class="mini-row-name">'+esc(t.item)+'</span>';
+        if(t.client)h+='<span class="bg bg-cl" style="font-size:9px;padding:1px 6px">'+esc(t.client)+'</span>';
+        if(t.category)h+='<span style="font-size:10px;color:var(--t4)">'+esc(t.category)+'</span>';
+        if(t.estimate)h+='<span style="font-size:10px;color:var(--t3);font-family:var(--fd)">'+fmtM(t.estimate)+'</span>';
+        if(ci.days>0)h+='<span style="font-size:10px;font-weight:600;color:'+tier.color+';font-family:var(--fd);white-space:nowrap">'+ci.days+'d</span>';
+        h+='</div>'});
       h+='</div>'});
     h+='</div>'}
 
@@ -1042,58 +1164,101 @@ function rScheduleDaily(ctx){
     h+='</div>'}
 
   if(!todayDone.length&&!inProg.length&&!carryOver.length&&!chasing.length){
-    h+='<div class="no-data" style="padding:36px">Nothing to report yet for today.</div>'}
+    h+='<div class="no-data" style="padding:48px;text-align:center">';
+    h+='<div style="font-size:28px;margin-bottom:10px;opacity:0.5">'+icon('check',28)+'</div>';
+    h+='<div style="font-size:14px;font-weight:600;color:var(--t2);margin-bottom:6px">All caught up!</div>';
+    h+='<div style="font-size:12px;color:var(--t4)">No tasks completed, in progress, overdue, or waiting for '+(isShifted?fmtDShort(effDay):'today')+'.</div>';
+    h+='</div>'}
   return h}
 
 /* ── Sub-view: Weekly Summary ── */
 function rScheduleWeekly(ctx){
   var h='';
   var td_=today();
-  /* This week: Mon to Sun */
-  var thisWeekStart=new Date(td_);thisWeekStart.setDate(thisWeekStart.getDate()-((thisWeekStart.getDay()+6)%7));
-  thisWeekStart.setHours(0,0,0,0);
-  var thisWeekEnd=new Date(thisWeekStart.getTime()+7*864e5);
-  /* Last week */
-  var lastWeekStart=new Date(thisWeekStart.getTime()-7*864e5);
-  var lastWeekEnd=new Date(thisWeekStart);
+  var range=S.weeklyRange||'all';
 
-  var thisWeekDone=S.done.filter(function(d){return d.completed&&d.completed>=thisWeekStart&&d.completed<thisWeekEnd});
-  var lastWeekDone=S.done.filter(function(d){return d.completed&&d.completed>=lastWeekStart&&d.completed<lastWeekEnd});
+  /* Period boundary calculation */
+  var thisWeekStart=wkStart(td_);
+  var periodStart,periodEnd,prevStart,prevEnd,periodLabel,prevLabel;
 
-  var twMins=0;thisWeekDone.forEach(function(d){twMins+=d.duration||0});
-  var lwMins=0;lastWeekDone.forEach(function(d){lwMins+=d.duration||0});
-  var twAvgDur=thisWeekDone.length>0?Math.round(twMins/thisWeekDone.length):0;
-  var lwAvgDur=lastWeekDone.length>0?Math.round(lwMins/lastWeekDone.length):0;
+  if(range==='week'){
+    periodStart=thisWeekStart;periodEnd=new Date(thisWeekStart.getTime()+7*864e5);
+    prevStart=new Date(thisWeekStart.getTime()-7*864e5);prevEnd=new Date(thisWeekStart);
+    periodLabel='This Week';prevLabel='Last Week';
+  }else if(range==='month'){
+    periodStart=new Date(td_.getFullYear(),td_.getMonth(),1);
+    periodEnd=new Date(td_.getFullYear(),td_.getMonth()+1,1);
+    prevStart=new Date(td_.getFullYear(),td_.getMonth()-1,1);
+    prevEnd=new Date(periodStart);
+    periodLabel='This Month';prevLabel='Last Month';
+  }else if(range==='quarter'){
+    var qm=Math.floor(td_.getMonth()/3)*3;
+    periodStart=new Date(td_.getFullYear(),qm,1);
+    periodEnd=new Date(td_.getFullYear(),qm+3,1);
+    prevStart=new Date(td_.getFullYear(),qm-3,1);
+    prevEnd=new Date(periodStart);
+    periodLabel='This Quarter';prevLabel='Last Quarter';
+  }else{
+    /* All time — no comparison */
+    periodStart=null;periodEnd=null;prevStart=null;prevEnd=null;
+    periodLabel='All Time';prevLabel=null;
+  }
+
+  /* Filter data for current & previous periods */
+  var currDone=range==='all'?S.done.filter(function(d){return d.completed}):
+    S.done.filter(function(d){return d.completed&&d.completed>=periodStart&&d.completed<periodEnd});
+  var prevDone=prevStart?S.done.filter(function(d){return d.completed&&d.completed>=prevStart&&d.completed<prevEnd}):[];
+
+  var currMins=0;currDone.forEach(function(d){currMins+=d.duration||0});
+  var prevMins=0;prevDone.forEach(function(d){prevMins+=d.duration||0});
+  var currAvg=currDone.length>0?Math.round(currMins/currDone.length):0;
+  var prevAvg=prevDone.length>0?Math.round(prevMins/prevDone.length):0;
 
   function pctChange(curr,prev){if(prev===0)return curr>0?'+100%':'0%';var ch=Math.round((curr-prev)/prev*100);return(ch>=0?'+':'')+ch+'%'}
   function chClr(curr,prev){return curr>=prev?'var(--green)':'var(--red)'}
 
-  /* Comparison cards */
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">';
-  /* This week */
-  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px">';
-  h+='<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:14px">This Week</div>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">';
-  h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--green);font-family:var(--fd)">'+thisWeekDone.length+'</div><div style="font-size:10px;color:var(--t4)">Tasks</div></div>';
-  h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--pink);font-family:var(--fd)">'+fmtM(twMins)+'</div><div style="font-size:10px;color:var(--t4)">Time</div></div>';
-  h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--blue);font-family:var(--fd)">'+fmtM(twAvgDur)+'</div><div style="font-size:10px;color:var(--t4)">Avg Duration</div></div>';
-  h+='</div></div>';
-  /* Last week */
-  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px">';
-  h+='<div style="font-size:13px;font-weight:700;color:var(--t2);margin-bottom:14px">Last Week</div>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">';
-  h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--t2);font-family:var(--fd)">'+lastWeekDone.length+'</div><div style="font-size:10px;color:var(--t4)">Tasks</div></div>';
-  h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--t2);font-family:var(--fd)">'+fmtM(lwMins)+'</div><div style="font-size:10px;color:var(--t4)">Time</div></div>';
-  h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--t2);font-family:var(--fd)">'+fmtM(lwAvgDur)+'</div><div style="font-size:10px;color:var(--t4)">Avg Duration</div></div>';
-  h+='</div></div>';
+  /* Period selector pills */
+  var ranges=[{k:'week',l:'This Week'},{k:'month',l:'This Month'},{k:'quarter',l:'This Quarter'},{k:'all',l:'All Time'}];
+  h+='<div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">';
+  ranges.forEach(function(r){
+    var active=range===r.k;
+    h+='<button class="btn'+(active?' btn-active':'')+'" onclick="TF.setWeeklyRange(\''+r.k+'\')" style="font-size:11px;padding:5px 14px;'+(active?'background:var(--pink);color:#fff;border-color:var(--pink)':'')+'">'+r.l+'</button>'});
   h+='</div>';
 
-  /* Change indicators */
-  h+='<div class="dash-mets" style="margin-bottom:20px">';
-  h+=dashMet('Tasks '+pctChange(thisWeekDone.length,lastWeekDone.length),thisWeekDone.length+' vs '+lastWeekDone.length,chClr(thisWeekDone.length,lastWeekDone.length));
-  h+=dashMet('Time '+pctChange(twMins,lwMins),fmtM(twMins)+' vs '+fmtM(lwMins),chClr(twMins,lwMins));
-  h+=dashMet('Avg Dur '+pctChange(twAvgDur,lwAvgDur),fmtM(twAvgDur)+' vs '+fmtM(lwAvgDur),chClr(twAvgDur,lwAvgDur));
-  h+='</div>';
+  if(range==='all'){
+    /* All Time: single summary card */
+    h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px;margin-bottom:20px">';
+    h+='<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:14px">All Time Summary</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--green);font-family:var(--fd)">'+currDone.length+'</div><div style="font-size:10px;color:var(--t4)">Tasks Done</div></div>';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--pink);font-family:var(--fd)">'+fmtM(currMins)+'</div><div style="font-size:10px;color:var(--t4)">Total Time</div></div>';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--blue);font-family:var(--fd)">'+fmtM(currAvg)+'</div><div style="font-size:10px;color:var(--t4)">Avg Duration</div></div>';
+    h+='</div></div>';
+  }else{
+    /* Comparison cards */
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">';
+    h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px">';
+    h+='<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:14px">'+periodLabel+'</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--green);font-family:var(--fd)">'+currDone.length+'</div><div style="font-size:10px;color:var(--t4)">Tasks</div></div>';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--pink);font-family:var(--fd)">'+fmtM(currMins)+'</div><div style="font-size:10px;color:var(--t4)">Time</div></div>';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--blue);font-family:var(--fd)">'+fmtM(currAvg)+'</div><div style="font-size:10px;color:var(--t4)">Avg Duration</div></div>';
+    h+='</div></div>';
+    h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px">';
+    h+='<div style="font-size:13px;font-weight:700;color:var(--t2);margin-bottom:14px">'+prevLabel+'</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--t2);font-family:var(--fd)">'+prevDone.length+'</div><div style="font-size:10px;color:var(--t4)">Tasks</div></div>';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--t2);font-family:var(--fd)">'+fmtM(prevMins)+'</div><div style="font-size:10px;color:var(--t4)">Time</div></div>';
+    h+='<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--t2);font-family:var(--fd)">'+fmtM(prevAvg)+'</div><div style="font-size:10px;color:var(--t4)">Avg Duration</div></div>';
+    h+='</div></div>';
+    h+='</div>';
+    /* Change indicators */
+    h+='<div class="dash-mets" style="margin-bottom:20px">';
+    h+=dashMet('Tasks '+pctChange(currDone.length,prevDone.length),currDone.length+' vs '+prevDone.length,chClr(currDone.length,prevDone.length));
+    h+=dashMet('Time '+pctChange(currMins,prevMins),fmtM(currMins)+' vs '+fmtM(prevMins),chClr(currMins,prevMins));
+    h+=dashMet('Avg Dur '+pctChange(currAvg,prevAvg),fmtM(currAvg)+' vs '+fmtM(prevAvg),chClr(currAvg,prevAvg));
+    h+='</div>';
+  }
 
   /* Streak */
   var streak=0,checkDate=new Date(td_);
@@ -1103,45 +1268,119 @@ function rScheduleWeekly(ctx){
     var hasDone=S.done.some(function(d){return d.completed&&d.completed>=ds&&d.completed<de});
     if(hasDone)streak++;else if(si>0)break}
   h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px">';
-  h+='<span style="font-size:20px">🔥</span><span style="font-size:14px;font-weight:700;color:var(--amber)">'+streak+' day streak</span>';
+  h+='<span style="font-size:20px">&#x1F525;</span><span style="font-size:14px;font-weight:700;color:var(--amber)">'+streak+' day streak</span>';
   h+='<span style="font-size:12px;color:var(--t3)">consecutive days with completed tasks</span></div>';
 
   /* Charts */
   h+='<div class="dash-charts">';
-  h+='<div class="chart-card"><h3>Daily Breakdown (This Week vs Last)</h3><div class="chart-wrap"><canvas id="weekly-daily-chart"></canvas></div></div>';
-  h+='<div class="chart-card"><h3>Category Comparison</h3><div class="chart-wrap"><canvas id="weekly-cat-chart"></canvas></div></div>';
+  h+='<div class="chart-card"><h3>Daily Breakdown'+(range==='week'?' (This Week vs Last)':'')+'</h3><div class="chart-wrap"><canvas id="weekly-daily-chart"></canvas></div></div>';
+  h+='<div class="chart-card"><h3>Category Breakdown</h3><div class="chart-wrap"><canvas id="weekly-cat-chart"></canvas></div></div>';
+  if(range!=='week'){
+    h+='<div class="chart-card"><h3>Weekly Tasks Completed</h3><div class="chart-wrap"><canvas id="weekly-tasks-trend"></canvas></div></div>';
+    h+='<div class="chart-card"><h3>Weekly Time Tracked</h3><div class="chart-wrap"><canvas id="weekly-time-trend"></canvas></div></div>';
+  }
+  h+='<div class="chart-card"><h3>Tasks Per Day</h3><div class="chart-wrap"><canvas id="weekly-productivity-trend"></canvas></div></div>';
+  h+='<div class="chart-card"><h3>Client Time Distribution</h3><div class="chart-wrap"><canvas id="weekly-client-dist"></canvas></div></div>';
   h+='</div>';
   return h}
 
 function initScheduleWeeklyCharts(){
   setTimeout(function(){
     var td_=today();
-    var thisWeekStart=new Date(td_);thisWeekStart.setDate(thisWeekStart.getDate()-((thisWeekStart.getDay()+6)%7));
-    thisWeekStart.setHours(0,0,0,0);
-    var lastWeekStart=new Date(thisWeekStart.getTime()-7*864e5);
-    /* Daily breakdown: grouped */
-    var days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    var thisWeekData={},lastWeekData={};
-    days.forEach(function(d){thisWeekData[d]=0;lastWeekData[d]=0});
-    S.done.forEach(function(d){
-      if(!d.completed)return;
-      if(d.completed>=thisWeekStart&&d.completed<new Date(thisWeekStart.getTime()+7*864e5)){
-        var di=(d.completed.getDay()+6)%7;thisWeekData[days[di]]++}
-      else if(d.completed>=lastWeekStart&&d.completed<thisWeekStart){
-        var di2=(d.completed.getDay()+6)%7;lastWeekData[days[di2]]++}});
-    /* Use mkLine or manual Chart.js for grouped bars */
-    var el=document.getElementById('weekly-daily-chart');
-    if(el){
-      var ctx2=el.getContext('2d');
-      if(charts['weekly-daily-chart'])charts['weekly-daily-chart'].destroy();
-      charts['weekly-daily-chart']=new Chart(ctx2,{type:'bar',data:{labels:days,datasets:[
-        {label:'This Week',data:days.map(function(d){return thisWeekData[d]}),backgroundColor:'rgba(255,0,153,0.4)',borderColor:'var(--pink)',borderWidth:1},
-        {label:'Last Week',data:days.map(function(d){return lastWeekData[d]}),backgroundColor:'rgba(255,255,255,0.1)',borderColor:'rgba(255,255,255,0.3)',borderWidth:1}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#999',font:{size:10}}}},scales:{x:{ticks:{color:'#666',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#666',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}}}})}
-    /* Category comparison donut */
-    var catData={};S.done.filter(function(d){return d.completed&&d.completed>=thisWeekStart}).forEach(function(d){
+    var range=S.weeklyRange||'all';
+    var thisWeekStart=wkStart(td_);
+    var periodStart,periodEnd,prevStart;
+
+    if(range==='week'){
+      periodStart=thisWeekStart;periodEnd=new Date(thisWeekStart.getTime()+7*864e5);
+      prevStart=new Date(thisWeekStart.getTime()-7*864e5);
+    }else if(range==='month'){
+      periodStart=new Date(td_.getFullYear(),td_.getMonth(),1);
+      periodEnd=new Date(td_.getFullYear(),td_.getMonth()+1,1);
+      prevStart=null;
+    }else if(range==='quarter'){
+      var qm=Math.floor(td_.getMonth()/3)*3;
+      periodStart=new Date(td_.getFullYear(),qm,1);
+      periodEnd=new Date(td_.getFullYear(),qm+3,1);
+      prevStart=null;
+    }else{
+      periodStart=null;periodEnd=null;prevStart=null;
+    }
+
+    var periodDone=periodStart?S.done.filter(function(d){return d.completed&&d.completed>=periodStart&&d.completed<periodEnd}):
+      S.done.filter(function(d){return d.completed});
+
+    if(range==='week'){
+      /* Weekly mode: grouped bar chart Mon-Sun, this vs last */
+      var days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      var twD={},lwD={};days.forEach(function(d){twD[d]=0;lwD[d]=0});
+      S.done.forEach(function(d){
+        if(!d.completed)return;
+        if(d.completed>=thisWeekStart&&d.completed<new Date(thisWeekStart.getTime()+7*864e5)){
+          var di=(d.completed.getDay()+6)%7;twD[days[di]]++}
+        else if(prevStart&&d.completed>=prevStart&&d.completed<thisWeekStart){
+          var di2=(d.completed.getDay()+6)%7;lwD[days[di2]]++}});
+      var el=document.getElementById('weekly-daily-chart');
+      if(el){
+        var ctx2=el.getContext('2d');
+        if(charts['weekly-daily-chart'])charts['weekly-daily-chart'].destroy();
+        charts['weekly-daily-chart']=new Chart(ctx2,{type:'bar',data:{labels:days,datasets:[
+          {label:'This Week',data:days.map(function(d){return twD[d]}),backgroundColor:'rgba(255,0,153,0.4)',borderColor:'var(--pink)',borderWidth:1},
+          {label:'Last Week',data:days.map(function(d){return lwD[d]}),backgroundColor:'rgba(255,255,255,0.1)',borderColor:'rgba(255,255,255,0.3)',borderWidth:1}
+        ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#999',font:{size:10}}}},scales:{x:{ticks:{color:'#666',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#666',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}}}})
+      }
+    }else{
+      /* Non-week: daily completions line chart within the period */
+      var dailyData={};
+      if(periodStart){
+        var dayCount=Math.min(90,Math.ceil((periodEnd.getTime()-periodStart.getTime())/864e5));
+        for(var i=0;i<dayCount;i++){var d=new Date(periodStart.getTime()+i*864e5);dailyData[fmtDShort(d)]=0}
+      }else{
+        /* All time: last 90 days */
+        for(var j=89;j>=0;j--){var d2=new Date(td_.getTime()-j*864e5);dailyData[fmtDShort(d2)]=0}
+      }
+      periodDone.forEach(function(d){var k=fmtDShort(d.completed);if(dailyData.hasOwnProperty(k))dailyData[k]++});
+      var _dk=Object.keys(dailyData),_dv=_dk.map(function(k){return dailyData[k]});
+      mkLine('weekly-daily-chart',_dk,_dv,'#ff0099');
+
+      /* Weekly tasks completed trend */
+      var wkBuckets={};
+      periodDone.forEach(function(d){var wk=fmtDShort(wkStart(d.completed));wkBuckets[wk]=(wkBuckets[wk]||0)+1});
+      var wkKeys=Object.keys(wkBuckets).sort();
+      if(wkKeys.length>1){
+        var wkVals=wkKeys.map(function(k){return wkBuckets[k]});
+        mkLine('weekly-tasks-trend',wkKeys,wkVals,'var(--green)');
+      }
+
+      /* Weekly time tracked trend */
+      var timeBuckets={};
+      periodDone.forEach(function(d){var wk=fmtDShort(wkStart(d.completed));timeBuckets[wk]=(timeBuckets[wk]||0)+(d.duration||0)});
+      var tmKeys=Object.keys(timeBuckets).sort();
+      if(tmKeys.length>1){
+        var tmVals=tmKeys.map(function(k){return Math.round(timeBuckets[k]/60*10)/10});
+        mkLine('weekly-time-trend',tmKeys,tmVals,'var(--blue)');
+      }
+    }
+
+    /* Category donut — for the period */
+    var catData={};periodDone.forEach(function(d){
       var c=d.category||'Uncategorised';catData[c]=(catData[c]||0)+1});
     if(Object.keys(catData).length)mkDonut('weekly-cat-chart',catData);
+
+    /* Tasks per day line chart */
+    var prodData={};
+    var prodStart=periodStart||new Date(td_.getTime()-89*864e5);
+    var prodEnd=periodEnd||new Date(td_.getTime()+864e5);
+    var prodDays=Math.min(90,Math.ceil((prodEnd.getTime()-prodStart.getTime())/864e5));
+    for(var pi=0;pi<prodDays;pi++){var pd=new Date(prodStart.getTime()+pi*864e5);prodData[fmtDShort(pd)]=0}
+    periodDone.forEach(function(d){var k=fmtDShort(d.completed);if(prodData.hasOwnProperty(k))prodData[k]++});
+    var _pk=Object.keys(prodData),_pv=_pk.map(function(k){return prodData[k]});
+    if(_pk.length>1)mkLine('weekly-productivity-trend',_pk,_pv,'var(--amber)');
+
+    /* Client time donut */
+    var clientData={};periodDone.forEach(function(d){
+      var cl=d.client||'Unassigned';clientData[cl]=(clientData[cl]||0)+(d.duration||0)});
+    if(Object.keys(clientData).length)mkDonut('weekly-client-dist',clientData);
   },200)}
 
 function initTodayCharts(){

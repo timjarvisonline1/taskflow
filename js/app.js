@@ -66,7 +66,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   /* Team */
   openAddTeamMember:openAddTeamMember,openEditTeamMember:openEditTeamMember,saveTeamMember:saveTeamMember,confirmDeleteTeamMember:confirmDeleteTeamMember,doDeleteTeamMember:doDeleteTeamMember,
   /* Forecast */
-  setForecastHorizon:setForecastHorizon,setForecastScenario:setForecastScenario,
+  setForecastHorizon:setForecastHorizon,setForecastScenario:setForecastScenario,setWeeklyRange:setWeeklyRange,
   toggleForecastSource:toggleForecastSource,setForecastAccount:setForecastAccount,
   quickAddOneOff:quickAddOneOff,
   /* Reconciliation */
