@@ -57,7 +57,9 @@ var ICONS={
   bar_chart:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>',
   sun:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
   layers:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22.54 12.43-1.96-.89-8.58 3.91a2 2 0 0 1-1.66 0l-8.58-3.9-1.96.89a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22.54 16.43-1.96-.89-8.58 3.91a2 2 0 0 1-1.66 0l-8.58-3.9-1.96.89a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/></svg>',
-  arrow_left:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>'
+  arrow_left:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>',
+  archive:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
+  chevron_down:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
 };
 function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"')}return s}
 
@@ -92,7 +94,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
-  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0};
+  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1541,7 +1543,8 @@ async function searchGmail(query){
 function setGmailFilter(filter){
   S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';S._gmailLiveThreads=null;S._gmailNextPage=null;
   S.gmailThread=null;S.gmailThreadId='';
-  save();render()}
+  save();render();
+  ensureGmailThreads()}
 
 async function loadMoreGmailThreads(){
   if(!S._gmailNextPage)return;
@@ -1555,8 +1558,87 @@ async function loadMoreGmailThreads(){
 async function refreshGmailInbox(){
   toast('Refreshing inbox...','info');
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
-  if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null}
+  if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
+    S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length}
   render()}
+
+/* ═══════════ AUTO-FETCH & POLLING ═══════════ */
+async function ensureGmailThreads(){
+  if(S._gmailFetching)return;
+  if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0)return;
+  S._gmailFetching=true;render();
+  var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
+  S._gmailFetching=false;
+  if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
+    S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length}
+  render()}
+
+var _emailPollTimer=null;
+function startEmailPolling(){
+  stopEmailPolling();
+  _emailPollTimer=setInterval(function(){
+    if(S.view!=='email')return;
+    if(S.gmailThreadId)return;
+    if(S._gmailFetching)return;
+    pollGmailInbox()
+  },60000)}
+function stopEmailPolling(){
+  if(_emailPollTimer){clearInterval(_emailPollTimer);_emailPollTimer=null}}
+
+async function pollGmailInbox(){
+  try{
+    var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
+    if(!data)return;
+    var newThreads=data.threads||[];
+    var oldThreads=S._gmailLiveThreads||[];
+    var oldIds={};oldThreads.forEach(function(t){oldIds[t.threadId]=true});
+    var newCount=0;newThreads.forEach(function(t){if(!oldIds[t.threadId])newCount++});
+    S._gmailLiveThreads=newThreads;
+    S._gmailNextPage=data.nextPageToken||null;
+    S.gmailUnread=newThreads.filter(function(t){return t.isUnread}).length;
+    if(newCount>0){showNewEmailIndicator(newCount);buildNav()}
+    else{buildNav()}
+  }catch(e){console.warn('Email poll:',e)}}
+
+function showNewEmailIndicator(count){
+  var existing=gel('email-new-indicator');if(existing)existing.remove();
+  var bar=document.createElement('div');bar.id='email-new-indicator';bar.className='email-new-bar';
+  bar.innerHTML=icon('mail',12)+' '+count+' new email'+(count>1?'s':'')+
+    '<button onclick="TF.applyNewEmails()" class="email-new-btn">Show</button>';
+  var list=document.querySelector('.email-thread-list');
+  if(list)list.parentElement.insertBefore(bar,list);
+  else{var main=gel('main');if(main){var search=main.querySelector('.email-search');
+    if(search)search.parentElement.insertBefore(bar,search.nextSibling)}}}
+function applyNewEmails(){
+  var el=gel('email-new-indicator');if(el)el.remove();render()}
+
+/* ═══════════ ARCHIVE ═══════════ */
+async function archiveEmail(threadId){
+  if(!threadId)return;
+  var row=document.querySelector('.email-row[data-tid="'+threadId+'"]');
+  if(row)row.classList.add('archiving');
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/gmail/archive',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({threadId:threadId})});
+    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Archive failed')}
+    if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
+    S.gmailThreads=S.gmailThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
+    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+    if(S.gmailThreadId===threadId){S.gmailThread=null;S.gmailThreadId=''}
+    setTimeout(function(){render()},400);
+    toast('Email archived','ok')
+  }catch(e){
+    if(row)row.classList.remove('archiving');
+    toast('Archive failed: '+e.message,'warn')}}
+
+function toggleEmailMsg(idx){
+  var el=document.querySelector('.email-message[data-msg-idx="'+idx+'"]');if(!el)return;
+  el.classList.toggle('collapsed');
+  var btn=el.querySelector('.email-msg-collapse');
+  if(btn)btn.textContent=el.classList.contains('collapsed')?'Expand':'Collapse'}
 
 async function triggerSync(platform){
   try{
