@@ -4674,8 +4674,11 @@ function rEmailList(threads){
     var isUnread=t.isUnread||t.is_unread||false;
     var clientId=t.client_id||null;
 
-    var clientName='';
-    if(clientId){var cr=S.clientRecords.find(function(c){return c.id===clientId});if(cr)clientName=cr.name||''}
+    /* Match sender to contacts/clients for company pill */
+    var emailMatch=matchEmailToClient(fromEmail);
+    var companyPill='';
+    if(emailMatch){companyPill=emailMatch.contactCompany||emailMatch.clientName||''}
+    else if(clientId){var cr=S.clientRecords.find(function(c){return c.id===clientId});if(cr)companyPill=cr.name||''}
 
     var dateLabel='';
     var dateGroup='Earlier';
@@ -4701,7 +4704,17 @@ function rEmailList(threads){
     h+='<span class="email-row-from">'+esc(fromDisplay)+'</span>';
     if(msgCount>1)h+='<span class="email-count">'+msgCount+'</span>';
     if(t.hasAttachments)h+='<span class="email-att-indicator">'+icon('paperclip',11)+'</span>';
-    if(clientName)h+='<span class="email-client-badge">'+esc(clientName)+'</span>';
+    if(companyPill)h+='<span class="email-client-badge">'+esc(companyPill)+'</span>';
+    /* Communication direction badges */
+    var lastFrom=(t.lastMessageFromEmail||t.last_message_from||fromEmail||'').toLowerCase();
+    var userEmail=(S._userEmail||'').toLowerCase();
+    if(userEmail&&lastFrom){
+      if(lastFrom!==userEmail&&!isUnread){h+='<span class="email-needs-reply">Needs Reply</span>'}
+      else if(lastFrom===userEmail){h+='<span class="email-awaiting">Awaiting</span>'}}
+    /* Participant count */
+    var toEmails=t.toEmails||t.to_emails||'';
+    if(toEmails){var pCount=1;var toParts=toEmails.split(',');pCount+=toParts.length;
+      if(pCount>2)h+='<span class="email-participant-count">'+icon('users',10)+' '+pCount+'</span>'}
     h+='</div>';
     h+='<div class="email-row-bottom">';
     h+='<span class="email-row-subject">'+esc(subject)+'</span>';
@@ -4752,6 +4765,8 @@ function rEmailThread(){
   h+='<button class="email-toolbar-btn" onclick="TF.openComposeEmail()">'+icon('edit',13)+' New</button>';
   h+='</div>';
 
+  h+='<div class="email-thread-layout">';
+  h+='<div class="email-thread-main">';
   h+='<div class="email-thread-detail">';
 
   /* ── Subject header ── */
@@ -4847,6 +4862,188 @@ function rEmailThread(){
   h+='<button class="email-quick-reply-full" onclick="TF.forwardEmail()">Forward</button>';
   h+='</div></div>';
 
+  h+='</div>'; /* close .email-thread-detail */
+  h+='</div>'; /* close .email-thread-main */
+
+  /* ── CRM Context Sidebar ── */
+  h+=rEmailCrmSidebar(clientMatch,senderEmail,msgs);
+
+  h+='</div>'; /* close .email-thread-layout */
+  return h}
+
+/* ═══════════ CRM SIDEBAR ═══════════ */
+function findLastEmailDate(email){
+  if(!email)return null;
+  var e=email.toLowerCase();
+  for(var i=0;i<S.gmailThreads.length;i++){
+    var t=S.gmailThreads[i];
+    var tEmail=(t.from_email||t.fromEmail||'').toLowerCase();
+    if(tEmail===e&&(t.last_message_at||t.date)){return new Date(t.last_message_at||t.date)}}
+  return null}
+
+function rEmailCrmSidebar(clientMatch,senderEmail,msgs){
+  var h='<div class="email-crm-sidebar">';
+
+  if(!clientMatch){
+    /* Unknown sender */
+    h+='<div class="crm-sb-section">';
+    h+='<div class="crm-sb-header">'+icon('contact',13)+' Unknown Sender</div>';
+    h+='<div style="font-size:12px;color:var(--t3);margin-bottom:12px">'+esc(senderEmail)+'</div>';
+    h+='<button class="btn btn-p" onclick="TF.addContactFromEmail(\''+escAttr(senderEmail)+'\')" style="font-size:11px;padding:6px 14px;width:100%">'+icon('plus',11)+' Add as Contact</button>';
+    h+='</div></div>';
+    return h}
+
+  /* 1. Contact Card */
+  h+=rCrmContactCard(clientMatch,senderEmail);
+  /* 2. Client Summary */
+  if(clientMatch.clientId)h+=rCrmClientSummary(clientMatch);
+  /* 3. Open Tasks */
+  if(clientMatch.clientName)h+=rCrmOpenTasks(clientMatch.clientName);
+  /* 4. Active Campaigns */
+  if(clientMatch.clientName)h+=rCrmActiveCampaigns(clientMatch.clientName);
+  /* 5. Open Opportunities */
+  if(clientMatch.clientName)h+=rCrmOpenOpps(clientMatch.clientName);
+  /* 6. Other Threads */
+  h+=rCrmOtherThreads(senderEmail,clientMatch.clientId);
+  /* 7. Recent Notes */
+  if(clientMatch.clientId)h+=rCrmRecentNotes(clientMatch.clientId);
+  /* 8. Quick Actions */
+  h+=rCrmQuickActions(clientMatch);
+
+  h+='</div>';
+  return h}
+
+function rCrmContactCard(match,email){
+  var h='<div class="crm-sb-section">';
+  h+='<div class="crm-sb-header">'+icon('contact',13)+' Contact</div>';
+  var initial=(match.contactName||email||'?').charAt(0).toUpperCase();
+  var avatarBg=emailAvatarColor(email);
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
+  h+='<div style="width:36px;height:36px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+  h+='<div>';
+  h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(match.contactName||'Unknown')+'</div>';
+  if(match.contactRole)h+='<div style="font-size:11px;color:var(--t3)">'+esc(match.contactRole)+'</div>';
+  h+='</div></div>';
+  if(match.contactCompany)h+='<div class="crm-sb-detail">'+icon('briefcase',11)+' '+esc(match.contactCompany)+'</div>';
+  if(match.contactEmail)h+='<div class="crm-sb-detail">'+icon('mail',11)+' '+esc(match.contactEmail)+'</div>';
+  if(match.contactPhone)h+='<div class="crm-sb-detail">'+icon('phone',11)+' '+esc(match.contactPhone)+'</div>';
+  if(match.contactWebsite)h+='<div class="crm-sb-detail"><a href="'+esc(match.contactWebsite)+'" target="_blank" style="color:var(--blue);text-decoration:none;font-size:11px">'+icon('link',11)+' Website</a></div>';
+  /* Days since last contact */
+  var lastD=findLastEmailDate(match.contactEmail||email);
+  if(lastD){var daysSince=Math.floor((new Date()-lastD)/86400000);
+    h+='<div class="crm-sb-detail" style="margin-top:4px;color:'+(daysSince>14?'var(--red)':'var(--t3)')+'">'+icon('clock',11)+' Last contact: '+(daysSince===0?'today':daysSince+'d ago')+'</div>'}
+  h+='</div>';
+  return h}
+
+function rCrmClientSummary(match){
+  var cm=buildClientMap();
+  var c=cm[match.clientName];
+  if(!c)return'';
+  var h='<div class="crm-sb-section">';
+  h+='<div class="crm-sb-header">'+icon('briefcase',13)+' Client</div>';
+  h+='<div style="cursor:pointer;margin-bottom:8px" onclick="TF.openClientDashboard(\''+escAttr(match.clientName)+'\')">';
+  h+='<span style="font-size:13px;font-weight:600;color:var(--blue)">'+esc(match.clientName)+'</span>';
+  var st=c.clientStatus||'active';
+  h+=' <span style="font-size:9px;padding:2px 6px;border-radius:8px;background:'+(st==='active'?'rgba(16,185,129,.15)':'rgba(156,163,175,.15)')+';color:'+(st==='active'?'var(--green)':'var(--t3)')+';text-transform:uppercase;font-weight:600">'+esc(st)+'</span>';
+  h+='</div>';
+  h+='<div class="crm-sb-metrics">';
+  h+='<div class="crm-sb-met"><span class="crm-sb-met-v" style="color:var(--green)">'+fmtUSD(c.totalRevenue)+'</span><span class="crm-sb-met-l">Revenue</span></div>';
+  h+='<div class="crm-sb-met"><span class="crm-sb-met-v" style="color:var(--blue)">'+c.openTasks+'</span><span class="crm-sb-met-l">Open Tasks</span></div>';
+  if(c.overdueTasks)h+='<div class="crm-sb-met"><span class="crm-sb-met-v" style="color:var(--red)">'+c.overdueTasks+'</span><span class="crm-sb-met-l">Overdue</span></div>';
+  if(c.pipelineValue)h+='<div class="crm-sb-met"><span class="crm-sb-met-v" style="color:var(--purple)">'+fmtUSD(c.pipelineValue)+'</span><span class="crm-sb-met-l">Pipeline</span></div>';
+  h+='</div></div>';
+  return h}
+
+function rCrmOpenTasks(clientName){
+  var td_=today();
+  var tasks=S.tasks.filter(function(t){return t.client===clientName}).slice(0,5);
+  if(!tasks.length)return'';
+  var h='<div class="crm-sb-section">';
+  h+='<div class="crm-sb-header">'+icon('tasks',13)+' Open Tasks ('+tasks.length+')</div>';
+  tasks.forEach(function(t){
+    var isOd=t.due&&t.due<td_;
+    h+='<div class="crm-sb-item" onclick="TF.openDetail(\''+escAttr(t.id)+'\')">';
+    h+='<span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:1px 5px;border-radius:4px">'+esc(t.importance.charAt(0))+'</span>';
+    h+='<span class="crm-sb-item-name">'+esc(t.item)+'</span>';
+    if(isOd)h+='<span style="color:var(--red);font-size:9px;font-weight:600">OD</span>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+function rCrmActiveCampaigns(clientName){
+  var camps=S.campaigns.filter(function(cp){return cp.partner===clientName&&cp.status==='Active'}).slice(0,5);
+  if(!camps.length)return'';
+  var h='<div class="crm-sb-section">';
+  h+='<div class="crm-sb-header">'+icon('target',13)+' Campaigns ('+camps.length+')</div>';
+  camps.forEach(function(cp){
+    h+='<div class="crm-sb-item" onclick="TF.openCampaignDashboard(\''+escAttr(cp.id)+'\')">';
+    h+='<span class="crm-sb-item-name">'+esc(cp.name)+'</span>';
+    h+='<span style="font-size:9px;color:var(--green);font-weight:600">Active</span>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+function rCrmOpenOpps(clientName){
+  var opps=S.opportunities.filter(function(op){
+    return op.client===clientName&&op.stage!=='Closed Won'&&op.stage!=='Closed Lost'}).slice(0,5);
+  if(!opps.length)return'';
+  var h='<div class="crm-sb-section">';
+  h+='<div class="crm-sb-header">'+icon('gem',13)+' Opportunities ('+opps.length+')</div>';
+  opps.forEach(function(op){
+    var val=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12);
+    h+='<div class="crm-sb-item" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')">';
+    h+='<span class="crm-sb-item-name">'+esc(op.name)+'</span>';
+    h+='<span class="bg '+opStageClass(op.stage,op.type)+'" style="font-size:9px;padding:1px 5px;border-radius:4px">'+esc(op.stage)+'</span>';
+    if(val)h+='<span style="color:var(--green);font-size:10px">'+fmtUSD(val)+'</span>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+function rCrmOtherThreads(senderEmail,clientId){
+  var currentId=S.gmailThreadId;
+  var se=senderEmail.toLowerCase();
+  var others=S.gmailThreads.filter(function(t){
+    var tid=t.thread_id||t.threadId||'';
+    if(tid===currentId)return false;
+    if(clientId&&t.client_id===clientId)return true;
+    var tEmail=(t.from_email||t.fromEmail||'').toLowerCase();
+    return tEmail===se}).slice(0,5);
+  if(!others.length)return'';
+  var h='<div class="crm-sb-section">';
+  h+='<div class="crm-sb-header">'+icon('mail',13)+' Other Threads ('+others.length+')</div>';
+  others.forEach(function(t){
+    var subject=t.subject||'(no subject)';
+    if(subject.length>40)subject=subject.substring(0,38)+'…';
+    var dateStr=t.last_message_at||t.date||'';
+    var dateLabel=dateStr?fmtDShort(new Date(dateStr)):'';
+    h+='<div class="crm-sb-item" onclick="TF.openEmailThread(\''+escAttr(t.thread_id||t.threadId)+'\')">';
+    h+='<span class="crm-sb-item-name">'+esc(subject)+'</span>';
+    h+='<span style="color:var(--t4);font-size:10px;flex-shrink:0">'+dateLabel+'</span>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+function rCrmRecentNotes(clientId){
+  var notes=(S.clientNotes&&S.clientNotes[clientId]||[]).slice(0,3);
+  if(!notes.length)return'';
+  var h='<div class="crm-sb-section">';
+  h+='<div class="crm-sb-header">'+icon('edit',13)+' Recent Notes</div>';
+  notes.forEach(function(n){
+    h+='<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03)">';
+    h+='<div style="font-size:10px;color:var(--t4)">'+fmtDShort(new Date(n.created_at||n.created||''))+'</div>';
+    var text=n.content||n.text||'';
+    if(text.length>80)text=text.substring(0,78)+'…';
+    h+='<div style="font-size:11px;color:var(--t2)">'+esc(text)+'</div>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+function rCrmQuickActions(match){
+  var h='<div class="crm-sb-section">';
+  if(match.clientId){
+    h+='<button class="btn" onclick="TF.openClientDashboard(\''+escAttr(match.clientName)+'\')" style="font-size:11px;padding:6px 0;width:100%;margin-bottom:6px;text-align:center;justify-content:center">'+icon('briefcase',11)+' View Client Dashboard</button>';
+    h+='<button class="btn" onclick="TF.openAddNoteFromEmail(\''+escAttr(match.clientId)+'\')" style="font-size:11px;padding:6px 0;width:100%;text-align:center;justify-content:center">'+icon('edit',11)+' Add Client Note</button>';
+  }
   h+='</div>';
   return h}
 

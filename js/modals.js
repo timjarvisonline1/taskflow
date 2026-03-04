@@ -4040,7 +4040,7 @@ function openSignatureEditor(){
 
 /* ═══════════ CONTACT MODALS ═══════════ */
 
-function openAddContactModal(clientId){
+function openAddContactModal(clientId,prefill){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Add Contact</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId||'')+'">';
@@ -4058,6 +4058,10 @@ function openAddContactModal(clientId){
   h+='</div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveContact()">Add Contact</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  if(prefill){
+    if(prefill.email){var fe=gel('fc-email');if(fe)fe.value=prefill.email}
+    if(prefill.firstName){var fn=gel('fc-first-name');if(fn)fn.value=prefill.firstName}
+    if(prefill.lastName){var ln=gel('fc-last-name');if(ln)ln.value=prefill.lastName}}
   setTimeout(function(){var n=gel('fc-first-name');if(n)n.focus()},100)}
 
 function openEditContactModal(contactId){

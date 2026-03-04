@@ -76,6 +76,11 @@ module.exports = async function handler(req, res) {
         const isUnread = lastLabels.includes('UNREAD');
         const allLabels = [...new Set(messages.flatMap(m => m.labelIds || []))];
 
+        // Parse last message From for direction tracking
+        const lastFromRaw = getHeader(lastMsg, 'From');
+        const lastFromMatch = lastFromRaw.match(/<(.+?)>/);
+        const lastMessageFromEmail = lastFromMatch ? lastFromMatch[1].trim() : lastFromRaw.trim();
+
         results.push({
           threadId: thread.id,
           subject: getHeader(firstMsg, 'Subject') || '(no subject)',
@@ -84,7 +89,8 @@ module.exports = async function handler(req, res) {
           snippet: lastMsg.snippet || '',
           date: new Date(parseInt(lastMsg.internalDate)).toISOString(),
           messageCount: messages.length,
-          isUnread, labels: allLabels
+          isUnread, labels: allLabels,
+          lastMessageFromEmail
         });
       } catch (e) { /* skip */ }
     }

@@ -766,10 +766,12 @@ function matchEmailToClient(email){
   if(cc){
     var cr=S.clientRecords.find(function(r){return r.id===cc.clientId});
     var cName=(cc.firstName+' '+cc.lastName).trim();
-    return{clientId:cc.clientId,clientName:cr?cr.name:'',contactName:cName,contactRole:cc.role}}
+    return{clientId:cc.clientId,clientName:cr?cr.name:'',contactName:cName,contactRole:cc.role,
+      contactId:cc.id,contactEmail:cc.email,contactPhone:cc.phone,contactCompany:cc.company,contactWebsite:cc.website}}
   /* Fall back to client.email field */
   var cl=S.clientRecords.find(function(r){return r.email&&r.email.toLowerCase()===e});
-  if(cl)return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:''};
+  if(cl)return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:'',
+    contactId:'',contactEmail:cl.email,contactPhone:'',contactCompany:cl.company||cl.name,contactWebsite:''};
   return null}
 
 async function dbAddContact(clientId,data){
@@ -1990,6 +1992,25 @@ async function cacheUserEmail(){
     /* Try to get from user session email */
     S._userEmail=sess.data.session.user.email||'';
   }catch(e){}}
+
+/* ── Add contact from email sender ── */
+function addContactFromEmail(email){
+  var name='';
+  if(S.gmailThread&&S.gmailThread.messages){
+    var msgs=S.gmailThread.messages;
+    for(var i=0;i<msgs.length;i++){
+      if(msgs[i].fromEmail&&msgs[i].fromEmail.toLowerCase()===email.toLowerCase()){
+        name=msgs[i].fromName||'';break}}}
+  var parts=name.split(' ');
+  var firstName=parts[0]||'';
+  var lastName=parts.slice(1).join(' ')||'';
+  openAddContactModal(null,{email:email,firstName:firstName,lastName:lastName})}
+
+/* ── Add client note from email sidebar ── */
+function openAddNoteFromEmail(clientId){
+  var text=prompt('Add a note for this client:');
+  if(!text||!text.trim())return;
+  addClientNote(clientId,text.trim())}
 
 async function triggerSync(platform){
   try{

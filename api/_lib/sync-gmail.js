@@ -26,7 +26,7 @@ async function syncGmail(userId) {
     const threads = listData.threads || [];
     stats.fetched = threads.length;
 
-    // Load client records for auto-association
+    // Load client records + contacts for auto-association
     const { data: clientRecords } = await client
       .from('clients')
       .select('id, email, name')
@@ -34,6 +34,16 @@ async function syncGmail(userId) {
     const clientEmailMap = {};
     (clientRecords || []).forEach(function(c) {
       if (c.email) clientEmailMap[c.email.toLowerCase()] = c.id;
+    });
+
+    // Also match by contact emails → client_id
+    const { data: contactRecords } = await client
+      .from('contacts')
+      .select('email, client_id')
+      .eq('user_id', userId);
+    const contactEmailMap = {};
+    (contactRecords || []).forEach(function(c) {
+      if (c.email && c.client_id) contactEmailMap[c.email.toLowerCase()] = c.client_id;
     });
 
     // Fetch each thread's metadata and upsert
@@ -72,7 +82,12 @@ async function syncGmail(userId) {
         const isUnread = lastLabels.includes('UNREAD');
         const allLabels = [...new Set(messages.flatMap(m => m.labelIds || []))].join(',');
 
-        // Auto-associate with client by email
+        // Parse last message From for direction tracking
+        const lastFromRaw = getHeader(lastMsg, 'From');
+        const lastFromMatch = lastFromRaw.match(/<(.+?)>/);
+        const lastFromEmail = lastFromMatch ? lastFromMatch[1].trim() : lastFromRaw.trim();
+
+        // Auto-associate with client by email (clients first, then contacts)
         let clientId = null;
         const emailsToCheck = [fromEmail.toLowerCase(), ...(toRaw.toLowerCase().split(/[,;]/).map(e => {
           const m = e.match(/<(.+?)>/);
@@ -81,6 +96,10 @@ async function syncGmail(userId) {
         for (const email of emailsToCheck) {
           if (clientEmailMap[email]) {
             clientId = clientEmailMap[email];
+            break;
+          }
+          if (!clientId && contactEmailMap[email]) {
+            clientId = contactEmailMap[email];
             break;
           }
         }
@@ -99,6 +118,7 @@ async function syncGmail(userId) {
           is_unread: isUnread,
           labels: allLabels,
           client_id: clientId,
+          last_message_from: lastFromEmail,
           synced_at: new Date().toISOString()
         };
 
