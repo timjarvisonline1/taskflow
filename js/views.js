@@ -5510,10 +5510,22 @@ function rMeetings(){
     h+='<p style="font-size:12px;color:var(--t4)">Meetings will appear here when Read.ai sends webhook data.</p></div>';
     return h}
 
-  /* Paginate — show 50 per page */
+  /* Paginate — 50 per page with page numbers */
   var perPage=50;
-  var visible=allMeetings.slice(0,S.meetingsPage*perPage);
-  var hasMore=visible.length<allMeetings.length;
+  var totalPages=Math.ceil(allMeetings.length/perPage);
+  if(S.meetingsPage>totalPages)S.meetingsPage=totalPages;
+  if(S.meetingsPage<1)S.meetingsPage=1;
+  var startIdx=(S.meetingsPage-1)*perPage;
+  var visible=allMeetings.slice(startIdx,startIdx+perPage);
+
+  /* Page numbers (top) */
+  if(totalPages>1){
+    h+='<div class="mtg-pages">';
+    if(S.meetingsPage>1)h+='<button class="mtg-page-btn" onclick="TF.setMeetingsPage('+(S.meetingsPage-1)+')">'+icon('arrow_left',12)+'</button>';
+    for(var p=1;p<=totalPages;p++){
+      h+='<button class="mtg-page-btn'+(p===S.meetingsPage?' mtg-page-active':'')+'" onclick="TF.setMeetingsPage('+p+')">'+p+'</button>'}
+    if(S.meetingsPage<totalPages)h+='<button class="mtg-page-btn" onclick="TF.setMeetingsPage('+(S.meetingsPage+1)+')">'+icon('arrow_right',12)+'</button>';
+    h+='</div>'}
 
   /* Group by month */
   var grouped={};
@@ -5554,8 +5566,14 @@ function rMeetings(){
       h+='</div></div>';
       h+='</div>'})});
 
-  if(hasMore){
-    h+='<div style="text-align:center;padding:16px"><button class="btn" onclick="TF.loadMoreMeetings()" style="font-size:12px;padding:8px 20px">Load More ('+visible.length+' of '+allMeetings.length+')</button></div>'}
+  /* Page numbers (bottom) */
+  if(totalPages>1){
+    h+='<div class="mtg-pages">';
+    if(S.meetingsPage>1)h+='<button class="mtg-page-btn" onclick="TF.setMeetingsPage('+(S.meetingsPage-1)+')">'+icon('arrow_left',12)+'</button>';
+    for(var p=1;p<=totalPages;p++){
+      h+='<button class="mtg-page-btn'+(p===S.meetingsPage?' mtg-page-active':'')+'" onclick="TF.setMeetingsPage('+p+')">'+p+'</button>'}
+    if(S.meetingsPage<totalPages)h+='<button class="mtg-page-btn" onclick="TF.setMeetingsPage('+(S.meetingsPage+1)+')">'+icon('arrow_right',12)+'</button>';
+    h+='</div>'}
 
   return h}
 

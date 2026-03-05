@@ -1424,6 +1424,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 }
 
 /* ── MEETINGS ── */
+.mtg-pages{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;padding:12px 0}
+.mtg-page-btn{background:var(--glass);border:1px solid var(--gborder);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--t3);cursor:pointer;min-width:32px;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}
+.mtg-page-btn:hover{background:rgba(255,255,255,.08);color:var(--t1)}
+.mtg-page-active{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important;font-weight:600}
 .meeting-month-label{font-size:11px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:.05em;padding:16px 16px 6px;border-bottom:1px solid var(--gborder)}
 .meeting-row{display:grid;grid-template-columns:80px 1fr;gap:12px;padding:12px 16px;border-bottom:1px solid var(--gborder);cursor:pointer;transition:background .15s}
 .meeting-row:hover{background:rgba(255,255,255,.03)}

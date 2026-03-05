@@ -1025,7 +1025,7 @@ function setMeetingSearch(v){
   clearTimeout(S._mtgSearchTmr);
   S._mtgSearchTmr=setTimeout(function(){render()},250)}
 
-function loadMoreMeetings(){S.meetingsPage++;render()}
+function setMeetingsPage(p){S.meetingsPage=p;render();window.scrollTo(0,0)}
 
 async function setMeetingCrm(meetingId,field,value){
   var data={};

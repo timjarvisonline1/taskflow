@@ -103,7 +103,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   addContactFromEmail:addContactFromEmail,openAddNoteFromEmail:openAddNoteFromEmail,
   composeCatClientChange:composeCatClientChange,composeCatNoneChange:composeCatNoneChange,composeCatValidate:_composeCatValidate,
   /* Meetings */
-  openMeeting:openMeeting,closeMeeting:closeMeeting,setMeetingSearch:setMeetingSearch,loadMoreMeetings:loadMoreMeetings,
+  openMeeting:openMeeting,closeMeeting:closeMeeting,setMeetingSearch:setMeetingSearch,setMeetingsPage:setMeetingsPage,
   setMeetingCrm:setMeetingCrm,createTaskFromMeetingAction:createTaskFromMeetingAction,
   refreshMtgCrm:refreshMtgCrm,refreshMtgCampaigns:refreshMtgCampaigns,
   acceptMeetingSuggestion:acceptMeetingSuggestion,dismissMeetingSuggestion:dismissMeetingSuggestion,addMeetingParticipantAsContact:addMeetingParticipantAsContact,
