@@ -127,7 +127,8 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,_gmailCache:{},
   emailFilters:{client:'',endClient:'',opportunity:'',campaign:''},emailFilterExclude:{client:false,endClient:false,opportunity:false,campaign:false},
   emailBulkMode:false,emailBulkSelected:{},
-  contacts:[],scheduledEmails:[],emailRules:[]};
+  contacts:[],scheduledEmails:[],emailRules:[],
+  meetings:[],meetingDetail:null,meetingSearch:''};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -189,7 +190,8 @@ var SECTIONS=[
     {id:'e-campaigns',label:'By Campaign',icon:'target',smart:true},
     {id:'e-opportunities',label:'By Opportunity',icon:'trending_up',smart:true},
     {id:'e-other',label:'Other',icon:'mail',smart:true}
-  ]}
+  ]},
+  {id:'meetings',icon:'mic',label:'Meetings',kbd:'0'}
 ];
 var VIEWS_FLAT=[];
 SECTIONS.forEach(function(sec){
@@ -946,6 +948,101 @@ async function dbDeleteContact(id){
   var res=await _sb.from('contacts').delete().eq('id',id);
   if(res.error){toast('Delete contact failed: '+res.error.message,'warn');return false}
   await loadContacts();render();toast('Contact deleted','ok');return true}
+
+/* ═══════════ MEETINGS ═══════════ */
+async function loadMeetings(){
+  try{
+    var uid=await getUserId();if(!uid)return;
+    var res=await _sb.from('meetings').select('*').order('start_time',{ascending:false}).limit(200);
+    if(res.error)throw res.error;
+    S.meetings=(res.data||[]).map(function(r){return{
+      id:r.id,sessionId:r.session_id,title:r.title,
+      startTime:r.start_time?new Date(r.start_time):null,
+      endTime:r.end_time?new Date(r.end_time):null,
+      durationMinutes:r.duration_minutes||0,
+      participants:r.participants||[],
+      ownerName:r.owner_name||'',ownerEmail:r.owner_email||'',
+      summary:r.summary||'',transcript:r.transcript||'',
+      actionItems:r.action_items||[],keyQuestions:r.key_questions||[],
+      topics:r.topics||[],chapterSummaries:r.chapter_summaries||[],
+      reportUrl:r.report_url||'',
+      videoStoragePath:r.video_storage_path||'',videoSizeBytes:r.video_size_bytes||0,
+      clientId:r.client_id,endClient:r.end_client||'',
+      campaignId:r.campaign_id,opportunityId:r.opportunity_id,
+      source:r.source||'readai',createdAt:r.created_at}});
+  }catch(e){console.error('loadMeetings:',e)}}
+
+async function dbEditMeeting(id,data){
+  var upd={updated_at:new Date().toISOString()};
+  if(data.clientId!==undefined)upd.client_id=data.clientId||null;
+  if(data.endClient!==undefined)upd.end_client=data.endClient;
+  if(data.campaignId!==undefined)upd.campaign_id=data.campaignId||null;
+  if(data.opportunityId!==undefined)upd.opportunity_id=data.opportunityId||null;
+  if(data.actionItems!==undefined)upd.action_items=data.actionItems;
+  var res=await _sb.from('meetings').update(upd).eq('id',id);
+  if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbDeleteMeeting(id){
+  var res=await _sb.from('meetings').delete().eq('id',id);
+  if(res.error){toast('Delete failed: '+res.error.message,'warn');return false}
+  return true}
+
+function openMeeting(id){
+  var m=S.meetings.find(function(mt){return mt.id===id});
+  if(!m){toast('Meeting not found','warn');return}
+  S.meetingDetail=m;render()}
+
+function closeMeeting(){
+  S.meetingDetail=null;render()}
+
+function setMeetingSearch(v){
+  S.meetingSearch=v;
+  clearTimeout(S._mtgSearchTmr);
+  S._mtgSearchTmr=setTimeout(function(){render()},250)}
+
+async function setMeetingCrm(meetingId,field,value){
+  var data={};
+  if(field==='client_id')data.clientId=value||null;
+  else if(field==='end_client')data.endClient=value||'';
+  else if(field==='campaign_id')data.campaignId=value||null;
+  else if(field==='opportunity_id')data.opportunityId=value||null;
+  var ok=await dbEditMeeting(meetingId,data);
+  if(!ok)return;
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(m){
+    if(data.clientId!==undefined)m.clientId=data.clientId;
+    if(data.endClient!==undefined)m.endClient=data.endClient;
+    if(data.campaignId!==undefined)m.campaignId=data.campaignId;
+    if(data.opportunityId!==undefined)m.opportunityId=data.opportunityId;
+    if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m}
+  render();toast('Updated','ok')}
+
+async function createTaskFromMeetingAction(meetingId,actionIndex){
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m)return;
+  var items=m.actionItems||[];
+  if(actionIndex<0||actionIndex>=items.length)return;
+  var ai=items[actionIndex];
+  var dt=m.startTime;
+  var dateStr=dt?fmtDShort(dt):'';
+  var clientName='';
+  if(m.clientId){
+    var cr=S.clientRecords.find(function(r){return r.id===m.clientId});
+    if(cr)clientName=cr.name}
+  var taskData={
+    item:ai.text||'',
+    notes:'From meeting: '+(m.title||'Untitled')+' on '+dateStr,
+    client:clientName,endClient:m.endClient||'',
+    campaign:m.campaignId||'',opportunity:m.opportunityId||'',
+    importance:'Important',type:'Business'};
+  var newTask=await dbAddTask(taskData);
+  if(!newTask)return;
+  items[actionIndex].created_task_id=newTask.id;
+  await dbEditMeeting(meetingId,{actionItems:items});
+  m.actionItems=items;
+  await loadTasks();render();
+  toast('Task created from action item','ok')}
 
 async function loadPayerMap(){
   var res=await _sb.from('payer_client_map').select('*');
@@ -2981,7 +3078,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){

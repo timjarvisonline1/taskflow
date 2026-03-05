@@ -12,7 +12,7 @@ function render(){
   /* Desktop: 8-view experience */
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
-  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break}
+  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
   if(S.view==='dashboard')initDashboardCharts();
@@ -5480,6 +5480,255 @@ function rCrmQuickActions(match){
     h+='<button class="btn" onclick="TF.openClientDashboard(\''+escAttr(match.clientName)+'\')" style="font-size:11px;padding:6px 0;width:100%;margin-bottom:6px;text-align:center;justify-content:center">'+icon('briefcase',11)+' View Client Dashboard</button>';
     h+='<button class="btn" onclick="TF.openAddNoteFromEmail(\''+escAttr(match.clientId)+'\')" style="font-size:11px;padding:6px 0;width:100%;text-align:center;justify-content:center">'+icon('edit',11)+' Add Client Note</button>';
   }
+  h+='</div>';
+  return h}
+
+/* ═══════════ MEETINGS ═══════════ */
+
+function rMeetings(){
+  if(S.meetingDetail)return rMeetingDetail();
+
+  var h='<div class="pg-head"><h1>'+icon('mic',18)+' Meetings';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+S.meetings.length+' meetings</span>';
+  h+='</h1></div>';
+
+  /* Search */
+  h+='<div style="margin-bottom:16px;display:flex;gap:12px;align-items:center">';
+  h+='<input type="text" class="edf" id="meeting-search" value="'+esc(S.meetingSearch)+'" placeholder="Search meetings..." style="max-width:400px;font-size:13px" oninput="TF.setMeetingSearch(this.value)">';
+  h+='</div>';
+
+  var meetings=S.meetings;
+  if(S.meetingSearch){
+    var q=S.meetingSearch.toLowerCase();
+    meetings=meetings.filter(function(m){
+      return(m.title||'').toLowerCase().indexOf(q)!==-1
+        ||(m.summary||'').toLowerCase().indexOf(q)!==-1
+        ||JSON.stringify(m.participants||[]).toLowerCase().indexOf(q)!==-1
+        ||(m.transcript||'').toLowerCase().indexOf(q)!==-1})}
+
+  if(!meetings.length){
+    h+='<div class="email-empty">'+icon('mic',32);
+    h+='<p>No meetings found.</p>';
+    h+='<p style="font-size:12px;color:var(--t4)">Meetings will appear here when Read.ai sends webhook data.</p></div>';
+    return h}
+
+  /* Group by month */
+  var grouped={};
+  meetings.forEach(function(m){
+    var dt=m.startTime;
+    var key=dt?dt.toLocaleString('en-GB',{month:'long',year:'numeric'}):'No date';
+    if(!grouped[key])grouped[key]=[];
+    grouped[key].push(m)});
+
+  Object.keys(grouped).forEach(function(month){
+    h+='<div class="meeting-month-label">'+esc(month)+'</div>';
+    grouped[month].forEach(function(m){
+      var dt=m.startTime;
+      var dateStr=dt?fmtDShort(dt):'';
+      var timeStr=dt?dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+      var dur=m.durationMinutes||0;
+      var durStr=dur>=60?Math.floor(dur/60)+'h '+(dur%60?dur%60+'m':''):dur+'m';
+      var pCount=(m.participants||[]).length;
+      var aiCount=(m.actionItems||[]).length;
+      var clientName='';
+      if(m.clientId){
+        var cr=S.clientRecords.find(function(r){return r.id===m.clientId});
+        if(cr)clientName=cr.name}
+
+      h+='<div class="meeting-row" onclick="TF.openMeeting(\''+esc(m.id)+'\')">';
+      h+='<div class="meeting-row-left">';
+      h+='<div class="meeting-row-date">'+dateStr+'</div>';
+      h+='<div class="meeting-row-time">'+timeStr+'</div>';
+      h+='</div>';
+      h+='<div class="meeting-row-center">';
+      h+='<div class="meeting-row-title">'+esc(m.title||'Untitled Meeting')+'</div>';
+      h+='<div class="meeting-row-meta">';
+      if(dur)h+='<span>'+icon('clock',10)+' '+durStr+'</span>';
+      if(pCount)h+='<span>'+icon('users',10)+' '+pCount+'</span>';
+      if(aiCount)h+='<span>'+icon('check',10)+' '+aiCount+' action items</span>';
+      if(clientName)h+='<span class="meeting-client-pill">'+esc(clientName)+'</span>';
+      h+='</div></div>';
+      h+='</div>'})});
+
+  return h}
+
+function rMeetingDetail(){
+  var m=S.meetingDetail;
+  if(!m)return'<p>Loading...</p>';
+
+  var h='';
+
+  /* Toolbar */
+  h+='<div class="email-toolbar">';
+  h+='<button class="email-toolbar-btn" onclick="TF.closeMeeting()">'+icon('arrow_left',14)+' Back</button>';
+  h+='<div style="flex:1"></div>';
+  if(m.reportUrl)h+='<a href="'+esc(m.reportUrl)+'" target="_blank" rel="noopener" class="email-toolbar-btn" style="text-decoration:none">'+icon('link',13)+' Read.ai Report</a>';
+  h+='</div>';
+
+  /* Two-column layout */
+  h+='<div class="meeting-layout">';
+
+  /* Main content */
+  h+='<div class="meeting-main">';
+
+  /* Header */
+  h+='<h2 class="meeting-title">'+esc(m.title||'Untitled Meeting')+'</h2>';
+  var dt=m.startTime;
+  h+='<div class="meeting-header-meta">';
+  if(dt)h+='<span>'+icon('calendar',12)+' '+fmtDShort(dt)+' at '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span>';
+  if(m.durationMinutes){
+    var dur=m.durationMinutes;
+    h+='<span>'+icon('clock',12)+' '+(dur>=60?Math.floor(dur/60)+'h '+(dur%60?dur%60+'m':''):dur+'m')+'</span>'}
+  h+='<span>'+icon('users',12)+' '+(m.participants||[]).length+' participants</span>';
+  h+='</div>';
+
+  /* CRM categorisation bar */
+  h+=rMeetingCrmBar(m);
+
+  /* Participants */
+  h+='<div class="meeting-section">';
+  h+='<div class="meeting-section-header">'+icon('users',13)+' Participants</div>';
+  h+='<div class="meeting-participants-grid">';
+  (m.participants||[]).forEach(function(p){
+    var avatarBg=emailAvatarColor(p.email||p.name||'');
+    var initial=(p.name||p.email||'?').charAt(0).toUpperCase();
+    h+='<div class="meeting-participant">';
+    h+='<div class="meeting-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
+    h+='<div><div style="font-size:13px;color:var(--t1)">'+esc(p.name||'Unknown')+'</div>';
+    if(p.email)h+='<div style="font-size:11px;color:var(--t4)">'+esc(p.email)+'</div>';
+    h+='</div></div>'});
+  h+='</div></div>';
+
+  /* Summary */
+  if(m.summary){
+    h+='<div class="meeting-section">';
+    h+='<div class="meeting-section-header">'+icon('file',13)+' Summary</div>';
+    h+='<div class="meeting-summary">'+esc(m.summary).replace(/\n/g,'<br>')+'</div>';
+    h+='</div>'}
+
+  /* Action Items */
+  if((m.actionItems||[]).length){
+    h+='<div class="meeting-section">';
+    h+='<div class="meeting-section-header">'+icon('check',13)+' Action Items</div>';
+    (m.actionItems||[]).forEach(function(ai,idx){
+      var created=ai.created_task_id;
+      h+='<div class="meeting-action-item">';
+      h+='<span class="meeting-ai-text">'+esc(ai.text||'')+'</span>';
+      if(created){
+        h+='<span class="meeting-ai-done">'+icon('check',10)+' Task created</span>';
+      }else{
+        h+='<button class="btn btn-p" onclick="TF.createTaskFromMeetingAction(\''+esc(m.id)+'\','+idx+')" style="font-size:11px;padding:4px 10px;white-space:nowrap">'+icon('plus',10)+' Create Task</button>';
+      }
+      h+='</div>'});
+    h+='</div>'}
+
+  /* Key Questions */
+  if((m.keyQuestions||[]).length){
+    h+='<div class="meeting-section">';
+    h+='<div class="meeting-section-header">'+icon('search',13)+' Key Questions</div>';
+    (m.keyQuestions||[]).forEach(function(q){
+      h+='<div class="meeting-list-item">'+esc(q.text||q)+'</div>'});
+    h+='</div>'}
+
+  /* Topics */
+  if((m.topics||[]).length){
+    h+='<div class="meeting-section">';
+    h+='<div class="meeting-section-header">'+icon('layers',13)+' Topics</div>';
+    h+='<div class="meeting-topics-wrap">';
+    (m.topics||[]).forEach(function(t){
+      h+='<span class="meeting-topic-pill">'+esc(t.text||t)+'</span>'});
+    h+='</div></div>'}
+
+  /* Chapter Summaries */
+  if((m.chapterSummaries||[]).length){
+    h+='<div class="meeting-section">';
+    h+='<div class="meeting-section-header" onclick="TF.toggle(\'mtg-chapters\')" style="cursor:pointer">';
+    h+=(S.collapsed['mtg-chapters']?icon('chevron_right',13):icon('chevron_down',13));
+    h+=' Chapter Summaries <span style="font-size:11px;color:var(--t4);font-weight:400">('+
+      (m.chapterSummaries||[]).length+')</span></div>';
+    if(!S.collapsed['mtg-chapters']){
+      (m.chapterSummaries||[]).forEach(function(ch){
+        h+='<div class="meeting-chapter">';
+        h+='<div class="meeting-chapter-title">'+esc(ch.title||'')+'</div>';
+        if(ch.description)h+='<div class="meeting-chapter-desc">'+esc(ch.description)+'</div>';
+        if(ch.topics)h+='<div class="meeting-chapter-topics">'+esc(ch.topics)+'</div>';
+        h+='</div>'})}
+    h+='</div>'}
+
+  /* Transcript */
+  if(m.transcript){
+    h+='<div class="meeting-section">';
+    h+='<div class="meeting-section-header" onclick="TF.toggle(\'mtg-transcript\')" style="cursor:pointer">';
+    h+=(S.collapsed['mtg-transcript']?icon('chevron_right',13):icon('chevron_down',13));
+    h+=' Full Transcript</div>';
+    if(!S.collapsed['mtg-transcript']){
+      h+='<div class="meeting-transcript">'+esc(m.transcript).replace(/\n/g,'<br>')+'</div>'}
+    h+='</div>'}
+
+  h+='</div>'; /* close .meeting-main */
+
+  /* Sidebar */
+  h+='<div class="meeting-crm-sidebar">';
+  h+='<div class="crm-sb-section">';
+  h+='<div class="crm-sb-heading">Meeting Info</div>';
+  if(m.ownerName||m.ownerEmail){
+    h+='<div style="font-size:12px;color:var(--t3);margin-bottom:8px">'+icon('mic',11)+' Organised by '+esc(m.ownerName||m.ownerEmail)+'</div>'}
+  if(m.source)h+='<div style="font-size:11px;color:var(--t4);margin-bottom:8px">Source: '+esc(m.source)+'</div>';
+  if(m.sessionId)h+='<div style="font-size:10px;color:var(--t5);word-break:break-all">ID: '+esc(m.sessionId)+'</div>';
+  h+='</div>';
+
+  /* Client info in sidebar */
+  if(m.clientId){
+    var cr=S.clientRecords.find(function(r){return r.id===m.clientId});
+    if(cr){
+      h+='<div class="crm-sb-section">';
+      h+='<div class="crm-sb-heading">Client</div>';
+      h+='<div style="font-size:13px;color:var(--t1);font-weight:600;margin-bottom:4px">'+esc(cr.name)+'</div>';
+      if(cr.email)h+='<div style="font-size:11px;color:var(--t4)">'+esc(cr.email)+'</div>';
+      h+='<button class="btn" onclick="TF.openClientDashboard(\''+escAttr(cr.name)+'\')" style="font-size:11px;padding:6px 0;width:100%;margin-top:8px;text-align:center;justify-content:center">'+icon('briefcase',11)+' View Client</button>';
+      h+='</div>'}}
+
+  h+='</div>'; /* close .meeting-crm-sidebar */
+  h+='</div>'; /* close .meeting-layout */
+
+  return h}
+
+function rMeetingCrmBar(m){
+  var h='<div class="meeting-crm-bar">';
+
+  /* Client */
+  h+='<div class="meeting-crm-field">';
+  h+='<span class="meeting-crm-label">Client</span>';
+  h+='<select class="edf" onchange="TF.setMeetingCrm(\''+esc(m.id)+'\',\'client_id\',this.value)" style="font-size:11px;padding:4px 8px">';
+  h+='<option value="">None</option>';
+  S.clientRecords.filter(function(c){return c.status==='active'}).forEach(function(c){
+    h+='<option value="'+esc(c.id)+'"'+(m.clientId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='</select></div>';
+
+  /* End Client */
+  h+='<div class="meeting-crm-field">';
+  h+='<span class="meeting-crm-label">End Client</span>';
+  h+='<input type="text" class="edf" value="'+esc(m.endClient||'')+'" placeholder="None" style="font-size:11px;padding:4px 8px;max-width:160px" onchange="TF.setMeetingCrm(\''+esc(m.id)+'\',\'end_client\',this.value)">';
+  h+='</div>';
+
+  /* Campaign */
+  h+='<div class="meeting-crm-field">';
+  h+='<span class="meeting-crm-label">Campaign</span>';
+  h+='<select class="edf" onchange="TF.setMeetingCrm(\''+esc(m.id)+'\',\'campaign_id\',this.value)" style="font-size:11px;padding:4px 8px">';
+  h+='<option value="">None</option>';
+  S.campaigns.filter(function(c){return c.status==='active'||c.status==='setup'}).forEach(function(c){
+    h+='<option value="'+esc(c.id)+'"'+(m.campaignId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='</select></div>';
+
+  /* Opportunity */
+  h+='<div class="meeting-crm-field">';
+  h+='<span class="meeting-crm-label">Opportunity</span>';
+  h+='<select class="edf" onchange="TF.setMeetingCrm(\''+esc(m.id)+'\',\'opportunity_id\',this.value)" style="font-size:11px;padding:4px 8px">';
+  h+='<option value="">None</option>';
+  S.opportunities.filter(function(o){return o.stage!=='closed_won'&&o.stage!=='closed_lost'}).forEach(function(o){
+    h+='<option value="'+esc(o.id)+'"'+(m.opportunityId===o.id?' selected':'')+'>'+esc(o.name)+'</option>'});
+  h+='</select></div>';
+
   h+='</div>';
   return h}
 

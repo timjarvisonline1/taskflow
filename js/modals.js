@@ -3458,6 +3458,9 @@ var INTG_PLATFORMS=[
   {id:'anthropic',label:'Anthropic (Claude AI)',color:'#D4A574',desc:'AI-powered email analysis',
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[{key:'model',label:'Model (default: claude-sonnet-4-6)',type:'text'}]},
+  {id:'readai',label:'Read.ai',color:'#6366F1',desc:'Meeting transcripts and recordings',
+    fields:[],
+    configFields:[{key:'webhook_secret',label:'Webhook Secret',type:'text'}]},
 ];
 
 /* ═══════════ SCHEDULED ITEM MODALS ═══════════ */
@@ -3741,6 +3744,15 @@ function openIntegrationsModal(){
       h+='</label>';
     });
     h+='</div>';
+
+    /* Read.ai webhook URL display */
+    if(plat.id==='readai'){
+      var wSecret=existing&&existing.config&&existing.config.webhook_secret?existing.config.webhook_secret:'';
+      var wUrl=wSecret?'https://taskflow.timjarvis.online/api/webhook/readai?secret='+encodeURIComponent(wSecret):'Save a webhook secret first, then the URL will appear here';
+      h+='<div style="margin:8px 0;padding:10px 12px;background:var(--glass);border:1px solid var(--gborder);border-radius:6px">';
+      h+='<div style="font-size:10px;color:var(--t4);text-transform:uppercase;font-weight:700;margin-bottom:4px">Webhook URL (copy to Read.ai)</div>';
+      h+='<div style="font-size:11px;color:var(--t2);word-break:break-all;font-family:monospace">'+esc(wUrl)+'</div>';
+      h+='</div>'}
 
     /* Action buttons */
     h+='<div class="intg-actions">';
