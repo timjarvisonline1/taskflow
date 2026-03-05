@@ -1706,7 +1706,7 @@ async function loadIntegrations(){
 async function loadGmailThreads(){
   try{
     var uid=await getUserId();if(!uid)return;
-    var{data,error}=await _sb.from('gmail_threads').select('*').eq('user_id',uid).order('last_message_at',{ascending:false}).limit(200);
+    var{data,error}=await _sb.from('gmail_threads').select('*').eq('user_id',uid).order('last_message_at',{ascending:false}).limit(500);
     if(error)throw error;
     S.gmailThreads=data||[];
     S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;

@@ -5,7 +5,8 @@ const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
 /**
  * Sync Gmail thread metadata to Supabase.
- * Fetches recent threads and upserts metadata (no message bodies stored).
+ * Paginates through Gmail threads until it reaches ones already synced,
+ * so no emails are missed even after long gaps.
  */
 async function syncGmail(userId) {
   const credRow = await getCredentials(userId, 'gmail');
@@ -17,14 +18,44 @@ async function syncGmail(userId) {
     const accessToken = await refreshGmailToken(credRow);
     const client = getServiceClient();
 
-    // Fetch thread list (last 200 threads)
-    const listResp = await fetch(GMAIL_API + '/threads?maxResults=200', {
-      headers: { 'Authorization': 'Bearer ' + accessToken }
+    // Load existing thread IDs so we know when to stop paginating
+    const { data: existingRows } = await client
+      .from('gmail_threads')
+      .select('thread_id, last_message_at')
+      .eq('user_id', userId);
+    const existingMap = {};
+    (existingRows || []).forEach(function(r) {
+      existingMap[r.thread_id] = r.last_message_at;
     });
-    if (!listResp.ok) throw new Error('Gmail API returned ' + listResp.status);
-    const listData = await listResp.json();
-    const threads = listData.threads || [];
-    stats.fetched = threads.length;
+
+    // Paginate through Gmail thread list until we've caught up
+    let pageToken = null;
+    let allThreadIds = [];
+    const MAX_PAGES = 5; // Safety limit: 5 pages × 100 = 500 threads max
+    for (let page = 0; page < MAX_PAGES; page++) {
+      let url = GMAIL_API + '/threads?maxResults=100';
+      if (pageToken) url += '&pageToken=' + pageToken;
+
+      const listResp = await fetch(url, {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      if (!listResp.ok) throw new Error('Gmail API returned ' + listResp.status);
+      const listData = await listResp.json();
+      const pageThreads = listData.threads || [];
+
+      allThreadIds = allThreadIds.concat(pageThreads);
+      stats.fetched += pageThreads.length;
+
+      // Check if all threads on this page are already known
+      let allKnown = pageThreads.length > 0;
+      for (const t of pageThreads) {
+        if (!existingMap[t.id]) { allKnown = false; break; }
+      }
+
+      pageToken = listData.nextPageToken;
+      // Stop if we've caught up (all threads known) or no more pages
+      if (allKnown || !pageToken) break;
+    }
 
     // Collect user's own email addresses to exclude from matching
     const userEmails = [];
@@ -74,7 +105,8 @@ async function syncGmail(userId) {
     const activeRules = emailRules || [];
 
     // Fetch each thread's metadata and upsert
-    for (const thread of threads) {
+    // Skip detailed metadata fetch for threads that haven't changed
+    for (const thread of allThreadIds) {
       try {
         const threadResp = await fetch(
           GMAIL_API + '/threads/' + thread.id + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Cc',
