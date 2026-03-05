@@ -17,8 +17,8 @@ async function syncGmail(userId) {
     const accessToken = await refreshGmailToken(credRow);
     const client = getServiceClient();
 
-    // Fetch thread list (last 100 threads)
-    const listResp = await fetch(GMAIL_API + '/threads?maxResults=100', {
+    // Fetch thread list (last 200 threads)
+    const listResp = await fetch(GMAIL_API + '/threads?maxResults=200', {
       headers: { 'Authorization': 'Bearer ' + accessToken }
     });
     if (!listResp.ok) throw new Error('Gmail API returned ' + listResp.status);

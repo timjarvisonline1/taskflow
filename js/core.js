@@ -1718,7 +1718,7 @@ async function fetchGmailThreads(label,search,pageToken){
     var sess=await _sb.auth.getSession();
     if(!sess.data.session)return null;
     var token=sess.data.session.access_token;
-    var params='?label='+(label||'inbox')+'&maxResults=25';
+    var params='?label='+(label||'inbox')+'&maxResults=50';
     if(search)params+='&q='+encodeURIComponent(search);
     if(pageToken)params+='&pageToken='+encodeURIComponent(pageToken);
     var resp=await fetch('/api/gmail/threads'+params,{headers:{'Authorization':'Bearer '+token}});
