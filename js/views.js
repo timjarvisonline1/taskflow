@@ -4870,6 +4870,7 @@ function rEmail(){
   h+='<div style="display:flex;gap:8px;align-items:center">';
   h+='<button class="btn btn-p" onclick="TF.openComposeEmail()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('edit',12)+' Compose</button>';
   h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Refresh</button>';
+  if(!isSmartInbox)h+='<button class="btn'+(S.emailBulkMode?' btn-p':'')+'" onclick="TF.emailToggleBulk()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.emailBulkMode?'Exit Bulk':'Bulk')+'</button>';
   h+='<button class="btn" onclick="TF.openEmailRulesModal()" style="font-size:12px;padding:7px 14px;border-radius:10px" title="Email Rules">'+icon('settings',12)+'</button>';
   h+='</div></div>';
 
@@ -4884,14 +4885,26 @@ function rEmail(){
     h+='<div style="margin-bottom:16px;font-size:13px;color:var(--t3)">'+icon('filter',12)+' Showing: <strong style="color:var(--t1)">'+(_smartLabels[sub]||sub)+'</strong></div>';
   }
 
+  /* Filter bar for non-smart views */
+  if(!isSmartInbox)h+=rEmailFilterBar();
+
   h+='<div class="email-search">';
   h+='<input type="text" class="edf" id="gmail-search" value="'+esc(S.gmailSearch)+'" placeholder="Search emails..." style="max-width:400px;font-size:13px" onkeydown="if(event.key===\'Enter\')TF.searchGmail(this.value)">';
   if(S.gmailSearch)h+=' <button class="btn" onclick="TF.searchGmail(\'\')" style="font-size:11px;padding:4px 10px">Clear</button>';
   h+='</div>';
 
+  /* Bulk action bar */
+  if(S.emailBulkMode){
+    var _bc=emailBulkCount();
+    h+='<div class="email-bulk-bar">';
+    h+='<span class="email-bulk-count">'+_bc+' selected</span>';
+    h+='<button class="btn" onclick="TF.emailSelectAll()" style="font-size:11px;padding:4px 10px">Select All</button>';
+    if(_bc>0)h+='<button class="btn" onclick="TF.emailDeselectAll()" style="font-size:11px;padding:4px 10px">Deselect</button>';
+    if(_bc>0)h+='<button class="btn btn-p" onclick="TF.bulkArchiveEmails()" style="font-size:11px;padding:4px 10px">'+icon('archive',11)+' Archive '+_bc+'</button>';
+    h+='</div>'}
+
   /* Thread list — smart inboxes ALWAYS use cached S.gmailThreads, never live */
   var threads;
-  console.log('[EMAIL-DEBUG] rEmail: sub='+sub+', isSmartInbox='+isSmartInbox+', gmailFilter='+S.gmailFilter+', liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null')+', supabaseThreads='+S.gmailThreads.length+', cache keys='+Object.keys(S._gmailCache||{}));
   if(isSmartInbox){
     threads=S.gmailThreads.filter(function(t){
       /* Only show inbox threads (exclude archived) */
@@ -4907,15 +4920,16 @@ function rEmail(){
     });
   }else if(sub==='all'){
     /* All Mail uses Supabase data — it has all synced threads, no pagination needed */
-    threads=S.gmailThreads;
-    console.log('[EMAIL-DEBUG] rEmail: All Mail using supabase ('+threads.length+' threads)');
+    threads=applyEmailFilters(S.gmailThreads);
+  }else if(emailHasActiveFilters()){
+    /* Filters active on Inbox/Sent — switch to Supabase data filtered by label for bigger dataset */
+    var _labelKey=sub==='sent'?'SENT':'INBOX';
+    threads=S.gmailThreads.filter(function(t){return(t.labels||'').indexOf(_labelKey)!==-1});
+    threads=applyEmailFilters(threads);
   }else{
     if(S._gmailLiveThreads){
       threads=S._gmailLiveThreads;
-      console.log('[EMAIL-DEBUG] rEmail: using liveThreads ('+threads.length+') for sub='+sub);
     }else{
-      /* No live threads yet — show skeleton while fetch runs */
-      console.log('[EMAIL-DEBUG] rEmail: liveThreads is null, showing skeleton (fetching='+S._gmailFetching+')');
       threads=[];
     }
   }
@@ -4931,7 +4945,6 @@ function rEmail(){
     }else if(S._gmailFetching){
       h+=rEmailSkeleton();
     }else{
-      console.log('[EMAIL-DEBUG] rEmail: 0 threads shown, scheduling ensureGmailThreads via setTimeout');
       setTimeout(function(){ensureGmailThreads()},0);
       h+=rEmailSkeleton();
     }
@@ -4976,6 +4989,47 @@ function rEmailGrouped(threads,groupBy){
   }
   return h}
 
+function rEmailFilterBar(){
+  var h='<div class="email-filter-bar">';
+  /* Client filter — active clients only */
+  var cOpts=(S.clientRecords||[]).filter(function(c){return c.status==='active'}).sort(function(a,b){return(a.name||'').localeCompare(b.name||'')});
+  h+='<div class="email-filter-group">';
+  h+='<button class="email-filter-mode'+(S.emailFilterExclude.client?' exclude':'')+'" onclick="TF.toggleEmailFilterExclude(\'client\')" title="'+(S.emailFilterExclude.client?'Excluding':'Including')+'">'+(S.emailFilterExclude.client?'≠':'=')+'</button>';
+  h+='<select class="email-filter-sel" onchange="TF.setEmailFilter(\'client\',this.value)">';
+  h+='<option value="">All Clients</option><option value="__none__"'+(S.emailFilters.client==='__none__'?' selected':'')+'>No Client</option>';
+  cOpts.forEach(function(c){h+='<option value="'+esc(c.id)+'"'+(S.emailFilters.client===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='</select></div>';
+  /* End-Client filter — unique end-clients from contacts + campaigns */
+  var ecSet={};
+  (S.contacts||[]).forEach(function(c){if(c.endClient)ecSet[c.endClient]=true});
+  (S.campaigns||[]).forEach(function(c){if(c.endClient)ecSet[c.endClient]=true});
+  var ecOpts=Object.keys(ecSet).sort();
+  h+='<div class="email-filter-group">';
+  h+='<button class="email-filter-mode'+(S.emailFilterExclude.endClient?' exclude':'')+'" onclick="TF.toggleEmailFilterExclude(\'endClient\')" title="'+(S.emailFilterExclude.endClient?'Excluding':'Including')+'">'+(S.emailFilterExclude.endClient?'≠':'=')+'</button>';
+  h+='<select class="email-filter-sel" onchange="TF.setEmailFilter(\'endClient\',this.value)">';
+  h+='<option value="">All End-Clients</option><option value="__none__"'+(S.emailFilters.endClient==='__none__'?' selected':'')+'>No End-Client</option>';
+  ecOpts.forEach(function(ec){h+='<option value="'+esc(ec)+'"'+(S.emailFilters.endClient===ec?' selected':'')+'>'+esc(ec)+'</option>'});
+  h+='</select></div>';
+  /* Opportunity filter — open opportunities */
+  var oppOpts=(S.opportunities||[]).filter(function(o){return!o.closedAt}).sort(function(a,b){return(a.name||'').localeCompare(b.name||'')});
+  h+='<div class="email-filter-group">';
+  h+='<button class="email-filter-mode'+(S.emailFilterExclude.opportunity?' exclude':'')+'" onclick="TF.toggleEmailFilterExclude(\'opportunity\')" title="'+(S.emailFilterExclude.opportunity?'Excluding':'Including')+'">'+(S.emailFilterExclude.opportunity?'≠':'=')+'</button>';
+  h+='<select class="email-filter-sel" onchange="TF.setEmailFilter(\'opportunity\',this.value)">';
+  h+='<option value="">All Opportunities</option><option value="__none__"'+(S.emailFilters.opportunity==='__none__'?' selected':'')+'>No Opportunity</option>';
+  oppOpts.forEach(function(o){h+='<option value="'+esc(o.id)+'"'+(S.emailFilters.opportunity===o.id?' selected':'')+'>'+esc(o.name)+'</option>'});
+  h+='</select></div>';
+  /* Campaign filter — active/setup campaigns */
+  var campOpts=(S.campaigns||[]).filter(function(c){return c.status==='Active'||c.status==='Setup'}).sort(function(a,b){return(a.name||'').localeCompare(b.name||'')});
+  h+='<div class="email-filter-group">';
+  h+='<button class="email-filter-mode'+(S.emailFilterExclude.campaign?' exclude':'')+'" onclick="TF.toggleEmailFilterExclude(\'campaign\')" title="'+(S.emailFilterExclude.campaign?'Excluding':'Including')+'">'+(S.emailFilterExclude.campaign?'≠':'=')+'</button>';
+  h+='<select class="email-filter-sel" onchange="TF.setEmailFilter(\'campaign\',this.value)">';
+  h+='<option value="">All Campaigns</option><option value="__none__"'+(S.emailFilters.campaign==='__none__'?' selected':'')+'>No Campaign</option>';
+  campOpts.forEach(function(c){h+='<option value="'+esc(c.id)+'"'+(S.emailFilters.campaign===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='</select></div>';
+  if(emailHasActiveFilters())h+='<button class="btn" onclick="TF.clearEmailFilters()" style="font-size:11px;padding:4px 10px">Clear</button>';
+  h+='</div>';
+  return h}
+
 function rEmailList(threads){
   var h='<div class="email-thread-list">';
   var lastGroup='';
@@ -5012,8 +5066,10 @@ function rEmailList(threads){
     var initial=(fromName||fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(fromEmail);
 
-    h+='<div class="email-row'+(isUnread?' email-unread':'')+'" data-tid="'+esc(threadId)+'" onclick="TF.openEmailThread(\''+esc(threadId)+'\')">';
-    h+='<div class="email-dot '+(isUnread?'email-dot-on':'email-dot-off')+'"></div>';
+    var _isBulkSel=S.emailBulkMode&&S.emailBulkSelected[threadId];
+    h+='<div class="email-row'+(isUnread?' email-unread':'')+(_isBulkSel?' email-bulk-sel':'')+'" data-tid="'+esc(threadId)+'" onclick="'+(S.emailBulkMode?'TF.emailToggleSel(\''+esc(threadId)+'\')':'TF.openEmailThread(\''+esc(threadId)+'\')')+'">';
+    if(S.emailBulkMode){h+='<div class="email-bulk-check"><input type="checkbox" '+(_isBulkSel?'checked':'')+' onclick="event.stopPropagation();TF.emailToggleSel(\''+esc(threadId)+'\')"></div>'}
+    else{h+='<div class="email-dot '+(isUnread?'email-dot-on':'email-dot-off')+'"></div>'}
     h+='<div class="email-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
     h+='<div class="email-row-main">';
     h+='<div class="email-row-top">';

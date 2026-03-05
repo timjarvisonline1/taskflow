@@ -81,6 +81,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   /* Email */
   openEmailThread:openEmailThread,closeEmailThread:closeEmailThread,searchGmail:searchGmail,setGmailFilter:setGmailFilter,loadMoreGmailThreads:loadMoreGmailThreads,refreshGmailInbox:refreshGmailInbox,
   ensureGmailThreads:ensureGmailThreads,archiveEmail:archiveEmail,toggleEmailMsg:toggleEmailMsg,
+  setEmailFilter:setEmailFilter,toggleEmailFilterExclude:toggleEmailFilterExclude,clearEmailFilters:clearEmailFilters,
+  emailToggleBulk:emailToggleBulk,emailToggleSel:emailToggleSel,emailSelectAll:emailSelectAll,emailDeselectAll:emailDeselectAll,bulkArchiveEmails:bulkArchiveEmails,
   applyNewEmails:applyNewEmails,startEmailPolling:startEmailPolling,stopEmailPolling:stopEmailPolling,
   analyzeNewEmails:analyzeNewEmails,dismissEmailAction:dismissEmailAction,snoozeEmailAction:snoozeEmailAction,openSnoozeMenu:openSnoozeMenu,
   dismissFollowup:dismissFollowup,summarizeThread:summarizeThread,doSummarize:doSummarize,resummarizeThread:resummarizeThread,createTaskFromSuggestion:createTaskFromSuggestion,

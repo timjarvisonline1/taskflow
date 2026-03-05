@@ -124,7 +124,10 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
-  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,_gmailCache:{},contacts:[],scheduledEmails:[],emailRules:[]};
+  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,_gmailCache:{},
+  emailFilters:{client:'',endClient:'',opportunity:'',campaign:''},emailFilterExclude:{client:false,endClient:false,opportunity:false,campaign:false},
+  emailBulkMode:false,emailBulkSelected:{},
+  contacts:[],scheduledEmails:[],emailRules:[]};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1727,6 +1730,8 @@ async function fetchGmailThreads(label,search,pageToken){
   }catch(e){toast('Gmail: '+e.message,'warn');return null}}
 
 async function openEmailThread(threadId){
+  /* Exit bulk mode on thread open */
+  if(S.emailBulkMode){S.emailBulkMode=false;S.emailBulkSelected={}}
   /* Flush any existing email timer before starting a new one */
   _flushEmailTimer();
   /* Start silent email timer */
@@ -1787,27 +1792,104 @@ async function searchGmail(query){
   render()}
 
 function setGmailFilter(filter){
+  /* Exit bulk mode on view switch */
+  if(S.emailBulkMode){S.emailBulkMode=false;S.emailBulkSelected={}}
   /* Save current view's live threads into per-filter cache */
-  var _prevFilter=S.gmailFilter;
-  var _prevCount=S._gmailLiveThreads?S._gmailLiveThreads.length:0;
   if(S.gmailFilter&&S._gmailLiveThreads){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
-  console.log('[EMAIL-DEBUG] setGmailFilter: '+_prevFilter+' ('+_prevCount+' threads) → '+filter+' | cache keys:', Object.keys(S._gmailCache));
   S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';
   S.gmailThread=null;S.gmailThreadId='';
   /* Restore from cache if available, otherwise mark as fetching to show skeleton */
   var cached=S._gmailCache[filter];
   var isSmartInbox=filter.indexOf('e-')===0;
-  if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage;
-    console.log('[EMAIL-DEBUG] setGmailFilter: restored '+cached.threads.length+' threads from cache for '+filter)}
-  else if(!isSmartInbox&&filter!=='all'){
-    S._gmailLiveThreads=null;S._gmailNextPage=null;
-    console.log('[EMAIL-DEBUG] setGmailFilter: no cache for '+filter+', will fetch')}
-  else{S._gmailLiveThreads=null;S._gmailNextPage=null;
-    console.log('[EMAIL-DEBUG] setGmailFilter: '+filter+', using supabase data')}
+  if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage}
+  else if(!isSmartInbox&&filter!=='all'){S._gmailLiveThreads=null;S._gmailNextPage=null}
+  else{S._gmailLiveThreads=null;S._gmailNextPage=null}
   save();render();
   /* Smart inboxes and All Mail use Supabase data, not live fetch */
   if(!isSmartInbox&&filter!=='all')ensureGmailThreads()}
+
+/* ═══════════ EMAIL FILTERS ═══════════ */
+function setEmailFilter(field,value){
+  S.emailFilters[field]=value;render()}
+function toggleEmailFilterExclude(field){
+  S.emailFilterExclude[field]=!S.emailFilterExclude[field];render()}
+function clearEmailFilters(){
+  S.emailFilters={client:'',endClient:'',opportunity:'',campaign:''};
+  S.emailFilterExclude={client:false,endClient:false,opportunity:false,campaign:false};render()}
+function emailHasActiveFilters(){
+  return S.emailFilters.client!==''||S.emailFilters.endClient!==''||
+    S.emailFilters.opportunity!==''||S.emailFilters.campaign!==''}
+function applyEmailFilters(threads){
+  if(!emailHasActiveFilters())return threads;
+  return threads.filter(function(t){
+    var ctx=getThreadCrmContext(t);if(!ctx)return false;
+    /* Client filter */
+    if(S.emailFilters.client){
+      var match=false;
+      if(S.emailFilters.client==='__none__')match=!ctx.primaryClient;
+      else match=ctx.primaryClient&&ctx.primaryClient.clientId===S.emailFilters.client;
+      if(S.emailFilterExclude.client)match=!match;
+      if(!match)return false}
+    /* End-Client filter */
+    if(S.emailFilters.endClient){
+      var match2=false;
+      if(S.emailFilters.endClient==='__none__')match2=!ctx.primaryEndClient;
+      else match2=ctx.primaryEndClient===S.emailFilters.endClient;
+      if(S.emailFilterExclude.endClient)match2=!match2;
+      if(!match2)return false}
+    /* Opportunity filter */
+    if(S.emailFilters.opportunity){
+      var match3=false;
+      if(S.emailFilters.opportunity==='__none__')match3=ctx.opportunities.length===0;
+      else match3=ctx.opportunities.some(function(o){return o.id===S.emailFilters.opportunity});
+      if(S.emailFilterExclude.opportunity)match3=!match3;
+      if(!match3)return false}
+    /* Campaign filter */
+    if(S.emailFilters.campaign){
+      var match4=false;
+      if(S.emailFilters.campaign==='__none__')match4=ctx.campaigns.length===0;
+      else match4=ctx.campaigns.some(function(c){return c.id===S.emailFilters.campaign});
+      if(S.emailFilterExclude.campaign)match4=!match4;
+      if(!match4)return false}
+    return true})}
+
+/* ═══════════ EMAIL BULK MODE ═══════════ */
+function emailToggleBulk(){
+  S.emailBulkMode=!S.emailBulkMode;S.emailBulkSelected={};render()}
+function emailToggleSel(threadId){
+  if(S.emailBulkSelected[threadId])delete S.emailBulkSelected[threadId];
+  else S.emailBulkSelected[threadId]=true;render()}
+function emailSelectAll(){
+  var rows=document.querySelectorAll('.email-row[data-tid]');
+  rows.forEach(function(r){var tid=r.getAttribute('data-tid');if(tid)S.emailBulkSelected[tid]=true});
+  render()}
+function emailDeselectAll(){S.emailBulkSelected={};render()}
+function emailBulkCount(){return Object.keys(S.emailBulkSelected).length}
+async function bulkArchiveEmails(){
+  var ids=Object.keys(S.emailBulkSelected);
+  if(!ids.length)return;
+  toast('Archiving '+ids.length+' email'+(ids.length>1?'s':'')+'...','info');
+  var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+  var token=sess.data.session.access_token;
+  var ok=0,fail=0;
+  for(var i=0;i<ids.length;i++){
+    try{
+      var resp=await fetch('/api/gmail/archive',{method:'POST',
+        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify({threadId:ids[i]})});
+      if(!resp.ok)throw new Error('failed');
+      /* Update local state */
+      if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==ids[i]});
+      var st=S.gmailThreads.find(function(t){return t.thread_id===ids[i]});
+      if(st)st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',');
+      ok++
+    }catch(e){fail++}}
+  S._gmailCache={};
+  S.emailBulkMode=false;S.emailBulkSelected={};
+  S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+  render();
+  toast('Archived '+ok+' email'+(ok!==1?'s':'')+(fail?' ('+fail+' failed)':''),'ok')}
 
 async function loadMoreGmailThreads(){
   if(!S._gmailNextPage)return;
@@ -1823,7 +1905,6 @@ var _refreshing=false;
 async function refreshGmailInbox(){
   if(_refreshing)return;
   _refreshing=true;
-  console.log('[EMAIL-DEBUG] refreshGmailInbox: filter='+S.gmailFilter+', current threads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
   toast('Refreshing inbox...','info');
   /* Clear all cached views so stale data doesn't persist */
   S._gmailCache={};
@@ -1832,17 +1913,14 @@ async function refreshGmailInbox(){
     var sess=await _sb.auth.getSession();
     if(sess.data.session){
       await fetch('/api/sync/gmail',{method:'POST',
-        headers:{'Authorization':'Bearer '+sess.data.session.access_token}});
-      console.log('[EMAIL-DEBUG] refreshGmailInbox: gmail sync complete')}
+        headers:{'Authorization':'Bearer '+sess.data.session.access_token}})}
   }catch(e){console.warn('Gmail sync during refresh:',e)}
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
-  console.log('[EMAIL-DEBUG] refreshGmailInbox: fetched '+(data?(data.threads||[]).length:'null')+' threads');
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   /* Reload Supabase threads so smart inboxes / Action Required / CRM stay in sync */
   await loadGmailThreads();
-  console.log('[EMAIL-DEBUG] refreshGmailInbox: done. liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null')+', cache keys='+Object.keys(S._gmailCache)+', supabase='+S.gmailThreads.length);
   _refreshing=false;
   render();
   /* Trigger AI analysis for new threads */
@@ -1850,18 +1928,15 @@ async function refreshGmailInbox(){
 
 /* ═══════════ AUTO-FETCH & POLLING ═══════════ */
 async function ensureGmailThreads(){
-  if(_refreshing){console.log('[EMAIL-DEBUG] ensureGmailThreads: refresh in progress, skip');return}
-  if(S._gmailFetching){console.log('[EMAIL-DEBUG] ensureGmailThreads: already fetching, skip');return}
-  if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0){console.log('[EMAIL-DEBUG] ensureGmailThreads: already have '+S._gmailLiveThreads.length+' threads for '+S.gmailFilter+', skip');return}
-  console.log('[EMAIL-DEBUG] ensureGmailThreads: FETCHING for filter='+S.gmailFilter);
+  if(_refreshing)return;
+  if(S._gmailFetching)return;
+  if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0)return;
   S._gmailFetching=true;
-  /* Don't render() here — setGmailFilter already rendered with skeleton */
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   S._gmailFetching=false;
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
-    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage};
-    console.log('[EMAIL-DEBUG] ensureGmailThreads: fetched '+S._gmailLiveThreads.length+' threads for '+S.gmailFilter)}
+    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   render()}
 
 var _emailPollTimer=null;
@@ -1880,7 +1955,6 @@ function stopEmailPolling(){
 
 async function pollGmailInbox(){
   try{
-    console.log('[EMAIL-DEBUG] pollGmailInbox: filter='+S.gmailFilter+', current='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
     var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
     if(!data)return;
     var newThreads=data.threads||[];

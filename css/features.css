@@ -1401,8 +1401,24 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-summary-box{background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px 16px;margin-top:8px}
 .email-summary-box strong{font-size:12px;color:var(--t1)}
 .email-summary-text{font-size:12px;color:var(--t2);line-height:1.6;margin-top:8px}
+/* Email filter bar */
+.email-filter-bar{display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.email-filter-group{display:flex;align-items:stretch}
+.email-filter-mode{font-size:11px;padding:4px 7px;border:1px solid var(--gborder);border-right:none;border-radius:var(--rs) 0 0 var(--rs);background:var(--glass);color:var(--t3);cursor:pointer;font-weight:700;line-height:1}
+.email-filter-mode:hover{background:var(--ghover)}
+.email-filter-mode.exclude{background:rgba(234,67,53,.1);color:#EA4335;border-color:rgba(234,67,53,.25)}
+.email-filter-sel{font-size:11px;padding:4px 8px;border:1px solid var(--gborder);border-radius:0 var(--rs) var(--rs) 0;background:var(--glass);color:var(--t2);cursor:pointer;max-width:160px}
+.email-filter-sel:focus{border-color:var(--accent);outline:none}
+/* Email bulk mode */
+.email-bulk-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(255,0,153,.04);border:1px solid rgba(255,0,153,.12);border-radius:var(--rs);margin-bottom:12px;flex-wrap:wrap}
+.email-bulk-count{font-size:12px;font-weight:700;color:var(--pink);min-width:80px}
+.email-bulk-sel{background:rgba(255,0,153,.04)!important;outline:1px solid rgba(255,0,153,.15);outline-offset:-1px}
+.email-bulk-check{display:flex;align-items:center;justify-content:center;width:12px;flex-shrink:0}
+.email-bulk-check input[type="checkbox"]{width:14px;height:14px;accent-color:var(--pink);cursor:pointer}
 @media(max-width:768px){
   .action-card-top{flex-wrap:wrap}
   .action-card-meta{flex-direction:row;width:100%;justify-content:flex-end;margin-top:4px}
   .action-actions{flex-wrap:wrap}
+  .email-filter-bar{gap:4px}
+  .email-filter-sel{max-width:120px}
 }
