@@ -39,6 +39,9 @@ READAI_REGISTER_URL = 'https://api.read.ai/oauth/register'
 LOCAL_PORT = 18923
 LOCAL_REDIRECT_URI = f'http://localhost:{LOCAL_PORT}/callback'
 
+# Only import meetings where Tim is the owner or a participant
+MY_EMAILS = {'tim.jarvis@timjarvis.online', 'timjarvis86@gmail.com', 'tim@timjarvis.online'}
+
 CREDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.readai-import-creds.json')
 
 # Rate limit: 100 req/min
@@ -643,6 +646,27 @@ def fetch_all_meetings(creds, list_endpoint, list_info):
     return all_meetings, creds
 
 
+def is_my_meeting(m):
+    """Check if Tim is the owner or a participant of this meeting."""
+    # Check owner
+    owner = m.get('owner', {})
+    if isinstance(owner, dict):
+        owner_email = (owner.get('email') or '').lower()
+    else:
+        owner_email = (m.get('owner_email') or '').lower()
+    if owner_email in MY_EMAILS:
+        return True
+
+    # Check participants
+    for p in (m.get('participants') or []):
+        if isinstance(p, dict):
+            pe = (p.get('email') or '').lower()
+            if pe in MY_EMAILS:
+                return True
+
+    return False
+
+
 def fetch_meeting_details(creds, session_id, list_endpoint):
     patterns = [
         f'{list_endpoint}/{session_id}',
@@ -710,14 +734,18 @@ def main():
         print('\n  No meetings found. Done!')
         return
 
-    # Step 6: Import into Supabase
+    # Step 6: Filter to only Tim's meetings and import
+    my_meetings = [m for m in meetings if is_my_meeting(m)]
+    print(f'\n  🔍 Filtered: {len(my_meetings)} meetings where you are owner/participant (of {len(meetings)} total)')
+
     print(f'\n📤 Importing meetings into TaskFlow...')
     imported = 0
     skipped = 0
     errors = 0
     needs_detail = 0
+    filtered = len(meetings) - len(my_meetings)
 
-    for i, m in enumerate(meetings):
+    for i, m in enumerate(my_meetings):
         session_id = m.get('session_id') or m.get('id') or m.get('meeting_id') or ''
 
         if not session_id:
@@ -756,6 +784,7 @@ def main():
     print(f'  Import complete!')
     print(f'  ✓ Imported:        {imported}')
     print(f'  ⏭ Skipped (dupes): {skipped}')
+    print(f'  🚫 Filtered (not yours): {filtered}')
     print(f'  📄 Fetched detail:  {needs_detail}')
     print(f'  ❌ Errors:          {errors}')
     print('═══════════════════════════════════════════')
