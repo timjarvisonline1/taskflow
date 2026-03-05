@@ -499,12 +499,30 @@ def build_meeting_row(user_id, meeting_data, contact_map, client_email_map):
 
     session_id = m.get('session_id') or m.get('id') or m.get('meeting_id') or ''
     title = m.get('title') or m.get('name') or ''
+
+    # Handle timestamps — API may send start_time_ms (epoch ms) or start_time (ISO string)
     start_time = m.get('start_time') or m.get('meeting_start_time') or m.get('start') or None
     end_time = m.get('end_time') or m.get('meeting_end_time') or m.get('end') or None
+
+    # Convert epoch ms to ISO strings
+    if m.get('start_time_ms') and not start_time:
+        try:
+            start_time = datetime.utcfromtimestamp(m['start_time_ms'] / 1000).isoformat() + 'Z'
+        except (ValueError, TypeError, OSError):
+            pass
+    if m.get('end_time_ms') and not end_time:
+        try:
+            end_time = datetime.utcfromtimestamp(m['end_time_ms'] / 1000).isoformat() + 'Z'
+        except (ValueError, TypeError, OSError):
+            pass
 
     duration_minutes = 0
     if m.get('duration_minutes'):
         duration_minutes = int(m['duration_minutes'])
+    elif m.get('start_time_ms') and m.get('end_time_ms'):
+        diff_ms = m['end_time_ms'] - m['start_time_ms']
+        if diff_ms > 0:
+            duration_minutes = round(diff_ms / 60000)
     elif start_time and end_time:
         try:
             st = datetime.fromisoformat(start_time.replace('Z', '+00:00')) if isinstance(start_time, str) else start_time
@@ -576,40 +594,33 @@ def insert_meeting(row):
 
 
 def fetch_all_meetings(creds, list_endpoint, list_info):
+    """Fetch all meetings using cursor-based pagination (Stripe-style)."""
     all_meetings = []
-    page = 0
-    page_size = 50
+    cursor = None  # starting_after cursor
 
     while True:
-        sep = '&' if '?' in list_endpoint else '?'
-        paginated = f'{list_endpoint}{sep}limit={page_size}&offset={page * page_size}'
+        # Build URL with cursor pagination
+        url = list_endpoint
+        params = []
+        if cursor:
+            params.append(f'starting_after={urllib.parse.quote(cursor)}')
+        if params:
+            url += '?' + '&'.join(params)
 
-        status, resp, creds = readai_api(creds, paginated)
+        status, resp, creds = readai_api(creds, url)
 
         if status != 200:
-            if page == 0:
-                paginated = f'{list_endpoint}{sep}page_size={page_size}&page={page}'
-                status, resp, creds = readai_api(creds, paginated)
-            if status != 200:
-                if page == 0:
-                    status, resp, creds = readai_api(creds, list_endpoint)
-                if status != 200:
-                    print(f'  ❌ Failed to fetch meetings (HTTP {status})')
-                    break
+            print(f'  ❌ Failed to fetch meetings (HTTP {status})')
+            if isinstance(resp, dict):
+                print(f'     {resp}')
+            break
 
+        # Extract meetings from response
         meetings = []
-        list_key = list_info.get('list_key')
-        if list_key == '__root__' and isinstance(resp, list):
-            meetings = resp
-        elif list_key and isinstance(resp, dict) and list_key in resp:
-            meetings = resp[list_key]
+        if isinstance(resp, dict) and 'data' in resp:
+            meetings = resp['data']
         elif isinstance(resp, list):
             meetings = resp
-        elif isinstance(resp, dict):
-            for k in ('data', 'items', 'sessions', 'meetings', 'results'):
-                if k in resp and isinstance(resp[k], list):
-                    meetings = resp[k]
-                    break
 
         if not meetings:
             break
@@ -617,17 +628,16 @@ def fetch_all_meetings(creds, list_endpoint, list_info):
         all_meetings.extend(meetings)
         print(f'  📥 Fetched {len(all_meetings)} meetings so far...')
 
-        has_more = False
-        if isinstance(resp, dict):
-            has_more = resp.get('has_more', False) or resp.get('next') is not None
-            total = resp.get('total') or resp.get('total_count')
-            if total and len(all_meetings) < total:
-                has_more = True
-
-        if not has_more or len(meetings) < page_size:
+        # Check for more pages (Stripe-style: has_more + last item id as cursor)
+        has_more = isinstance(resp, dict) and resp.get('has_more', False)
+        if has_more and meetings:
+            last_item = meetings[-1]
+            cursor = last_item.get('id') or last_item.get('session_id')
+            if not cursor:
+                break  # Can't paginate without an ID
+        else:
             break
 
-        page += 1
         time.sleep(RATE_LIMIT_DELAY)
 
     return all_meetings, creds
