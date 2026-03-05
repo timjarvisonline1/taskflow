@@ -124,7 +124,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
-  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,contacts:[],scheduledEmails:[],emailRules:[]};
+  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,_gmailCache:{},contacts:[],scheduledEmails:[],emailRules:[]};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1781,12 +1781,20 @@ async function searchGmail(query){
   S.gmailSearch=query;
   toast('Searching...','info');
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,query);
-  if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null}
+  if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
+    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   render()}
 
 function setGmailFilter(filter){
-  S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';S._gmailLiveThreads=null;S._gmailNextPage=null;
+  /* Save current view's live threads into per-filter cache */
+  if(S.gmailFilter&&S._gmailLiveThreads){
+    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
+  S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';
   S.gmailThread=null;S.gmailThreadId='';
+  /* Restore from cache if available, otherwise null to trigger fetch */
+  var cached=S._gmailCache[filter];
+  if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage}
+  else{S._gmailLiveThreads=null;S._gmailNextPage=null}
   save();render();
   /* Smart inboxes use cached threads, not live fetch */
   if(filter.indexOf('e-')!==0)ensureGmailThreads()}
@@ -1798,13 +1806,17 @@ async function loadMoreGmailThreads(){
   if(data){
     S._gmailLiveThreads=(S._gmailLiveThreads||[]).concat(data.threads||[]);
     S._gmailNextPage=data.nextPageToken||null;
+    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage};
     render()}}
 
 async function refreshGmailInbox(){
   toast('Refreshing inbox...','info');
+  /* Clear all cached views so stale data doesn't persist */
+  S._gmailCache={};
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
-    S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length}
+    S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
+    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   /* Reload Supabase threads so smart inboxes / Action Required / CRM stay in sync */
   await loadGmailThreads();
   render();
@@ -1819,7 +1831,8 @@ async function ensureGmailThreads(){
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   S._gmailFetching=false;
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
-    S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length}
+    S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
+    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   render()}
 
 var _emailPollTimer=null;
@@ -1847,6 +1860,7 @@ async function pollGmailInbox(){
     S._gmailLiveThreads=newThreads;
     S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=newThreads.filter(function(t){return t.isUnread}).length;
+    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage};
     /* Reload Supabase threads so smart inboxes stay in sync */
     await loadGmailThreads();
     if(newCount>0){showNewEmailIndicator(newCount);buildNav()}
