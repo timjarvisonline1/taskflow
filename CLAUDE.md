@@ -31,7 +31,7 @@ Browser (client JS)                   Vercel Serverless Functions
 **Key stack:**
 - **Frontend**: Vanilla JS SPA, Chart.js for analytics, Inter font
 - **Backend**: Supabase (PostgreSQL with RLS, Auth, REST API via PostgREST)
-- **Hosting**: Vercel (Hobby plan — 60s max function timeout, no cron support)
+- **Hosting**: Vercel (Pro plan — 300s max function timeout, no cron support)
 - **CDN libs**: Supabase JS v2 (UMD), Chart.js 4.4
 - **Email**: Gmail API (OAuth 2.0) — scopes: `gmail.readonly`, `gmail.send`, `gmail.modify`
 
@@ -202,20 +202,28 @@ S = {
   contacts: [],           // CRM contacts (name, email, clientId, endClient)
 
   // Email state
-  gmailThreads: [],       // Cached gmail thread metadata (from Supabase)
+  gmailThreads: [],       // Cached gmail thread metadata (from Supabase, limit 500)
   gmailSearch: '',        // Current search query
-  gmailFilter: 'inbox',  // 'inbox' | 'sent' | 'all'
+  gmailFilter: 'inbox',  // 'inbox' | 'sent' | 'all' | 'e-active' | 'e-lapsed' etc.
   gmailThread: null,      // Currently open thread with full messages
   gmailThreadId: '',      // Thread ID being viewed
   gmailUnread: 0,         // Unread count
   _gmailFetching: false,  // Loading state
   _gmailLiveThreads: null,// Live thread results (vs cached)
   _gmailNextPage: null,   // Pagination token
+  _gmailCache: {},        // Per-filter cache {filter: {threads, nextPage}} — preserves data across view switches
+  _filteredEmailResults: null, // Server-side filtered results (when email filters active)
   scheduledEmails: [],    // Scheduled emails (from Supabase)
   emailRules: [],         // Email rules (from Supabase)
   _domainMap: {},         // email domain → CRM context (built by _buildDomainMap)
   _threadCrmCache: {},    // thread_id → CRM context cache (invalidated on contact/domain changes)
   _emailTimer: null,      // Silent timer tracking email reading time
+
+  // Email filters & bulk
+  emailFilters: {},       // {client, endClient, opportunity, campaign} — filter values
+  emailFilterExclude: {}, // {client, endClient, opportunity, campaign} — include/exclude toggle per filter
+  emailBulkMode: false,   // Bulk selection mode active
+  emailBulkSelected: {},  // Selected thread IDs for bulk actions
 
   // UI state
   view: 'dashboard',      // Current view — default is dashboard
@@ -324,7 +332,7 @@ Email sub-views (via rEmail() dispatcher):
   rEmailDraftList()        — Saved drafts with open/delete (uses localStorage)
   rEmailScheduledList()    — Scheduled emails: pending (with countdown), failed, sent history
   rEmailThread()           — Thread view: message list with expand/collapse, reply/forward/reply-all
-  (inbox/sent/all)         — Thread list with filter toggle + search
+  (inbox/sent/all)         — Thread list with filter toggle + search + CRM filter bar + bulk mode
   (smart inboxes)          — Filtered by CRM context: e-active, e-lapsed, e-prospects, e-campaigns, e-opportunities, e-other
 
 Mobile views:
@@ -375,8 +383,10 @@ HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', th
 - `oppTypeMetrics(typeKey)` — Per-type opportunity statistics
 - `buildUpcomingPayments(horizon)` — Builds projected inflows/outflows for forecast
 - `emailAvatarColor(email)` — Consistent color from email string for avatar circles
-- `getThreadCrmContext(thread)` — CRM context (client, campaigns, opportunities) for a thread
-- `resolveThreadCrmContext(threadId, participants, subject)` — Full CRM resolution with contact cascade
+- `getThreadCrmContext(thread)` — CRM context (client, campaigns, opportunities) for a thread. Works on both live threads (camelCase) and Supabase threads (snake_case)
+- `resolveThreadCrmContext(from, to, cc)` — Full CRM resolution with contact cascade
+- `applyEmailFilters(threads)` — Client-side CRM filter application via `getThreadCrmContext()`
+- `loadFilteredEmailThreads()` — Server-side Supabase query with label + client_id conditions for filtered views
 
 ### Opportunity Types (OPP_TYPES)
 
@@ -389,13 +399,13 @@ Defined in `core.js`, each opportunity type has a key, label, color, and icon:
 
 ### Gmail Integration
 
-Gmail is connected via OAuth 2.0 with scopes `gmail.readonly`, `gmail.send`, `gmail.modify`. Thread metadata is synced to the `gmail_threads` Supabase table by `sync-gmail.js`. Full message bodies are fetched on-demand via the `/api/gmail/thread` endpoint.
+Gmail is connected via OAuth 2.0 with scopes `gmail.readonly`, `gmail.send`, `gmail.modify`. Thread metadata is synced to the `gmail_threads` Supabase table by `sync-gmail.js` (paginates up to 5 pages × 100 = 500 threads, stops when reaching already-known threads). Full message bodies are fetched on-demand via the `/api/gmail/thread` endpoint.
 
 **API Endpoints:**
 - `GET /api/gmail/threads` — list threads (label filter, search, pagination)
 - `GET /api/gmail/thread?id=` — full thread with messages
 - `POST /api/gmail/send` — send email (supports to/cc/bcc, threading, attachments)
-- `POST /api/gmail/archive` — remove INBOX label
+- `POST /api/gmail/archive` — remove INBOX label (also updates Supabase labels)
 - `POST /api/gmail/trash` — move to trash
 - `POST /api/gmail/mark-read` — mark as read
 - `GET /api/gmail/attachment` — download attachment
@@ -506,6 +516,44 @@ CRM resolution uses a multi-level cascade in `resolveThreadCrmContext()`:
 
 Smart inboxes only show INBOX-labeled threads (excludes archived).
 
+### Email Filters
+
+Non-smart inbox views (Inbox, Sent, All Mail) have a CRM filter bar with 4 dropdowns:
+- **Client** — active clients only (from `S.clientRecords` where status=active)
+- **End-Client** — unique end-clients from contacts and campaigns
+- **Opportunity** — open opportunities only
+- **Campaign** — active/setup campaigns
+
+Each filter has an include/exclude toggle (`=`/`≠`). Special `__none__` value matches threads with no CRM association (e.g., "No Client"). A "Clear" button resets all filters.
+
+**Server-side dynamic loading:** When filters are active, `loadFilteredEmailThreads()` queries Supabase directly with server-side conditions (label + client_id) instead of filtering the pre-loaded 500 threads. This ensures filtered views return a full page of results. Client filter uses `client_id` column (reliable — set during sync via email matching). End-client, opportunity, and campaign filters are applied client-side via `getThreadCrmContext()` on the server-filtered results.
+
+**Key functions:** `setEmailFilter(field, value)`, `toggleEmailFilterExclude(field)`, `clearEmailFilters()`, `emailHasActiveFilters()`, `applyEmailFilters(threads)`, `loadFilteredEmailThreads()`
+
+### Email Bulk Archive
+
+A "Bulk" button in the email header enables checkbox selection mode (follows the `finBulkMode` pattern from Finance). Features:
+- Checkbox on each email row (replaces unread dot)
+- Click row toggles selection (instead of opening thread)
+- Action bar with Select All, Deselect, and "Archive N" buttons
+- Sequential archive via `/api/gmail/archive` API
+- After bulk archive, filtered results auto-reload to backfill the view
+- Bulk mode auto-exits on: thread open, view switch, archive completion
+
+**Key functions:** `emailToggleBulk()`, `emailToggleSel(threadId)`, `emailSelectAll()`, `emailDeselectAll()`, `emailBulkCount()`, `bulkArchiveEmails()`
+
+### Email View Caching
+
+`S._gmailCache` stores per-filter live thread results (`{filter: {threads, nextPage}}`). When switching between Inbox/Sent views, threads are saved to cache and restored from cache, preventing data loss and redundant fetches. Cache is cleared on refresh.
+
+`subNav()` delegates to `setGmailFilter()` for email views to keep `S.subView` and `S.gmailFilter` in sync.
+
+**Thread source logic in `rEmail()`:**
+- Smart inboxes → filter `S.gmailThreads` (Supabase) by CRM context
+- Filters active → use `S._filteredEmailResults` (server-side query)
+- All Mail (no filters) → use `S.gmailThreads` (Supabase)
+- Inbox/Sent (no filters) → use `S._gmailLiveThreads` (Gmail API)
+
 ### Email Time Tracking
 
 Opening a thread starts a silent timer (`S._emailTimer`). When closing or switching threads, `_flushEmailTimer()` logs the time as a completed "Email: {subject}" task if >5 seconds elapsed. Categorization from the thread context is applied to the logged task.
@@ -517,6 +565,8 @@ Opening a thread starts a silent timer (`S._emailTimer`). When closing or switch
 2. If on email view and not in a thread → `pollGmailInbox()` for new emails
 
 New emails trigger `applyNewEmails()` which updates the thread list and shows a toast notification.
+
+**Refresh flow** (`refreshGmailInbox()`): Clears all view caches → syncs Gmail metadata to Supabase (`/api/sync/gmail`) → fetches live threads (50 max) → reloads Supabase threads (`loadGmailThreads()`, 500 max) → triggers AI analysis for new threads. A `_refreshing` flag prevents race with `ensureGmailThreads()`.
 
 ### Action Required (AI Email Triage)
 
@@ -718,7 +768,7 @@ Each entity has standard CRUD helpers:
 
 - **Automatic**: Push to `main` branch → Vercel builds and deploys
 - **Manual sync functions**: Triggered via UI "Sync Now" buttons
-- **Cron**: Vercel Hobby plan doesn't support crons. All platform syncs are manual only via "Sync Now" buttons.
+- **Cron**: All platform syncs are manual only via "Sync Now" buttons.
 
 ## Coding Conventions
 
@@ -785,7 +835,7 @@ Each entity has standard CRUD helpers:
 - Zoho's Self Client generates a ONE-TIME auth code — must be exchanged within 10 minutes
 - Test Connection endpoint merges stored credentials with form fields — no need to re-enter everything
 - Toast messages last 8s for errors, 3.2s for success
-- `vercel.json` maxDuration only applies to `api/sync/*.js` (60s)
+- `vercel.json` maxDuration applies to `api/sync/*.js` (300s on Pro plan)
 - CSV-imported records use source names `stripe`, `stripe2`, `zoho`, `brex` while live sync uses `zoho_books`, `zoho_payments`, `mercury`, `brex`
 - Client select dropdowns include a blank "Select..." first option to prevent defaulting to first client
 - `saveDetail()` and `markAlreadyCompleted()` check the client toggle checkbox before reading client value — if unchecked, client is cleared
@@ -799,6 +849,12 @@ Each entity has standard CRUD helpers:
 - `closeModal()` checks for active compose and prompts "Save as draft?" — bypasses draft prompt when called after `sendEmail()` which handles cleanup directly
 - Scheduled emails only send when the TaskFlow tab is open (client-side polling, no server-side cron)
 - Email rules use AND logic for conditions, first matching rule wins based on priority
+- `setGmailFilter()` must be used for email view switches (not `subNav()` directly) to keep `S.subView` and `S.gmailFilter` in sync
+- Archiving from Inbox removes from live list; archiving from other views invalidates inbox cache only (All Mail keeps everything)
+- All Mail view uses `S.gmailThreads` (Supabase data), not live Gmail API fetch
+- `gmail_threads.client_id` is set during sync via email matching — reliable for server-side filtering. `end_client`/`campaign_id`/`opportunity_id` are only set by email rules — less reliable for server-side queries
+- `loadFilteredEmailThreads()` applies client_id filter server-side but end-client/opportunity/campaign filters client-side via CRM context
+- Gmail sync (`sync-gmail.js`) paginates up to 5 pages × 100 threads, stopping when all threads on a page are already in Supabase
 
 ## Current Status (as of 2026-03-05)
 
@@ -847,11 +903,19 @@ Each entity has standard CRUD helpers:
 - Auto-reply detection (sync clears needs_reply when user replies)
 - Dashboard "Pending Replies" metric (clickable → Action Required view)
 - Snooze presets (1h, tomorrow AM/PM, next Monday, custom datetime)
+- **Email CRM Filters** — filter Inbox/Sent/All Mail by Client, End-Client, Opportunity, Campaign with include/exclude toggle
+- **Bulk Archive** — checkbox selection mode for batch archiving emails
+- **Per-filter view caching** — switching between Inbox/Sent preserves fetched data
+- **Gmail archive syncs to Supabase** — archive updates `gmail_threads.labels` in Supabase too
+- **All Mail shows all synced threads** — uses Supabase data (not limited to one Gmail API page)
+- **Gmail sync pagination** — syncs up to 500 threads, never misses emails after long gaps
 
-### Recent Changes (commit a54915b)
-- **Compose Editor**: Two-row formatting toolbar with 20+ commands (font family/size, text/highlight color pickers, alignment, indent, emoji, inline image, undo/redo)
-- **Drafts**: localStorage auto-save every 10s, Drafts sub-nav with badge, full state restoration on reopen
-- **Schedule Send**: Supabase `scheduled_emails` table, split send button with schedule menu (4 presets + custom), client-side polling dispatch, Scheduled sub-nav with pending/failed/sent views
-- **Email Rules**: Supabase `email_rules` table, 5 condition types × 5 action types, visual builder modal (⚙️ button), server-side application during Gmail sync, client-side application on thread open
-- **CRM Cache Fix**: `_buildDomainMap()` now clears `S._threadCrmCache` so smart views update immediately after adding contacts
-- **Smart Inbox Refinements**: Archived emails excluded, flat sub-nav layout, domain-based matching, contact cascade resolution
+### Recent Changes (commit cf638f9)
+- **Email Filters**: CRM filter bar on Inbox/Sent/All Mail — filter by Client (active only), End-Client, Opportunity (open), Campaign (active/setup). Include/exclude toggle per filter. Server-side Supabase queries for dynamic result loading (`loadFilteredEmailThreads`)
+- **Bulk Archive**: Checkbox selection mode via "Bulk" button, Select All/Deselect, batch archive with progress toast, auto-reload filtered results after archive
+- **Gmail Sync Pagination**: `sync-gmail.js` rewritten to paginate through Gmail API (5 pages × 100 = 500 threads max), stops on reaching known threads — prevents missing emails after weekends/gaps
+- **Archive Sync**: `api/gmail/archive.js` now updates Supabase `gmail_threads.labels` alongside Gmail API call
+- **Email View Caching**: `S._gmailCache` per-filter cache saves/restores live threads on view switch; `subNav()` delegates to `setGmailFilter()` for email views
+- **Refresh Flow**: `refreshGmailInbox()` now syncs Gmail metadata to Supabase first (`/api/sync/gmail`), then fetches live threads, then reloads Supabase data
+- **All Mail**: Uses `S.gmailThreads` (Supabase, 500 threads) instead of Gmail API live fetch (was limited to 25)
+- **Fetch Limits**: Inbox live fetch 50, Gmail sync 200/page (5 pages), Supabase load limit 500
