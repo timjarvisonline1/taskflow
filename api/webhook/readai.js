@@ -119,30 +119,38 @@ function normaliseChapters(val) {
   return [];
 }
 
+function formatTranscriptBlocks(blocks) {
+  return blocks.map(function(seg) {
+    var name = (seg.speaker && seg.speaker.name) || seg.speaker_name || '';
+    var ts = '';
+    if (seg.start_time) {
+      // Timestamps > 1e12 are milliseconds; otherwise seconds
+      var ms = seg.start_time > 1e12 ? seg.start_time : seg.start_time * 1000;
+      var d = new Date(ms);
+      if (!isNaN(d.getTime())) {
+        ts = String(d.getHours()).padStart(2, '0') + ':' +
+             String(d.getMinutes()).padStart(2, '0') + ':' +
+             String(d.getSeconds()).padStart(2, '0');
+      }
+    }
+    var w = seg.words || seg.text || '';
+    return (ts ? '[' + ts + '] ' : '') + (name ? name + ': ' : '') + w;
+  }).join('\n');
+}
+
 function normaliseTranscript(val) {
   if (!val) return '';
   if (typeof val === 'string') {
-    // If it looks like pre-formatted text with speaker/start_time/words lines, parse it
     if (val.indexOf('speaker:') > -1 && val.indexOf('words:') > -1) return parseTranscriptText(val);
-    // Otherwise it may already be formatted or plain text
     return val;
   }
-  // If it's an array of segments, format them
+  // Object with speaker_blocks array (Read.ai direct webhook format)
+  if (val && typeof val === 'object' && !Array.isArray(val) && Array.isArray(val.speaker_blocks)) {
+    return formatTranscriptBlocks(val.speaker_blocks);
+  }
+  // Array of segments
   if (Array.isArray(val)) {
-    return val.map(function(seg) {
-      var name = (seg.speaker && seg.speaker.name) || seg.speaker_name || '';
-      var ts = '';
-      if (seg.start_time) {
-        var d = new Date(typeof seg.start_time === 'number' ? seg.start_time * 1000 : seg.start_time);
-        if (!isNaN(d.getTime())) {
-          ts = String(d.getHours()).padStart(2, '0') + ':' +
-               String(d.getMinutes()).padStart(2, '0') + ':' +
-               String(d.getSeconds()).padStart(2, '0');
-        }
-      }
-      var w = seg.words || seg.text || '';
-      return (ts ? '[' + ts + '] ' : '') + (name ? name + ': ' : '') + w;
-    }).join('\n');
+    return formatTranscriptBlocks(val);
   }
   return '';
 }
