@@ -200,9 +200,10 @@ function hasSubs(sectionId){var sec=SECTIONS.find(function(s){return s.id===(sec
 function getDefaultSub(sectionId){var sec=SECTIONS.find(function(s){return s.id===sectionId});return sec&&sec.subs?sec.subs[0].id:''}
 function subNav(subId){
   if(S.gmailThreadId)_flushEmailTimer();
+  if(S.view==='email'){
+    /* Use setGmailFilter for email views — handles caching, fetching, and state sync */
+    setGmailFilter(subId);return}
   S.subView=subId;
-  /* Clear live threads when switching email sub-views so smart inbox filtering runs against cached data */
-  if(S.view==='email'){S._gmailLiveThreads=null;S._gmailNextPage=null;S.gmailThreadId='';S.gmailThread=null}
   save();render()}
 
 /* ═══════════ MOBILE ═══════════ */

@@ -4856,6 +4856,8 @@ function rEmailScheduledList(){
 
 function rEmail(){
   var sub=S.subView||'inbox';
+  /* Keep gmailFilter in sync with subView (they can diverge on page load from localStorage) */
+  if(sub.indexOf('e-')!==0&&S.gmailFilter!==sub){S.gmailFilter=sub}
   var isSmartInbox=sub.indexOf('e-')===0;
   if(sub==='e-action'&&!S.gmailThreadId)return rEmailActionRequired();
   if(sub==='e-drafts')return rEmailDraftList();
