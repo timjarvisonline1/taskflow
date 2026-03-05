@@ -212,7 +212,7 @@ def authorize_browser(creds):
         'client_id': creds['client_id'],
         'redirect_uri': LOCAL_REDIRECT_URI,
         'response_type': 'code',
-        'scope': 'openid profile email meeting:read mcp:execute offline_access',
+        'scope': 'openid profile email meeting:read offline_access',
         'state': state,
         'code_challenge': code_challenge,
         'code_challenge_method': 'S256'
