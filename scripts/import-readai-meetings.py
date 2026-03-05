@@ -596,24 +596,22 @@ def insert_meeting(row):
         return False, str(resp)[:200]
 
 
-def fetch_my_meetings(creds, list_endpoint, list_info):
-    """Fetch meetings, filtering to only mine during pagination."""
-    my_meetings = []
-    total_scanned = 0
+def fetch_all_meetings(creds, list_endpoint, list_info):
+    """Fetch all meetings using cursor-based pagination with loop detection."""
+    all_meetings = []
+    seen_ids = set()
     cursor = None
+    page = 0
 
     while True:
         url = list_endpoint
-        params = []
         if cursor:
-            params.append(f'starting_after={urllib.parse.quote(cursor)}')
-        if params:
-            url += '?' + '&'.join(params)
+            url += f'?starting_after={urllib.parse.quote(cursor)}'
 
         status, resp, creds = readai_api(creds, url)
 
         if status != 200:
-            print(f'  ❌ Failed to fetch meetings (HTTP {status})')
+            print(f'\n  ❌ Failed to fetch meetings page {page+1} (HTTP {status})')
             if isinstance(resp, dict):
                 print(f'     {resp}')
             break
@@ -627,27 +625,38 @@ def fetch_my_meetings(creds, list_endpoint, list_info):
         if not meetings:
             break
 
-        # Filter to only my meetings as we go
+        # Loop detection: check if we're seeing the same meetings again
+        new_meetings = []
         for m in meetings:
-            if is_my_meeting(m):
-                my_meetings.append(m)
+            mid = m.get('id') or m.get('session_id') or ''
+            if mid and mid in seen_ids:
+                continue  # Already seen — pagination might be looping
+            if mid:
+                seen_ids.add(mid)
+            new_meetings.append(m)
 
-        total_scanned += len(meetings)
-        print(f'  📥 Scanned {total_scanned} meetings, found {len(my_meetings)} of yours...', end='\r')
+        if not new_meetings:
+            print(f'\n  ⚠️  Pagination loop detected on page {page+1} — stopping.')
+            break
+
+        all_meetings.extend(new_meetings)
+        page += 1
+        print(f'  📥 Page {page}: {len(all_meetings)} meetings so far...', end='\r')
 
         has_more = isinstance(resp, dict) and resp.get('has_more', False)
         if has_more and meetings:
             last_item = meetings[-1]
             cursor = last_item.get('id') or last_item.get('session_id')
             if not cursor:
+                print(f'\n  ⚠️  No cursor ID found — stopping.')
                 break
         else:
             break
 
-        time.sleep(0.3)  # Faster since we're only listing, not fetching details
+        time.sleep(0.3)
 
-    print(f'  📥 Scanned {total_scanned} meetings, found {len(my_meetings)} of yours.   ')
-    return my_meetings, total_scanned, creds
+    print(f'  📥 Fetched {len(all_meetings)} meetings across {page} pages.           ')
+    return all_meetings, creds
 
 
 def is_my_meeting(m):
@@ -729,22 +738,21 @@ def main():
     # Step 4: Load Supabase context
     contact_map, client_email_map, client_names, existing_sessions = load_supabase_context(user_id)
 
-    # Step 5: Fetch meetings (filtering to yours during pagination)
-    print('\n📥 Scanning Read.ai workspace meetings...')
-    my_meetings, total_scanned, creds = fetch_my_meetings(creds, list_endpoint, list_info)
+    # Step 5: Fetch all meetings
+    print('\n📥 Fetching meetings from Read.ai...')
+    meetings, creds = fetch_all_meetings(creds, list_endpoint, list_info)
 
-    if not my_meetings:
+    if not meetings:
         print('\n  No meetings found. Done!')
         return
 
-    print(f'\n📤 Importing {len(my_meetings)} meetings into TaskFlow...')
+    print(f'\n📤 Importing {len(meetings)} meetings into TaskFlow...')
     imported = 0
     skipped = 0
     errors = 0
     needs_detail = 0
-    filtered = total_scanned - len(my_meetings)
 
-    for i, m in enumerate(my_meetings):
+    for i, m in enumerate(meetings):
         session_id = m.get('session_id') or m.get('id') or m.get('meeting_id') or ''
 
         if not session_id:
@@ -783,7 +791,6 @@ def main():
     print(f'  Import complete!')
     print(f'  ✓ Imported:        {imported}')
     print(f'  ⏭ Skipped (dupes): {skipped}')
-    print(f'  🚫 Filtered (not yours): {filtered}')
     print(f'  📄 Fetched detail:  {needs_detail}')
     print(f'  ❌ Errors:          {errors}')
     print('═══════════════════════════════════════════')
