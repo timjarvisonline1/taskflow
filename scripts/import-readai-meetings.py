@@ -606,7 +606,7 @@ def fetch_all_meetings(creds, list_endpoint, list_info):
     while True:
         url = list_endpoint
         if cursor:
-            url += f'?starting_after={urllib.parse.quote(cursor)}'
+            url += f'?cursor={urllib.parse.quote(cursor)}'
 
         status, resp, creds = readai_api(creds, url)
 
@@ -764,12 +764,9 @@ def main():
             skipped += 1
             continue
 
-        if not m.get('transcript') and not m.get('summary'):
-            detail, creds = fetch_meeting_details(creds, session_id, list_endpoint)
-            if detail:
-                m = detail
-                needs_detail += 1
-            time.sleep(RATE_LIMIT_DELAY)
+        # Skip detail fetching for speed — list data has the key fields
+        # (title, times, participants, owner, report_url). Transcripts/summaries
+        # will be available for new meetings going forward via the webhook.
 
         row = build_meeting_row(user_id, m, contact_map, client_email_map)
         ok, result = insert_meeting(row)
@@ -783,8 +780,9 @@ def main():
             errors += 1
             print(f'  ❌ {title}: {result[:100]}')
 
-        if (i + 1) % 10 == 0:
-            time.sleep(RATE_LIMIT_DELAY)
+        # Small delay every 50 inserts to be nice to Supabase
+        if (i + 1) % 50 == 0:
+            time.sleep(0.5)
 
     # Summary
     print('\n═══════════════════════════════════════════')
