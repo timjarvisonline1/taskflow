@@ -21,12 +21,27 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
   var clientRecords = clientsRes.data || [];
   var campaignsRes = await supabase.from('campaigns').select('id, name, partner, end_client, status').eq('user_id', userId);
   var campaignRecords = campaignsRes.data || [];
+  var oppsRes = await supabase.from('opportunities').select('id, name, type, client, end_client, stage, contact_name, contact_email')
+    .eq('user_id', userId).not('stage', 'in', '("Closed Won","Closed Lost")');
+  var oppRecords = oppsRes.data || [];
 
   // Resolve matched client name
   var clientName = '';
   if (meetingRow.client_id) {
     var matched = clientRecords.find(function(c) { return c.id === meetingRow.client_id; });
     if (matched) clientName = matched.name;
+  }
+
+  // Resolve current campaign/opportunity names
+  var currentCampaignName = '';
+  if (meetingRow.campaign_id) {
+    var mc = campaignRecords.find(function(c) { return c.id === meetingRow.campaign_id; });
+    if (mc) currentCampaignName = mc.name;
+  }
+  var currentOppName = '';
+  if (meetingRow.opportunity_id) {
+    var mo = oppRecords.find(function(o) { return o.id === meetingRow.opportunity_id; });
+    if (mo) currentOppName = mo.name;
   }
 
   // Build client context
@@ -43,6 +58,16 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
       }).join('\n')
     : '(no campaigns)';
 
+  // Build opportunity context
+  var opportunityContext = oppRecords.length
+    ? oppRecords.map(function(o) {
+        return '- ' + o.name + ' (' + (o.type || 'fc_partnership') + ')' +
+          (o.client ? ' / ' + o.client : '') +
+          (o.end_client ? ' / ' + o.end_client : '') +
+          ' [' + (o.stage || 'Lead') + ']';
+      }).join('\n')
+    : '(no open opportunities)';
+
   // Format participants
   var participantList = (meetingRow.participants || [])
     .map(function(p) { return (p.name || '') + (p.email ? ' <' + p.email + '>' : ''); })
@@ -54,7 +79,7 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
     .map(function(a, i) { return (i + 1) + '. ' + (a.text || ''); })
     .join('\n') || '(none)';
 
-  // Truncate transcript if too long (keep first and last portions)
+  // Truncate transcript if too long
   var transcript = meetingRow.transcript || '';
   if (transcript.length > 100000) {
     var firstPart = transcript.substring(0, 50000);
@@ -72,29 +97,56 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
   }
 
   var prompt = 'You are analyzing a meeting transcript for ' + meetingRow.owner_name +
-    ' (' + meetingRow.owner_email + ').\n' +
-    'Your job is to identify tasks that ' + meetingRow.owner_name +
-    ' needs to do based on this meeting.\n\n' +
+    ' (' + meetingRow.owner_email + '), who runs two businesses: Tim Jarvis Online LLC and Film&Content LLC.\n' +
+    'Your job is to: (1) identify tasks ' + meetingRow.owner_name +
+    ' needs to do, and (2) suggest CRM actions.\n\n' +
 
-    'RULES:\n' +
+    '═══ TASK RULES ═══\n' +
+    'Think in terms of WORK SESSIONS — what are the 2-4 things ' + meetingRow.owner_name +
+    ' would actually sit down and DO after this meeting?\n\n' +
     '1. Only create tasks for commitments ' + meetingRow.owner_name +
     ' made, actions assigned to them, or things they clearly need to follow up on.\n' +
-    '2. Group related items into a SINGLE task when they involve the same recipient or context:\n' +
-    '   - Multiple things to send to one person → one "Follow-up with [Name]" task, list specifics in notes\n' +
-    '   - Multiple prep items for the same deliverable → one task with subtasks in notes\n' +
-    '3. Create SEPARATE tasks for genuinely different types of work:\n' +
-    '   - "Set up a campaign" and "Install video tracking" are separate tasks\n' +
-    '   - "Review budget" and "Draft proposal" are separate tasks\n' +
-    '4. Include specific details, deadlines, and context in the notes field. Notes should read like a brief for someone picking up the task.\n' +
-    '5. Match to a client name from the provided list if applicable (exact name match).\n' +
-    '6. Match to a campaign name if the meeting topic relates to one (exact name match).\n' +
-    '7. If no tasks apply to ' + meetingRow.owner_name + ', return an empty array [].\n' +
-    '8. Do NOT create tasks for things other participants committed to.\n\n' +
+    '2. AGGRESSIVE GROUPING:\n' +
+    '   - "Send proposal, send deck, share link" to one person = ONE task ("Follow up with [Name]"), list items in notes\n' +
+    '   - "Review analytics, pull report, check KPIs" = ONE task ("Review analytics and reporting")\n' +
+    '   - "Update CRM, file notes, schedule follow-up" = ONE task ("Post-meeting admin")\n' +
+    '   - Multiple follow-ups to the same person = ONE task\n' +
+    '   - Related items for the same deliverable = ONE task\n' +
+    '3. Only create SEPARATE tasks for genuinely DIFFERENT work streams (different sittings):\n' +
+    '   - "Set up a new campaign" and "Draft proposal for different client" = separate\n' +
+    '   - "Review budget" and "Build creative brief" = separate\n' +
+    '4. TARGET: 1-4 tasks per meeting. If you have more than 4, you are NOT grouping aggressively enough. Re-examine and combine.\n' +
+    '5. Notes should list the individual sub-items that were grouped, plus deadlines and context.\n' +
+    '6. Match client and campaign names EXACTLY from the provided lists.\n' +
+    '7. Do NOT create tasks for things other participants committed to.\n' +
+    '8. If no tasks apply, return an empty tasks array.\n\n' +
+
+    '═══ CRM SUGGESTION RULES ═══\n' +
+    'Analyze the meeting for CRM intelligence. Only suggest when you have reasonable confidence.\n\n' +
+    '1. LINK CAMPAIGN: If discussion clearly relates to an existing campaign (by name, client, or end-client), suggest linking.\n' +
+    '   - Only suggest if the meeting does NOT already have a campaign set.\n' +
+    '   - Type: "link_campaign" with campaign_name and reason.\n' +
+    '2. LINK OPPORTUNITY: If discussion relates to an existing opportunity (sales, proposal, negotiation), suggest linking.\n' +
+    '   - Only suggest if the meeting does NOT already have an opportunity set.\n' +
+    '   - Type: "link_opportunity" with opportunity_name and reason.\n' +
+    '3. CREATE OPPORTUNITY: If this is a new business discussion (prospecting, pitch, partnership exploration) with NO matching opportunity, suggest creating one.\n' +
+    '   - Type: "create_opportunity" with suggested_name, suggested_type, client, end_client, contact_name, contact_email, reason.\n' +
+    '   - Types: "retain_live" (retainer/consulting), "fc_partnership" (Film&Content partnership), "fc_direct" (direct F&C client).\n' +
+    '4. SUGGEST CLIENT: If a different or better client match exists, or no client is matched but should be.\n' +
+    '   - Type: "suggest_client" with client_name and reason.\n' +
+    '5. SUGGEST END CLIENT: If an end-client name is discussed but not currently set on the meeting.\n' +
+    '   - Type: "suggest_end_client" with end_client and reason.\n\n' +
+    'If the meeting is purely internal or has no CRM relevance, return an empty suggestions array.\n\n' +
 
     '═══ MEETING ═══\n' +
     'Title: ' + (meetingRow.title || 'Untitled') + '\n' +
-    'Date: ' + (meetingDate || 'Unknown') + '\n' +
-    'Client: ' + (clientName || 'Not matched') + '\n\n' +
+    'Date: ' + (meetingDate || 'Unknown') + '\n\n' +
+
+    '═══ CURRENT CRM STATE ═══\n' +
+    'Client: ' + (clientName || 'Not set') + '\n' +
+    'End Client: ' + (meetingRow.end_client || 'Not set') + '\n' +
+    'Campaign: ' + (currentCampaignName || 'Not set') + '\n' +
+    'Opportunity: ' + (currentOppName || 'Not set') + '\n\n' +
 
     '═══ PARTICIPANTS ═══\n' +
     (participantList || '(none listed)') + '\n\n' +
@@ -114,18 +166,41 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
     '═══ AVAILABLE CAMPAIGNS ═══\n' +
     campaignContext + '\n\n' +
 
+    '═══ AVAILABLE OPPORTUNITIES (open) ═══\n' +
+    opportunityContext + '\n\n' +
+
     '═══ TASK CATEGORIES ═══\n' +
     CATS.join(', ') + '\n\n' +
 
-    'Return ONLY a valid JSON array. Each object must have:\n' +
-    '- item (string): concise task name starting with an imperative verb (e.g., "Follow-up with John on deliverables", "Set up tracking for Campaign X")\n' +
-    '- notes (string): detailed context including specific items, deadlines mentioned, relevant discussion points from the transcript\n' +
-    '- importance (string): "Critical", "Important", or "When Time Allows"\n' +
-    '- category (string): best match from the categories list above\n' +
-    '- client (string): exact client name from the list above, or empty string if not applicable\n' +
-    '- est (integer): estimated minutes (15, 30, 60, etc.)\n' +
-    '- campaign (string): exact campaign name from the list above, or empty string if not applicable\n\n' +
-    'If there are no tasks for ' + meetingRow.owner_name + ', return: []';
+    'Return ONLY a valid JSON object with two keys:\n' +
+    '{\n' +
+    '  "tasks": [\n' +
+    '    {\n' +
+    '      "item": "concise task name (imperative verb)",\n' +
+    '      "notes": "detailed context with sub-items, deadlines, discussion points",\n' +
+    '      "importance": "Critical" | "Important" | "When Time Allows",\n' +
+    '      "category": "from categories list",\n' +
+    '      "client": "exact client name or empty string",\n' +
+    '      "est": estimated_minutes,\n' +
+    '      "campaign": "exact campaign name or empty string"\n' +
+    '    }\n' +
+    '  ],\n' +
+    '  "suggestions": [\n' +
+    '    {\n' +
+    '      "type": "link_campaign" | "link_opportunity" | "create_opportunity" | "suggest_client" | "suggest_end_client",\n' +
+    '      "campaign_name": "for link_campaign",\n' +
+    '      "opportunity_name": "for link_opportunity",\n' +
+    '      "suggested_name": "for create_opportunity",\n' +
+    '      "suggested_type": "retain_live | fc_partnership | fc_direct (for create_opportunity)",\n' +
+    '      "client": "for create_opportunity",\n' +
+    '      "end_client": "for create_opportunity or suggest_end_client",\n' +
+    '      "client_name": "for suggest_client",\n' +
+    '      "contact_name": "for create_opportunity",\n' +
+    '      "contact_email": "for create_opportunity",\n' +
+    '      "reason": "brief explanation"\n' +
+    '    }\n' +
+    '  ]\n' +
+    '}';
 
   // Call Claude API
   var response = await anthropic.messages.create({
@@ -137,24 +212,32 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
   // Parse response
   var text = response.content[0].text.trim();
   var cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/g, '').trim();
-  var tasks;
+  var parsed;
   try {
-    tasks = JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned);
   } catch (e) {
     console.error('Failed to parse meeting AI response:', text.substring(0, 500));
     return 0;
   }
 
-  if (!Array.isArray(tasks) || tasks.length === 0) {
-    // No tasks — still mark as processed
-    await supabase.from('meetings').update({ ai_tasks_generated: true }).eq('id', meetingRow.id);
-    return 0;
+  // Handle both old format (array = tasks only) and new format (object with tasks + suggestions)
+  var tasks, suggestions;
+  if (Array.isArray(parsed)) {
+    tasks = parsed;
+    suggestions = [];
+  } else {
+    tasks = parsed.tasks || [];
+    suggestions = parsed.suggestions || [];
   }
 
-  // Build campaign name → ID map (case-insensitive)
+  // Build name → ID maps (case-insensitive)
   var campaignNameMap = {};
   campaignRecords.forEach(function(c) {
     if (c.name) campaignNameMap[c.name.toLowerCase()] = c.id;
+  });
+  var oppNameMap = {};
+  oppRecords.forEach(function(o) {
+    if (o.name) oppNameMap[o.name.toLowerCase()] = o.id;
   });
 
   // Insert review items
@@ -163,7 +246,6 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
     var t = tasks[i];
     if (!t.item) continue;
 
-    // Resolve campaign name to ID
     var campaignId = '';
     if (t.campaign) {
       var cid = campaignNameMap[t.campaign.toLowerCase()];
@@ -189,8 +271,31 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
     if (!res.error) inserted++;
   }
 
-  // Mark meeting as processed
-  await supabase.from('meetings').update({ ai_tasks_generated: true }).eq('id', meetingRow.id);
+  // Process CRM suggestions — resolve names to IDs, add pending status
+  if (suggestions.length > 0) {
+    suggestions.forEach(function(s) {
+      s.status = 'pending';
+      if (s.type === 'link_campaign' && s.campaign_name) {
+        var cid2 = campaignNameMap[s.campaign_name.toLowerCase()];
+        if (cid2) s.campaign_id = cid2;
+      }
+      if (s.type === 'link_opportunity' && s.opportunity_name) {
+        var oid = oppNameMap[s.opportunity_name.toLowerCase()];
+        if (oid) s.opportunity_id = oid;
+      }
+    });
+    // Filter out link suggestions where the name didn't resolve to a valid ID
+    suggestions = suggestions.filter(function(s) {
+      if (s.type === 'link_campaign' && !s.campaign_id) return false;
+      if (s.type === 'link_opportunity' && !s.opportunity_id) return false;
+      return true;
+    });
+  }
+
+  // Mark meeting as processed and store suggestions
+  var updateData = { ai_tasks_generated: true };
+  if (suggestions.length > 0) updateData.ai_suggestions = suggestions;
+  await supabase.from('meetings').update(updateData).eq('id', meetingRow.id);
 
   return inserted;
 }

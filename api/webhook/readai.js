@@ -306,7 +306,10 @@ module.exports = async function handler(req, res) {
           transcript: transcript,
           action_items: actionItems,
           participants: participants,
-          client_id: clientId
+          client_id: clientId,
+          end_client: '',
+          campaign_id: null,
+          opportunity_id: null
         }, client);
       }
     } catch (aiErr) {

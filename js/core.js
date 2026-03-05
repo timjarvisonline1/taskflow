@@ -969,7 +969,7 @@ async function loadMeetings(){
       videoStoragePath:r.video_storage_path||'',videoSizeBytes:r.video_size_bytes||0,
       clientId:r.client_id,endClient:r.end_client||'',
       campaignId:r.campaign_id,opportunityId:r.opportunity_id,
-      source:r.source||'readai',aiTasksGenerated:!!r.ai_tasks_generated,createdAt:r.created_at}});
+      source:r.source||'readai',aiTasksGenerated:!!r.ai_tasks_generated,aiSuggestions:r.ai_suggestions||[],createdAt:r.created_at}});
   }catch(e){console.error('loadMeetings:',e)}}
 
 async function dbEditMeeting(id,data){
@@ -979,6 +979,7 @@ async function dbEditMeeting(id,data){
   if(data.campaignId!==undefined)upd.campaign_id=data.campaignId||null;
   if(data.opportunityId!==undefined)upd.opportunity_id=data.opportunityId||null;
   if(data.actionItems!==undefined)upd.action_items=data.actionItems;
+  if(data.aiSuggestions!==undefined)upd.ai_suggestions=data.aiSuggestions;
   var res=await _sb.from('meetings').update(upd).eq('id',id);
   if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
   return true}
@@ -1043,6 +1044,51 @@ async function createTaskFromMeetingAction(meetingId,actionIndex){
   m.actionItems=items;
   await loadTasks();render();
   toast('Task created from action item','ok')}
+
+async function acceptMeetingSuggestion(meetingId,index){
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m||!m.aiSuggestions||!m.aiSuggestions[index])return;
+  var sug=m.aiSuggestions[index];
+  if(sug.type==='link_campaign'&&sug.campaign_id){
+    await setMeetingCrm(meetingId,'campaign_id',sug.campaign_id)
+  }else if(sug.type==='link_opportunity'&&sug.opportunity_id){
+    await setMeetingCrm(meetingId,'opportunity_id',sug.opportunity_id)
+  }else if(sug.type==='create_opportunity'){
+    var oppData={name:sug.suggested_name||'New Opportunity from Meeting',type:sug.suggested_type||'fc_partnership',
+      client:sug.client||'',endClient:sug.end_client||'',contactName:sug.contact_name||'',contactEmail:sug.contact_email||'',
+      stage:'Lead',source:'Meeting: '+(m.title||''),notes:sug.reason||''};
+    var newOpp=await dbAddOpportunity(oppData);
+    if(newOpp){
+      await setMeetingCrm(meetingId,'opportunity_id',newOpp.id);
+      await loadOpportunities()}
+  }else if(sug.type==='suggest_client'){
+    var cr=S.clientRecords.find(function(c){return c.name.toLowerCase()===(sug.client_name||'').toLowerCase()});
+    if(cr)await setMeetingCrm(meetingId,'client_id',cr.id)
+  }else if(sug.type==='suggest_end_client'){
+    await setMeetingCrm(meetingId,'end_client',sug.end_client||'')
+  }
+  m.aiSuggestions[index].status='accepted';
+  await dbEditMeeting(meetingId,{aiSuggestions:m.aiSuggestions});
+  if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
+  render();toast('Suggestion applied','ok')}
+
+async function dismissMeetingSuggestion(meetingId,index){
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m||!m.aiSuggestions||!m.aiSuggestions[index])return;
+  m.aiSuggestions[index].status='dismissed';
+  await dbEditMeeting(meetingId,{aiSuggestions:m.aiSuggestions});
+  if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
+  render()}
+
+function addMeetingParticipantAsContact(meetingId,participantIndex){
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m)return;
+  var p=(m.participants||[])[participantIndex];
+  if(!p)return;
+  var parts=(p.name||'').split(' ');
+  var firstName=parts[0]||'';
+  var lastName=parts.slice(1).join(' ')||'';
+  openAddContactModal(null,{email:p.email||'',firstName:firstName,lastName:lastName})}
 
 async function loadPayerMap(){
   var res=await _sb.from('payer_client_map').select('*');

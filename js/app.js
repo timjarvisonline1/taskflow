@@ -105,6 +105,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   /* Meetings */
   openMeeting:openMeeting,closeMeeting:closeMeeting,setMeetingSearch:setMeetingSearch,
   setMeetingCrm:setMeetingCrm,createTaskFromMeetingAction:createTaskFromMeetingAction,
+  acceptMeetingSuggestion:acceptMeetingSuggestion,dismissMeetingSuggestion:dismissMeetingSuggestion,addMeetingParticipantAsContact:addMeetingParticipantAsContact,
   /* Contacts */
   dbAddContact:dbAddContact,dbEditContact:dbEditContact,dbDeleteContact:dbDeleteContact,
   openAddContactModal:openAddContactModal,openEditContactModal:openEditContactModal,

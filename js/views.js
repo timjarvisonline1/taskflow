@@ -5586,6 +5586,30 @@ function rMeetingDetail(){
   /* CRM categorisation bar */
   h+=rMeetingCrmBar(m);
 
+  /* AI CRM Suggestions */
+  var pendingSugs=(m.aiSuggestions||[]).filter(function(s){return s.status==='pending'});
+  if(pendingSugs.length>0){
+    h+='<div style="padding:14px 16px;margin:12px 0;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.2);border-radius:var(--r)">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="color:#6366f1">'+icon('zap',14)+'</span>';
+    h+='<span style="font-size:13px;color:var(--t1);font-weight:600">AI Suggestions</span></div>';
+    (m.aiSuggestions||[]).forEach(function(sug,idx){
+      if(sug.status!=='pending')return;
+      h+='<div style="padding:10px 12px;margin-bottom:8px;background:var(--bg1);border-radius:6px;display:flex;align-items:center;gap:12px">';
+      h+='<div style="flex:1">';
+      if(sug.type==='link_campaign')h+='<div style="font-size:12px;color:var(--t2)"><strong>Link to Campaign:</strong> '+esc(sug.campaign_name||'')+'</div>';
+      else if(sug.type==='link_opportunity')h+='<div style="font-size:12px;color:var(--t2)"><strong>Link to Opportunity:</strong> '+esc(sug.opportunity_name||'')+'</div>';
+      else if(sug.type==='create_opportunity')h+='<div style="font-size:12px;color:var(--t2)"><strong>Create Opportunity:</strong> '+esc(sug.suggested_name||'')+' <span style="color:var(--t4)">('+esc(sug.suggested_type||'')+')</span></div>';
+      else if(sug.type==='suggest_client')h+='<div style="font-size:12px;color:var(--t2)"><strong>Set Client:</strong> '+esc(sug.client_name||'')+'</div>';
+      else if(sug.type==='suggest_end_client')h+='<div style="font-size:12px;color:var(--t2)"><strong>Set End Client:</strong> '+esc(sug.end_client||'')+'</div>';
+      if(sug.reason)h+='<div style="font-size:11px;color:var(--t4);margin-top:2px">'+esc(sug.reason)+'</div>';
+      h+='</div>';
+      var acceptLabel=sug.type==='create_opportunity'?'Create':'Link';
+      if(sug.type==='suggest_client'||sug.type==='suggest_end_client')acceptLabel='Apply';
+      h+='<button class="btn btn-p" onclick="TF.acceptMeetingSuggestion(\''+esc(m.id)+'\','+idx+')" style="font-size:11px;padding:5px 12px;white-space:nowrap">'+icon('check',10)+' '+acceptLabel+'</button>';
+      h+='<button class="btn" onclick="TF.dismissMeetingSuggestion(\''+esc(m.id)+'\','+idx+')" style="font-size:11px;padding:5px 8px;color:var(--t4)">'+icon('x',10)+'</button>';
+      h+='</div>'});
+    h+='</div>'}
+
   /* AI tasks banner */
   if(m.aiTasksGenerated){
     var mtgReview=S.review.filter(function(r){return r.source==='Read.ai'});
@@ -5602,14 +5626,21 @@ function rMeetingDetail(){
   h+='<div class="meeting-section">';
   h+='<div class="meeting-section-header">'+icon('users',13)+' Participants</div>';
   h+='<div class="meeting-participants-grid">';
-  (m.participants||[]).forEach(function(p){
+  var knownEmails={};
+  (S.contacts||[]).forEach(function(c){if(c.email)knownEmails[c.email.toLowerCase()]=true});
+  (m.participants||[]).forEach(function(p,pIdx){
     var avatarBg=emailAvatarColor(p.email||p.name||'');
     var initial=(p.name||p.email||'?').charAt(0).toUpperCase();
+    var isOwner=p.email&&m.ownerEmail&&p.email.toLowerCase()===m.ownerEmail.toLowerCase();
+    var isKnown=p.email&&knownEmails[p.email.toLowerCase()];
     h+='<div class="meeting-participant">';
     h+='<div class="meeting-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
-    h+='<div><div style="font-size:13px;color:var(--t1)">'+esc(p.name||'Unknown')+'</div>';
+    h+='<div style="flex:1"><div style="font-size:13px;color:var(--t1)">'+esc(p.name||'Unknown')+'</div>';
     if(p.email)h+='<div style="font-size:11px;color:var(--t4)">'+esc(p.email)+'</div>';
-    h+='</div></div>'});
+    h+='</div>';
+    if(p.email&&!isKnown&&!isOwner){
+      h+='<button class="btn" onclick="TF.addMeetingParticipantAsContact(\''+esc(m.id)+'\','+pIdx+')" style="font-size:10px;padding:3px 8px;white-space:nowrap" title="Add as contact">'+icon('plus',10)+' Add</button>'}
+    h+='</div>'});
   h+='</div></div>';
 
   /* Summary */
