@@ -22,9 +22,8 @@ Credentials are saved to scripts/.readai-import-creds.json so you can
 re-run the script if it's interrupted.
 """
 
-import json, os, sys, ssl, time, webbrowser, hashlib, base64, secrets
-import urllib.request, urllib.parse, urllib.error
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import json, os, sys, time, webbrowser, base64, subprocess, re
+import urllib.parse
 from datetime import datetime
 
 # ── Config ──────────────────────────────────────────────────────────────────
@@ -41,59 +40,47 @@ CREDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.readai-i
 # Rate limit: 100 req/min → ~1.5 req/sec max. We'll be conservative.
 RATE_LIMIT_DELAY = 0.8  # seconds between API calls
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
-
-def _make_ssl_ctx():
-    ctx = ssl.create_default_context()
-    return ctx
-
-SSL_CTX = _make_ssl_ctx()
+# ── Helpers (uses curl for TLS compatibility) ──────────────────────────────
 
 def api_request(url, method='GET', data=None, headers=None, auth=None):
-    """Make an HTTP request. Returns (status_code, response_body_dict_or_str)."""
+    """Make an HTTP request via curl. Returns (status_code, response_body_dict_or_str)."""
+    cmd = ['curl', '-s', '-w', '\n__HTTP_STATUS__%{http_code}', '-X', method]
+
     hdrs = headers or {}
-    body = None
     if data is not None:
         if isinstance(data, dict):
-            body = json.dumps(data).encode('utf-8')
+            body = json.dumps(data)
             hdrs.setdefault('Content-Type', 'application/json')
-        elif isinstance(data, str):
-            body = data.encode('utf-8')
+        else:
+            body = str(data)
             hdrs.setdefault('Content-Type', 'application/x-www-form-urlencoded')
+        cmd += ['-d', body]
 
     if auth:
-        # Basic auth
-        cred = base64.b64encode(f'{auth[0]}:{auth[1]}'.encode()).decode()
-        hdrs['Authorization'] = f'Basic {cred}'
+        cmd += ['-u', f'{auth[0]}:{auth[1]}']
 
-    req = urllib.request.Request(url, data=body, headers=hdrs, method=method)
+    for k, v in hdrs.items():
+        cmd += ['-H', f'{k}: {v}']
+
+    cmd.append(url)
+
     try:
-        resp = urllib.request.urlopen(req, context=SSL_CTX)
-        raw = resp.read().decode('utf-8')
-        try:
-            return resp.status, json.loads(raw)
-        except json.JSONDecodeError:
-            return resp.status, raw
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode('utf-8')
-        try:
-            return e.code, json.loads(raw)
-        except json.JSONDecodeError:
-            return e.code, raw
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        output = result.stdout
+    except subprocess.TimeoutExpired:
+        return 0, 'Request timed out'
+    except Exception as e:
+        return 0, str(e)
 
+    # Parse status code from the appended marker
+    parts = output.rsplit('\n__HTTP_STATUS__', 1)
+    body_str = parts[0] if len(parts) > 1 else output
+    status = int(parts[1].strip()) if len(parts) > 1 else 0
 
-def supabase_request(path, method='GET', data=None, params=None):
-    """Make a Supabase REST API request using the service key."""
-    url = f'{SUPABASE_URL}/rest/v1/{path}'
-    if params:
-        url += '?' + urllib.parse.urlencode(params)
-    headers = {
-        'apikey': SUPABASE_SERVICE_KEY,
-        'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-    }
-    return api_request(url, method=method, data=data, headers=headers)
+    try:
+        return status, json.loads(body_str)
+    except (json.JSONDecodeError, ValueError):
+        return status, body_str
 
 
 def supabase_select(table, filters, select='*'):
@@ -121,158 +108,37 @@ def save_creds(creds):
     print(f'  💾 Credentials saved to {CREDS_FILE}')
 
 
-# ── OAuth 2.1 Flow ─────────────────────────────────────────────────────────
+# ── Authentication ──────────────────────────────────────────────────────────
 
-def register_oauth_client(creds):
-    """Step 1: Dynamic client registration."""
-    if creds.get('client_id') and creds.get('client_secret'):
-        print('  ✓ OAuth client already registered')
+def get_readai_auth(creds):
+    """Get Read.ai credentials — prompt if not saved."""
+    if creds.get('readai_email') and creds.get('readai_password'):
+        print('  ✓ Read.ai credentials loaded from saved file')
         return creds
 
-    print('\n📋 Step 1: Registering OAuth client with Read.ai...')
-    status, resp = api_request(
-        f'{READAI_AUTH_BASE}/oauth2/register',
-        method='POST',
-        data={
-            'client_name': 'TaskFlow Meeting Import',
-            'redirect_uris': [READAI_REDIRECT_URI],
-            'grant_types': ['authorization_code', 'refresh_token'],
-            'token_endpoint_auth_method': 'client_secret_basic',
-            'scope': 'openid email meeting:read offline_access profile'
-        }
-    )
-
-    if status not in (200, 201):
-        print(f'  ❌ Registration failed (HTTP {status}):')
-        print(f'     {json.dumps(resp, indent=2) if isinstance(resp, dict) else resp}')
-        sys.exit(1)
-
-    creds['client_id'] = resp['client_id']
-    creds['client_secret'] = resp['client_secret']
-    creds['redirect_uris'] = resp.get('redirect_uris', [READAI_REDIRECT_URI])
-    save_creds(creds)
-    print(f'  ✓ Client registered: {creds["client_id"][:20]}...')
-    return creds
-
-
-def authorize_browser(creds):
-    """Step 2: Open browser for authorization, get auth code manually."""
-    if creds.get('access_token') and creds.get('refresh_token'):
-        print('  ✓ Tokens already present (will refresh if needed)')
-        return creds
-
-    print('\n🌐 Step 2: Browser authorization required')
-    print('   Read.ai will open in your browser. Sign in and click "Allow Access".')
-    print('   After authorizing, the page will show an authorization code.')
+    print('\n🔑 Read.ai API authentication')
+    print('   The API uses your Read.ai account credentials.')
+    print('   (If you use SSO, you may need to set a password in Read.ai account settings first)')
     print()
+    creds['readai_email'] = input('   Read.ai email: ').strip()
+    creds['readai_password'] = input('   Read.ai password: ').strip()
 
-    # Build authorization URL
-    auth_url = (
-        f'{READAI_AUTH_BASE}/oauth2/auth'
-        f'?response_type=code'
-        f'&client_id={urllib.parse.quote(creds["client_id"])}'
-        f'&redirect_uri={urllib.parse.quote(READAI_REDIRECT_URI)}'
-        f'&scope=openid+email+meeting:read+offline_access+profile'
-        f'&state=taskflow_import'
-    )
-
-    print(f'   If the browser doesn\'t open, visit:\n   {auth_url}\n')
-    webbrowser.open(auth_url)
-
-    print('   After authorizing, the page may show a "Copy Command" button.')
-    print('   You can either:')
-    print('     a) Paste the authorization CODE here (the code= value)')
-    print('     b) Paste the full curl command and we\'ll extract the code')
-    print()
-    raw_input = input('   Paste code or curl command: ').strip()
-
-    # Extract authorization code
-    auth_code = raw_input
-    if 'code=' in raw_input:
-        # Extract from URL or curl command
-        import re
-        m = re.search(r'code=([^\s&"\']+)', raw_input)
-        if m:
-            auth_code = m.group(1)
-
-    if not auth_code:
-        print('  ❌ No authorization code provided')
+    if not creds['readai_email'] or not creds['readai_password']:
+        print('  ❌ Email and password are required')
         sys.exit(1)
 
-    # Exchange code for tokens
-    print('\n🔑 Exchanging authorization code for tokens...')
-    status, resp = api_request(
-        f'{READAI_AUTH_BASE}/oauth2/token',
-        method='POST',
-        data=f'grant_type=authorization_code&code={urllib.parse.quote(auth_code)}&redirect_uri={urllib.parse.quote(READAI_REDIRECT_URI)}',
-        auth=(creds['client_id'], creds['client_secret'])
-    )
-
-    if status != 200:
-        print(f'  ❌ Token exchange failed (HTTP {status}):')
-        print(f'     {json.dumps(resp, indent=2) if isinstance(resp, dict) else resp}')
-        sys.exit(1)
-
-    creds['access_token'] = resp['access_token']
-    creds['refresh_token'] = resp['refresh_token']
-    creds['token_expires_at'] = time.time() + resp.get('expires_in', 600)
-    save_creds(creds)
-    print('  ✓ Access token obtained')
-    return creds
-
-
-def refresh_token(creds):
-    """Refresh the access token using the refresh token."""
-    if not creds.get('refresh_token'):
-        print('  ❌ No refresh token. Please re-authorize.')
-        # Clear tokens so next run triggers auth
-        creds.pop('access_token', None)
-        creds.pop('refresh_token', None)
-        save_creds(creds)
-        sys.exit(1)
-
-    status, resp = api_request(
-        f'{READAI_AUTH_BASE}/oauth2/token',
-        method='POST',
-        data=f'grant_type=refresh_token&refresh_token={urllib.parse.quote(creds["refresh_token"])}',
-        auth=(creds['client_id'], creds['client_secret'])
-    )
-
-    if status != 200:
-        print(f'  ⚠️  Token refresh failed (HTTP {status}). Clearing tokens — re-run to re-authorize.')
-        creds.pop('access_token', None)
-        creds.pop('refresh_token', None)
-        save_creds(creds)
-        sys.exit(1)
-
-    creds['access_token'] = resp['access_token']
-    creds['refresh_token'] = resp['refresh_token']  # Rotated
-    creds['token_expires_at'] = time.time() + resp.get('expires_in', 600)
     save_creds(creds)
     return creds
 
 
 def readai_api(creds, path, method='GET', data=None):
-    """Make an authenticated Read.ai API request. Auto-refreshes token."""
-    # Refresh if token is about to expire (within 60s)
-    if time.time() > creds.get('token_expires_at', 0) - 60:
-        print('  🔄 Refreshing access token...')
-        creds = refresh_token(creds)
-
-    headers = {
-        'Authorization': f'Bearer {creds["access_token"]}',
-        'Accept': 'application/json'
-    }
+    """Make an authenticated Read.ai API request using basic auth."""
+    headers = {'Accept': 'application/json'}
     url = f'{READAI_API_BASE}{path}'
-    status, resp = api_request(url, method=method, data=data, headers=headers)
-
-    # If 401, try one refresh
-    if status == 401:
-        print('  🔄 Token expired, refreshing...')
-        creds = refresh_token(creds)
-        headers['Authorization'] = f'Bearer {creds["access_token"]}'
-        status, resp = api_request(url, method=method, data=data, headers=headers)
-
+    status, resp = api_request(
+        url, method=method, data=data, headers=headers,
+        auth=(creds['readai_email'], creds['readai_password'])
+    )
     return status, resp, creds
 
 
@@ -549,14 +415,11 @@ def insert_meeting(row):
         'Content-Type': 'application/json',
         'Prefer': 'resolution=merge-duplicates,return=representation'
     }
-    body = json.dumps(row).encode('utf-8')
-    req = urllib.request.Request(url, data=body, headers=headers, method='POST')
-    try:
-        resp = urllib.request.urlopen(req, context=SSL_CTX)
-        return True, json.loads(resp.read().decode('utf-8'))
-    except urllib.error.HTTPError as e:
-        err = e.read().decode('utf-8')
-        return False, err
+    status, resp = api_request(url, method='POST', data=row, headers=headers)
+    if 200 <= status < 300:
+        return True, resp
+    else:
+        return False, str(resp)[:200]
 
 
 def fetch_all_meetings(creds, list_endpoint, list_info):
@@ -674,13 +537,10 @@ def main():
     # Load saved credentials
     creds = load_creds()
 
-    # Step 1: OAuth client registration
-    creds = register_oauth_client(creds)
+    # Step 1: Get Read.ai credentials
+    creds = get_readai_auth(creds)
 
-    # Step 2: Browser authorization
-    creds = authorize_browser(creds)
-
-    # Step 3: Discover API
+    # Step 2: Discover API
     list_endpoint, list_info, creds = discover_api(creds)
 
     # Step 4: Load Supabase context
