@@ -1795,15 +1795,20 @@ function setGmailFilter(filter){
   console.log('[EMAIL-DEBUG] setGmailFilter: '+_prevFilter+' ('+_prevCount+' threads) → '+filter+' | cache keys:', Object.keys(S._gmailCache));
   S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';
   S.gmailThread=null;S.gmailThreadId='';
-  /* Restore from cache if available, otherwise null to trigger fetch */
+  /* Restore from cache if available, otherwise mark as fetching to show skeleton */
   var cached=S._gmailCache[filter];
+  var isSmartInbox=filter.indexOf('e-')===0;
   if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage;
     console.log('[EMAIL-DEBUG] setGmailFilter: restored '+cached.threads.length+' threads from cache for '+filter)}
-  else{S._gmailLiveThreads=null;S._gmailNextPage=null;
+  else if(!isSmartInbox){
+    /* No cache — set fetching flag so render shows skeleton instead of stale supabase data */
+    S._gmailLiveThreads=null;S._gmailNextPage=null;S._gmailFetching=true;
     console.log('[EMAIL-DEBUG] setGmailFilter: no cache for '+filter+', will fetch')}
+  else{S._gmailLiveThreads=null;S._gmailNextPage=null;
+    console.log('[EMAIL-DEBUG] setGmailFilter: smart inbox '+filter+', using supabase data')}
   save();render();
-  /* Smart inboxes use cached threads, not live fetch */
-  if(filter.indexOf('e-')!==0)ensureGmailThreads()}
+  /* Smart inboxes use Supabase data, not live fetch */
+  if(!isSmartInbox)ensureGmailThreads()}
 
 async function loadMoreGmailThreads(){
   if(!S._gmailNextPage)return;
@@ -1849,8 +1854,9 @@ async function ensureGmailThreads(){
   if(_refreshing){console.log('[EMAIL-DEBUG] ensureGmailThreads: refresh in progress, skip');return}
   if(S._gmailFetching){console.log('[EMAIL-DEBUG] ensureGmailThreads: already fetching, skip');return}
   if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0){console.log('[EMAIL-DEBUG] ensureGmailThreads: already have '+S._gmailLiveThreads.length+' threads for '+S.gmailFilter+', skip');return}
-  console.log('[EMAIL-DEBUG] ensureGmailThreads: FETCHING for filter='+S.gmailFilter+', liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
-  S._gmailFetching=true;render();
+  console.log('[EMAIL-DEBUG] ensureGmailThreads: FETCHING for filter='+S.gmailFilter);
+  S._gmailFetching=true;
+  /* Don't render() here — setGmailFilter already rendered with skeleton */
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   S._gmailFetching=false;
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
