@@ -1,4 +1,5 @@
 const { getServiceClient } = require('../_lib/supabase');
+const { analyzeMeetingForTasks } = require('../_lib/analyze-meeting');
 
 /* ── Text-format parsers (Read.ai via Zapier sends text; direct webhook may send JSON) ── */
 
@@ -283,7 +284,36 @@ module.exports = async function handler(req, res) {
       .upsert(row, { onConflict: 'user_id,session_id' });
 
     if (result.error) throw result.error;
-    return res.status(200).json({ status: 'ok', session_id: sessionId });
+
+    // AI task generation (best-effort — meeting is already saved)
+    var tasksGenerated = 0;
+    try {
+      var meetingRes = await client
+        .from('meetings')
+        .select('id, ai_tasks_generated')
+        .eq('user_id', userId)
+        .eq('session_id', sessionId)
+        .single();
+
+      if (meetingRes.data && !meetingRes.data.ai_tasks_generated) {
+        tasksGenerated = await analyzeMeetingForTasks(userId, {
+          id: meetingRes.data.id,
+          owner_name: ownerName,
+          owner_email: ownerEmail,
+          title: event.title || '',
+          start_time: startTime,
+          summary: summary,
+          transcript: transcript,
+          action_items: actionItems,
+          participants: participants,
+          client_id: clientId
+        }, client);
+      }
+    } catch (aiErr) {
+      console.error('Meeting AI analysis error (non-fatal):', aiErr.message);
+    }
+
+    return res.status(200).json({ status: 'ok', session_id: sessionId, tasks_generated: tasksGenerated });
   } catch (e) {
     console.error('Read.ai webhook error:', e);
     return res.status(200).json({ status: 'error', error: e.message });

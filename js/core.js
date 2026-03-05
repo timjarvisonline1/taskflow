@@ -969,7 +969,7 @@ async function loadMeetings(){
       videoStoragePath:r.video_storage_path||'',videoSizeBytes:r.video_size_bytes||0,
       clientId:r.client_id,endClient:r.end_client||'',
       campaignId:r.campaign_id,opportunityId:r.opportunity_id,
-      source:r.source||'readai',createdAt:r.created_at}});
+      source:r.source||'readai',aiTasksGenerated:!!r.ai_tasks_generated,createdAt:r.created_at}});
   }catch(e){console.error('loadMeetings:',e)}}
 
 async function dbEditMeeting(id,data){

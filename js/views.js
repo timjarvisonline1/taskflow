@@ -5547,6 +5547,7 @@ function rMeetings(){
       if(pCount)h+='<span>'+icon('users',10)+' '+pCount+'</span>';
       if(aiCount)h+='<span>'+icon('check',10)+' '+aiCount+' action items</span>';
       if(clientName)h+='<span class="meeting-client-pill">'+esc(clientName)+'</span>';
+      if(m.aiTasksGenerated)h+='<span style="color:#10b981">'+icon('zap',10)+' AI tasks</span>';
       h+='</div></div>';
       h+='</div>'})});
 
@@ -5584,6 +5585,18 @@ function rMeetingDetail(){
 
   /* CRM categorisation bar */
   h+=rMeetingCrmBar(m);
+
+  /* AI tasks banner */
+  if(m.aiTasksGenerated){
+    var mtgReview=S.review.filter(function(r){return r.source==='Read.ai'});
+    if(mtgReview.length>0){
+      h+='<div style="padding:12px 16px;margin:12px 0;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between">';
+      h+='<div style="display:flex;align-items:center;gap:8px"><span style="color:#10b981">'+icon('zap',14)+'</span>';
+      h+='<span style="font-size:13px;color:var(--t1);font-weight:500">'+mtgReview.length+' AI-generated task'+(mtgReview.length>1?'s':'')+' pending review</span></div>';
+      h+='<button class="btn btn-p" onclick="TF.nav(\'tasks\',\'review\')" style="font-size:11px;padding:6px 14px">Review Tasks</button>';
+      h+='</div>'}
+    else{
+      h+='<div style="padding:8px 16px;margin:12px 0;font-size:12px;color:var(--t4);display:flex;align-items:center;gap:6px">'+icon('check',12)+' AI tasks generated and reviewed</div>'}}
 
   /* Participants */
   h+='<div class="meeting-section">';
