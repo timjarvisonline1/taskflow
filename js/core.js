@@ -780,7 +780,9 @@ function _buildDomainMap(){
     if(!domain||_FREE_DOMAINS[domain])return;
     if(S._domainMap[domain])return;
     var cr=S.clientRecords.find(function(r){return r.id===c.clientId});
-    S._domainMap[domain]={clientId:c.clientId,clientName:cr?cr.name:'',endClient:c.endClient,clientStatus:cr?cr.status:'active'}})}
+    S._domainMap[domain]={clientId:c.clientId,clientName:cr?cr.name:'',endClient:c.endClient,clientStatus:cr?cr.status:'active'}});
+  /* Invalidate CRM context cache — contact/domain data changed */
+  S._threadCrmCache={}}
 
 function matchEmailToClient(email){
   if(!email)return null;
@@ -918,7 +920,7 @@ async function dbEditContact(id,data){
   if(data.clientId!==undefined)upd.client_id=data.clientId||null;
   var res=await _sb.from('contacts').update(upd).eq('id',id);
   if(res.error){toast('Edit contact failed: '+res.error.message,'warn');return false}
-  await loadContacts();_buildDomainMap();S._threadCrmCache={};render();toast('Contact updated','ok');return true}
+  await loadContacts();render();toast('Contact updated','ok');return true}
 
 async function dbDeleteContact(id){
   var res=await _sb.from('contacts').delete().eq('id',id);
