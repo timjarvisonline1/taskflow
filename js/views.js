@@ -4918,14 +4918,12 @@ function rEmail(){
       if(sub==='e-other')return !ctx.hasActiveClient&&!ctx.hasLapsedClient&&!ctx.isProspect&&!ctx.hasCampaign&&!ctx.hasOpportunity;
       return false
     });
-  }else if(sub==='all'){
-    /* All Mail uses Supabase data — it has all synced threads, no pagination needed */
-    threads=applyEmailFilters(S.gmailThreads);
   }else if(emailHasActiveFilters()){
-    /* Filters active on Inbox/Sent — switch to Supabase data filtered by label for bigger dataset */
-    var _labelKey=sub==='sent'?'SENT':'INBOX';
-    threads=S.gmailThreads.filter(function(t){return(t.labels||'').indexOf(_labelKey)!==-1});
-    threads=applyEmailFilters(threads);
+    /* Filters active — use server-side filtered results for full page of matches */
+    if(S._filteredEmailResults){threads=S._filteredEmailResults}
+    else{threads=[]}
+  }else if(sub==='all'){
+    threads=S.gmailThreads;
   }else{
     if(S._gmailLiveThreads){
       threads=S._gmailLiveThreads;
@@ -4939,9 +4937,12 @@ function rEmail(){
     if(!isConnected){
       h+='<div class="email-empty">'+icon('mail',32)+'<p>Gmail not connected yet.</p><p style="font-size:12px;color:var(--t4)">Go to Finance → Integrations to set up Gmail.</p></div>';
     }else if(isSmartInbox){
-      /* Smart inboxes filter cached data — no live fetch needed */
       var _siLabel=(_smartLabels&&_smartLabels[sub])||sub;
       h+='<div class="email-empty">'+icon('filter',32)+'<p>No emails in '+esc(_siLabel)+'.</p><p style="font-size:12px;color:var(--t4)">Emails will appear here when addresses match your CRM data.</p></div>';
+    }else if(emailHasActiveFilters()&&!S._filteredEmailResults){
+      h+=rEmailSkeleton();
+    }else if(emailHasActiveFilters()){
+      h+='<div class="email-empty">'+icon('filter',32)+'<p>No emails match these filters.</p></div>';
     }else if(S._gmailFetching){
       h+=rEmailSkeleton();
     }else{

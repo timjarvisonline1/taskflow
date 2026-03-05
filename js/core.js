@@ -1798,7 +1798,7 @@ function setGmailFilter(filter){
   if(S.gmailFilter&&S._gmailLiveThreads){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';
-  S.gmailThread=null;S.gmailThreadId='';
+  S.gmailThread=null;S.gmailThreadId='';S._filteredEmailResults=null;
   /* Restore from cache if available, otherwise mark as fetching to show skeleton */
   var cached=S._gmailCache[filter];
   var isSmartInbox=filter.indexOf('e-')===0;
@@ -1806,17 +1806,20 @@ function setGmailFilter(filter){
   else if(!isSmartInbox&&filter!=='all'){S._gmailLiveThreads=null;S._gmailNextPage=null}
   else{S._gmailLiveThreads=null;S._gmailNextPage=null}
   save();render();
+  /* Re-query server-side filtered results if filters are active */
+  if(emailHasActiveFilters())loadFilteredEmailThreads();
   /* Smart inboxes and All Mail use Supabase data, not live fetch */
-  if(!isSmartInbox&&filter!=='all')ensureGmailThreads()}
+  else if(!isSmartInbox&&filter!=='all')ensureGmailThreads()}
 
 /* ═══════════ EMAIL FILTERS ═══════════ */
 function setEmailFilter(field,value){
-  S.emailFilters[field]=value;render()}
+  S.emailFilters[field]=value;S._filteredEmailResults=null;render();loadFilteredEmailThreads()}
 function toggleEmailFilterExclude(field){
-  S.emailFilterExclude[field]=!S.emailFilterExclude[field];render()}
+  S.emailFilterExclude[field]=!S.emailFilterExclude[field];S._filteredEmailResults=null;render();loadFilteredEmailThreads()}
 function clearEmailFilters(){
   S.emailFilters={client:'',endClient:'',opportunity:'',campaign:''};
-  S.emailFilterExclude={client:false,endClient:false,opportunity:false,campaign:false};render()}
+  S.emailFilterExclude={client:false,endClient:false,opportunity:false,campaign:false};
+  S._filteredEmailResults=null;render()}
 function emailHasActiveFilters(){
   return S.emailFilters.client!==''||S.emailFilters.endClient!==''||
     S.emailFilters.opportunity!==''||S.emailFilters.campaign!==''}
@@ -1854,6 +1857,39 @@ function applyEmailFilters(threads){
       if(!match4)return false}
     return true})}
 
+/* Server-side filtered email loading — queries Supabase directly with filter conditions
+   so filtered views get a full page of results instead of filtering the pre-loaded 500 */
+var _loadingFiltered=false;
+async function loadFilteredEmailThreads(){
+  if(!emailHasActiveFilters()){S._filteredEmailResults=null;return}
+  if(_loadingFiltered)return;
+  _loadingFiltered=true;
+  try{
+    var uid=await getUserId();if(!uid){_loadingFiltered=false;return}
+    var query=_sb.from('gmail_threads').select('*').eq('user_id',uid)
+      .order('last_message_at',{ascending:false}).limit(500);
+    /* Label filter based on current view */
+    var sub=S.gmailFilter||'inbox';
+    if(sub==='inbox')query=query.ilike('labels','%INBOX%');
+    else if(sub==='sent')query=query.ilike('labels','%SENT%');
+    /* Client filter server-side (reliable — set during sync via email matching) */
+    if(S.emailFilters.client){
+      if(S.emailFilters.client==='__none__'){
+        if(S.emailFilterExclude.client)query=query.not('client_id','is',null);
+        else query=query.is('client_id',null)
+      }else{
+        if(S.emailFilterExclude.client)query=query.neq('client_id',S.emailFilters.client);
+        else query=query.eq('client_id',S.emailFilters.client)}}
+    var res=await query;
+    if(res.error){console.warn('loadFilteredEmailThreads:',res.error);_loadingFiltered=false;return}
+    var threads=res.data||[];
+    /* Apply remaining filters (end-client, opportunity, campaign) client-side via CRM context */
+    threads=applyEmailFilters(threads);
+    S._filteredEmailResults=threads;
+    _loadingFiltered=false;
+    render()
+  }catch(e){console.warn('loadFilteredEmailThreads:',e);_loadingFiltered=false}}
+
 /* ═══════════ EMAIL BULK MODE ═══════════ */
 function emailToggleBulk(){
   S.emailBulkMode=!S.emailBulkMode;S.emailBulkSelected={};render()}
@@ -1889,7 +1925,9 @@ async function bulkArchiveEmails(){
   S.emailBulkMode=false;S.emailBulkSelected={};
   S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
   render();
-  toast('Archived '+ok+' email'+(ok!==1?'s':'')+(fail?' ('+fail+' failed)':''),'ok')}
+  toast('Archived '+ok+' email'+(ok!==1?'s':'')+(fail?' ('+fail+' failed)':''),'ok');
+  /* Reload filtered results to backfill the view */
+  if(emailHasActiveFilters())loadFilteredEmailThreads()}
 
 async function loadMoreGmailThreads(){
   if(!S._gmailNextPage)return;
@@ -2196,7 +2234,7 @@ async function archiveEmail(threadId){
     if(st){st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
     if(S.gmailThreadId===threadId){S.gmailThread=null;S.gmailThreadId=''}
-    setTimeout(function(){render()},400);
+    setTimeout(function(){render();if(emailHasActiveFilters())loadFilteredEmailThreads()},400);
     toast('Email archived','ok')
   }catch(e){
     if(row)row.classList.remove('archiving');
