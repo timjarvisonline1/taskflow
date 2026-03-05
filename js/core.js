@@ -1805,6 +1805,8 @@ async function refreshGmailInbox(){
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length}
+  /* Reload Supabase threads so smart inboxes / Action Required / CRM stay in sync */
+  await loadGmailThreads();
   render();
   /* Trigger AI analysis for new threads */
   analyzeNewEmails()}
@@ -1845,6 +1847,8 @@ async function pollGmailInbox(){
     S._gmailLiveThreads=newThreads;
     S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=newThreads.filter(function(t){return t.isUnread}).length;
+    /* Reload Supabase threads so smart inboxes stay in sync */
+    await loadGmailThreads();
     if(newCount>0){showNewEmailIndicator(newCount);buildNav()}
     else{buildNav()}
     /* Trigger AI analysis for new threads */
