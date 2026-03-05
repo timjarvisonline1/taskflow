@@ -96,15 +96,17 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
     }
   }
 
-  var prompt = 'You are analyzing a meeting transcript for ' + meetingRow.owner_name +
-    ' (' + meetingRow.owner_email + '), who runs two businesses: Tim Jarvis Online LLC and Film&Content LLC.\n' +
-    'Your job is to: (1) identify tasks ' + meetingRow.owner_name +
+  var userName = 'Tim Jarvis';
+  var prompt = 'You are analyzing a meeting transcript for ' + userName +
+    ', who runs two businesses: Tim Jarvis Online LLC and Film&Content LLC.\n' +
+    'The meeting owner shown by Read.ai may differ from ' + userName + ' — ignore that; always look for tasks relevant to ' + userName + '.\n' +
+    'Your job is to: (1) identify tasks ' + userName +
     ' needs to do, and (2) suggest CRM actions.\n\n' +
 
     '═══ TASK RULES ═══\n' +
-    'Think in terms of WORK SESSIONS — what are the 2-4 things ' + meetingRow.owner_name +
+    'Think in terms of WORK SESSIONS — what are the 2-4 things ' + userName +
     ' would actually sit down and DO after this meeting?\n\n' +
-    '1. Only create tasks for commitments ' + meetingRow.owner_name +
+    '1. Only create tasks for commitments ' + userName +
     ' made, actions assigned to them, or things they clearly need to follow up on.\n' +
     '2. AGGRESSIVE GROUPING:\n' +
     '   - "Send proposal, send deck, share link" to one person = ONE task ("Follow up with [Name]"), list items in notes\n' +
