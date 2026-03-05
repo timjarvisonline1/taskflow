@@ -1019,6 +1019,21 @@ async function setMeetingCrm(meetingId,field,value){
     if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m}
   render();toast('Updated','ok')}
 
+function refreshMtgCrm(){
+  var sel=gel('mtg-cli');if(!sel)return;
+  var clientId=sel.value;var clientName='';
+  if(clientId){var cr=S.clientRecords.find(function(c){return c.id===clientId});if(cr)clientName=cr.name}
+  var ecSel=gel('mtg-ec');if(ecSel)ecSel.innerHTML=buildEndClientOptions('',clientName);
+  var cpSel=gel('mtg-cp');if(cpSel)cpSel.innerHTML=buildCampaignOptions('',clientName,'');
+  var opSel=gel('mtg-op');if(opSel)opSel.innerHTML=buildOpportunityOptions('',clientName)}
+
+function refreshMtgCampaigns(){
+  var sel=gel('mtg-cli');if(!sel)return;
+  var clientId=sel.value;var clientName='';
+  if(clientId){var cr=S.clientRecords.find(function(c){return c.id===clientId});if(cr)clientName=cr.name}
+  var ec=gel('mtg-ec')?gel('mtg-ec').value:'';if(ec==='__addnew__')ec='';
+  var cpSel=gel('mtg-cp');if(cpSel)cpSel.innerHTML=buildCampaignOptions('',clientName,ec)}
+
 async function createTaskFromMeetingAction(meetingId,actionIndex){
   var m=S.meetings.find(function(mt){return mt.id===meetingId});
   if(!m)return;
@@ -1050,27 +1065,41 @@ async function acceptMeetingSuggestion(meetingId,index){
   if(!m||!m.aiSuggestions||!m.aiSuggestions[index])return;
   var sug=m.aiSuggestions[index];
   if(sug.type==='link_campaign'&&sug.campaign_id){
-    await setMeetingCrm(meetingId,'campaign_id',sug.campaign_id)
+    await setMeetingCrm(meetingId,'campaign_id',sug.campaign_id);
+    _markSuggestion(m,meetingId,index,'accepted');toast('Campaign linked','ok')
   }else if(sug.type==='link_opportunity'&&sug.opportunity_id){
-    await setMeetingCrm(meetingId,'opportunity_id',sug.opportunity_id)
+    await setMeetingCrm(meetingId,'opportunity_id',sug.opportunity_id);
+    _markSuggestion(m,meetingId,index,'accepted');toast('Opportunity linked','ok')
   }else if(sug.type==='create_opportunity'){
-    var oppData={name:sug.suggested_name||'New Opportunity from Meeting',type:sug.suggested_type||'fc_partnership',
-      client:sug.client||'',endClient:sug.end_client||'',contactName:sug.contact_name||'',contactEmail:sug.contact_email||'',
-      stage:'Lead',source:'Meeting: '+(m.title||''),notes:sug.reason||''};
-    var newOpp=await dbAddOpportunity(oppData);
-    if(newOpp){
-      await setMeetingCrm(meetingId,'opportunity_id',newOpp.id);
-      await loadOpportunities()}
+    // Open the Add Opportunity modal pre-filled
+    S._pendingMtgSuggestion={meetingId:meetingId,index:index};
+    openAddOpportunity();
+    // Wait for modal to render, then select type and pre-fill
+    setTimeout(function(){
+      var t=sug.suggested_type||'fc_partnership';
+      selectOpType(t);
+      setTimeout(function(){
+        var f=gel('nop-name');if(f)f.value=sug.suggested_name||'';
+        var cs=gel('nop-client');if(cs)cs.value=sug.client||'';
+        var ec=gel('nop-endclient');if(ec)ec.value=sug.end_client||'';
+        var cn=gel('nop-contact');if(cn)cn.value=sug.contact_name||'';
+        var ce=gel('nop-email');if(ce)ce.value=sug.contact_email||'';
+        var ns=gel('nop-notes');if(ns)ns.value=(sug.reason||'')+'\nSource: Meeting — '+(m.title||'');
+        var src=gel('nop-source');if(src)src.value='Meeting'
+      },50)},50)
   }else if(sug.type==='suggest_client'){
     var cr=S.clientRecords.find(function(c){return c.name.toLowerCase()===(sug.client_name||'').toLowerCase()});
-    if(cr)await setMeetingCrm(meetingId,'client_id',cr.id)
+    if(cr){await setMeetingCrm(meetingId,'client_id',cr.id);_markSuggestion(m,meetingId,index,'accepted');toast('Client set','ok')}
   }else if(sug.type==='suggest_end_client'){
-    await setMeetingCrm(meetingId,'end_client',sug.end_client||'')
-  }
-  m.aiSuggestions[index].status='accepted';
+    await setMeetingCrm(meetingId,'end_client',sug.end_client||'');
+    _markSuggestion(m,meetingId,index,'accepted');toast('End client set','ok')
+  }}
+
+async function _markSuggestion(m,meetingId,index,status){
+  m.aiSuggestions[index].status=status;
   await dbEditMeeting(meetingId,{aiSuggestions:m.aiSuggestions});
   if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
-  render();toast('Suggestion applied','ok')}
+  render()}
 
 async function dismissMeetingSuggestion(meetingId,index){
   var m=S.meetings.find(function(mt){return mt.id===meetingId});

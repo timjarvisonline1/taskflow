@@ -2107,7 +2107,15 @@ async function addOpportunity(){
     previousRelationship:data.previousRelationship,companyDescription:data.companyDescription,
     prospectDescription:data.prospectDescription,videoStrategyBenefits:data.videoStrategyBenefits,
     closeReason:''});
-  toast('Created: '+data.name,'ok');closeModal();render()}
+  toast('Created: '+data.name,'ok');closeModal();
+  // If created from a meeting AI suggestion, link opportunity to meeting
+  if(S._pendingMtgSuggestion){
+    var ps=S._pendingMtgSuggestion;S._pendingMtgSuggestion=null;
+    setMeetingCrm(ps.meetingId,'opportunity_id',result.id);
+    var mm=S.meetings.find(function(mt){return mt.id===ps.meetingId});
+    if(mm&&mm.aiSuggestions&&mm.aiSuggestions[ps.index]){
+      _markSuggestion(mm,ps.meetingId,ps.index,'accepted')}}
+  render()}
 
 function confirmDeleteOpportunity(){
   var id=gel('op-id').value;var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;

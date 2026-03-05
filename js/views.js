@@ -5738,12 +5738,15 @@ function rMeetingDetail(){
   return h}
 
 function rMeetingCrmBar(m){
+  var mid=esc(m.id);
+  var clientName='';
+  if(m.clientId){var cr=S.clientRecords.find(function(c){return c.id===m.clientId});if(cr)clientName=cr.name}
   var h='<div class="meeting-crm-bar">';
 
   /* Client */
   h+='<div class="meeting-crm-field">';
   h+='<span class="meeting-crm-label">Client</span>';
-  h+='<select class="edf" onchange="TF.setMeetingCrm(\''+esc(m.id)+'\',\'client_id\',this.value)" style="font-size:11px;padding:4px 8px">';
+  h+='<select class="edf" id="mtg-cli" onchange="TF.setMeetingCrm(\''+mid+'\',\'client_id\',this.value);TF.refreshMtgCrm()" style="font-size:11px;padding:4px 8px">';
   h+='<option value="">None</option>';
   S.clientRecords.filter(function(c){return c.status==='active'}).forEach(function(c){
     h+='<option value="'+esc(c.id)+'"'+(m.clientId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
@@ -5752,25 +5755,22 @@ function rMeetingCrmBar(m){
   /* End Client */
   h+='<div class="meeting-crm-field">';
   h+='<span class="meeting-crm-label">End Client</span>';
-  h+='<input type="text" class="edf" value="'+esc(m.endClient||'')+'" placeholder="None" style="font-size:11px;padding:4px 8px;max-width:160px" onchange="TF.setMeetingCrm(\''+esc(m.id)+'\',\'end_client\',this.value)">';
-  h+='</div>';
+  h+='<select class="edf" id="mtg-ec" onchange="TF.setMeetingCrm(\''+mid+'\',\'end_client\',this.value);TF.refreshMtgCampaigns()" style="font-size:11px;padding:4px 8px">';
+  h+=buildEndClientOptions(m.endClient||'',clientName);
+  h+='</select></div>';
 
   /* Campaign */
   h+='<div class="meeting-crm-field">';
   h+='<span class="meeting-crm-label">Campaign</span>';
-  h+='<select class="edf" onchange="TF.setMeetingCrm(\''+esc(m.id)+'\',\'campaign_id\',this.value)" style="font-size:11px;padding:4px 8px">';
-  h+='<option value="">None</option>';
-  S.campaigns.filter(function(c){return c.status==='active'||c.status==='setup'}).forEach(function(c){
-    h+='<option value="'+esc(c.id)+'"'+(m.campaignId===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='<select class="edf" id="mtg-cp" onchange="TF.setMeetingCrm(\''+mid+'\',\'campaign_id\',this.value)" style="font-size:11px;padding:4px 8px">';
+  h+=buildCampaignOptions(m.campaignId||'',clientName,m.endClient||'');
   h+='</select></div>';
 
   /* Opportunity */
   h+='<div class="meeting-crm-field">';
   h+='<span class="meeting-crm-label">Opportunity</span>';
-  h+='<select class="edf" onchange="TF.setMeetingCrm(\''+esc(m.id)+'\',\'opportunity_id\',this.value)" style="font-size:11px;padding:4px 8px">';
-  h+='<option value="">None</option>';
-  S.opportunities.filter(function(o){return o.stage!=='closed_won'&&o.stage!=='closed_lost'}).forEach(function(o){
-    h+='<option value="'+esc(o.id)+'"'+(m.opportunityId===o.id?' selected':'')+'>'+esc(o.name)+'</option>'});
+  h+='<select class="edf" id="mtg-op" onchange="TF.setMeetingCrm(\''+mid+'\',\'opportunity_id\',this.value)" style="font-size:11px;padding:4px 8px">';
+  h+=buildOpportunityOptions(m.opportunityId||'',clientName);
   h+='</select></div>';
 
   h+='</div>';
