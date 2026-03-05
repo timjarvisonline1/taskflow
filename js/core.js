@@ -1815,11 +1815,22 @@ async function loadMoreGmailThreads(){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage};
     render()}}
 
+var _refreshing=false;
 async function refreshGmailInbox(){
+  if(_refreshing)return;
+  _refreshing=true;
   console.log('[EMAIL-DEBUG] refreshGmailInbox: filter='+S.gmailFilter+', current threads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
   toast('Refreshing inbox...','info');
   /* Clear all cached views so stale data doesn't persist */
   S._gmailCache={};
+  /* Sync Gmail metadata to Supabase first, so smart inboxes get new threads */
+  try{
+    var sess=await _sb.auth.getSession();
+    if(sess.data.session){
+      await fetch('/api/sync/gmail',{method:'POST',
+        headers:{'Authorization':'Bearer '+sess.data.session.access_token}});
+      console.log('[EMAIL-DEBUG] refreshGmailInbox: gmail sync complete')}
+  }catch(e){console.warn('Gmail sync during refresh:',e)}
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   console.log('[EMAIL-DEBUG] refreshGmailInbox: fetched '+(data?(data.threads||[]).length:'null')+' threads');
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
@@ -1827,13 +1838,15 @@ async function refreshGmailInbox(){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   /* Reload Supabase threads so smart inboxes / Action Required / CRM stay in sync */
   await loadGmailThreads();
-  console.log('[EMAIL-DEBUG] refreshGmailInbox: done. liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null')+', cache keys='+Object.keys(S._gmailCache));
+  console.log('[EMAIL-DEBUG] refreshGmailInbox: done. liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null')+', cache keys='+Object.keys(S._gmailCache)+', supabase='+S.gmailThreads.length);
+  _refreshing=false;
   render();
   /* Trigger AI analysis for new threads */
   analyzeNewEmails()}
 
 /* ═══════════ AUTO-FETCH & POLLING ═══════════ */
 async function ensureGmailThreads(){
+  if(_refreshing){console.log('[EMAIL-DEBUG] ensureGmailThreads: refresh in progress, skip');return}
   if(S._gmailFetching){console.log('[EMAIL-DEBUG] ensureGmailThreads: already fetching, skip');return}
   if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0){console.log('[EMAIL-DEBUG] ensureGmailThreads: already have '+S._gmailLiveThreads.length+' threads for '+S.gmailFilter+', skip');return}
   console.log('[EMAIL-DEBUG] ensureGmailThreads: FETCHING for filter='+S.gmailFilter+', liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
