@@ -11,7 +11,7 @@ Usage:       python3 scripts/import-readai-meetings.py
 
 The script will:
   1. Register an OAuth 2.1 client with Read.ai (first run only)
-  2. Open your browser to authorize
+  2. Open your browser to authorize (PKCE flow)
   3. Exchange the code for access + refresh tokens
   4. List all meetings from Read.ai API
   5. Fetch details for each meeting
@@ -22,9 +22,11 @@ Credentials are saved to scripts/.readai-import-creds.json so you can
 re-run the script if it's interrupted.
 """
 
-import json, os, sys, time, webbrowser, base64, subprocess, re
+import json, os, sys, time, webbrowser, base64, subprocess, re, hashlib, secrets
 import urllib.parse
 from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 
 # ── Config ──────────────────────────────────────────────────────────────────
 
@@ -33,12 +35,14 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
 READAI_AUTH_BASE = 'https://authn.read.ai'
 READAI_API_BASE = 'https://api.read.ai'
-READAI_REDIRECT_URI = 'https://api.read.ai/oauth/ui'
+READAI_REGISTER_URL = 'https://api.read.ai/oauth/register'
+LOCAL_PORT = 18923
+LOCAL_REDIRECT_URI = f'http://localhost:{LOCAL_PORT}/callback'
 
 CREDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.readai-import-creds.json')
 
-# Rate limit: 100 req/min → ~1.5 req/sec max. We'll be conservative.
-RATE_LIMIT_DELAY = 0.8  # seconds between API calls
+# Rate limit: 100 req/min
+RATE_LIMIT_DELAY = 0.8
 
 # ── Helpers (uses curl for TLS compatibility) ──────────────────────────────
 
@@ -72,7 +76,6 @@ def api_request(url, method='GET', data=None, headers=None, auth=None):
     except Exception as e:
         return 0, str(e)
 
-    # Parse status code from the appended marker
     parts = output.rsplit('\n__HTTP_STATUS__', 1)
     body_str = parts[0] if len(parts) > 1 else output
     status = int(parts[1].strip()) if len(parts) > 1 else 0
@@ -105,40 +108,218 @@ def load_creds():
 def save_creds(creds):
     with open(CREDS_FILE, 'w') as f:
         json.dump(creds, f, indent=2)
-    print(f'  💾 Credentials saved to {CREDS_FILE}')
+    print(f'  💾 Credentials saved')
 
 
-# ── Authentication ──────────────────────────────────────────────────────────
+# ── PKCE Helpers ────────────────────────────────────────────────────────────
 
-def get_readai_auth(creds):
-    """Get Read.ai credentials — prompt if not saved."""
-    if creds.get('readai_email') and creds.get('readai_password'):
-        print('  ✓ Read.ai credentials loaded from saved file')
+def generate_code_verifier():
+    """Generate a random PKCE code verifier (128 chars)."""
+    chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+    return ''.join(secrets.choice(chars) for _ in range(128))
+
+
+def generate_code_challenge(verifier):
+    """Generate S256 PKCE code challenge from verifier."""
+    digest = hashlib.sha256(verifier.encode('ascii')).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b'=').decode('ascii')
+
+
+# ── OAuth 2.1 + PKCE Flow ──────────────────────────────────────────────────
+
+def register_oauth_client(creds):
+    """Register an OAuth client with Read.ai."""
+    if creds.get('client_id') and creds.get('client_secret'):
+        print('  ✓ OAuth client already registered')
         return creds
 
-    print('\n🔑 Read.ai API authentication')
-    print('   The API uses your Read.ai account credentials.')
-    print('   (If you use SSO, you may need to set a password in Read.ai account settings first)')
-    print()
-    creds['readai_email'] = input('   Read.ai email: ').strip()
-    creds['readai_password'] = input('   Read.ai password: ').strip()
+    print('\n📋 Registering OAuth client with Read.ai...')
+    status, resp = api_request(
+        READAI_REGISTER_URL,
+        method='POST',
+        data={
+            'client_name': 'TaskFlow Meeting Import',
+            'redirect_uris': [LOCAL_REDIRECT_URI],
+            'grant_types': ['authorization_code', 'refresh_token'],
+            'token_endpoint_auth_method': 'client_secret_basic',
+            'scope': 'openid email meeting:read offline_access profile'
+        }
+    )
 
-    if not creds['readai_email'] or not creds['readai_password']:
-        print('  ❌ Email and password are required')
+    if status not in (200, 201):
+        print(f'  ❌ Registration failed (HTTP {status}):')
+        print(f'     {json.dumps(resp, indent=2) if isinstance(resp, dict) else resp}')
         sys.exit(1)
 
+    creds['client_id'] = resp['client_id']
+    creds['client_secret'] = resp['client_secret']
+    save_creds(creds)
+    print(f'  ✓ Client registered: {creds["client_id"][:20]}...')
+    return creds
+
+
+# Simple callback handler to capture the authorization code
+_auth_code_result = {'code': None, 'error': None}
+
+class CallbackHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        if 'code' in params:
+            _auth_code_result['code'] = params['code'][0]
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b'<html><body style="font-family:sans-serif;text-align:center;padding:60px">'
+                             b'<h1>&#10004; Authorization successful!</h1>'
+                             b'<p>You can close this tab and return to the terminal.</p>'
+                             b'</body></html>')
+        else:
+            _auth_code_result['error'] = params.get('error', ['unknown'])[0]
+            self.send_response(400)
+            self.send_header('Content-Type', 'text/html')
+            self.end_headers()
+            err = _auth_code_result['error']
+            self.wfile.write(f'<html><body><h1>Error: {err}</h1></body></html>'.encode())
+
+    def log_message(self, format, *args):
+        pass  # Suppress request logs
+
+
+def authorize_browser(creds):
+    """Open browser for PKCE authorization, capture code via local server."""
+    if creds.get('access_token') and creds.get('refresh_token'):
+        # Check if token might still work
+        print('  ✓ Tokens already present (will refresh if needed)')
+        return creds
+
+    print('\n🌐 Browser authorization required')
+    print('   Your browser will open to Read.ai\'s login page.')
+    print('   Sign in and click "Allow Access".')
+
+    # Generate PKCE verifier and challenge
+    code_verifier = generate_code_verifier()
+    code_challenge = generate_code_challenge(code_verifier)
+    state = secrets.token_urlsafe(32)
+
+    # Start local server to capture callback
+    server = HTTPServer(('127.0.0.1', LOCAL_PORT), CallbackHandler)
+    server_thread = threading.Thread(target=server.handle_request, daemon=True)
+    server_thread.start()
+
+    # Build authorization URL
+    params = urllib.parse.urlencode({
+        'client_id': creds['client_id'],
+        'redirect_uri': LOCAL_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'openid profile email meeting:read mcp:execute offline_access',
+        'state': state,
+        'code_challenge': code_challenge,
+        'code_challenge_method': 'S256'
+    })
+    auth_url = f'{READAI_AUTH_BASE}/oauth2/auth?{params}'
+
+    print(f'\n   Opening browser...\n')
+    webbrowser.open(auth_url)
+    print('   Waiting for authorization callback...')
+    print('   (If the browser didn\'t open, visit this URL:)')
+    print(f'   {auth_url}\n')
+
+    # Wait for the callback
+    server_thread.join(timeout=300)  # 5 minute timeout
+    server.server_close()
+
+    if _auth_code_result['error']:
+        print(f'  ❌ Authorization error: {_auth_code_result["error"]}')
+        sys.exit(1)
+
+    auth_code = _auth_code_result['code']
+    if not auth_code:
+        print('  ❌ No authorization code received (timed out?)')
+        print('     If the browser didn\'t redirect, try running the script again.')
+        sys.exit(1)
+
+    print('  ✓ Authorization code received')
+
+    # Exchange code for tokens
+    print('  🔑 Exchanging code for tokens...')
+    token_data = (
+        f'grant_type=authorization_code'
+        f'&code={urllib.parse.quote(auth_code)}'
+        f'&redirect_uri={urllib.parse.quote(LOCAL_REDIRECT_URI)}'
+        f'&code_verifier={urllib.parse.quote(code_verifier)}'
+    )
+
+    status, resp = api_request(
+        f'{READAI_AUTH_BASE}/oauth2/token',
+        method='POST',
+        data=token_data,
+        auth=(creds['client_id'], creds['client_secret'])
+    )
+
+    if status != 200:
+        print(f'  ❌ Token exchange failed (HTTP {status}):')
+        print(f'     {json.dumps(resp, indent=2) if isinstance(resp, dict) else resp}')
+        sys.exit(1)
+
+    creds['access_token'] = resp['access_token']
+    creds['refresh_token'] = resp['refresh_token']
+    creds['token_expires_at'] = time.time() + resp.get('expires_in', 600)
+    save_creds(creds)
+    print('  ✓ Access token obtained')
+    return creds
+
+
+def refresh_token(creds):
+    """Refresh the access token using the refresh token."""
+    if not creds.get('refresh_token'):
+        print('  ❌ No refresh token. Clearing credentials — re-run to re-authorize.')
+        creds.pop('access_token', None)
+        save_creds(creds)
+        sys.exit(1)
+
+    status, resp = api_request(
+        f'{READAI_AUTH_BASE}/oauth2/token',
+        method='POST',
+        data=f'grant_type=refresh_token&refresh_token={urllib.parse.quote(creds["refresh_token"])}',
+        auth=(creds['client_id'], creds['client_secret'])
+    )
+
+    if status != 200:
+        print(f'  ⚠️  Token refresh failed (HTTP {status}). Clearing tokens — re-run to re-authorize.')
+        creds.pop('access_token', None)
+        creds.pop('refresh_token', None)
+        save_creds(creds)
+        sys.exit(1)
+
+    creds['access_token'] = resp['access_token']
+    creds['refresh_token'] = resp['refresh_token']  # Rotated
+    creds['token_expires_at'] = time.time() + resp.get('expires_in', 600)
     save_creds(creds)
     return creds
 
 
 def readai_api(creds, path, method='GET', data=None):
-    """Make an authenticated Read.ai API request using basic auth."""
-    headers = {'Accept': 'application/json'}
+    """Make an authenticated Read.ai API request. Auto-refreshes token."""
+    # Refresh if token is about to expire (within 60s)
+    if time.time() > creds.get('token_expires_at', 0) - 60:
+        print('  🔄 Refreshing access token...')
+        creds = refresh_token(creds)
+
+    headers = {
+        'Authorization': f'Bearer {creds["access_token"]}',
+        'Accept': 'application/json'
+    }
     url = f'{READAI_API_BASE}{path}'
-    status, resp = api_request(
-        url, method=method, data=data, headers=headers,
-        auth=(creds['readai_email'], creds['readai_password'])
-    )
+    status, resp = api_request(url, method=method, data=data, headers=headers)
+
+    # If 401, try one refresh
+    if status == 401:
+        print('  🔄 Token expired, refreshing...')
+        creds = refresh_token(creds)
+        headers['Authorization'] = f'Bearer {creds["access_token"]}'
+        status, resp = api_request(url, method=method, data=data, headers=headers)
+
     return status, resp, creds
 
 
@@ -148,13 +329,11 @@ def discover_api(creds):
     """Probe Read.ai API to find the correct endpoints."""
     print('\n🔍 Discovering API endpoints...')
 
-    # Try common patterns
     endpoints_to_try = [
         '/v1/meetings',
         '/v1/sessions',
         '/v1/meetings/list',
         '/v1/reports',
-        '/mcp/list_sessions',
     ]
 
     working = {}
@@ -164,14 +343,11 @@ def discover_api(creds):
         label = '✓' if status == 200 else '✗'
         print(f'  {label} {ep} → HTTP {status}')
         if status == 200:
-            # Print a summary of what we got
             if isinstance(resp, dict):
                 print(f'    Keys: {list(resp.keys())}')
-                # Check for pagination
                 for k in ('total', 'count', 'next', 'has_more', 'total_count', 'page'):
                     if k in resp:
                         print(f'    {k}: {resp[k]}')
-                # Check for data arrays
                 for k in ('data', 'items', 'sessions', 'meetings', 'results'):
                     if k in resp and isinstance(resp[k], list):
                         print(f'    {k}: {len(resp[k])} items')
@@ -180,7 +356,6 @@ def discover_api(creds):
                         working[ep] = {'list_key': k, 'sample': resp}
                         break
                 else:
-                    # Maybe it's a flat list
                     working[ep] = {'list_key': None, 'sample': resp}
             elif isinstance(resp, list):
                 print(f'    Array with {len(resp)} items')
@@ -194,7 +369,6 @@ def discover_api(creds):
         print('     The Read.ai API may have changed. Check their docs.')
         sys.exit(1)
 
-    # Prefer /v1/meetings
     best = '/v1/meetings' if '/v1/meetings' in working else list(working.keys())[0]
     print(f'\n  ✓ Using endpoint: {best}')
     return best, working[best], creds
@@ -206,7 +380,6 @@ def load_supabase_context(user_id):
     """Load contacts, clients, and existing meeting session IDs."""
     print('\n📊 Loading Supabase context...')
 
-    # Contacts (for client matching)
     _, contacts = supabase_select('contacts', {'user_id': user_id}, 'email,client_id')
     contacts = contacts if isinstance(contacts, list) else []
     contact_map = {}
@@ -215,7 +388,6 @@ def load_supabase_context(user_id):
             contact_map[c['email'].lower()] = c['client_id']
     print(f'  Contacts: {len(contact_map)} with client links')
 
-    # Clients (for email matching)
     _, clients = supabase_select('clients', {'user_id': user_id}, 'id,email,name')
     clients = clients if isinstance(clients, list) else []
     client_email_map = {}
@@ -227,7 +399,6 @@ def load_supabase_context(user_id):
             client_names[c['id']] = c['name']
     print(f'  Clients: {len(clients)}')
 
-    # Existing meetings (for dedup)
     _, existing = supabase_select('meetings', {'user_id': user_id}, 'session_id')
     existing = existing if isinstance(existing, list) else []
     existing_sessions = {m['session_id'] for m in existing if m.get('session_id')}
@@ -265,7 +436,6 @@ def format_transcript_blocks(blocks):
         ts = ''
         start = seg.get('start_time')
         if start:
-            # Timestamps > 1e12 are milliseconds
             ms = start if start > 1e12 else start * 1000
             try:
                 d = datetime.fromtimestamp(ms / 1000)
@@ -285,7 +455,6 @@ def format_transcript_blocks(blocks):
 
 
 def normalise_transcript(val):
-    """Normalise transcript from various formats to plain text."""
     if not val:
         return ''
     if isinstance(val, str):
@@ -299,14 +468,12 @@ def normalise_transcript(val):
 
 
 def normalise_participants(val):
-    """Normalise participants to [{name, email}]."""
     if isinstance(val, list):
         return [{'name': p.get('name', ''), 'email': p.get('email', '')} for p in val if isinstance(p, dict)]
     return []
 
 
 def normalise_items(val):
-    """Normalise action_items/key_questions/topics to [{text}]."""
     if isinstance(val, list):
         result = []
         for item in val:
@@ -319,22 +486,15 @@ def normalise_items(val):
 
 
 def normalise_chapters(val):
-    """Normalise chapter_summaries."""
     if isinstance(val, list):
         return [
-            {
-                'title': c.get('title', ''),
-                'description': c.get('description', ''),
-                'topics': c.get('topics', '')
-            }
+            {'title': c.get('title', ''), 'description': c.get('description', ''), 'topics': c.get('topics', '')}
             for c in val if isinstance(c, dict)
         ]
     return []
 
 
 def build_meeting_row(user_id, meeting_data, contact_map, client_email_map):
-    """Build a Supabase meeting row from Read.ai API response data."""
-    # The API response structure may vary — handle common field names
     m = meeting_data
 
     session_id = m.get('session_id') or m.get('id') or m.get('meeting_id') or ''
@@ -342,7 +502,6 @@ def build_meeting_row(user_id, meeting_data, contact_map, client_email_map):
     start_time = m.get('start_time') or m.get('meeting_start_time') or m.get('start') or None
     end_time = m.get('end_time') or m.get('meeting_end_time') or m.get('end') or None
 
-    # Duration
     duration_minutes = 0
     if m.get('duration_minutes'):
         duration_minutes = int(m['duration_minutes'])
@@ -356,7 +515,6 @@ def build_meeting_row(user_id, meeting_data, contact_map, client_email_map):
         except (ValueError, TypeError):
             pass
 
-    # Owner
     owner = m.get('owner', {})
     if isinstance(owner, dict):
         owner_name = owner.get('name', '')
@@ -365,10 +523,7 @@ def build_meeting_row(user_id, meeting_data, contact_map, client_email_map):
         owner_name = ''
         owner_email = m.get('owner_email', '')
 
-    # Participants
     participants = normalise_participants(m.get('participants', []))
-
-    # Content
     summary = m.get('summary') or m.get('meeting_summary') or ''
     transcript = normalise_transcript(m.get('transcript'))
     action_items = normalise_items(m.get('action_items', []))
@@ -377,7 +532,6 @@ def build_meeting_row(user_id, meeting_data, contact_map, client_email_map):
     chapter_summaries = normalise_chapters(m.get('chapter_summaries', []))
     report_url = m.get('report_url') or ''
 
-    # Client matching
     client_id = match_client(participants, owner_email, contact_map, client_email_map)
 
     return {
@@ -407,7 +561,6 @@ def build_meeting_row(user_id, meeting_data, contact_map, client_email_map):
 
 
 def insert_meeting(row):
-    """Insert a meeting into Supabase. Uses upsert on user_id+session_id."""
     url = f'{SUPABASE_URL}/rest/v1/meetings'
     headers = {
         'apikey': SUPABASE_SERVICE_KEY,
@@ -423,32 +576,27 @@ def insert_meeting(row):
 
 
 def fetch_all_meetings(creds, list_endpoint, list_info):
-    """Fetch all meetings from the Read.ai API, handling pagination."""
     all_meetings = []
     page = 0
-    page_size = 50  # Try reasonable page size
+    page_size = 50
 
     while True:
-        # Try common pagination patterns
         sep = '&' if '?' in list_endpoint else '?'
         paginated = f'{list_endpoint}{sep}limit={page_size}&offset={page * page_size}'
 
         status, resp, creds = readai_api(creds, paginated)
 
         if status != 200:
-            # Try without pagination params (maybe they use different names)
             if page == 0:
                 paginated = f'{list_endpoint}{sep}page_size={page_size}&page={page}'
                 status, resp, creds = readai_api(creds, paginated)
             if status != 200:
                 if page == 0:
-                    # Last resort: try the raw endpoint
                     status, resp, creds = readai_api(creds, list_endpoint)
                 if status != 200:
                     print(f'  ❌ Failed to fetch meetings (HTTP {status})')
                     break
 
-        # Extract meetings from response
         meetings = []
         list_key = list_info.get('list_key')
         if list_key == '__root__' and isinstance(resp, list):
@@ -458,7 +606,6 @@ def fetch_all_meetings(creds, list_endpoint, list_info):
         elif isinstance(resp, list):
             meetings = resp
         elif isinstance(resp, dict):
-            # Try common keys
             for k in ('data', 'items', 'sessions', 'meetings', 'results'):
                 if k in resp and isinstance(resp[k], list):
                     meetings = resp[k]
@@ -470,7 +617,6 @@ def fetch_all_meetings(creds, list_endpoint, list_info):
         all_meetings.extend(meetings)
         print(f'  📥 Fetched {len(all_meetings)} meetings so far...')
 
-        # Check if there are more
         has_more = False
         if isinstance(resp, dict):
             has_more = resp.get('has_more', False) or resp.get('next') is not None
@@ -488,8 +634,6 @@ def fetch_all_meetings(creds, list_endpoint, list_info):
 
 
 def fetch_meeting_details(creds, session_id, list_endpoint):
-    """Fetch full details for a single meeting."""
-    # Try common detail endpoint patterns
     patterns = [
         f'{list_endpoint}/{session_id}',
         f'{list_endpoint}/{session_id}/report',
@@ -513,13 +657,12 @@ def main():
     print('  TaskFlow — Read.ai Meeting Import')
     print('═══════════════════════════════════════════')
 
-    # Check Supabase key
     if not SUPABASE_SERVICE_KEY:
         print('\n❌ SUPABASE_SERVICE_KEY environment variable not set.')
         print('   Set it with: export SUPABASE_SERVICE_KEY="your-key-here"')
         sys.exit(1)
 
-    # Get user ID from Supabase (find the readai integration user)
+    # Get user ID
     print('\n🔍 Finding TaskFlow user...')
     _, creds_rows = supabase_select(
         'integration_credentials',
@@ -528,7 +671,6 @@ def main():
     )
     if not creds_rows or not isinstance(creds_rows, list) or len(creds_rows) == 0:
         print('  ❌ No active Read.ai integration found in TaskFlow.')
-        print('     Set up the Read.ai integration in Settings first.')
         sys.exit(1)
 
     user_id = creds_rows[0]['user_id']
@@ -537,10 +679,13 @@ def main():
     # Load saved credentials
     creds = load_creds()
 
-    # Step 1: Get Read.ai credentials
-    creds = get_readai_auth(creds)
+    # Step 1: Register OAuth client
+    creds = register_oauth_client(creds)
 
-    # Step 2: Discover API
+    # Step 2: Browser authorization (PKCE)
+    creds = authorize_browser(creds)
+
+    # Step 3: Discover API
     list_endpoint, list_info, creds = discover_api(creds)
 
     # Step 4: Load Supabase context
@@ -574,8 +719,6 @@ def main():
             skipped += 1
             continue
 
-        # Check if this is a summary-only listing (no transcript)
-        # If so, try to fetch full details
         if not m.get('transcript') and not m.get('summary'):
             detail, creds = fetch_meeting_details(creds, session_id, list_endpoint)
             if detail:
@@ -583,7 +726,6 @@ def main():
                 needs_detail += 1
             time.sleep(RATE_LIMIT_DELAY)
 
-        # Build and insert row
         row = build_meeting_row(user_id, m, contact_map, client_email_map)
         ok, result = insert_meeting(row)
 
@@ -596,7 +738,6 @@ def main():
             errors += 1
             print(f'  ❌ {title}: {result[:100]}')
 
-        # Rate limit
         if (i + 1) % 10 == 0:
             time.sleep(RATE_LIMIT_DELAY)
 
