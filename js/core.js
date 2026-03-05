@@ -954,10 +954,18 @@ async function loadMeetings(){
   try{
     var uid=await getUserId();if(!uid)return;
     /* Load only list-view fields (no transcript/summary — too large for 1000+ meetings).
-       Full data is fetched on-demand when a meeting is opened. */
-    var res=await _sb.from('meetings').select('id,session_id,title,start_time,end_time,duration_minutes,participants,owner_name,owner_email,report_url,video_storage_path,video_size_bytes,client_id,end_client,campaign_id,opportunity_id,source,ai_tasks_generated,ai_suggestions,action_items,created_at').order('start_time',{ascending:false});
-    if(res.error)throw res.error;
-    S.meetings=(res.data||[]).map(function(r){return{
+       Full data is fetched on-demand when a meeting is opened.
+       Paginate past Supabase 1000-row default limit. */
+    var cols='id,session_id,title,start_time,end_time,duration_minutes,participants,owner_name,owner_email,report_url,video_storage_path,video_size_bytes,client_id,end_client,campaign_id,opportunity_id,source,ai_tasks_generated,ai_suggestions,action_items,created_at';
+    var allRows=[],pageSize=1000,from=0;
+    while(true){
+      var res=await _sb.from('meetings').select(cols).order('start_time',{ascending:false}).range(from,from+pageSize-1);
+      if(res.error)throw res.error;
+      var batch=res.data||[];
+      allRows=allRows.concat(batch);
+      if(batch.length<pageSize)break;
+      from+=pageSize}
+    S.meetings=allRows.map(function(r){return{
       id:r.id,sessionId:r.session_id,title:r.title,
       startTime:r.start_time?new Date(r.start_time):null,
       endTime:r.end_time?new Date(r.end_time):null,
