@@ -1800,14 +1800,14 @@ function setGmailFilter(filter){
   var isSmartInbox=filter.indexOf('e-')===0;
   if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage;
     console.log('[EMAIL-DEBUG] setGmailFilter: restored '+cached.threads.length+' threads from cache for '+filter)}
-  else if(!isSmartInbox){
+  else if(!isSmartInbox&&filter!=='all'){
     S._gmailLiveThreads=null;S._gmailNextPage=null;
     console.log('[EMAIL-DEBUG] setGmailFilter: no cache for '+filter+', will fetch')}
   else{S._gmailLiveThreads=null;S._gmailNextPage=null;
-    console.log('[EMAIL-DEBUG] setGmailFilter: smart inbox '+filter+', using supabase data')}
+    console.log('[EMAIL-DEBUG] setGmailFilter: '+filter+', using supabase data')}
   save();render();
-  /* Smart inboxes use Supabase data, not live fetch */
-  if(!isSmartInbox)ensureGmailThreads()}
+  /* Smart inboxes and All Mail use Supabase data, not live fetch */
+  if(!isSmartInbox&&filter!=='all')ensureGmailThreads()}
 
 async function loadMoreGmailThreads(){
   if(!S._gmailNextPage)return;

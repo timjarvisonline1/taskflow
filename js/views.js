@@ -4905,6 +4905,10 @@ function rEmail(){
       if(sub==='e-other')return !ctx.hasActiveClient&&!ctx.hasLapsedClient&&!ctx.isProspect&&!ctx.hasCampaign&&!ctx.hasOpportunity;
       return false
     });
+  }else if(sub==='all'){
+    /* All Mail uses Supabase data — it has all synced threads, no pagination needed */
+    threads=S.gmailThreads;
+    console.log('[EMAIL-DEBUG] rEmail: All Mail using supabase ('+threads.length+' threads)');
   }else{
     if(S._gmailLiveThreads){
       threads=S._gmailLiveThreads;
