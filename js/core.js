@@ -2111,10 +2111,12 @@ async function archiveEmail(threadId){
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({threadId:threadId})});
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Archive failed')}
-    /* Remove from inbox live threads */
-    if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
-    /* Update cache for current filter */
-    if(S._gmailCache[S.gmailFilter]&&S._gmailLiveThreads)S._gmailCache[S.gmailFilter].threads=S._gmailLiveThreads;
+    /* Remove from live threads only if viewing inbox (All Mail keeps everything) */
+    if(S.gmailFilter==='inbox'&&S._gmailLiveThreads){
+      S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
+      if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
+    /* Invalidate inbox cache if archiving from another view */
+    else{delete S._gmailCache['inbox']}
     /* Update Supabase thread labels locally — remove INBOX so smart inboxes reflect change */
     var st=S.gmailThreads.find(function(t){return t.thread_id===threadId});
     if(st){st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
