@@ -174,6 +174,7 @@ var SECTIONS=[
     {id:'team',label:'Team',icon:'clients'}
   ]},
   {id:'email',icon:'mail',label:'Email',kbd:'9',subs:[
+    {id:'e-action',label:'Action Required',icon:'zap'},
     {id:'inbox',label:'Inbox',icon:'inbox'},
     {id:'sent',label:'Sent',icon:'mail'},
     {id:'all',label:'All Mail',icon:'folder'},
@@ -1804,7 +1805,9 @@ async function refreshGmailInbox(){
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length}
-  render()}
+  render();
+  /* Trigger AI analysis for new threads */
+  analyzeNewEmails()}
 
 /* ═══════════ AUTO-FETCH & POLLING ═══════════ */
 async function ensureGmailThreads(){
@@ -1844,6 +1847,8 @@ async function pollGmailInbox(){
     S.gmailUnread=newThreads.filter(function(t){return t.isUnread}).length;
     if(newCount>0){showNewEmailIndicator(newCount);buildNav()}
     else{buildNav()}
+    /* Trigger AI analysis for new threads */
+    analyzeNewEmails();
   }catch(e){console.warn('Email poll:',e)}}
 
 function showNewEmailIndicator(count){
@@ -1857,6 +1862,118 @@ function showNewEmailIndicator(count){
     if(search)search.parentElement.insertBefore(bar,search.nextSibling)}}}
 function applyNewEmails(){
   var el=gel('email-new-indicator');if(el)el.remove();render()}
+
+/* ═══════════ EMAIL AI ANALYSIS ═══════════ */
+var _analyzingEmails=false;
+async function analyzeNewEmails(){
+  if(_analyzingEmails)return;
+  /* Find threads needing analysis: not yet analyzed, last message from someone else, in INBOX */
+  var ue=S._userEmails||[];if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
+  var toAnalyze=S.gmailThreads.filter(function(t){
+    if(t.needs_reply!==null&&t.needs_reply!==undefined)return false;
+    var lastFrom=(t.last_message_from||'').toLowerCase();
+    if(!lastFrom||ue.indexOf(lastFrom)!==-1)return false;
+    if((t.labels||'').indexOf('INBOX')===-1)return false;
+    return true
+  });
+  if(!toAnalyze.length)return;
+  _analyzingEmails=true;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session){_analyzingEmails=false;return}
+    var token=sess.data.session.access_token;
+    /* Build client + contact context */
+    var clients=(S.clientRecords||[]).map(function(c){return{name:c.name,email:c.email||'',status:c.status||'active'}});
+    var contacts=(S.contacts||[]).slice(0,50).map(function(c){
+      var cr=S.clientRecords.find(function(r){return r.id===c.clientId});
+      return{firstName:c.firstName||'',lastName:c.lastName||'',email:c.email||'',
+        clientName:cr?cr.name:'',endClient:c.endClient||''}});
+    /* Build thread payloads */
+    var threadPayloads=toAnalyze.map(function(t){return{
+      threadId:t.thread_id,subject:t.subject||'',snippet:t.snippet||'',
+      fromEmail:t.from_email||'',fromName:t.from_name||'',
+      toEmails:t.to_emails||'',ccEmails:t.cc_emails||'',
+      labels:t.labels||'',messageCount:t.message_count||1,
+      lastMessageAt:t.last_message_at||''}});
+    var resp=await fetch('/api/gmail/analyze',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({threads:threadPayloads,clients:clients,contacts:contacts})});
+    if(!resp.ok){var errData=await resp.json();console.warn('Email analysis:',errData.error);_analyzingEmails=false;return}
+    var result=await resp.json();
+    /* Merge results into local state */
+    if(result.results&&result.results.length){
+      result.results.forEach(function(r){
+        var t=S.gmailThreads.find(function(th){return th.thread_id===r.threadId});
+        if(t){t.needs_reply=r.needs_reply;t.ai_summary=r.ai_summary||'';
+          t.ai_urgency=r.ai_urgency||'';t.ai_category=r.ai_category||'';
+          t.ai_analyzed_at=r.ai_analyzed_at||''}});
+      render();buildNav()}
+  }catch(e){console.warn('analyzeNewEmails:',e)}
+  _analyzingEmails=false}
+
+function getActionRequiredCount(){
+  var now=new Date();
+  return S.gmailThreads.filter(function(t){
+    return t.needs_reply===true&&t.reply_status==='pending'
+      &&(!t.snoozed_until||new Date(t.snoozed_until)<=now)
+      &&(t.labels||'').indexOf('INBOX')!==-1
+  }).length}
+
+function getActionRequiredThreads(){
+  var now=new Date();
+  var threads=S.gmailThreads.filter(function(t){
+    return t.needs_reply===true&&t.reply_status==='pending'
+      &&(!t.snoozed_until||new Date(t.snoozed_until)<=now)
+      &&(t.labels||'').indexOf('INBOX')!==-1});
+  /* Sort by urgency: critical > high > normal > low */
+  var urgOrder={critical:0,high:1,normal:2,low:3};
+  threads.sort(function(a,b){
+    var ua=urgOrder[a.ai_urgency]!==undefined?urgOrder[a.ai_urgency]:2;
+    var ub=urgOrder[b.ai_urgency]!==undefined?urgOrder[b.ai_urgency]:2;
+    if(ua!==ub)return ua-ub;
+    return new Date(b.last_message_at||0)-new Date(a.last_message_at||0)});
+  return threads}
+
+async function dismissEmailAction(threadId){
+  var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
+  if(t)t.reply_status='dismissed';
+  render();buildNav();
+  try{
+    var uid=await getUserId();if(!uid)return;
+    await _sb.from('gmail_threads').update({reply_status:'dismissed'}).eq('user_id',uid).eq('thread_id',threadId);
+  }catch(e){console.error('dismissEmailAction:',e)}
+  toast('Dismissed','info')}
+
+async function snoozeEmailAction(threadId,until){
+  var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
+  if(t){t.reply_status='snoozed';t.snoozed_until=until}
+  render();buildNav();
+  try{
+    var uid=await getUserId();if(!uid)return;
+    await _sb.from('gmail_threads').update({reply_status:'snoozed',snoozed_until:until}).eq('user_id',uid).eq('thread_id',threadId);
+  }catch(e){console.error('snoozeEmailAction:',e)}
+  toast('Snoozed until '+new Date(until).toLocaleString(),'info')}
+
+function openSnoozeMenu(threadId,evt){
+  evt.stopPropagation();
+  /* Close any existing snooze menu */
+  var existing=document.querySelector('.snooze-dropdown');if(existing)existing.remove();
+  var now=new Date();
+  var inOneHour=new Date(now.getTime()+3600000).toISOString();
+  var tomorrow9am=new Date(now);tomorrow9am.setDate(tomorrow9am.getDate()+1);tomorrow9am.setHours(9,0,0,0);
+  var tomorrow2pm=new Date(now);tomorrow2pm.setDate(tomorrow2pm.getDate()+1);tomorrow2pm.setHours(14,0,0,0);
+  var nextMon=new Date(now);nextMon.setDate(nextMon.getDate()+((8-nextMon.getDay())%7||7));nextMon.setHours(9,0,0,0);
+  var btn=evt.currentTarget;var rect=btn.getBoundingClientRect();
+  var menu=document.createElement('div');menu.className='snooze-dropdown';
+  menu.style.top=(rect.bottom+4)+'px';menu.style.left=rect.left+'px';
+  menu.innerHTML='<div class="snooze-item" onclick="TF.snoozeEmailAction(\''+threadId+'\',\''+inOneHour+'\');this.parentElement.remove()">'+icon('clock',12)+' In 1 hour</div>'+
+    '<div class="snooze-item" onclick="TF.snoozeEmailAction(\''+threadId+'\',\''+tomorrow9am.toISOString()+'\');this.parentElement.remove()">'+icon('sun',12)+' Tomorrow morning</div>'+
+    '<div class="snooze-item" onclick="TF.snoozeEmailAction(\''+threadId+'\',\''+tomorrow2pm.toISOString()+'\');this.parentElement.remove()">'+icon('calendar',12)+' Tomorrow afternoon</div>'+
+    '<div class="snooze-item" onclick="TF.snoozeEmailAction(\''+threadId+'\',\''+nextMon.toISOString()+'\');this.parentElement.remove()">'+icon('briefcase',12)+' Next Monday</div>'+
+    '<div class="snooze-item" style="border-top:1px solid var(--gborder);padding-top:6px;margin-top:4px"><input type="datetime-local" class="snooze-custom" onchange="TF.snoozeEmailAction(\''+threadId+'\',new Date(this.value).toISOString());this.closest(\'.snooze-dropdown\').remove()" style="font-size:11px;background:transparent;border:1px solid var(--gborder);color:var(--t1);border-radius:6px;padding:4px 8px;width:100%"></div>';
+  document.body.appendChild(menu);
+  /* Close on outside click */
+  setTimeout(function(){document.addEventListener('click',function _cls(e){
+    if(!menu.contains(e.target)){menu.remove();document.removeEventListener('click',_cls)}},true)},10)}
 
 /* ═══════════ ARCHIVE ═══════════ */
 async function archiveEmail(threadId){
@@ -2636,7 +2753,10 @@ async function loadData(){toast('Loading data...','info');
     gel('last-refresh').textContent='Updated '+new Date().toLocaleTimeString();
     processRecurring();
     if(typeof cleanMtgPrompted==='function')cleanMtgPrompted();
-    toast('Loaded '+S.tasks.length+' tasks, '+S.done.length+' completed'+(S.review.length?', '+S.review.length+' to review':''),'ok')}catch(e){toast(''+e.message,'warn')}
+    toast('Loaded '+S.tasks.length+' tasks, '+S.done.length+' completed'+(S.review.length?', '+S.review.length+' to review':''),'ok');
+    /* Trigger AI email analysis for unanalyzed threads (background, non-blocking) */
+    setTimeout(function(){analyzeNewEmails()},500);
+  }catch(e){toast(''+e.message,'warn')}
   render()}
 
 /* ═══════════ SUPABASE WRITE HELPERS ═══════════ */
@@ -3264,6 +3384,7 @@ function buildSubNav(sec){
     h+='<span class="ico">'+icon(sub.icon,14)+'</span>'+sub.label;
     if(sub.id==='inbox'){var _sib=S.tasks.filter(function(t){return t.isInbox}).length;if(_sib>0)h+='<span class="sub-badge">'+_sib+'</span>'}
     if(sub.id==='review'&&S.review.length>0)h+='<span class="sub-badge">'+S.review.length+'</span>';
+    if(sub.id==='e-action'){var _ac=getActionRequiredCount();if(_ac>0)h+='<span class="sub-badge" style="background:#EA4335;color:#fff">'+_ac+'</span>'}
     if(sub.id==='e-drafts'){var _dc=getDraftCount();if(_dc>0)h+='<span class="sub-badge">'+_dc+'</span>'}
     if(sub.id==='e-scheduled'){var _sc2=(S.scheduledEmails||[]).filter(function(e){return e.status==='pending'}).length;if(_sc2>0)h+='<span class="sub-badge">'+_sc2+'</span>'}
     /* Smart inbox badges */

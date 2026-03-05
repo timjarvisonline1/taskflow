@@ -179,6 +179,8 @@ function rDashboard(){
   h+=dashMet('Meetings',todayMeetings.length,todayMeetings.length?'var(--purple50)':'var(--t4)');
   h+=dashMet('In Progress',inProgress,inProgress?'var(--green)':'var(--t4)');
   h+=dashMet('Review Queue',reviewCount,reviewCount?'var(--amber)':'var(--t4)');
+  var _pendingReplies=getActionRequiredCount();
+  h+='<div class="dash-met" onclick="TF.nav(\'email\',\'e-action\')" style="cursor:pointer" title="Click to view Action Required"><div class="dash-met-v" style="color:'+(_pendingReplies?'var(--red)':'var(--green)')+'">'+_pendingReplies+'</div><div class="dash-met-l">Pending Replies</div></div>';
   h+='</div>';
 
   /* Today's meetings list */
@@ -4612,6 +4614,96 @@ function rEmailSkeleton(){
     h+='</div>'}
   h+='</div>';return h}
 
+/* ═══════════ ACTION REQUIRED ═══════════ */
+function rEmailActionRequired(){
+  var threads=getActionRequiredThreads();
+  var h='<div class="pg-head"><h1>'+icon('zap',18)+' Action Required';
+  if(threads.length)h+=' <span style="background:#EA4335;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+threads.length+'</span>';
+  h+='</h1>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn" onclick="TF.analyzeNewEmails();toast(\'Analyzing emails...\',\'info\')" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('zap',12)+' Analyze</button>';
+  h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Refresh</button>';
+  h+='</div></div>';
+
+  if(!threads.length){
+    h+='<div style="text-align:center;padding:80px 0">';
+    h+='<div style="font-size:36px;margin-bottom:12px">&#10003;</div>';
+    h+='<div style="font-size:16px;font-weight:600;color:var(--t1);margin-bottom:6px">All caught up!</div>';
+    h+='<div style="font-size:13px;color:var(--t3)">No emails need your attention right now.</div>';
+    h+='</div>';
+    return h}
+
+  /* Group by urgency */
+  var groups={critical:[],high:[],normal:[],low:[]};
+  threads.forEach(function(t){
+    var u=t.ai_urgency||'normal';
+    if(groups[u])groups[u].push(t);
+    else groups.normal.push(t)});
+
+  var urgLabels={critical:'Critical',high:'High Priority',normal:'Normal',low:'Low Priority'};
+  var urgColors={critical:'var(--red)',high:'var(--amber)',normal:'var(--blue)',low:'var(--t4)'};
+  var urgBorders={critical:'#ef4444',high:'#f59e0b',normal:'#3b82f6',low:'#71717a'};
+
+  ['critical','high','normal','low'].forEach(function(urg){
+    if(!groups[urg].length)return;
+    h+='<div style="margin-bottom:20px">';
+    h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:'+urgColors[urg]+';margin-bottom:8px;padding-left:4px">'+urgLabels[urg]+' ('+groups[urg].length+')</div>';
+    groups[urg].forEach(function(t){
+      var fromEmail=t.from_email||'';
+      var fromName=t.from_name||fromEmail.split('@')[0]||'';
+      var avatarCol=emailAvatarColor(fromEmail);
+      var initials=(fromName||'?').charAt(0).toUpperCase();
+      var ctx=getThreadCrmContext(t);
+      /* Time ago */
+      var ago='';
+      if(t.last_message_at){
+        var diff=Date.now()-new Date(t.last_message_at).getTime();
+        var mins=Math.floor(diff/60000);
+        if(mins<60)ago=mins+'m ago';
+        else if(mins<1440)ago=Math.floor(mins/60)+'h ago';
+        else if(mins<10080)ago=Math.floor(mins/1440)+'d ago';
+        else ago=new Date(t.last_message_at).toLocaleDateString()}
+
+      h+='<div class="action-card" style="border-left-color:'+urgBorders[urg]+'" onclick="TF.openEmailThread(\''+esc(t.thread_id)+'\')">';
+      h+='<div class="action-card-top">';
+      /* Avatar */
+      h+='<div class="action-avatar" style="background:'+avatarCol+'">'+initials+'</div>';
+      h+='<div class="action-card-info">';
+      h+='<div class="action-card-sender">'+esc(fromName);
+      if(fromEmail)h+=' <span style="color:var(--t4);font-weight:400">'+esc(fromEmail)+'</span>';
+      h+='</div>';
+      h+='<div class="action-card-subject">'+esc(t.subject||'(no subject)')+'</div>';
+      h+='</div>';
+      /* Time + urgency badge */
+      h+='<div class="action-card-meta">';
+      if(ago)h+='<span style="font-size:11px;color:var(--t4);white-space:nowrap">'+ago+'</span>';
+      h+='<span class="action-urgency" style="background:'+urgColors[urg]+'15;color:'+urgColors[urg]+'">'+esc(t.ai_urgency||'normal')+'</span>';
+      h+='</div></div>';
+
+      /* AI Summary */
+      if(t.ai_summary)h+='<div class="action-summary">'+esc(t.ai_summary)+'</div>';
+
+      /* CRM context pills */
+      var pills='';
+      if(ctx&&ctx.primaryClient)pills+='<span class="bg bg-cl">'+esc(ctx.primaryClient.clientName)+'</span>';
+      if(ctx&&ctx.primaryEndClient)pills+='<span class="bg bg-ec">'+esc(ctx.primaryEndClient)+'</span>';
+      if(ctx&&ctx.campaigns&&ctx.campaigns.length)pills+='<span class="bg" style="background:rgba(255,0,153,0.1);color:var(--pink)">'+esc(ctx.campaigns[0].name)+'</span>';
+      if(ctx&&ctx.opportunities&&ctx.opportunities.length)pills+='<span class="bg" style="background:rgba(99,102,241,0.1);color:#6366f1">'+esc(ctx.opportunities[0].name)+'</span>';
+      if(t.ai_category)pills+='<span class="bg bg-ca">'+esc(t.ai_category)+'</span>';
+
+      if(pills){h+='<div class="action-pills">'+pills+'</div>'}
+
+      /* Actions */
+      h+='<div class="action-actions">';
+      h+='<button class="action-btn action-btn-open" onclick="event.stopPropagation();TF.openEmailThread(\''+esc(t.thread_id)+'\')">'+icon('mail',12)+' Open</button>';
+      h+='<button class="action-btn action-btn-dismiss" onclick="event.stopPropagation();TF.dismissEmailAction(\''+esc(t.thread_id)+'\')">'+icon('x',12)+' Dismiss</button>';
+      h+='<button class="action-btn action-btn-snooze" onclick="TF.openSnoozeMenu(\''+esc(t.thread_id)+'\',event)">'+icon('clock',12)+' Snooze</button>';
+      h+='</div>';
+      h+='</div>'});
+    h+='</div>'});
+
+  return h}
+
 function rEmailDraftList(){
   var drafts=_loadDrafts();
   var h='<div class="pg-head"><h1>'+icon('edit',18)+' Drafts';
@@ -4726,6 +4818,7 @@ function rEmailScheduledList(){
 function rEmail(){
   var sub=S.subView||'inbox';
   var isSmartInbox=sub.indexOf('e-')===0;
+  if(sub==='e-action')return rEmailActionRequired();
   if(sub==='e-drafts')return rEmailDraftList();
   if(sub==='e-scheduled')return rEmailScheduledList();
   if(S.gmailThreadId){return rEmailThread()}

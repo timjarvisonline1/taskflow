@@ -3455,6 +3455,9 @@ var INTG_PLATFORMS=[
   {id:'gmail',label:'Gmail',color:'#EA4335',desc:'Email (tim.jarvis@timjarvis.online)',oauth:true,
     fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'}],
     configFields:[]},
+  {id:'anthropic',label:'Anthropic (Claude AI)',color:'#D4A574',desc:'AI-powered email analysis',
+    fields:[{key:'api_key',label:'API Key',type:'password'}],
+    configFields:[{key:'model',label:'Model (default: claude-sonnet-4-6)',type:'text'}]},
 ];
 
 /* ═══════════ SCHEDULED ITEM MODALS ═══════════ */

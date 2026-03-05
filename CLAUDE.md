@@ -93,7 +93,8 @@ taskflow/
 │   │   ├── archive.js      # POST — archive thread (remove INBOX label)
 │   │   ├── trash.js        # POST — trash thread
 │   │   ├── mark-read.js    # POST — mark thread as read
-│   │   └── attachment.js   # GET — download attachment
+│   │   ├── attachment.js   # GET — download attachment
+│   │   └── analyze.js     # POST — batch AI email analysis (Claude Sonnet)
 │   ├── auth/
 │   │   └── gmail-connect.js # GET — initiate Gmail OAuth flow
 │   ├── sync/
@@ -132,7 +133,8 @@ taskflow/
 │   ├── email-crm-integration.sql   # CRM columns on gmail_threads
 │   ├── add-opportunity-types.sql   # opp_type on opportunities
 │   ├── add-scheduled-emails.sql    # scheduled_emails table (schedule send)
-│   └── add-email-rules.sql         # email_rules table (rule engine)
+│   ├── add-email-rules.sql         # email_rules table (rule engine)
+│   └── add-email-ai-analysis.sql   # AI analysis columns on gmail_threads
 │
 └── scripts/
     ├── run-migration.py    # Helper to run SQL migrations
@@ -157,7 +159,7 @@ The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered 
 | 6 | `projects` | Projects | 6 | Board, List, Timeline |
 | 7 | `clients` | Clients | 7 | Active, Lapsed |
 | 8 | `finance` | Finance | 8 | Overview, Transactions, Invoices, Upcoming, Recurring, Forecast, Team |
-| 9 | `email` | Email | 9 | Inbox, Sent, All Mail, Drafts (with badge), Scheduled (with badge), then Smart Inboxes: Clients (Active), Clients (Lapsed), Prospects, By Campaign, By Opportunity, Other |
+| 9 | `email` | Email | 9 | Action Required (with badge), Inbox, Sent, All Mail, Drafts (with badge), Scheduled (with badge), then Smart Inboxes: Clients (Active), Clients (Lapsed), Prospects, By Campaign, By Opportunity, Other |
 
 **Mobile bottom tabs** (`MOB_VIEWS`): Add, Tasks, Review, Opps
 
@@ -317,6 +319,7 @@ Clients:
   rClientDashboard()       — Full-screen client dashboard (when S.clientDetailName is set)
 
 Email sub-views (via rEmail() dispatcher):
+  rEmailActionRequired()   — AI-powered triage: urgency-grouped cards with CRM context, dismiss, snooze
   rEmailDraftList()        — Saved drafts with open/delete (uses localStorage)
   rEmailScheduledList()    — Scheduled emails: pending (with countdown), failed, sent history
   rEmailThread()           — Thread view: message list with expand/collapse, reply/forward/reply-all
@@ -395,6 +398,7 @@ Gmail is connected via OAuth 2.0 with scopes `gmail.readonly`, `gmail.send`, `gm
 - `POST /api/gmail/trash` — move to trash
 - `POST /api/gmail/mark-read` — mark as read
 - `GET /api/gmail/attachment` — download attachment
+- `POST /api/gmail/analyze` — batch AI email analysis (Claude Sonnet, up to 30 threads per call)
 
 ### Compose Editor
 
@@ -511,6 +515,30 @@ Opening a thread starts a silent timer (`S._emailTimer`). When closing or switch
 2. If on email view and not in a thread → `pollGmailInbox()` for new emails
 
 New emails trigger `applyNewEmails()` which updates the thread list and shows a toast notification.
+
+### Action Required (AI Email Triage)
+
+Replaces the previous Zapier → ChatGPT → Review Queue flow. Uses Claude Sonnet to analyze emails directly within TaskFlow.
+
+**Database columns** on `gmail_threads`: `needs_reply` (boolean), `ai_summary`, `ai_urgency` (critical/high/normal/low), `ai_category`, `reply_status` (pending/dismissed/snoozed), `snoozed_until`, `ai_analyzed_at`
+
+**Analysis flow:**
+1. After Gmail sync/refresh/poll, `analyzeNewEmails()` identifies unanalyzed INBOX threads where last message is from an external sender
+2. Sends batch of thread metadata (subject, snippet, from, to, labels) to `/api/gmail/analyze`
+3. Endpoint calls Claude Sonnet API with classification prompt + client/contact context
+4. Results stored to `gmail_threads` table and merged into local state
+5. Action Required badge updates in sub-nav
+
+**Auto-reply detection** (in `sync-gmail.js`): If `last_message_from` changes to user's email on a thread that previously had `needs_reply: true`, automatically clears `needs_reply`. If an external sender replies to a thread that was `needs_reply: false`, resets to `null` for re-analysis.
+
+**Triage actions:**
+- **Open** → opens thread view (existing email time tracking starts)
+- **Dismiss** → sets `reply_status: 'dismissed'`, removes from Action Required
+- **Snooze** → sets `reply_status: 'snoozed'` + `snoozed_until`, hides until time passes (checked at render time, no cron needed)
+
+**API endpoint:** `POST /api/gmail/analyze` — batch analyzes up to 30 threads per Claude API call. Reads Anthropic API key from `integration_credentials` table (platform: 'anthropic').
+
+**Key functions:** `analyzeNewEmails()`, `getActionRequiredCount()`, `getActionRequiredThreads()`, `dismissEmailAction()`, `snoozeEmailAction()`, `openSnoozeMenu()`, `rEmailActionRequired()`
 
 ## Finance System
 
@@ -763,6 +791,7 @@ Each entity has standard CRUD helpers:
 - **Zoho Books**: Connected, syncing (orgId 899890816 — Film&Content LLC)
 - **Zoho Payments**: Connected, syncing ~69 records
 - **Gmail**: Connected via OAuth (readonly + send + modify scopes)
+- **Anthropic (Claude AI)**: API key stored in integration_credentials, powers email analysis
 
 ### What's Working
 - All four finance platforms sync via "Sync Now" buttons
@@ -796,6 +825,11 @@ Each entity has standard CRUD helpers:
 - Real-time polling (60-second interval for new emails + scheduled email dispatch)
 - Keyboard shortcuts (email-specific shortcuts disabled during compose)
 - Thread view with message expand/collapse, action buttons, contact pills
+- **Action Required** — AI-powered email triage (Claude Sonnet analyzes emails for needs_reply, urgency, summary, category)
+- Action Required sub-view with urgency grouping, CRM context pills, dismiss, snooze
+- Auto-reply detection (sync clears needs_reply when user replies)
+- Dashboard "Pending Replies" metric (clickable → Action Required view)
+- Snooze presets (1h, tomorrow AM/PM, next Monday, custom datetime)
 
 ### Recent Changes (commit a54915b)
 - **Compose Editor**: Two-row formatting toolbar with 20+ commands (font family/size, text/highlight color pickers, alignment, indent, emoji, inline image, undo/redo)

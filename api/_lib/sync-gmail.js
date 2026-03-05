@@ -205,12 +205,27 @@ async function syncGmail(userId) {
 
         const { data: existing } = await client
           .from('gmail_threads')
-          .select('id')
+          .select('id, needs_reply, reply_status, last_message_from')
           .eq('user_id', userId)
           .eq('thread_id', thread.id)
           .single();
 
         if (existing) {
+          // Auto-detect replies: if last_message_from changed to user's email
+          // and thread previously needed a reply, clear it
+          if (existing.needs_reply === true &&
+              lastFromEmail && userEmails.indexOf(lastFromEmail.toLowerCase()) !== -1) {
+            row.needs_reply = false;
+            row.reply_status = 'pending';
+          }
+          // If last_message_from changed to external sender on a thread that
+          // was previously analyzed as not needing reply, reset for re-analysis
+          if (existing.needs_reply === false &&
+              existing.last_message_from &&
+              userEmails.indexOf(existing.last_message_from.toLowerCase()) !== -1 &&
+              lastFromEmail && userEmails.indexOf(lastFromEmail.toLowerCase()) === -1) {
+            row.needs_reply = null; // triggers re-analysis
+          }
           await client.from('gmail_threads').update(row).eq('id', existing.id);
           stats.updated++;
         } else {
