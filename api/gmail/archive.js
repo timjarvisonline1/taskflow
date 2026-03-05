@@ -1,4 +1,4 @@
-const { verifyUserToken, cors, getCredentials } = require('../_lib/supabase');
+const { verifyUserToken, cors, getCredentials, getServiceClient } = require('../_lib/supabase');
 const { refreshGmailToken } = require('../_lib/gmail-auth');
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -37,6 +37,22 @@ module.exports = async function handler(req, res) {
     if (!resp.ok) {
       const err = await resp.text();
       throw new Error('Gmail archive failed (' + resp.status + '): ' + err.substring(0, 200));
+    }
+
+    // Update Supabase: remove INBOX from labels so smart inboxes reflect the change
+    const client = getServiceClient();
+    const { data: row } = await client
+      .from('gmail_threads')
+      .select('id, labels')
+      .eq('user_id', userId)
+      .eq('thread_id', threadId)
+      .single();
+
+    if (row) {
+      const newLabels = (row.labels || '').split(',')
+        .filter(function(l) { return l !== 'INBOX'; }).join(',');
+      await client.from('gmail_threads').update({ labels: newLabels })
+        .eq('id', row.id);
     }
 
     return res.status(200).json({ success: true });

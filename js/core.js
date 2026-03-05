@@ -2111,8 +2111,13 @@ async function archiveEmail(threadId){
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({threadId:threadId})});
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Archive failed')}
+    /* Remove from inbox live threads */
     if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
-    S.gmailThreads=S.gmailThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
+    /* Update cache for current filter */
+    if(S._gmailCache[S.gmailFilter]&&S._gmailLiveThreads)S._gmailCache[S.gmailFilter].threads=S._gmailLiveThreads;
+    /* Update Supabase thread labels locally — remove INBOX so smart inboxes reflect change */
+    var st=S.gmailThreads.find(function(t){return t.thread_id===threadId});
+    if(st){st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
     if(S.gmailThreadId===threadId){S.gmailThread=null;S.gmailThreadId=''}
     setTimeout(function(){render()},400);
