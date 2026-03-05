@@ -4818,7 +4818,7 @@ function rEmailScheduledList(){
 function rEmail(){
   var sub=S.subView||'inbox';
   var isSmartInbox=sub.indexOf('e-')===0;
-  if(sub==='e-action')return rEmailActionRequired();
+  if(sub==='e-action'&&!S.gmailThreadId)return rEmailActionRequired();
   if(sub==='e-drafts')return rEmailDraftList();
   if(sub==='e-scheduled')return rEmailScheduledList();
   if(S.gmailThreadId){return rEmailThread()}
