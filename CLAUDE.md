@@ -6,7 +6,7 @@ TaskFlow is a comprehensive task management and business operations platform bui
 - **Tim Jarvis Online LLC** — banking via Brex
 - **Film&Content LLC** — banking via Mercury, accounting via Zoho Books, payment processing via Zoho Payments
 
-It manages tasks, projects, campaigns, sales (opportunities), clients, finance (payments, invoices, recurring expenses, forecasting, team payroll), and daily scheduling in a single-page app.
+It manages tasks, projects, campaigns, sales (opportunities), clients, finance (payments, invoices, recurring expenses, forecasting, team payroll), email (Gmail integration with CRM features), and daily scheduling in a single-page app.
 
 ## Architecture
 
@@ -18,14 +18,14 @@ Browser (client JS)                   Vercel Serverless Functions
 │ index.html          │              │ api/_lib/        (shared)    │
 │ js/config.js        │──settings──▶ │ api/settings/    (credentials)│
 │ js/core.js          │──sync─────▶  │ api/sync/        (per-platform)│
-│ js/views.js         │              │ api/cron/        (periodic)   │
-│ js/modals.js        │              │ api/webhook/     (real-time)  │
-│ js/features.js      │              └──────────┬───────────────────┘
-│ js/app.js           │                         │ service role key
-│ css/core.css        │                         ▼
-│ css/components.css  │  ◀──anon key + RLS──▶  Supabase
-│ css/features.css    │                         (PostgreSQL + Auth)
-└─────────────────────┘
+│ js/views.js         │──gmail────▶  │ api/gmail/       (email ops)  │
+│ js/modals.js        │──auth─────▶  │ api/auth/        (OAuth flows)│
+│ js/features.js      │              │ api/cron/        (periodic)   │
+│ js/app.js           │              └──────────┬───────────────────┘
+│ css/core.css        │                         │ service role key
+│ css/components.css  │                         ▼
+│ css/features.css    │  ◀──anon key + RLS──▶  Supabase
+└─────────────────────┘                         (PostgreSQL + Auth)
 ```
 
 **Key stack:**
@@ -33,6 +33,7 @@ Browser (client JS)                   Vercel Serverless Functions
 - **Backend**: Supabase (PostgreSQL with RLS, Auth, REST API via PostgREST)
 - **Hosting**: Vercel (Hobby plan — 60s max function timeout, no cron support)
 - **CDN libs**: Supabase JS v2 (UMD), Chart.js 4.4
+- **Email**: Gmail API (OAuth 2.0) — scopes: `gmail.readonly`, `gmail.send`, `gmail.modify`
 
 ## Important URLs & IDs
 
@@ -49,6 +50,7 @@ Browser (client JS)                   Vercel Serverless Functions
 - `SUPABASE_URL` — Supabase project URL
 - `SUPABASE_SERVICE_KEY` — service role key (bypasses RLS)
 - `CRON_SECRET` — random string for cron job auth
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Gmail OAuth
 
 ## File Structure
 
@@ -62,31 +64,44 @@ taskflow/
 │
 ├── js/
 │   ├── config.js           # Supabase client init, CONFIG object
-│   ├── core.js             # State (S), data loading, CRUD helpers, timers, filters, reconciliation
-│   ├── views.js            # All view rendering (rDashboard, rToday, rTasks, rFinance, etc.)
-│   ├── modals.js           # All modal UIs (detail, add, done, campaigns, finance, projects, opportunities, team, scheduled items)
+│   ├── core.js             # State (S), data loading, CRUD helpers, timers, filters, reconciliation,
+│   │                       #   email (polling, compose, drafts, schedule, rules), contact autocomplete
+│   ├── views.js            # All view rendering (rDashboard, rToday, rTasks, rFinance, rEmail, etc.)
+│   ├── modals.js           # All modal UIs (detail, add, compose email, rule builder, etc.)
 │   ├── features.js         # Focus mode, command palette, drag & drop, scheduling, meeting tracking, calendar sync
 │   └── app.js              # TF function registry (window.TF = {...})
 │
 ├── css/
 │   ├── core.css            # CSS variables, layout, sidebar, typography, sub-nav badges
 │   ├── components.css      # Cards, badges, buttons, forms, tables (compact task rows)
-│   └── features.css        # Finance, campaigns, projects, opportunities, modals
+│   └── features.css        # Finance, campaigns, projects, opportunities, email, compose toolbar, modals
 │
 ├── api/
 │   ├── _lib/
 │   │   ├── supabase.js     # Service client, auth verification, upsertPayment, applyPayerMap
+│   │   ├── gmail-auth.js   # Gmail OAuth token refresh
+│   │   ├── sync-gmail.js   # Gmail thread metadata sync (with email rules engine)
 │   │   ├── zoho-auth.js    # OAuth token refresh + code exchange for Zoho
-│   │   ├── sync-brex.js    # Brex transaction sync (polling, no date filter)
-│   │   ├── sync-mercury.js # Mercury transaction sync (polling + webhook processing)
-│   │   ├── sync-zoho-books.js    # Zoho Books sync (invoices, payments, bills, expenses)
-│   │   └── sync-zoho-payments.js # Zoho Payments sync (payments + payouts)
+│   │   ├── sync-brex.js    # Brex transaction sync
+│   │   ├── sync-mercury.js # Mercury transaction sync
+│   │   ├── sync-zoho-books.js    # Zoho Books sync
+│   │   └── sync-zoho-payments.js # Zoho Payments sync
+│   ├── gmail/
+│   │   ├── threads.js      # GET — fetch thread list from Gmail API
+│   │   ├── thread.js       # GET — fetch single thread with messages
+│   │   ├── send.js         # POST — send email via Gmail API
+│   │   ├── archive.js      # POST — archive thread (remove INBOX label)
+│   │   ├── trash.js        # POST — trash thread
+│   │   ├── mark-read.js    # POST — mark thread as read
+│   │   └── attachment.js   # GET — download attachment
+│   ├── auth/
+│   │   └── gmail-connect.js # GET — initiate Gmail OAuth flow
 │   ├── sync/
-│   │   ├── brex.js         # POST /api/sync/brex — triggers Brex sync
-│   │   ├── mercury.js      # POST /api/sync/mercury — triggers Mercury sync
-│   │   ├── zoho-books.js   # POST /api/sync/zoho-books — triggers Zoho Books sync
-│   │   ├── zoho-payments.js # POST /api/sync/zoho-payments — triggers Zoho Payments sync
-│   │   └── cleanup-duplicates.js # POST — one-time cleanup of duplicate records
+│   │   ├── brex.js         # POST — triggers Brex sync
+│   │   ├── mercury.js      # POST — triggers Mercury sync
+│   │   ├── zoho-books.js   # POST — triggers Zoho Books sync
+│   │   ├── zoho-payments.js # POST — triggers Zoho Payments sync
+│   │   └── cleanup-duplicates.js # POST — one-time duplicate cleanup
 │   ├── settings/
 │   │   ├── credentials.js  # GET/POST/DELETE integration credentials
 │   │   └── test-connection.js # POST — test a platform connection
@@ -97,17 +112,27 @@ taskflow/
 │       └── zoho-payments.js # Zoho Payments webhook
 │
 ├── supabase/
-│   ├── schema.sql                  # Core schema (tasks, done, review, clients, campaigns, projects, opportunities, etc.)
+│   ├── schema.sql                  # Core schema (tasks, done, review, clients, campaigns, etc.)
 │   ├── add-finance.sql             # finance_payments, payer_client_map tables
 │   ├── add-finance-splits.sql      # finance_payment_splits table
 │   ├── add-finance-integrations.sql # integration_credentials, sync_log tables
 │   ├── add-finance-forecast.sql    # account_balances, scheduled_items, team_members tables
 │   ├── add-scheduled-item-link.sql # scheduled_item_id FK on finance_payments
 │   ├── add-campaign-billing.sql    # Campaign billing metadata columns
-│   ├── add-finance-overhaul.sql    # Enhanced team_members (commission), scheduled_items (end_date/num_payments), opportunities (payment/fees)
+│   ├── add-finance-overhaul.sql    # Enhanced team_members, scheduled_items, opportunities
 │   ├── add-activity-logs.sql       # activity_logs table
 │   ├── add-meeting-key.sql         # meeting_key column on tasks
-│   └── add-inbox.sql              # is_inbox boolean column on tasks
+│   ├── add-inbox.sql               # is_inbox boolean column on tasks
+│   ├── add-gmail-tables.sql        # gmail_threads table
+│   ├── add-gmail-last-message-from.sql # last_message_from column
+│   ├── add-client-contacts.sql     # Legacy client_contacts table
+│   ├── migrate-to-contacts.sql     # contacts table (CRM foundation)
+│   ├── add-notes-tables.sql        # campaign_notes, client_notes tables
+│   ├── add-email-to-tasks.sql      # email_thread_id on tasks
+│   ├── email-crm-integration.sql   # CRM columns on gmail_threads
+│   ├── add-opportunity-types.sql   # opp_type on opportunities
+│   ├── add-scheduled-emails.sql    # scheduled_emails table (schedule send)
+│   └── add-email-rules.sql         # email_rules table (rule engine)
 │
 └── scripts/
     ├── run-migration.py    # Helper to run SQL migrations
@@ -131,16 +156,19 @@ The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered 
 | 5 | `campaigns` | Campaigns | 5 | Pipeline, List, Performance |
 | 6 | `projects` | Projects | 6 | Board, List, Timeline |
 | 7 | `clients` | Clients | 7 | Active, Lapsed |
-| 8 | `finance` | Finance | 8 | Overview, Transactions, Invoices, Upcoming, Recurring, Cash Flow, Forecast, Team, Dashboard |
+| 8 | `finance` | Finance | 8 | Overview, Transactions, Invoices, Upcoming, Recurring, Forecast, Team |
+| 9 | `email` | Email | 9 | Inbox, Sent, All Mail, Drafts (with badge), Scheduled (with badge), then Smart Inboxes: Clients (Active), Clients (Lapsed), Prospects, By Campaign, By Opportunity, Other |
 
 **Mobile bottom tabs** (`MOB_VIEWS`): Add, Tasks, Review, Opps
 
 ### ICONS Map
 
 The `ICONS` object in `core.js` maps icon names to Lucide SVG paths. Commonly used icons include:
-- Navigation: `dashboard`, `calendar`, `tasks`, `gem`, `megaphone`, `folder`, `clients`, `dollar`
-- Sub-nav: `users`, `briefcase`, `bar_chart`, `sun`, `layers`, `activity`, `today`, `check`, `inbox`, `zap`
-- UI: `plus`, `edit`, `trash`, `clock`, `arrow_left`, `search`, `star`
+- Navigation: `dashboard`, `calendar`, `tasks`, `gem`, `megaphone`, `folder`, `clients`, `dollar`, `mail`
+- Sub-nav: `users`, `briefcase`, `bar_chart`, `sun`, `layers`, `activity`, `today`, `check`, `inbox`, `zap`, `clock`, `edit`, `filter`
+- UI: `plus`, `edit`, `trash`, `clock`, `arrow_left`, `search`, `star`, `x`, `settings`
+- Compose toolbar: `bold`, `italic`, `underline`, `strikethrough`, `list_ul`, `list_ol`, `quote`, `link`, `align_left`, `align_center`, `align_right`, `indent`, `outdent`, `eraser`, `undo`, `redo`, `smile`, `image`, `type`, `highlighter`, `paperclip`
+- Email: `send`, `reply`, `reply_all`, `forward`, `archive`, `download`, `contact`
 
 ### Global State Object `S`
 
@@ -168,9 +196,26 @@ S = {
   accountBalances: [],    // Live bank account balance snapshots
   scheduledItems: [],     // Recurring expenses, subscriptions, vendor payments
   teamMembers: [],        // Team payroll/commission data
+  contacts: [],           // CRM contacts (name, email, clientId, endClient)
+
+  // Email state
+  gmailThreads: [],       // Cached gmail thread metadata (from Supabase)
+  gmailSearch: '',        // Current search query
+  gmailFilter: 'inbox',  // 'inbox' | 'sent' | 'all'
+  gmailThread: null,      // Currently open thread with full messages
+  gmailThreadId: '',      // Thread ID being viewed
+  gmailUnread: 0,         // Unread count
+  _gmailFetching: false,  // Loading state
+  _gmailLiveThreads: null,// Live thread results (vs cached)
+  _gmailNextPage: null,   // Pagination token
+  scheduledEmails: [],    // Scheduled emails (from Supabase)
+  emailRules: [],         // Email rules (from Supabase)
+  _domainMap: {},         // email domain → CRM context (built by _buildDomainMap)
+  _threadCrmCache: {},    // thread_id → CRM context cache (invalidated on contact/domain changes)
+  _emailTimer: null,      // Silent timer tracking email reading time
 
   // UI state
-  view: 'dashboard',      // Current view — default is dashboard (was 'dash' previously)
+  view: 'dashboard',      // Current view — default is dashboard
   subView: '',            // Sub-view within a section
   filters: {},            // Task filters (client, endClient, campaign, project, opportunity, cat, imp, type, search, dateFrom, dateTo)
   collapsed: {},          // Collapsed sections
@@ -194,7 +239,7 @@ S = {
   focusDuration: 25,      // Focus session duration (minutes)
 
   // Finance UI state
-  finFilter: '',          // '' | 'unmatched' | 'matched' | 'expenses' (note: 'split' merged into 'matched')
+  finFilter: '',          // '' | 'unmatched' | 'matched' | 'expenses'
   finDirection: '',       // '' | 'inflow' | 'outflow'
   finSearch: '',          // Search text
   finRange: '12m',        // Analytics range
@@ -221,7 +266,7 @@ S = {
 All views are rendered by calling `render()`, which calls the appropriate `rXxx()` function based on `S.view`. Views build HTML strings and inject via `innerHTML`. No virtual DOM.
 
 ```
-render() → rDashboard() | rToday() | rTasks() | rFinance() | rCampaigns() | rProjects() | rOpportunities() | rClients()
+render() → rDashboard() | rToday() | rTasks() | rFinance() | rCampaigns() | rProjects() | rOpportunities() | rClients() | rEmail()
 
 Dashboard:
   rDashboard()             — Comprehensive overview: today's focus, productivity, sales pipeline,
@@ -249,15 +294,13 @@ Sales (Opportunities) sub-views (via rOpportunities() dispatcher):
   rOppProfitabilityDashboard() — Combined profitability dashboard across all types
 
 Finance sub-views (via rFinance() dispatcher):
-  rFinanceOverview()       — High-level overview with expandable bank account cards (deduped transactions)
-  rFinancePayments()       — Transaction list (Unmatched/Matched tabs — Split merged into Matched)
+  rFinanceOverview()       — High-level overview with expandable bank account cards
+  rFinancePayments()       — Transaction list (Unmatched/Matched/Expenses tabs)
   rFinanceInvoices()       — Invoice records from Zoho Books
-  rFinanceUpcoming()       — Projected upcoming payments, expense reconciliation review
-  rFinanceRecurring()      — Recurring expenses, subscriptions, vendor payments
-  rFinanceCashFlow()       — Cash flow analysis and projections
-  rFinanceForecast()       — Cash flow forecast with compact toolbar (horizon/scenario/sources/account)
+  rFinanceUpcoming()       — Projected upcoming payments, expense reconciliation
+  rFinanceRecurring()      — Recurring expenses, subscriptions
+  rFinanceForecast()       — Cash flow forecast with compact toolbar
   rFinanceTeam()           — Payroll, commissions, team member costs
-  rFinanceDashboard()      — Summary metrics, charts
 
 Campaigns sub-views:
   rCampaignPipeline()      — Kanban-style pipeline
@@ -270,8 +313,15 @@ Projects sub-views:
   rProjectTimeline()       — Gantt timeline
 
 Clients:
-  rClients()               — Active/Lapsed directory with 6 columns (Client, Status, Revenue, Open Tasks, Time Tracked, Last Activity)
+  rClients()               — Active/Lapsed directory with 6 columns
   rClientDashboard()       — Full-screen client dashboard (when S.clientDetailName is set)
+
+Email sub-views (via rEmail() dispatcher):
+  rEmailDraftList()        — Saved drafts with open/delete (uses localStorage)
+  rEmailScheduledList()    — Scheduled emails: pending (with countdown), failed, sent history
+  rEmailThread()           — Thread view: message list with expand/collapse, reply/forward/reply-all
+  (inbox/sent/all)         — Thread list with filter toggle + search
+  (smart inboxes)          — Filtered by CRM context: e-active, e-lapsed, e-prospects, e-campaigns, e-opportunities, e-other
 
 Mobile views:
   rMobAdd()                — Quick add task
@@ -283,7 +333,7 @@ Mobile views:
 ### Key View Functions
 
 - **`buildClientMap()`** — Shared helper that aggregates client data (revenue, tasks, time, campaigns, opportunities, meetings, payments) while filtering out "Internal" and "N/A" entries. Used by both `rClients()` and `rDashboard()`.
-- **`buildSubNav(subs)`** — Renders sub-navigation panel. Shows a badge with review count when `sub.id === 'review'` and `S.review.length > 0`.
+- **`buildSubNav(subs)`** — Renders sub-navigation panel. Shows badge counts for review, inbox, drafts, scheduled emails, and smart inboxes.
 - **`filterBar()`** — Renders compact filter controls (client, category, importance, type, search, date range). Uses 11px font, 6px border-radius pills.
 
 ### Function Registry
@@ -291,7 +341,7 @@ Mobile views:
 All functions callable from HTML `onclick` handlers are registered on `window.TF`:
 
 ```javascript
-window.TF = { nav, load, start, pause, openDetail, addTimeToTask, openClientDashboard, closeClientDashboard, openAddMeetingPrepTask, ... }
+window.TF = { nav, load, start, pause, openDetail, addTimeToTask, openClientDashboard, closeClientDashboard, ... }
 ```
 
 HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', this.value)"`, etc.
@@ -320,6 +370,9 @@ HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', th
 - `taskScore(task)` — Priority scoring for task ordering
 - `oppTypeMetrics(typeKey)` — Per-type opportunity statistics
 - `buildUpcomingPayments(horizon)` — Builds projected inflows/outflows for forecast
+- `emailAvatarColor(email)` — Consistent color from email string for avatar circles
+- `getThreadCrmContext(thread)` — CRM context (client, campaigns, opportunities) for a thread
+- `resolveThreadCrmContext(threadId, participants, subject)` — Full CRM resolution with contact cascade
 
 ### Opportunity Types (OPP_TYPES)
 
@@ -327,6 +380,137 @@ Defined in `core.js`, each opportunity type has a key, label, color, and icon:
 - `retain_live` — "Retain Live" (blue, users icon)
 - `fc_partnership` — "F&C Partnerships" (purple, briefcase icon) — note: plural
 - `fc_direct` — "F&C Direct" (amber, zap icon)
+
+## Email System
+
+### Gmail Integration
+
+Gmail is connected via OAuth 2.0 with scopes `gmail.readonly`, `gmail.send`, `gmail.modify`. Thread metadata is synced to the `gmail_threads` Supabase table by `sync-gmail.js`. Full message bodies are fetched on-demand via the `/api/gmail/thread` endpoint.
+
+**API Endpoints:**
+- `GET /api/gmail/threads` — list threads (label filter, search, pagination)
+- `GET /api/gmail/thread?id=` — full thread with messages
+- `POST /api/gmail/send` — send email (supports to/cc/bcc, threading, attachments)
+- `POST /api/gmail/archive` — remove INBOX label
+- `POST /api/gmail/trash` — move to trash
+- `POST /api/gmail/mark-read` — mark as read
+- `GET /api/gmail/attachment` — download attachment
+
+### Compose Editor
+
+The compose modal (`openComposeEmail()` in modals.js) features a two-row formatting toolbar:
+
+```
+Row 1: [Font ▾] [Size ▾] | B I U S | [TextColor ▾] [Highlight ▾] | [Clear]
+Row 2: [Left] [Center] [Right] | [Bullet] [Num] [Indent+] [Indent-] [Quote] | [Link] [Emoji] [Image] | [Undo] [Redo]
+```
+
+**Key functions:**
+- `execComposeCmd(cmd, val)` — wraps `document.execCommand()` with special handling for `createLink` (URL prompt) and `insertImage` (URL prompt)
+- `updateComposeToolbar()` — syncs active states for toggle commands + font/size select values
+- `toggleColorPicker(type)` — shows/hides text or background color picker (20 preset swatches in 5×4 grid)
+- `toggleEmojiPicker()` — shows/hides emoji grid (~80 common emojis in 10×8 grid)
+- `insertEmoji(emoji)` — inserts emoji via `insertText` command
+- `selectColor(type, color)` — applies `foreColor` or `hiliteColor` and updates indicator
+
+Pickers use glass-morphism panels positioned absolutely below toolbar buttons, closed on outside click.
+
+### Contact Autocomplete
+
+Recipients (To/Cc/Bcc) use autocomplete against `S.contacts`. Typing triggers `acRecipient(field)` which searches contacts by first name, last name, or email. Selected contacts become chips. The `window._composeRecipients` object tracks `{to:[], cc:[], bcc:[]}`.
+
+### Categorization Bar
+
+Every outgoing email requires categorization before sending. The compose modal includes a categorization bar with Client, End Client, Campaign, and Opportunity dropdowns (or "None / Internal" checkbox). CRM context is auto-detected from recipients via `_composeCatAutoDetect()` → `resolveThreadCrmContext()`.
+
+### Draft Auto-Save
+
+Drafts are stored in `localStorage` under key `tf_email_drafts`. Auto-save runs every 10 seconds while the compose modal is open (`window._composeDraftTimer`).
+
+**Draft lifecycle:**
+1. Compose opens → timer starts, `window._composeDraftId` tracks current draft
+2. Every 10s → `_saveDraft()` captures full state (recipients, subject, body, attachments, categorization)
+3. Close modal → prompt "Save as draft?" → Yes saves, No deletes auto-saved draft
+4. Send email → timer cleared, draft deleted
+5. Open draft → `openDraft(id)` → `openComposeEmail()` with full state restoration (recipients, categorization, body)
+
+**Size mitigation:** If draft data exceeds 4MB, attachment binary data is stripped (filenames kept).
+
+**Draft count badge** appears on the Drafts sub-nav item via `getDraftCount()`.
+
+### Schedule Send
+
+Scheduled emails are stored in the `scheduled_emails` Supabase table. The compose modal has a split send button: `[Send] [▾]` where the dropdown opens a schedule menu.
+
+**Schedule presets:**
+- In 1 hour
+- Tomorrow morning (9:00 AM)
+- Tomorrow afternoon (2:00 PM)
+- Monday morning (9:00 AM)
+- Custom date/time picker (`<input type="datetime-local">`)
+
+**Sending mechanism:** The 60-second email polling cycle (`startEmailPolling`) calls `_checkScheduledEmails()` BEFORE the email view guard, so scheduled emails are checked regardless of current view. When `scheduled_at <= now()`, the email is sent via `/api/gmail/send` and status updated to `sent` or `failed`.
+
+**Note:** Emails only send when the TaskFlow tab is open. The UI shows this disclaimer.
+
+**Scheduled view** (`rEmailScheduledList`) shows pending (with countdown), failed (with error), and sent (history) sections.
+
+### Email Rules Engine
+
+Rules are stored in the `email_rules` Supabase table. Each rule has ordered conditions (AND logic) and actions. First matching rule wins (priority desc).
+
+**Condition types:**
+- `from_domain_equals` — sender domain exact match
+- `from_email_contains` — sender email substring
+- `subject_contains` — subject keyword
+- `to_or_cc_contains` — To/CC substring
+- `any_participant_domain` — any address has domain
+
+**Action types:**
+- `assign_client` — set client_id
+- `assign_end_client` — set end_client
+- `assign_campaign` — set campaign_id
+- `assign_opportunity` — set opportunity_id
+- `auto_archive` — archive matching threads
+
+**Application points:**
+1. **Client-side** — `openEmailThread()`: after thread loads, if no existing categorization, calls `applyEmailRules(thread)` → `_applyRuleActionsToThread(threadId, actions)` to update Supabase + local cache
+2. **Server-side** — `sync-gmail.js`: loads active rules once per sync, applies matching rule actions to upsert row after contact-based matching fails
+
+**Rule builder UI** — gear icon (⚙️) in email page header opens `openEmailRulesModal()`:
+- List view: rule cards with name, condition/action summary, enable/disable toggle, edit/delete
+- Editor: `_openRuleEditor()` → `_renderRuleEditor()` with add/remove condition/action rows, type selects, value inputs (text or dropdown depending on action type)
+
+### Smart Inboxes (CRM Context)
+
+Email threads are categorized into smart inboxes based on CRM data:
+- **Clients (Active)** — thread has contact/domain matching an active client
+- **Clients (Lapsed)** — matches a lapsed client
+- **Prospects** — matches an opportunity contact
+- **By Campaign** — matches a campaign-associated contact
+- **By Opportunity** — matches an opportunity-associated contact
+- **Other** — no CRM match
+
+CRM resolution uses a multi-level cascade in `resolveThreadCrmContext()`:
+1. Direct contact email match (`S.contacts`)
+2. Domain-based matching via `S._domainMap` (built by `_buildDomainMap()` from contact domains → endClient)
+3. Falls back to thread-level stored categorization (client_id, campaign_id, etc.)
+
+**Cache invalidation:** `_buildDomainMap()` automatically clears `S._threadCrmCache = {}` so adding a new contact immediately updates smart inbox views.
+
+Smart inboxes only show INBOX-labeled threads (excludes archived).
+
+### Email Time Tracking
+
+Opening a thread starts a silent timer (`S._emailTimer`). When closing or switching threads, `_flushEmailTimer()` logs the time as a completed "Email: {subject}" task if >5 seconds elapsed. Categorization from the thread context is applied to the logged task.
+
+### Email Polling
+
+`startEmailPolling()` runs a 60-second interval that:
+1. Checks and sends due scheduled emails (`_checkScheduledEmails()`) — runs regardless of view
+2. If on email view and not in a thread → `pollGmailInbox()` for new emails
+
+New emails trigger `applyNewEmails()` which updates the thread list and shows a toast notification.
 
 ## Finance System
 
@@ -365,92 +549,21 @@ Sources eligible for client matching: `zoho_payments`, `mercury`, `stripe`, `str
 
 Outflow payments (expenses) can be reconciled against scheduled/recurring items:
 - `openExpenseReconcileModal(paymentId)` — shows expense details, category selector, matching suggestions, and action buttons
-- `linkExpenseToScheduled(paymentId, scheduledItemId)` — links an expense to an existing recurring item, updates last paid date and advances next due
-- `saveExpenseAsOneOff(paymentId)` — creates a one-off scheduled item (`frequency:'once'`) and auto-links the expense to it
+- `linkExpenseToScheduled(paymentId, scheduledItemId)` — links an expense to an existing recurring item
+- `saveExpenseAsOneOff(paymentId)` — creates a one-off scheduled item and auto-links
 - `autoReconcile()` — bulk auto-matching of expenses to scheduled items
-- Expense Reconciliation Review card in Upcoming tab shows reconciled vs unreconciled counts with totals
-
-### Finance Overview
-
-The Finance Overview (`rFinanceOverview()`) shows expandable bank account cards:
-- **Tim Jarvis Online (Brex)** — card + cash accounts
-- **Film&Content (Mercury)** — checking account
-- **Film&Content (Zoho Payments)** — payment balance
-
-Each card expands to show recent transactions filtered by account source.
-
-### Scheduled Items / Recurring Expenses
-
-Managed via `scheduledItems[]` array. Each item has:
-- `name`, `amount`, `direction` (inflow/outflow), `frequency` (monthly/quarterly/annual/once)
-- `dayOfMonth`, `nextDue`, `lastPaidDate`, `endDate`, `numPayments`
-- `category`, `account`, `type` (expense/subscription), `isActive`
-
-Used in: Upcoming projections, Forecast calculations, Expense reconciliation matching.
-
-### Team Members / Payroll
-
-Managed via `teamMembers[]` array. Each member has:
-- `name`, `role`, `salary`, `payFrequency`, `payDay`
-- `commissionRate`, `commissionBasis`, `commissionFrequency`, `commissionCap`
-- `startDate`, `isActive`
-
-Used in: Upcoming salary projections, Team cost view, Forecast calculations.
-
-### Cash Flow Forecast
-
-`rFinanceForecast()` provides configurable cash flow forecast with:
-- **Compact toolbar** (single row): Horizon segmented control (30/60/90/180/365d), Scenario toggle (Conservative/Expected/Optimistic), collapsible Sources section with pill toggles, Account dropdown
-- Builds projected inflows/outflows from all sources via `buildUpcomingPayments(horizon)`
-- Both balance and cash flow charts include tooltip callbacks with USD formatting
-
-### Transactions View
-
-`rFinancePayments()` shows transactions with tabs:
-- **Unmatched** — payments needing client association
-- **Matched** — matched payments (includes split records; Split was merged into this tab)
-- **Expenses** — outflow payments
-
-The `finFilteredPayments()` function in `core.js` handles filtering. When `S.finFilter === 'matched'`, it includes both `status === 'matched'` and `status === 'split'`.
 
 ### Data Sources
 
 | Source | Platform | Auth | Direction |
 |--------|----------|------|-----------|
-| `brex` | Brex API | Bearer token | Both (positive=inflow, negative=outflow) |
+| `brex` | Brex API | Bearer token | Both |
 | `mercury` | Mercury API | Bearer secret-token | Both |
-| `zoho_books` | Zoho Books API | OAuth 2.0 | Invoices/customer payments=inflow, vendor payments/bills/expenses=outflow |
-| `zoho_payments` | Zoho Payments API | OAuth 2.0 | Payments=inflow, payouts=inflow (funds to bank) |
+| `zoho_books` | Zoho Books API | OAuth 2.0 | Both |
+| `zoho_payments` | Zoho Payments API | OAuth 2.0 | Inflow |
 | `stripe` | CSV import (legacy) | N/A | Inflow |
 | `stripe2` | CSV import (legacy) | N/A | Inflow |
 | `zoho` | CSV import (legacy) | N/A | Inflow |
-
-### Record Types
-
-- `payment` — actual money movement (these are what users match to clients)
-- `invoice` — money owed to us (Zoho Books)
-- `bill` — money we owe (Zoho Books)
-- `expense` — direct expense (Zoho Books)
-- `transfer` — inter-account transfer (Brex)
-- `payout` — funds disbursed to bank (Zoho Payments)
-
-### upsertPayment Behavior
-
-In `api/_lib/supabase.js`, the `upsertPayment` function:
-1. Checks for existing record by `source + source_id`
-2. If exists: updates sync-safe fields (amount, fee, date, external_status, etc.) — but **never** overwrites `status` or `client_id` (preserves user's matched state)
-3. **Cross-source duplicate check**: before inserting, checks if a record with the same `date + amount` (±$0.01) already exists from a **different** source. If so, returns `{ action: 'skipped' }` — this prevents Zoho Payments from re-creating records already imported via CSV (where `source='zoho'` vs `source='zoho_payments'`)
-4. If new: checks `payer_client_map` for auto-matching, then inserts
-
-### Cleanup Endpoint
-
-`POST /api/sync/cleanup-duplicates` — one-time cleanup tool (button in Integrations modal):
-1. Deletes all live-source records (zoho_books, zoho_payments, mercury) dated before 2026-02-28 (CSV cutoff)
-2. Cross-source duplicate removal: deletes live-source records matching CSV records by date+amount (any date)
-3. Deletes null-date live-source records matching CSV records by amount alone
-4. Deduplicates Brex records (same date+amount), keeping the matched version
-5. Marks remaining pre-cutoff unmatched records as 'excluded'
-6. Restores 'matched' status on records that have client_id but status='unmatched'
 
 ### API Integration Details
 
@@ -472,16 +585,14 @@ In `api/_lib/supabase.js`, the `upsertPayment` function:
 - OAuth via Self Client flow (shared with Zoho Payments)
 - Rate limit: 100 req/min — 700ms delay between calls
 - `/expenses` endpoint does NOT support `sort_column=last_modified_time` — use `date` instead
-- Scopes: `ZohoBooks.settings.READ,ZohoBooks.invoices.READ,ZohoBooks.customerpayments.READ,ZohoBooks.vendorpayments.READ,ZohoBooks.bills.READ,ZohoBooks.expenses.READ`
 - Organization ID: `899890816` (Film&Content LLC)
 
 **Zoho Payments:**
 - Base: `https://payments.zoho.com/api/v1`
 - Auth: `Authorization: Zoho-oauthtoken {access_token}` + `?account_id={id}`
 - Scope prefix: `ZohoPay` (not `ZohoPayments`)
-- Scopes: `ZohoPay.payments.READ,ZohoPay.payouts.READ`
 - Amounts in **dollars** (not cents — do NOT divide by 100)
-- Date fields may return Unix timestamps (epoch seconds like `1772277589`) — use `parseDate()` helper in sync-zoho-payments.js to handle all formats
+- Date fields may return Unix timestamps — use `parseDate()` helper
 
 **Zoho OAuth (both):**
 - Token endpoint: `https://accounts.zoho.com/oauth/v2/token`
@@ -492,27 +603,36 @@ In `api/_lib/supabase.js`, the `upsertPayment` function:
 ## Database Tables
 
 ### Core Tables
-- `tasks` — active tasks with due dates, importance, client, campaign, project, opportunity associations, meeting_key, duration, is_inbox
+- `tasks` — active tasks with due dates, importance, client, campaign, project, opportunity associations, meeting_key, duration, is_inbox, email_thread_id
 - `done` — completed tasks (moved from tasks on completion)
 - `review` — items to review/approve before becoming tasks
 - `clients` — client/partner records
 - `campaigns` — marketing campaign records with fees, dates, links, billing frequency/terms
 - `projects` — project records with phases
 - `project_phases` — ordered phases within projects
-- `opportunities` — sales pipeline items with payment method, processing fees, receiving account, expected monthly duration
+- `opportunities` — sales pipeline items with opp_type, payment method, processing fees, receiving account
 - `payments` — campaign-related payment records
 - `campaign_meetings` — meeting records linked to campaigns
+- `opportunity_meetings` — meeting records linked to opportunities
 - `activity_logs` — per-task log entries
+- `campaign_notes` — notes on campaigns
+- `client_notes` — notes on clients
 
 ### Finance Tables
-- `finance_payments` — all financial transactions from all sources (direction, type, external_status, scheduled_item_id, expected_payment_date)
+- `finance_payments` — all financial transactions from all sources
 - `finance_payment_splits` — split payment allocations
 - `payer_client_map` — auto-matching rules (payer email/name → client)
 - `integration_credentials` — API keys and OAuth tokens per platform
 - `sync_log` — audit trail for all sync operations
-- `account_balances` — live snapshots of bank account balances (platform, account_id, current/available balance)
-- `scheduled_items` — recurring expenses/subscriptions (frequency, day_of_month, next_due, last_paid_date, end_date, num_payments, is_active)
-- `team_members` — payroll data (salary, pay_frequency, pay_day, commission_rate, commission_basis, commission_frequency, commission_cap, start_date, is_active)
+- `account_balances` — live snapshots of bank account balances
+- `scheduled_items` — recurring expenses/subscriptions
+- `team_members` — payroll data
+
+### Email Tables
+- `gmail_threads` — thread metadata synced from Gmail (subject, from, to, cc, snippet, labels, is_unread, client_id, end_client, campaign_id, opportunity_id, last_message_from, last_message_at)
+- `contacts` — CRM contacts (first_name, last_name, email, client_id, end_client, phone, notes)
+- `scheduled_emails` — emails queued for future sending (to, cc, bcc, subject, body, attachments, scheduled_at, status: pending/sent/failed)
+- `email_rules` — auto-categorization rules (name, conditions JSON, actions JSON, is_active, priority)
 
 All tables have RLS policies: users can only read/write their own data.
 
@@ -528,7 +648,11 @@ Each entity has standard CRUD helpers:
 - **Scheduled Items**: `dbAddScheduledItem()`, `dbEditScheduledItem()`, `dbDeleteScheduledItem()`
 - **Team Members**: `dbAddTeamMember()`, `dbEditTeamMember()`, `dbDeleteTeamMember()`
 - **Clients**: `dbAddClient()`, `dbEditClient()`, `dbAssociatePayerToClient()`
-- **Reconciliation**: `linkExpenseToScheduled()`, `unlinkExpenseFromScheduled()`, `saveExpenseAsOneOff()`, `getExpenseAccount()`, `scoreExpenseMatch()`
+- **Contacts**: `dbAddContact()`, `dbEditContact()`, `dbDeleteContact()`
+- **Reconciliation**: `linkExpenseToScheduled()`, `unlinkExpenseFromScheduled()`, `saveExpenseAsOneOff()`
+- **Email Drafts** (localStorage): `_loadDrafts()`, `_saveDraft(id)`, `_deleteDraft(id)`, `openDraft(id)`, `deleteDraft(id)`, `getDraftCount()`
+- **Scheduled Emails**: `loadScheduledEmails()`, `scheduleEmail(scheduledAt)`, `cancelScheduledEmail(id)`, `_checkScheduledEmails()`
+- **Email Rules**: `loadEmailRules()`, `applyEmailRules(thread)`, `_applyRuleActionsToThread(threadId, actions)`, `saveEmailRule(data)`, `deleteEmailRule(id)`, `toggleEmailRule(id, active)`
 
 ## Features (features.js)
 
@@ -549,7 +673,7 @@ Each entity has standard CRUD helpers:
 
 - **Automatic**: Push to `main` branch → Vercel builds and deploys
 - **Manual sync functions**: Triggered via UI "Sync Now" buttons
-- **Cron**: Vercel Hobby plan doesn't support crons. The `api/cron/sync-all.js` endpoint exists but is **not currently called** — external cron was disabled due to deployment issues. All platform syncs are manual only via "Sync Now" buttons.
+- **Cron**: Vercel Hobby plan doesn't support crons. All platform syncs are manual only via "Sync Now" buttons.
 
 ## Coding Conventions
 
@@ -559,13 +683,14 @@ Each entity has standard CRUD helpers:
 4. **String HTML** — views build HTML strings, not DOM nodes
 5. **Semicolons optional** — code uses semicolons inconsistently (ok either way)
 6. **Function names** — camelCase, registered on `window.TF` for HTML access
-7. **CSS variables** — defined in `css/core.css` (--t1, --t2, --t3, --t4, --bg, --bg1, --green, --red, --blue, --purple50, --pink, --gborder, --r, etc.)
+7. **CSS variables** — defined in `css/core.css` (--t1, --t2, --t3, --t4, --bg, --bg1, --green, --red, --blue, --purple50, --pink, --gborder, --r, --glass, --accent, etc.)
 8. **No TypeScript** — all vanilla JS
 9. **API endpoints** — CommonJS modules, `module.exports = async function handler(req, res)`
 10. **Supabase client-side** — uses `_sb` global from config.js (anon key + RLS)
 11. **Supabase server-side** — uses `getServiceClient()` from `api/_lib/supabase.js` (service key, bypasses RLS)
 12. **Modal pattern** — build HTML string → `gel('m-body').innerHTML = h` → `gel('modal').classList.add('on')`
 13. **Toggle pattern** — modal sections use `modalToggle(id)` with `dt-*` checkbox IDs to show/hide field groups
+14. **Glass morphism** — UI uses `var(--glass)` background with `backdrop-filter:blur()` for panels and dropdowns
 
 ## Common Tasks
 
@@ -578,7 +703,7 @@ Each entity has standard CRUD helpers:
 1. Add sub entry to the parent section in `SECTIONS` array (`core.js`)
 2. Add the icon to `ICONS` map if not already present
 3. Add render function in `views.js`
-4. Add case in the parent's dispatcher (e.g., `rToday()`, `rFinance()`, `rOpportunities()`)
+4. Add case in the parent's dispatcher (e.g., `rToday()`, `rFinance()`, `rEmail()`)
 5. If it needs chart initialization, add to the `setTimeout` block in `render()` that calls chart init functions
 
 ### Adding a new modal
@@ -599,11 +724,6 @@ Each entity has standard CRUD helpers:
 4. Add platform config in `INTG_PLATFORMS` array in `modals.js`
 5. Add source badge color in `css/features.css`
 
-### Adding a new finance sub-view
-1. Add render function `rFinanceNewTab()` in `views.js`
-2. Add tab in the finance sub-nav builder in `rFinance()`
-3. Add case in `rFinance()` dispatcher
-
 ### Adding a new entity (e.g., like scheduled items)
 1. Add DB helper functions in `core.js` (`dbAdd/dbEdit/dbDelete`)
 2. Add load function and call from `loadData()`
@@ -611,23 +731,6 @@ Each entity has standard CRUD helpers:
 4. Add render in `views.js`
 5. Register all functions in `window.TF` in `app.js`
 6. Create SQL migration in `supabase/`
-
-## Sync Behavior
-
-### Incremental vs Full Sync
-- **Zoho Books**: Uses `last_sync_at` for date filtering. If `last_sync_message` starts with "0 new, 0 updated", treats as first sync (no date filter) to recover from failed initial syncs
-- **Zoho Payments**: Always fetches all records, relies on upsert dedup + cross-source skip
-- **Brex**: Always fetches all records, relies on upsert dedup (no `posted_at_start` — causes 400)
-- **Mercury**: Uses `last_sync_at` or defaults to 90 days ago
-
-### Cross-Source Deduplication
-A single real-world payment creates records in multiple sources. The system handles this at two levels:
-1. **upsertPayment** prevents future duplicates by checking date+amount across sources before insert
-2. **cleanup-duplicates** endpoint removes existing duplicates retroactively
-3. **Unmatched view** excludes `zoho_books` and `brex` sources entirely (only shows `zoho_payments`, `mercury`, and legacy CSV sources)
-
-### CSV Data Cutoff
-All CSV-imported data covers up to 2026-02-28. Live sync data starts from this date. The cleanup endpoint uses this cutoff to identify and remove duplicates.
 
 ## Known Quirks
 
@@ -642,54 +745,62 @@ All CSV-imported data covers up to 2026-02-28. Live sync data starts from this d
 - Client select dropdowns include a blank "Select..." first option to prevent defaulting to first client
 - `saveDetail()` and `markAlreadyCompleted()` check the client toggle checkbox before reading client value — if unchecked, client is cleared
 - `dbCompleteTask()` calls `taskData.due.toISOString()` — due must be a Date object or null, never a string
-- `approveFromModal()` wraps the entire flow in try/catch to always re-enable buttons on error
-- Critical tasks in the calendar timeline use RED (`rgba(239,68,68,0.28)`) — distinct from meeting pink (`rgba(255,0,153,0.2)`)
-- Sub-nav panel has `overflow-y:auto` when open to prevent clipping when sections have many subs (e.g., Schedule has 7, Finance has 9)
+- Critical tasks in the calendar timeline use RED (`rgba(239,68,68,0.28)`) — distinct from meeting pink
 - `buildClientMap()` filters out "Internal" and "N/A" client names from all client views and dashboards
-- The Finance Transactions view has no separate Split tab — split records are included in the Matched tab via `finFilteredPayments()`
-- Quick Add (mobile + sidebar) sets `is_inbox=true`. Desktop Add Modal does not (no `f-inbox` hidden input). Saving from the detail modal always clears `isInbox`
-- Open Tasks view excludes inbox items (`!t.isInbox`); mobile tasks view also excludes them
-- Sidebar and bottom tab badges combine inbox count + review count
+- The Finance Transactions view has no separate Split tab — split records are included in the Matched tab
+- Quick Add sets `is_inbox=true`. Desktop Add Modal does not. Saving from detail modal always clears `isInbox`
+- Open Tasks view excludes inbox items (`!t.isInbox`)
+- `_buildDomainMap()` must clear `S._threadCrmCache` to ensure smart inbox views update after contact changes
+- `closeModal()` checks for active compose and prompts "Save as draft?" — bypasses draft prompt when called after `sendEmail()` which handles cleanup directly
+- Scheduled emails only send when the TaskFlow tab is open (client-side polling, no server-side cron)
+- Email rules use AND logic for conditions, first matching rule wins based on priority
 
-## Current Status (as of 2026-03-03)
+## Current Status (as of 2026-03-05)
 
 ### Integrations
 - **Brex**: Connected, syncing ~308 transactions
 - **Mercury**: Connected, syncing
 - **Zoho Books**: Connected, syncing (orgId 899890816 — Film&Content LLC)
 - **Zoho Payments**: Connected, syncing ~69 records
+- **Gmail**: Connected via OAuth (readonly + send + modify scopes)
 
 ### What's Working
-- All four platforms sync via "Sync Now" buttons
+- All four finance platforms sync via "Sync Now" buttons
 - Cross-source duplicate prevention on insert
-- Unmatched view filters to only actionable customer payments
-- Cleanup endpoint removes historical duplicates
-- Test Connection works without re-entering stored credentials
-- Finance section fully operational: overview (with dedup), transactions (split merged into matched), invoices, upcoming, recurring, cash flow, forecast (with tooltips + compact toolbar), team
+- Finance section fully operational: overview, transactions, invoices, upcoming, recurring, forecast, team
 - Projects with phases, board/list/timeline views
-- Sales pipeline (renamed from Opportunities) with Profitability as own sub-section
+- Sales pipeline with Profitability as own sub-section
 - Expense reconciliation with auto-match, manual link, and one-off save
 - Focus mode, command palette, drag & drop scheduling
 - Meeting auto-tracking from Google Calendar
-- Manual time entry for active tasks (Add Time feature)
-- Task detail client toggle properly clears client when unchecked
-- Add & Complete for review/suggested tasks working with proper Date handling
-- Dashboard as first nav item with comprehensive overview (today's focus, productivity, pipeline, finance, clients, heatmap, charts)
-- Schedule section with 7 sub-views: Suggested Schedule (default), Today's Schedule, Meeting Prep (enhanced with all meetings), Analytics (heatmap + charts), Daily Summary (inline), Weekly Summary (comparisons), Weekly Capacity
-- Clients with Active/Lapsed filtering, simplified 6-column directory, full-screen client dashboard on click
-- Quick Add Queue sub-view in Tasks: quick-added tasks flagged with `is_inbox=true`, cleared on save from detail modal, badge count in sub-nav and sidebar
-- Review queue badge in Tasks sub-nav
+- Dashboard with comprehensive overview
+- Schedule section with 7 sub-views
+- Clients with Active/Lapsed filtering, full-screen client dashboard
+- Quick Add Queue with badge counts
 - Mobile bottom tabs: Add, Tasks, Review, Opps
-- Compact task rows (36px min-height) with clean filter bar styling
 
-### Recent Changes (commit 2466fa5)
-- **Navigation**: Dashboard moved to first position (kbd 1), Opportunities renamed to Sales (kbd 4)
-- **Dashboard**: Complete redesign — today's focus, productivity KPIs, sales pipeline, finance snapshot, clients summary, activity heatmap, 4 analytical charts
-- **Schedule**: 4 new sub-views (Analytics, Daily Summary, Weekly Summary, Today's Schedule), Meeting Prep enhanced with all forthcoming meetings
-- **Sales**: Profitability moved to own sub-section with combined dashboard, F&C Partnership→Partnerships (plural)
-- **Clients**: Active/Lapsed sub-nav replaces Directory/Analytics, full-screen client dashboard, Internal/N/A filtered out, simplified 6-column directory
-- **Tasks**: Thinner compact rows (36px), compact filter bar, review badge in sub-nav
-- **Finance**: Overview dedup (zoho_books filter + date+amount), forecast tooltips, compact forecast toolbar, Split tab removed (merged into Matched), Upcoming clickability fixed
-- **Mobile**: Review tab replaces Schedule in bottom tabs
-- **CSS**: Critical tasks show red (not pink) in calendar, sub-nav overflow-y:auto for scrollability
-- **Icons**: Added users, briefcase, bar_chart, sun, layers, arrow_left to ICONS map
+### Email Features (Complete)
+- Gmail integration with full read/send/archive/trash/mark-read
+- Rich text compose with two-row formatting toolbar (font family, font size, bold/italic/underline/strikethrough, text color, highlight color, alignment, lists, indent/outdent, blockquote, link, emoji picker, inline image, clear formatting, undo/redo)
+- Contact autocomplete with avatar chips
+- Required categorization before sending (client, end client, campaign, opportunity)
+- Forward, Reply, Reply All with quote threading
+- File attachments (encode as base64)
+- Email signature editor (localStorage)
+- Draft auto-save (10-second timer, localStorage, close-modal prompt, full state restoration)
+- Schedule send (Supabase-backed, split send button with presets + custom datetime, client-side polling)
+- Email rules engine (condition/action based, visual rule builder, server-side + client-side application)
+- Smart inboxes (Active Clients, Lapsed Clients, Prospects, By Campaign, By Opportunity, Other)
+- CRM context resolution (contact cascade → domain matching → stored categorization)
+- Silent email time tracking (auto-logs reading time as completed tasks)
+- Real-time polling (60-second interval for new emails + scheduled email dispatch)
+- Keyboard shortcuts (email-specific shortcuts disabled during compose)
+- Thread view with message expand/collapse, action buttons, contact pills
+
+### Recent Changes (commit a54915b)
+- **Compose Editor**: Two-row formatting toolbar with 20+ commands (font family/size, text/highlight color pickers, alignment, indent, emoji, inline image, undo/redo)
+- **Drafts**: localStorage auto-save every 10s, Drafts sub-nav with badge, full state restoration on reopen
+- **Schedule Send**: Supabase `scheduled_emails` table, split send button with schedule menu (4 presets + custom), client-side polling dispatch, Scheduled sub-nav with pending/failed/sent views
+- **Email Rules**: Supabase `email_rules` table, 5 condition types × 5 action types, visual builder modal (⚙️ button), server-side application during Gmail sync, client-side application on thread open
+- **CRM Cache Fix**: `_buildDomainMap()` now clears `S._threadCrmCache` so smart views update immediately after adding contacts
+- **Smart Inbox Refinements**: Archived emails excluded, flat sub-nav layout, domain-based matching, contact cascade resolution
