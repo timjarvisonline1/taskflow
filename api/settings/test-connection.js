@@ -39,6 +39,8 @@ module.exports = async function handler(req, res) {
       return await testZohoPayments(res, userId, mergedCreds, mergedConfig);
     } else if (platform === 'gmail') {
       return await testGmail(res, userId, mergedCreds);
+    } else if (platform === 'anthropic') {
+      return await testAnthropic(res, mergedCreds, mergedConfig);
     } else {
       return res.status(400).json({ error: 'Unknown platform: ' + platform });
     }
@@ -188,6 +190,24 @@ async function testZohoPayments(res, userId, creds, config) {
     success: true,
     details: 'Connection successful',
     refresh_token: tokenCreds.refresh_token || null
+  });
+}
+
+async function testAnthropic(res, creds, config) {
+  const apiKey = creds.api_key;
+  if (!apiKey) throw new Error('API Key is required');
+  const model = (config && config.model) || 'claude-sonnet-4-6';
+  const Anthropic = require('@anthropic-ai/sdk');
+  const anthropic = new Anthropic({ apiKey: apiKey });
+  const resp = await anthropic.messages.create({
+    model: model,
+    max_tokens: 32,
+    messages: [{ role: 'user', content: 'Reply with exactly: OK' }]
+  });
+  const text = (resp.content[0] && resp.content[0].text) || '';
+  return res.status(200).json({
+    success: true,
+    details: 'Connected — model: ' + resp.model
   });
 }
 
