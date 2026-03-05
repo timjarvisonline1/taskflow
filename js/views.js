@@ -4906,19 +4906,13 @@ function rEmail(){
       return false
     });
   }else{
-    if(S._gmailFetching){
-      /* Fetch in progress — show skeleton, don't flash stale data */
-      console.log('[EMAIL-DEBUG] rEmail: fetching in progress, showing skeleton');
-      threads=[];
-    }else if(S._gmailLiveThreads){
+    if(S._gmailLiveThreads){
       threads=S._gmailLiveThreads;
       console.log('[EMAIL-DEBUG] rEmail: using liveThreads ('+threads.length+') for sub='+sub);
     }else{
-      /* No live threads and not fetching — fallback to supabase */
-      console.log('[EMAIL-DEBUG] rEmail: liveThreads is null, falling back to supabase ('+S.gmailThreads.length+' threads)');
-      threads=S.gmailThreads;
-      if(sub==='inbox')threads=threads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1});
-      else if(sub==='sent')threads=threads.filter(function(t){return(t.labels||'').indexOf('SENT')!==-1});
+      /* No live threads yet — show skeleton while fetch runs */
+      console.log('[EMAIL-DEBUG] rEmail: liveThreads is null, showing skeleton (fetching='+S._gmailFetching+')');
+      threads=[];
     }
   }
 

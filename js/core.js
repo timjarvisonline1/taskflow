@@ -1801,8 +1801,7 @@ function setGmailFilter(filter){
   if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage;
     console.log('[EMAIL-DEBUG] setGmailFilter: restored '+cached.threads.length+' threads from cache for '+filter)}
   else if(!isSmartInbox){
-    /* No cache — set fetching flag so render shows skeleton instead of stale supabase data */
-    S._gmailLiveThreads=null;S._gmailNextPage=null;S._gmailFetching=true;
+    S._gmailLiveThreads=null;S._gmailNextPage=null;
     console.log('[EMAIL-DEBUG] setGmailFilter: no cache for '+filter+', will fetch')}
   else{S._gmailLiveThreads=null;S._gmailNextPage=null;
     console.log('[EMAIL-DEBUG] setGmailFilter: smart inbox '+filter+', using supabase data')}
