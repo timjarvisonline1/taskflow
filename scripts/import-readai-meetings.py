@@ -596,13 +596,13 @@ def insert_meeting(row):
         return False, str(resp)[:200]
 
 
-def fetch_all_meetings(creds, list_endpoint, list_info):
-    """Fetch all meetings using cursor-based pagination (Stripe-style)."""
-    all_meetings = []
-    cursor = None  # starting_after cursor
+def fetch_my_meetings(creds, list_endpoint, list_info):
+    """Fetch meetings, filtering to only mine during pagination."""
+    my_meetings = []
+    total_scanned = 0
+    cursor = None
 
     while True:
-        # Build URL with cursor pagination
         url = list_endpoint
         params = []
         if cursor:
@@ -618,7 +618,6 @@ def fetch_all_meetings(creds, list_endpoint, list_info):
                 print(f'     {resp}')
             break
 
-        # Extract meetings from response
         meetings = []
         if isinstance(resp, dict) and 'data' in resp:
             meetings = resp['data']
@@ -628,22 +627,27 @@ def fetch_all_meetings(creds, list_endpoint, list_info):
         if not meetings:
             break
 
-        all_meetings.extend(meetings)
-        print(f'  📥 Fetched {len(all_meetings)} meetings so far...')
+        # Filter to only my meetings as we go
+        for m in meetings:
+            if is_my_meeting(m):
+                my_meetings.append(m)
 
-        # Check for more pages (Stripe-style: has_more + last item id as cursor)
+        total_scanned += len(meetings)
+        print(f'  📥 Scanned {total_scanned} meetings, found {len(my_meetings)} of yours...', end='\r')
+
         has_more = isinstance(resp, dict) and resp.get('has_more', False)
         if has_more and meetings:
             last_item = meetings[-1]
             cursor = last_item.get('id') or last_item.get('session_id')
             if not cursor:
-                break  # Can't paginate without an ID
+                break
         else:
             break
 
-        time.sleep(RATE_LIMIT_DELAY)
+        time.sleep(0.3)  # Faster since we're only listing, not fetching details
 
-    return all_meetings, creds
+    print(f'  📥 Scanned {total_scanned} meetings, found {len(my_meetings)} of yours.   ')
+    return my_meetings, total_scanned, creds
 
 
 def is_my_meeting(m):
@@ -725,25 +729,20 @@ def main():
     # Step 4: Load Supabase context
     contact_map, client_email_map, client_names, existing_sessions = load_supabase_context(user_id)
 
-    # Step 5: Fetch all meetings
-    print('\n📥 Fetching all meetings from Read.ai...')
-    meetings, creds = fetch_all_meetings(creds, list_endpoint, list_info)
-    print(f'\n  ✓ Total meetings from Read.ai: {len(meetings)}')
+    # Step 5: Fetch meetings (filtering to yours during pagination)
+    print('\n📥 Scanning Read.ai workspace meetings...')
+    my_meetings, total_scanned, creds = fetch_my_meetings(creds, list_endpoint, list_info)
 
-    if not meetings:
+    if not my_meetings:
         print('\n  No meetings found. Done!')
         return
 
-    # Step 6: Filter to only Tim's meetings and import
-    my_meetings = [m for m in meetings if is_my_meeting(m)]
-    print(f'\n  🔍 Filtered: {len(my_meetings)} meetings where you are owner/participant (of {len(meetings)} total)')
-
-    print(f'\n📤 Importing meetings into TaskFlow...')
+    print(f'\n📤 Importing {len(my_meetings)} meetings into TaskFlow...')
     imported = 0
     skipped = 0
     errors = 0
     needs_detail = 0
-    filtered = len(meetings) - len(my_meetings)
+    filtered = total_scanned - len(my_meetings)
 
     for i, m in enumerate(my_meetings):
         session_id = m.get('session_id') or m.get('id') or m.get('meeting_id') or ''
