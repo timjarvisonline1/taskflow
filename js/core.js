@@ -128,7 +128,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   emailFilters:{client:'',endClient:'',opportunity:'',campaign:''},emailFilterExclude:{client:false,endClient:false,opportunity:false,campaign:false},
   emailBulkMode:false,emailBulkSelected:{},
   contacts:[],scheduledEmails:[],emailRules:[],
-  meetings:[],meetingDetail:null,meetingSearch:''};
+  meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -953,7 +953,9 @@ async function dbDeleteContact(id){
 async function loadMeetings(){
   try{
     var uid=await getUserId();if(!uid)return;
-    var res=await _sb.from('meetings').select('*').order('start_time',{ascending:false}).limit(200);
+    /* Load only list-view fields (no transcript/summary — too large for 1000+ meetings).
+       Full data is fetched on-demand when a meeting is opened. */
+    var res=await _sb.from('meetings').select('id,session_id,title,start_time,end_time,duration_minutes,participants,owner_name,owner_email,report_url,video_storage_path,video_size_bytes,client_id,end_client,campaign_id,opportunity_id,source,ai_tasks_generated,ai_suggestions,action_items,created_at').order('start_time',{ascending:false});
     if(res.error)throw res.error;
     S.meetings=(res.data||[]).map(function(r){return{
       id:r.id,sessionId:r.session_id,title:r.title,
@@ -962,14 +964,15 @@ async function loadMeetings(){
       durationMinutes:r.duration_minutes||0,
       participants:r.participants||[],
       ownerName:r.owner_name||'',ownerEmail:r.owner_email||'',
-      summary:r.summary||'',transcript:r.transcript||'',
-      actionItems:r.action_items||[],keyQuestions:r.key_questions||[],
-      topics:r.topics||[],chapterSummaries:r.chapter_summaries||[],
+      summary:'',transcript:'',
+      actionItems:r.action_items||[],keyQuestions:[],
+      topics:[],chapterSummaries:[],
       reportUrl:r.report_url||'',
       videoStoragePath:r.video_storage_path||'',videoSizeBytes:r.video_size_bytes||0,
       clientId:r.client_id,endClient:r.end_client||'',
       campaignId:r.campaign_id,opportunityId:r.opportunity_id,
       source:r.source||'readai',aiTasksGenerated:!!r.ai_tasks_generated,aiSuggestions:r.ai_suggestions||[],createdAt:r.created_at}});
+    S.meetingsPage=1;
   }catch(e){console.error('loadMeetings:',e)}}
 
 async function dbEditMeeting(id,data){
@@ -989,18 +992,32 @@ async function dbDeleteMeeting(id){
   if(res.error){toast('Delete failed: '+res.error.message,'warn');return false}
   return true}
 
-function openMeeting(id){
+async function openMeeting(id){
   var m=S.meetings.find(function(mt){return mt.id===id});
   if(!m){toast('Meeting not found','warn');return}
+  /* Fetch full data (transcript, summary, etc.) on demand */
+  if(!m._fullLoaded){
+    try{
+      var res=await _sb.from('meetings').select('summary,transcript,key_questions,topics,chapter_summaries').eq('id',id).single();
+      if(res.data){
+        m.summary=res.data.summary||'';
+        m.transcript=res.data.transcript||'';
+        m.keyQuestions=res.data.key_questions||[];
+        m.topics=res.data.topics||[];
+        m.chapterSummaries=res.data.chapter_summaries||[];
+        m._fullLoaded=true}
+    }catch(e){console.error('openMeeting full load:',e)}}
   S.meetingDetail=m;render()}
 
 function closeMeeting(){
   S.meetingDetail=null;render()}
 
 function setMeetingSearch(v){
-  S.meetingSearch=v;
+  S.meetingSearch=v;S.meetingsPage=1;
   clearTimeout(S._mtgSearchTmr);
   S._mtgSearchTmr=setTimeout(function(){render()},250)}
+
+function loadMoreMeetings(){S.meetingsPage++;render()}
 
 async function setMeetingCrm(meetingId,field,value){
   var data={};

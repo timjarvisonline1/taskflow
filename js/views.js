@@ -5497,24 +5497,27 @@ function rMeetings(){
   h+='<input type="text" class="edf" id="meeting-search" value="'+esc(S.meetingSearch)+'" placeholder="Search meetings..." style="max-width:400px;font-size:13px" oninput="TF.setMeetingSearch(this.value)">';
   h+='</div>';
 
-  var meetings=S.meetings;
+  var allMeetings=S.meetings;
   if(S.meetingSearch){
     var q=S.meetingSearch.toLowerCase();
-    meetings=meetings.filter(function(m){
+    allMeetings=allMeetings.filter(function(m){
       return(m.title||'').toLowerCase().indexOf(q)!==-1
-        ||(m.summary||'').toLowerCase().indexOf(q)!==-1
-        ||JSON.stringify(m.participants||[]).toLowerCase().indexOf(q)!==-1
-        ||(m.transcript||'').toLowerCase().indexOf(q)!==-1})}
+        ||JSON.stringify(m.participants||[]).toLowerCase().indexOf(q)!==-1})}
 
-  if(!meetings.length){
+  if(!allMeetings.length){
     h+='<div class="email-empty">'+icon('mic',32);
     h+='<p>No meetings found.</p>';
     h+='<p style="font-size:12px;color:var(--t4)">Meetings will appear here when Read.ai sends webhook data.</p></div>';
     return h}
 
+  /* Paginate — show 50 per page */
+  var perPage=50;
+  var visible=allMeetings.slice(0,S.meetingsPage*perPage);
+  var hasMore=visible.length<allMeetings.length;
+
   /* Group by month */
   var grouped={};
-  meetings.forEach(function(m){
+  visible.forEach(function(m){
     var dt=m.startTime;
     var key=dt?dt.toLocaleString('en-GB',{month:'long',year:'numeric'}):'No date';
     if(!grouped[key])grouped[key]=[];
@@ -5550,6 +5553,9 @@ function rMeetings(){
       if(m.aiTasksGenerated)h+='<span style="color:#10b981">'+icon('zap',10)+' AI tasks</span>';
       h+='</div></div>';
       h+='</div>'})});
+
+  if(hasMore){
+    h+='<div style="text-align:center;padding:16px"><button class="btn" onclick="TF.loadMoreMeetings()" style="font-size:12px;padding:8px 20px">Load More ('+visible.length+' of '+allMeetings.length+')</button></div>'}
 
   return h}
 
