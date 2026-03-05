@@ -94,7 +94,8 @@ taskflow/
 │   │   ├── trash.js        # POST — trash thread
 │   │   ├── mark-read.js    # POST — mark thread as read
 │   │   ├── attachment.js   # GET — download attachment
-│   │   └── analyze.js     # POST — batch AI email analysis (Claude Sonnet)
+│   │   ├── analyze.js     # POST — batch AI email analysis (Claude Sonnet)
+│   │   └── summarize.js   # POST — on-demand thread summarization
 │   ├── auth/
 │   │   └── gmail-connect.js # GET — initiate Gmail OAuth flow
 │   ├── sync/
@@ -398,7 +399,8 @@ Gmail is connected via OAuth 2.0 with scopes `gmail.readonly`, `gmail.send`, `gm
 - `POST /api/gmail/trash` — move to trash
 - `POST /api/gmail/mark-read` — mark as read
 - `GET /api/gmail/attachment` — download attachment
-- `POST /api/gmail/analyze` — batch AI email analysis (Claude Sonnet, up to 30 threads per call)
+- `POST /api/gmail/analyze` — batch AI email analysis (Claude Sonnet, up to 30 threads per call, returns 12 fields: needs_reply, summary, urgency, category, sentiment, has_meeting, meeting_details, needs_followup, followup_details, suggested_client, suggested_task)
+- `POST /api/gmail/summarize` — on-demand thread summarization (fetches full message bodies, caches result)
 
 ### Compose Editor
 
@@ -520,25 +522,40 @@ New emails trigger `applyNewEmails()` which updates the thread list and shows a 
 
 Replaces the previous Zapier → ChatGPT → Review Queue flow. Uses Claude Sonnet to analyze emails directly within TaskFlow.
 
-**Database columns** on `gmail_threads`: `needs_reply` (boolean), `ai_summary`, `ai_urgency` (critical/high/normal/low), `ai_category`, `reply_status` (pending/dismissed/snoozed), `snoozed_until`, `ai_analyzed_at`
+**Database columns** on `gmail_threads`:
+- Core: `needs_reply` (boolean), `ai_summary`, `ai_urgency` (critical/high/normal/low), `ai_category`, `reply_status` (pending/dismissed/snoozed), `snoozed_until`, `ai_analyzed_at`
+- Sentiment: `ai_sentiment` (positive/neutral/cautious/negative)
+- Meeting: `has_meeting` (boolean), `meeting_details` (string)
+- Follow-up: `needs_followup` (boolean), `followup_details` (string)
+- Smart CRM: `ai_client_name` (AI-inferred client name)
+- Summarization: `full_summary` (cached thread summary), `full_summary_at`
+- Task: `ai_suggested_task` (JSON string of suggested task)
 
 **Analysis flow:**
-1. After Gmail sync/refresh/poll, `analyzeNewEmails()` identifies unanalyzed INBOX threads where last message is from an external sender
-2. Sends batch of thread metadata (subject, snippet, from, to, labels) to `/api/gmail/analyze`
-3. Endpoint calls Claude Sonnet API with classification prompt + client/contact context
+1. After Gmail sync/refresh/poll, `analyzeNewEmails()` identifies unanalyzed INBOX threads (including threads where user sent last message, for follow-up detection)
+2. Sends batch of thread metadata (subject, snippet, from, to, labels, userSentLast) to `/api/gmail/analyze`
+3. Endpoint calls Claude Sonnet API with expanded prompt returning 12 fields per thread
 4. Results stored to `gmail_threads` table and merged into local state
-5. Action Required badge updates in sub-nav
+5. Smart CRM: if Claude suggests a client matching one in the DB, auto-sets `client_id`
+6. Task suggestions stored as JSON on thread; shown as "Create Task" button in UI
+7. Action Required badge updates in sub-nav (includes follow-ups in count)
 
 **Auto-reply detection** (in `sync-gmail.js`): If `last_message_from` changes to user's email on a thread that previously had `needs_reply: true`, automatically clears `needs_reply`. If an external sender replies to a thread that was `needs_reply: false`, resets to `null` for re-analysis.
 
 **Triage actions:**
 - **Open** → opens thread view (existing email time tracking starts)
+- **Create Task** → parses `ai_suggested_task` JSON, calls `dbAddTask()` with pre-filled fields, clears suggestion
 - **Dismiss** → sets `reply_status: 'dismissed'`, removes from Action Required
 - **Snooze** → sets `reply_status: 'snoozed'` + `snoozed_until`, hides until time passes (checked at render time, no cron needed)
+- **Done** (follow-ups) → clears `needs_followup`, removes from Follow-Up Required section
 
-**API endpoint:** `POST /api/gmail/analyze` — batch analyzes up to 30 threads per Claude API call. Reads Anthropic API key from `integration_credentials` table (platform: 'anthropic').
+**Thread summarization:** `POST /api/gmail/summarize` — on-demand for threads with 10+ messages. Fetches full message bodies from Gmail API, sends to Claude for 3-5 bullet point summary, caches result.
 
-**Key functions:** `analyzeNewEmails()`, `getActionRequiredCount()`, `getActionRequiredThreads()`, `dismissEmailAction()`, `snoozeEmailAction()`, `openSnoozeMenu()`, `rEmailActionRequired()`
+**API endpoints:**
+- `POST /api/gmail/analyze` — batch analyzes up to 30 threads per Claude API call
+- `POST /api/gmail/summarize` — on-demand thread summarization with caching
+
+**Key functions:** `analyzeNewEmails()`, `getActionRequiredCount()`, `getActionRequiredThreads()`, `dismissEmailAction()`, `snoozeEmailAction()`, `openSnoozeMenu()`, `dismissFollowup()`, `summarizeThread()`, `doSummarize()`, `resummarizeThread()`, `createTaskFromSuggestion()`, `rEmailActionRequired()`
 
 ## Finance System
 

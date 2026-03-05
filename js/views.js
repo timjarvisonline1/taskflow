@@ -181,6 +181,8 @@ function rDashboard(){
   h+=dashMet('Review Queue',reviewCount,reviewCount?'var(--amber)':'var(--t4)');
   var _pendingReplies=getActionRequiredCount();
   h+='<div class="dash-met" onclick="TF.nav(\'email\',\'e-action\')" style="cursor:pointer" title="Click to view Action Required"><div class="dash-met-v" style="color:'+(_pendingReplies?'var(--red)':'var(--green)')+'">'+_pendingReplies+'</div><div class="dash-met-l">Pending Replies</div></div>';
+  var _followupCount=S.gmailThreads.filter(function(t){return t.needs_followup===true&&(t.labels||'').indexOf('INBOX')!==-1}).length;
+  h+='<div class="dash-met" onclick="TF.nav(\'email\',\'e-action\')" style="cursor:pointer" title="Follow-ups pending"><div class="dash-met-v" style="color:'+(_followupCount?'var(--amber)':'var(--green)')+'">'+_followupCount+'</div><div class="dash-met-l">Follow-ups</div></div>';
   h+='</div>';
 
   /* Today's meetings list */
@@ -4625,7 +4627,8 @@ function rEmailActionRequired(){
   h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Refresh</button>';
   h+='</div></div>';
 
-  if(!threads.length){
+  var _hasFollowups=S.gmailThreads.some(function(t){return t.needs_followup===true&&(t.labels||'').indexOf('INBOX')!==-1});
+  if(!threads.length&&!_hasFollowups){
     h+='<div style="text-align:center;padding:80px 0">';
     h+='<div style="font-size:36px;margin-bottom:12px">&#10003;</div>';
     h+='<div style="font-size:16px;font-weight:600;color:var(--t1);margin-bottom:6px">All caught up!</div>';
@@ -4678,10 +4681,17 @@ function rEmailActionRequired(){
       h+='<div class="action-card-meta">';
       if(ago)h+='<span style="font-size:11px;color:var(--t4);white-space:nowrap">'+ago+'</span>';
       h+='<span class="action-urgency" style="background:'+urgColors[urg]+'15;color:'+urgColors[urg]+'">'+esc(t.ai_urgency||'normal')+'</span>';
+      if(t.ai_sentiment&&t.ai_sentiment!=='neutral'){
+        var _sc={positive:'var(--green)',cautious:'var(--amber)',negative:'var(--red)'};
+        var _sl={positive:'Positive',cautious:'Cautious',negative:'Negative'};
+        h+='<span class="action-sentiment" style="background:'+_sc[t.ai_sentiment]+'15;color:'+_sc[t.ai_sentiment]+'">'+_sl[t.ai_sentiment]+'</span>'}
+      if(t.has_meeting)h+='<span class="action-meeting-badge">'+icon('calendar',10)+' Meeting</span>';
       h+='</div></div>';
 
       /* AI Summary */
       if(t.ai_summary)h+='<div class="action-summary">'+esc(t.ai_summary)+'</div>';
+      /* Meeting details */
+      if(t.has_meeting&&t.meeting_details)h+='<div class="action-meeting-detail">'+icon('calendar',11)+' '+esc(t.meeting_details)+'</div>';
 
       /* CRM context pills */
       var pills='';
@@ -4696,11 +4706,40 @@ function rEmailActionRequired(){
       /* Actions */
       h+='<div class="action-actions">';
       h+='<button class="action-btn action-btn-open" onclick="event.stopPropagation();TF.openEmailThread(\''+esc(t.thread_id)+'\')">'+icon('mail',12)+' Open</button>';
+      if(t.ai_suggested_task)h+='<button class="action-btn action-btn-task" onclick="event.stopPropagation();TF.createTaskFromSuggestion(\''+esc(t.thread_id)+'\')">'+icon('tasks',12)+' Create Task</button>';
       h+='<button class="action-btn action-btn-dismiss" onclick="event.stopPropagation();TF.dismissEmailAction(\''+esc(t.thread_id)+'\')">'+icon('x',12)+' Dismiss</button>';
       h+='<button class="action-btn action-btn-snooze" onclick="TF.openSnoozeMenu(\''+esc(t.thread_id)+'\',event)">'+icon('clock',12)+' Snooze</button>';
       h+='</div>';
       h+='</div>'});
     h+='</div>'});
+
+  /* Follow-up Required section */
+  var followups=S.gmailThreads.filter(function(t){
+    return t.needs_followup===true&&(t.labels||'').indexOf('INBOX')!==-1});
+  if(followups.length){
+    h+='<div style="margin-top:24px;margin-bottom:20px">';
+    h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--amber);margin-bottom:8px;padding-left:4px">'+icon('clock',12)+' Follow-Up Required ('+followups.length+')</div>';
+    followups.forEach(function(t){
+      var fromEmail=t.from_email||'';
+      var fromName=t.from_name||fromEmail.split('@')[0]||'';
+      var avatarCol=emailAvatarColor(fromEmail);
+      var initials=(fromName||'?').charAt(0).toUpperCase();
+      h+='<div class="action-card" style="border-left-color:var(--amber)" onclick="TF.openEmailThread(\''+esc(t.thread_id)+'\')">';
+      h+='<div class="action-card-top">';
+      h+='<div class="action-avatar" style="background:'+avatarCol+'">'+initials+'</div>';
+      h+='<div class="action-card-info">';
+      h+='<div class="action-card-sender">'+esc(fromName)+'</div>';
+      h+='<div class="action-card-subject">'+esc(t.subject||'(no subject)')+'</div>';
+      h+='</div>';
+      h+='<div class="action-card-meta"><span class="action-urgency" style="background:rgba(245,158,11,.15);color:var(--amber)">follow-up</span></div>';
+      h+='</div>';
+      if(t.followup_details)h+='<div class="action-summary" style="color:var(--amber)">'+icon('clock',11)+' '+esc(t.followup_details)+'</div>';
+      h+='<div class="action-actions">';
+      h+='<button class="action-btn action-btn-open" onclick="event.stopPropagation();TF.openEmailThread(\''+esc(t.thread_id)+'\')">'+icon('mail',12)+' Open</button>';
+      if(t.ai_suggested_task)h+='<button class="action-btn action-btn-task" onclick="event.stopPropagation();TF.createTaskFromSuggestion(\''+esc(t.thread_id)+'\')">'+icon('tasks',12)+' Create Task</button>';
+      h+='<button class="action-btn action-btn-dismiss" onclick="event.stopPropagation();TF.dismissFollowup(\''+esc(t.thread_id)+'\')">'+icon('check',12)+' Done</button>';
+      h+='</div></div>'});
+    h+='</div>'}
 
   return h}
 
@@ -4994,6 +5033,12 @@ function rEmailList(threads){
     if(_ueDir.length&&lastFrom){
       if(_ueDir.indexOf(lastFrom)===-1){h+='<span class="email-needs-reply">Needs Reply</span>'}
       else{h+='<span class="email-awaiting">Awaiting</span>'}}
+    /* AI indicators */
+    if(t.ai_sentiment&&t.ai_sentiment!=='neutral'){
+      var _esDot={positive:'var(--green)',cautious:'var(--amber)',negative:'var(--red)'};
+      h+='<span class="email-sentiment-dot" style="background:'+_esDot[t.ai_sentiment]+'" title="'+esc(t.ai_sentiment)+'"></span>'}
+    if(t.has_meeting)h+='<span class="email-meeting-badge" title="Meeting">'+icon('calendar',10)+'</span>';
+    if(t.ai_category)h+='<span class="email-cat-pill">'+esc(t.ai_category)+'</span>';
     /* Participant count */
     var toEmails=t.toEmails||t.to_emails||'';
     if(toEmails){var pCount=1;var toParts=toEmails.split(',');pCount+=toParts.length;
@@ -5061,6 +5106,21 @@ function rEmailThread(){
     if(clientMatch.contactName)h+='<span style="color:var(--t3)">'+esc(clientMatch.contactName)+(clientMatch.contactRole?' · '+esc(clientMatch.contactRole):'')+'</span>';
   }
   h+='</div>';
+
+  /* ── Summarize button for long threads ── */
+  if(totalMsgs>=10){
+    var _cachedThread=S.gmailThreads.find(function(th){return th.thread_id===threadId});
+    var _cachedSummary=_cachedThread&&_cachedThread.full_summary?_cachedThread.full_summary:'';
+    h+='<div class="email-summarize-section">';
+    if(_cachedSummary){
+      h+='<div class="email-summary-box">'+icon('zap',12)+' <strong>AI Summary</strong>';
+      h+='<div class="email-summary-text">'+esc(_cachedSummary).replace(/\n/g,'<br>')+'</div>';
+      h+='<button class="btn" onclick="TF.resummarizeThread(\''+esc(threadId)+'\')" style="font-size:10px;padding:3px 8px;margin-top:6px">'+icon('refresh',10)+' Refresh</button>';
+      h+='</div>';
+    }else{
+      h+='<button class="btn" onclick="TF.doSummarize(\''+esc(threadId)+'\')" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('zap',12)+' Summarize ('+totalMsgs+' messages)</button>';
+    }
+    h+='</div>'}
 
   /* ── Messages ── */
   msgs.forEach(function(msg,idx){

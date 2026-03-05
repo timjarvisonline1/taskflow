@@ -1384,6 +1384,23 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .snooze-dropdown{position:fixed;z-index:9999;background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--gborder);border-radius:10px;padding:6px;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,.3)}
 .snooze-item{font-size:12px;color:var(--t2);padding:7px 10px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s}
 .snooze-item:hover{background:var(--bg1);color:var(--t1)}
+/* Sentiment badge */
+.action-sentiment{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 8px;border-radius:8px;white-space:nowrap}
+/* Meeting badge */
+.action-meeting-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px;background:rgba(168,85,247,.1);color:#a855f7;white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+.action-meeting-detail{font-size:11px;color:#a855f7;margin-bottom:6px;display:flex;align-items:center;gap:4px}
+/* Create Task button */
+.action-btn-task{background:rgba(34,197,94,.1)!important;color:var(--green)!important;font-weight:600}
+.action-btn-task:hover{background:rgba(34,197,94,.2)!important}
+/* Email list indicators */
+.email-sentiment-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block;margin-left:4px}
+.email-meeting-badge{font-size:10px;color:#a855f7;flex-shrink:0;display:inline-flex;align-items:center;margin-left:4px}
+.email-cat-pill{font-size:9px;font-weight:600;padding:1px 6px;border-radius:6px;background:var(--glass);border:1px solid var(--gborder);color:var(--t3);white-space:nowrap;margin-left:4px}
+/* Thread summarize */
+.email-summarize-section{margin:12px 0 16px;padding:0}
+.email-summary-box{background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px 16px;margin-top:8px}
+.email-summary-box strong{font-size:12px;color:var(--t1)}
+.email-summary-text{font-size:12px;color:var(--t2);line-height:1.6;margin-top:8px}
 @media(max-width:768px){
   .action-card-top{flex-wrap:wrap}
   .action-card-meta{flex-direction:row;width:100%;justify-content:flex-end;margin-top:4px}

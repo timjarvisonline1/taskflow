@@ -32,7 +32,7 @@ module.exports = async function handler(req, res) {
     if (contacts && contacts.length) {
       clientContext += '\n\nKnown contacts:\n' +
         contacts.slice(0, 50).map(c => '- ' + (c.firstName || '') + ' ' + (c.lastName || '') + ' <' + c.email + '>' +
-          (c.clientName ? ' → ' + c.clientName : '') + (c.endClient ? ' / ' + c.endClient : '')).join('\n');
+          (c.clientName ? ' \u2192 ' + c.clientName : '') + (c.endClient ? ' / ' + c.endClient : '')).join('\n');
     }
 
     // Process in batches of 30
@@ -51,17 +51,27 @@ module.exports = async function handler(req, res) {
           '\n   Snippet: ' + (t.snippet || '') +
           '\n   Messages: ' + (t.messageCount || 1) +
           '\n   Labels: ' + (t.labels || '') +
-          '\n   Last message: ' + (t.lastMessageAt || '');
+          '\n   Last message: ' + (t.lastMessageAt || '') +
+          '\n   User sent last: ' + (t.userSentLast ? 'yes' : 'no');
       }).join('\n\n');
 
-      const prompt = `Analyze these email threads and determine which require a reply from the user (Tim Jarvis, who runs two businesses: Tim Jarvis Online LLC and Film&Content LLC).
+      const prompt = `Analyze these email threads for the user (Tim Jarvis, who runs two businesses: Tim Jarvis Online LLC and Film&Content LLC).
 
 Return ONLY a valid JSON array with one object per thread, in the same order as the input. Each object must have these exact fields:
 - thread_id (string: the Thread ID from the input)
-- needs_reply (boolean: true if the email requires a reply)
-- summary (string: 1-2 sentences describing what the sender needs — empty string if needs_reply is false)
-- urgency (string: "critical", "high", "normal", or "low" — "low" if needs_reply is false)
-- category (string: best match from the list below — empty string if needs_reply is false)
+- needs_reply (boolean: true if the email requires a reply from the user)
+- summary (string: 1-2 sentences describing the thread content — ALWAYS populate this for every thread)
+- urgency (string: "critical", "high", "normal", or "low" — ALWAYS populate)
+- category (string: best match from the category list — ALWAYS populate)
+- sentiment (string: "positive", "neutral", "cautious", or "negative")
+- has_meeting (boolean: true if the thread involves scheduling or meeting requests)
+- meeting_details (string: brief "what + when" if has_meeting is true, else empty string)
+- needs_followup (boolean: true if the user made an unresolved commitment in this thread)
+- followup_details (string: what the user promised to do, else empty string)
+- suggested_client (string: exact client name from the list below if you can infer which client this relates to, else empty string)
+- suggested_task (object or null: if the email implies a clear task beyond just replying, return {"item": "task description", "notes": "context from email", "importance": "Critical" or "Important" or "When Time Allows", "category": "best match", "est": estimated_minutes}. Return null if no task is warranted)
+
+═══ NEEDS REPLY RULES ═══
 
 An email NEEDS a reply if it contains:
 - A direct question aimed at the user
@@ -84,13 +94,41 @@ An email DOES NOT need a reply if it is:
 - Social media notifications
 - Calendar event confirmations with no question attached
 
-Urgency guidance:
+If "User sent last: yes", needs_reply should almost always be false (the user already replied). Focus on whether needs_followup applies instead.
+
+═══ URGENCY ═══
 - "critical": urgent deadline, financial matter, time-sensitive client request
 - "high": important client or partner communication, meeting request, business proposal
 - "normal": standard communication that needs a response but isn't urgent
-- "low": low priority or purely informational but still warrants a reply
+- "low": low priority, purely informational, or marketing/automated
 
-Category options: Comms, Finance, Campaign Mgmt, Sales, Admin, Reporting, Content, Strategy, One-on-One, Discovery Call, Pitch Meeting, Tracking, Retain Live
+═══ SENTIMENT ═══
+- "positive": appreciative, satisfied, enthusiastic, good news, praise
+- "neutral": factual, routine, informational, standard business communication
+- "cautious": concerned, requesting clarification, hesitant, flagging potential issues
+- "negative": frustrated, complaint, escalation, dissatisfied, demanding
+
+═══ MEETING DETECTION ═══
+Set has_meeting=true if the thread discusses scheduling, meeting requests, calendar coordination, "let's meet", "can we hop on a call", or mentions specific dates/times for meetings.
+meeting_details should be a brief description like "Strategy review, Thursday 2pm" or "Scheduling Q1 planning session".
+
+═══ FOLLOW-UP DETECTION ═══
+Set needs_followup=true if the user (Tim Jarvis) appears to have made a commitment in this thread that seems undelivered: "I'll send that", "let me check", "I'll follow up", "will get back to you", "I'll prepare", "I'll look into it", "I'll have that ready by".
+followup_details should describe what was promised, e.g. "Promised to send revised proposal by Friday".
+
+═══ SMART CRM MATCHING ═══
+Based on sender name, email domain, subject line, and conversation content, infer which client from the list below this relates to. Return the exact client name string as it appears in the list. Return empty string if unsure or if it's clearly not related to any listed client.
+
+═══ TASK SUGGESTION ═══
+If the email implies a clear actionable task the user should do (beyond just hitting reply), suggest it. Examples:
+- "Review and sign contract from [sender]"
+- "Prepare campaign report for Q1"
+- "Schedule follow-up meeting with [client]"
+- "Send invoice for [project]"
+Return null if no distinct task is warranted (a simple reply doesn't count as a task).
+
+═══ CATEGORIES ═══
+Comms, Finance, Campaign Mgmt, Sales, Admin, Reporting, Content, Strategy, One-on-One, Discovery Call, Pitch Meeting, Tracking, Retain Live
 
 ${clientContext ? '\n' + clientContext + '\n' : ''}
 Threads to analyze:
@@ -99,7 +137,7 @@ ${threadList}`;
 
       const response = await anthropic.messages.create({
         model: model,
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [{ role: 'user', content: prompt }]
       });
 
@@ -120,6 +158,16 @@ ${threadList}`;
       }
     }
 
+    // Load client records for CRM auto-association
+    const { data: clientRecords } = await client
+      .from('clients')
+      .select('id, name')
+      .eq('user_id', userId);
+    const clientNameMap = {};
+    (clientRecords || []).forEach(function(c) {
+      if (c.name) clientNameMap[c.name.toLowerCase()] = c.id;
+    });
+
     // Update gmail_threads with results
     const now = new Date().toISOString();
     const updateResults = [];
@@ -132,8 +180,32 @@ ${threadList}`;
         ai_summary: result.summary || '',
         ai_urgency: result.urgency || 'normal',
         ai_category: result.category || '',
+        ai_sentiment: result.sentiment || 'neutral',
+        has_meeting: result.has_meeting === true,
+        meeting_details: result.meeting_details || '',
+        needs_followup: result.needs_followup === true,
+        followup_details: result.followup_details || '',
+        ai_client_name: result.suggested_client || '',
+        ai_suggested_task: result.suggested_task ? JSON.stringify(result.suggested_task) : '',
         ai_analyzed_at: now
       };
+
+      // CRM auto-association: if Claude suggested a client and thread has no client_id
+      if (result.suggested_client) {
+        const matchedId = clientNameMap[result.suggested_client.toLowerCase()];
+        if (matchedId) {
+          // Only apply if thread doesn't already have a client_id
+          const { data: threadRow } = await client
+            .from('gmail_threads')
+            .select('client_id')
+            .eq('user_id', userId)
+            .eq('thread_id', result.thread_id)
+            .single();
+          if (threadRow && !threadRow.client_id) {
+            updateData.client_id = matchedId;
+          }
+        }
+      }
 
       const { error } = await client
         .from('gmail_threads')

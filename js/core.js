@@ -1867,12 +1867,10 @@ function applyNewEmails(){
 var _analyzingEmails=false;
 async function analyzeNewEmails(){
   if(_analyzingEmails)return;
-  /* Find threads needing analysis: not yet analyzed, last message from someone else, in INBOX */
+  /* Find threads needing analysis: not yet analyzed, in INBOX */
   var ue=S._userEmails||[];if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
   var toAnalyze=S.gmailThreads.filter(function(t){
     if(t.needs_reply!==null&&t.needs_reply!==undefined)return false;
-    var lastFrom=(t.last_message_from||'').toLowerCase();
-    if(!lastFrom||ue.indexOf(lastFrom)!==-1)return false;
     if((t.labels||'').indexOf('INBOX')===-1)return false;
     return true
   });
@@ -1888,12 +1886,15 @@ async function analyzeNewEmails(){
       return{firstName:c.firstName||'',lastName:c.lastName||'',email:c.email||'',
         clientName:cr?cr.name:'',endClient:c.endClient||''}});
     /* Build thread payloads */
-    var threadPayloads=toAnalyze.map(function(t){return{
+    var threadPayloads=toAnalyze.map(function(t){
+      var lastFrom=(t.last_message_from||'').toLowerCase();
+      var userSentLast=lastFrom&&ue.indexOf(lastFrom)!==-1;
+      return{
       threadId:t.thread_id,subject:t.subject||'',snippet:t.snippet||'',
       fromEmail:t.from_email||'',fromName:t.from_name||'',
       toEmails:t.to_emails||'',ccEmails:t.cc_emails||'',
       labels:t.labels||'',messageCount:t.message_count||1,
-      lastMessageAt:t.last_message_at||''}});
+      lastMessageAt:t.last_message_at||'',userSentLast:userSentLast}});
     var resp=await fetch('/api/gmail/analyze',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({threads:threadPayloads,clients:clients,contacts:contacts})});
@@ -1905,18 +1906,27 @@ async function analyzeNewEmails(){
         var t=S.gmailThreads.find(function(th){return th.thread_id===r.threadId});
         if(t){t.needs_reply=r.needs_reply;t.ai_summary=r.ai_summary||'';
           t.ai_urgency=r.ai_urgency||'';t.ai_category=r.ai_category||'';
-          t.ai_analyzed_at=r.ai_analyzed_at||''}});
+          t.ai_sentiment=r.ai_sentiment||'';t.has_meeting=r.has_meeting||false;
+          t.meeting_details=r.meeting_details||'';t.needs_followup=r.needs_followup||false;
+          t.followup_details=r.followup_details||'';t.ai_client_name=r.ai_client_name||'';
+          t.ai_suggested_task=r.ai_suggested_task||'';
+          t.ai_analyzed_at=r.ai_analyzed_at||'';
+          if(r.client_id)t.client_id=r.client_id}});
       render();buildNav()}
   }catch(e){console.warn('analyzeNewEmails:',e)}
   _analyzingEmails=false}
 
 function getActionRequiredCount(){
   var now=new Date();
-  return S.gmailThreads.filter(function(t){
+  var replies=S.gmailThreads.filter(function(t){
     return t.needs_reply===true&&t.reply_status==='pending'
       &&(!t.snoozed_until||new Date(t.snoozed_until)<=now)
       &&(t.labels||'').indexOf('INBOX')!==-1
-  }).length}
+  }).length;
+  var followups=S.gmailThreads.filter(function(t){
+    return t.needs_followup===true&&(t.labels||'').indexOf('INBOX')!==-1
+  }).length;
+  return replies+followups}
 
 function getActionRequiredThreads(){
   var now=new Date();
@@ -1974,6 +1984,72 @@ function openSnoozeMenu(threadId,evt){
   /* Close on outside click */
   setTimeout(function(){document.addEventListener('click',function _cls(e){
     if(!menu.contains(e.target)){menu.remove();document.removeEventListener('click',_cls)}},true)},10)}
+
+/* ═══════════ FOLLOW-UP & SUMMARIZE & TASK SUGGESTION ═══════════ */
+async function dismissFollowup(threadId){
+  var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
+  if(t)t.needs_followup=false;
+  render();buildNav();
+  try{
+    var uid=await getUserId();if(!uid)return;
+    await _sb.from('gmail_threads').update({needs_followup:false}).eq('user_id',uid).eq('thread_id',threadId);
+  }catch(e){console.error('dismissFollowup:',e)}
+  toast('Follow-up cleared','ok')}
+
+async function summarizeThread(threadId){
+  var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
+  if(t&&t.full_summary)return t.full_summary;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return null;
+    var token=sess.data.session.access_token;
+    toast('Summarizing thread...','info');
+    var resp=await fetch('/api/gmail/summarize',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({threadId:threadId})});
+    if(!resp.ok){toast('Summarization failed','warn');return null}
+    var result=await resp.json();
+    if(t)t.full_summary=result.summary;
+    toast('Summary ready','ok');
+    return result.summary;
+  }catch(e){toast('Summarization error: '+e.message,'warn');return null}}
+
+async function doSummarize(threadId){
+  var summary=await summarizeThread(threadId);
+  if(summary)render()}
+
+async function resummarizeThread(threadId){
+  var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
+  if(t)t.full_summary='';
+  doSummarize(threadId)}
+
+async function createTaskFromSuggestion(threadId){
+  var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
+  if(!t||!t.ai_suggested_task)return;
+  var suggestion;
+  try{suggestion=JSON.parse(t.ai_suggested_task)}catch(e){toast('Invalid task data','warn');return}
+  /* Resolve client from CRM context */
+  var ctx=getThreadCrmContext(t);
+  var clientName=(ctx&&ctx.primaryClient)?ctx.primaryClient.clientName:'';
+  var endClientName=(ctx&&ctx.primaryEndClient)?ctx.primaryEndClient:'';
+  var taskData={
+    item:suggestion.item||'Email task',
+    notes:suggestion.notes||'',
+    importance:suggestion.importance||'Important',
+    category:suggestion.category||t.ai_category||'',
+    client:clientName,endClient:endClientName,
+    type:'Business',est:suggestion.est||0,
+    status:'Planned'};
+  var result=await dbAddTask(taskData);
+  if(result){
+    /* Clear suggestion from thread */
+    t.ai_suggested_task='';
+    try{
+      var uid=await getUserId();if(uid)
+        await _sb.from('gmail_threads').update({ai_suggested_task:''}).eq('user_id',uid).eq('thread_id',threadId);
+    }catch(e){}
+    await loadData();
+    toast('Task created: '+suggestion.item,'ok');
+  }}
 
 /* ═══════════ ARCHIVE ═══════════ */
 async function archiveEmail(threadId){
