@@ -1,0 +1,8 @@
+# OAuth credentials (import scripts)
+scripts/.readai-import-creds.json
+
+# OS files
+.DS_Store
+
+# Node
+node_modules/
