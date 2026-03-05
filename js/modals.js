@@ -3843,7 +3843,7 @@ async function testIntegrationBtn(platformId){
 
 async function saveIntegrationBtn(platformId){
   var vals=intgGetFields(platformId);
-  if(!Object.keys(vals.credentials).length){toast('Enter credentials first','warn');return}
+  if(!Object.keys(vals.credentials).length&&!Object.keys(vals.config).length){toast('Enter credentials first','warn');return}
   var ok=await saveIntegrationCredentials(platformId,vals.credentials,vals.config);
   if(ok){toast(platformId+' credentials saved','ok');openIntegrationsModal()}
 }
