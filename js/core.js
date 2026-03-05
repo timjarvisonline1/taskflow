@@ -76,7 +76,20 @@ var ICONS={
   reply_all:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg>',
   reply:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>',
   download:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
-  settings:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>'
+  settings:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
+  align_left:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="3" y1="6" y2="6"/><line x1="15" x2="3" y1="12" y2="12"/><line x1="17" x2="3" y1="18" y2="18"/></svg>',
+  align_center:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="3" y1="6" y2="6"/><line x1="17" x2="7" y1="12" y2="12"/><line x1="19" x2="5" y1="18" y2="18"/></svg>',
+  align_right:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="3" y1="6" y2="6"/><line x1="21" x2="9" y1="12" y2="12"/><line x1="21" x2="7" y1="18" y2="18"/></svg>',
+  indent:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8 7 12 3 16"/><line x1="21" x2="11" y1="12" y2="12"/><line x1="21" x2="11" y1="6" y2="6"/><line x1="21" x2="11" y1="18" y2="18"/></svg>',
+  outdent:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 8 3 12 7 16"/><line x1="21" x2="11" y1="12" y2="12"/><line x1="21" x2="11" y1="6" y2="6"/><line x1="21" x2="11" y1="18" y2="18"/></svg>',
+  eraser:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>',
+  undo:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>',
+  redo:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>',
+  smile:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>',
+  image:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>',
+  type:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>',
+  highlighter:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>',
+  filter:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>'
 };
 function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"')}return s}
 
@@ -111,7 +124,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
-  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,contacts:[]};
+  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,contacts:[],scheduledEmails:[],emailRules:[]};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -164,6 +177,8 @@ var SECTIONS=[
     {id:'inbox',label:'Inbox',icon:'inbox'},
     {id:'sent',label:'Sent',icon:'mail'},
     {id:'all',label:'All Mail',icon:'folder'},
+    {id:'e-drafts',label:'Drafts',icon:'edit'},
+    {id:'e-scheduled',label:'Scheduled',icon:'clock'},
     {id:'e-active',label:'Clients (Active)',icon:'users',smart:true},
     {id:'e-lapsed',label:'Clients (Lapsed)',icon:'clock',smart:true},
     {id:'e-prospects',label:'Prospects',icon:'gem',smart:true},
@@ -1730,6 +1745,10 @@ async function openEmailThread(threadId){
     var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
     if(cached)cached.is_unread=false;
     S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
+    /* Apply email rules if no categorization */
+    if(cached&&!cached.client_id&&!cached.end_client&&!cached.campaign_id&&!cached.opportunity_id){
+      var ruleActions=applyEmailRules(cached);
+      if(ruleActions)_applyRuleActionsToThread(threadId,ruleActions)}
     render();
   }catch(e){toast('Gmail: '+e.message,'warn')}}
 
@@ -1802,6 +1821,8 @@ var _emailPollTimer=null;
 function startEmailPolling(){
   stopEmailPolling();
   _emailPollTimer=setInterval(function(){
+    /* Check scheduled emails regardless of view */
+    _checkScheduledEmails();
     if(S.view!=='email')return;
     if(S.gmailThreadId)return;
     if(S._gmailFetching)return;
@@ -1986,14 +2007,299 @@ function execComposeCmd(cmd,val){
   editor.focus();
   if(cmd==='createLink'){
     val=prompt('Enter URL:','https://');if(!val)return}
+  if(cmd==='insertImage'){
+    val=prompt('Enter image URL:','https://');if(!val)return}
   document.execCommand(cmd,false,val||null);
   updateComposeToolbar()}
 
 function updateComposeToolbar(){
-  var cmds=['bold','italic','underline','strikethrough'];
+  /* Toggle-style commands */
+  var cmds=['bold','italic','underline','strikethrough','insertUnorderedList','insertOrderedList','justifyLeft','justifyCenter','justifyRight'];
   cmds.forEach(function(c){
     var btn=document.querySelector('[data-compose-cmd="'+c+'"]');
-    if(btn){try{btn.classList.toggle('active',document.queryCommandState(c))}catch(e){}}})}
+    if(btn){try{btn.classList.toggle('active',document.queryCommandState(c))}catch(e){}}});
+  /* Sync font family select */
+  var fontSel=document.querySelector('.compose-font-select');
+  if(fontSel){try{var fv=document.queryCommandValue('fontName').replace(/['"]/g,'');
+    if(fv){var opts=fontSel.options;for(var i=0;i<opts.length;i++){if(opts[i].value&&fv.toLowerCase().indexOf(opts[i].value.toLowerCase())!==-1){fontSel.selectedIndex=i;break}}}}catch(e){}}
+  /* Sync font size select */
+  var sizeSel=document.querySelector('.compose-size-select');
+  if(sizeSel){try{var sv=document.queryCommandValue('fontSize');
+    if(sv){sizeSel.value=sv}}catch(e){}}}
+
+/* ── Color picker toggle ── */
+var _COLOR_PRESETS=['#000000','#434343','#666666','#999999','#cccccc','#e06666','#f6b26b','#ffd966','#93c47d','#76a5af','#6fa8dc','#8e7cc3','#c27ba0','#cc0000','#e69138','#f1c232','#6aa84f','#45818e','#3d85c6','#674ea7'];
+function toggleColorPicker(type){
+  var id=type==='text'?'compose-text-color-picker':'compose-bg-color-picker';
+  var panel=gel(id);if(!panel)return;
+  /* Close other pickers */
+  document.querySelectorAll('.compose-color-picker,.compose-emoji-picker').forEach(function(p){if(p.id!==id)p.classList.remove('open')});
+  if(panel.classList.contains('open')){panel.classList.remove('open');return}
+  /* Populate if empty */
+  if(!panel.innerHTML){
+    var h='';
+    _COLOR_PRESETS.forEach(function(c){
+      h+='<div class="color-swatch" style="background:'+c+'" title="'+c+'" onclick="event.preventDefault();event.stopPropagation();TF.selectColor(\''+type+'\',\''+c+'\')"></div>'});
+    panel.innerHTML=h}
+  panel.classList.add('open')}
+function selectColor(type,color){
+  var editor=gel('compose-body');if(!editor)return;
+  editor.focus();
+  var cmd=type==='text'?'foreColor':'hiliteColor';
+  document.execCommand(cmd,false,color);
+  /* Update color indicator */
+  if(type==='text'){var ind=document.querySelector('.compose-color-wrap .compose-toolbar-btn span[style]');if(ind)ind.style.borderBottomColor=color}
+  document.querySelectorAll('.compose-color-picker').forEach(function(p){p.classList.remove('open')})}
+
+/* ── Emoji picker ── */
+var _EMOJIS=['😀','😂','🤣','😊','😍','🥰','😘','😎','🤩','🥳','😇','🤔','🤗','😏','😬','😱','😢','😭','😤','🤯','🙄','😴','🤮','🤡','💀','👻','👽','🤖','💩','👋','👍','👎','👏','🙌','🤝','✌️','🤞','🤙','💪','🙏','❤️','🧡','💛','💚','💙','💜','🖤','💯','💥','🔥','⭐','✨','🎉','🎊','🎯','💡','📌','📎','✅','❌','⚡','💬','👀','🚀','🏆','💰','📊','📈','🗓️','⏰','🔔','🔗','📧','💻','☕','🍕','🎵','🌟','🌈','🎨','📝','🔍'];
+function toggleEmojiPicker(){
+  var panel=gel('compose-emoji-picker');if(!panel)return;
+  /* Close other pickers */
+  document.querySelectorAll('.compose-color-picker,.compose-emoji-picker').forEach(function(p){if(p.id!=='compose-emoji-picker')p.classList.remove('open')});
+  if(panel.classList.contains('open')){panel.classList.remove('open');return}
+  /* Populate if empty */
+  if(!panel.innerHTML){
+    var h='<div class="emoji-grid">';
+    _EMOJIS.forEach(function(e){
+      h+='<div class="emoji-item" onclick="event.preventDefault();event.stopPropagation();TF.insertEmoji(\''+e+'\')">'+e+'</div>'});
+    h+='</div>';
+    panel.innerHTML=h}
+  panel.classList.add('open')}
+function insertEmoji(emoji){
+  var editor=gel('compose-body');if(!editor)return;
+  editor.focus();
+  document.execCommand('insertText',false,emoji);
+  var panel=gel('compose-emoji-picker');if(panel)panel.classList.remove('open')}
+
+/* ── Email Drafts (localStorage) ── */
+function _loadDrafts(){try{return JSON.parse(localStorage.getItem('tf_email_drafts')||'[]')}catch(e){return[]}}
+function _saveDrafts(arr){try{var str=JSON.stringify(arr);if(str.length>4000000){/* strip attachment data if too large */arr.forEach(function(d){if(d.attachments)d.attachments=d.attachments.map(function(a){return{filename:a.filename,mimeType:a.mimeType,size:a.size}})});str=JSON.stringify(arr)}localStorage.setItem('tf_email_drafts',str)}catch(e){}}
+
+function _saveDraft(existingId){
+  var editor=gel('compose-body');if(!editor)return null;
+  var to=window._composeRecipients.to||[];
+  var cc=window._composeRecipients.cc||[];
+  var bcc=window._composeRecipients.bcc||[];
+  var subject=(gel('compose-subject')||{}).value||'';
+  var body=editor.innerHTML||'';
+  /* Skip saving empty drafts */
+  if(!to.length&&!cc.length&&!subject&&(!body||body==='<br>'||body==='<div><br></div>'))return existingId;
+
+  var drafts=_loadDrafts();
+  var now=new Date().toISOString();
+  var draft;
+  if(existingId){draft=drafts.find(function(d){return d.id===existingId})}
+  if(!draft){
+    draft={id:'draft_'+Date.now()+'_'+Math.random().toString(36).substr(2,5),createdAt:now};
+    drafts.push(draft)}
+  draft.to=to;draft.cc=cc;draft.bcc=bcc;
+  draft.subject=subject;draft.body=body;
+  draft.attachments=(window._composeAttachments||[]).map(function(a){return{filename:a.filename,mimeType:a.mimeType,size:a.size,data:a.data}});
+  draft.threadId=(gel('compose-threadId')||{}).value||'';
+  draft.messageId=(gel('compose-messageId')||{}).value||'';
+  draft.isReply=!!draft.threadId;
+  /* Categorization */
+  draft.catClient=(gel('compose-cat-client')||{}).value||'';
+  draft.catEC=(gel('compose-cat-ec')||{}).value||'';
+  draft.catCampaign=(gel('compose-cat-campaign')||{}).value||'';
+  draft.catOpp=(gel('compose-cat-opportunity')||{}).value||'';
+  draft.catNone=!!(gel('compose-cat-none')&&gel('compose-cat-none').checked);
+  draft.updatedAt=now;
+  _saveDrafts(drafts);
+  return draft.id}
+
+function _deleteDraft(draftId){
+  if(!draftId)return;
+  var drafts=_loadDrafts().filter(function(d){return d.id!==draftId});
+  _saveDrafts(drafts)}
+
+function openDraft(draftId){
+  var drafts=_loadDrafts();
+  var draft=drafts.find(function(d){return d.id===draftId});
+  if(!draft){toast('Draft not found','warn');return}
+  openComposeEmail({
+    to:(draft.to||[])[0]||'',
+    cc:(draft.cc||[]).join(', '),
+    bcc:(draft.bcc||[]).join(', '),
+    subject:draft.subject||'',
+    body:draft.body||'',
+    replyToThreadId:draft.threadId||'',
+    replyToMessageId:draft.messageId||'',
+    _draftId:draft.id,
+    _draftRecipients:{to:draft.to||[],cc:draft.cc||[],bcc:draft.bcc||[]},
+    _draftCat:{client:draft.catClient||'',ec:draft.catEC||'',campaign:draft.catCampaign||'',opp:draft.catOpp||'',none:draft.catNone||false}
+  })}
+
+function deleteDraft(draftId){
+  _deleteDraft(draftId);
+  toast('Draft deleted','ok');
+  render()}
+
+function getDraftCount(){return _loadDrafts().length}
+
+/* ── Scheduled Emails (Supabase) ── */
+async function loadScheduledEmails(){
+  var uid=await getUserId();if(!uid)return;
+  var res=await _sb.from('scheduled_emails').select('*').eq('user_id',uid).order('scheduled_at',{ascending:true});
+  S.scheduledEmails=(res.data||[]).map(function(r){return{
+    id:r.id,to:r.to_emails,cc:r.cc_emails||'',bcc:r.bcc_emails||'',
+    subject:r.subject,body:r.body,attachments:r.attachments||[],
+    threadId:r.thread_id||'',messageId:r.message_id||'',
+    categorization:r.categorization||{},
+    scheduledAt:r.scheduled_at,status:r.status,sentAt:r.sent_at,
+    error:r.error,createdAt:r.created_at}})}
+
+async function scheduleEmail(scheduledAt){
+  var editor=gel('compose-body');if(!editor)return;
+  var to=window._composeRecipients.to.join(', ');
+  var cc=window._composeRecipients.cc.join(', ');
+  var bcc=window._composeRecipients.bcc.join(', ');
+  var subject=(gel('compose-subject')||{}).value||'';
+  var body=editor.innerHTML||'';
+  if(!to){toast('Add at least one recipient','warn');return}
+  if(!body||body==='<br>'||body==='<div><br></div>'){toast('Write a message','warn');return}
+
+  var htmlBody='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>';
+  var uid=await getUserId();if(!uid)return;
+
+  var catClient=(gel('compose-cat-client')||{}).value||'';
+  var catEC=(gel('compose-cat-ec')||{}).value||'';
+  var catCampaign=(gel('compose-cat-campaign')||{}).value||'';
+  var catOpp=(gel('compose-cat-opportunity')||{}).value||'';
+
+  var row={user_id:uid,to_emails:to,cc_emails:cc,bcc_emails:bcc,
+    subject:subject,body:htmlBody,
+    attachments:(window._composeAttachments||[]).map(function(a){return{filename:a.filename,mimeType:a.mimeType,data:a.data}}),
+    thread_id:(gel('compose-threadId')||{}).value||'',
+    message_id:(gel('compose-messageId')||{}).value||'',
+    categorization:{client:catClient,endClient:catEC,campaignId:catCampaign,opportunityId:catOpp},
+    scheduled_at:scheduledAt};
+
+  var res=await _sb.from('scheduled_emails').insert(row).select().single();
+  if(res.error){toast('Schedule failed: '+res.error.message,'warn');return}
+
+  /* Clean up compose */
+  if(window._composeDraftTimer){clearInterval(window._composeDraftTimer);window._composeDraftTimer=null}
+  if(window._composeDraftId){_deleteDraft(window._composeDraftId);window._composeDraftId=null}
+  document.removeEventListener('selectionchange',updateComposeToolbar);
+  window._composeAttachments=[];
+  var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
+  inner.classList.remove('tf-modal-wide');
+  var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail');var m=gel('modal');if(m)m.classList.remove('on');
+
+  var dt=new Date(scheduledAt);
+  var lbl=(dt.getMonth()+1)+'/'+dt.getDate()+' at '+(dt.getHours()%12||12)+':'+String(dt.getMinutes()).padStart(2,'0')+(dt.getHours()<12?' AM':' PM');
+  toast('Email scheduled for '+lbl,'ok');
+  loadScheduledEmails().then(render)}
+
+async function cancelScheduledEmail(id){
+  var res=await _sb.from('scheduled_emails').delete().eq('id',id);
+  if(res.error){toast('Cancel failed: '+res.error.message,'warn');return}
+  S.scheduledEmails=(S.scheduledEmails||[]).filter(function(e){return e.id!==id});
+  toast('Scheduled email cancelled','ok');
+  render()}
+
+async function _checkScheduledEmails(){
+  var uid=await getUserId();if(!uid)return;
+  var now=new Date().toISOString();
+  var res=await _sb.from('scheduled_emails').select('*').eq('user_id',uid).eq('status','pending').lte('scheduled_at',now);
+  if(!res.data||!res.data.length)return;
+  for(var i=0;i<res.data.length;i++){
+    var se=res.data[i];
+    try{
+      var sess=await _sb.auth.getSession();if(!sess.data.session)continue;
+      var token=sess.data.session.access_token;
+      var payload={to:se.to_emails,subject:se.subject,body:se.body};
+      if(se.cc_emails)payload.cc=se.cc_emails;
+      if(se.bcc_emails)payload.bcc=se.bcc_emails;
+      if(se.thread_id)payload.threadId=se.thread_id;
+      if(se.message_id)payload.messageId=se.message_id;
+      if(se.attachments&&se.attachments.length)payload.attachments=se.attachments;
+      var resp=await fetch('/api/gmail/send',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      var data=await resp.json();
+      if(!resp.ok||data.error)throw new Error(data.error||'Send failed');
+      await _sb.from('scheduled_emails').update({status:'sent',sent_at:new Date().toISOString()}).eq('id',se.id);
+      toast('Scheduled email sent: '+esc(se.subject||'(no subject)'),'ok');
+    }catch(e){
+      await _sb.from('scheduled_emails').update({status:'failed',error:e.message}).eq('id',se.id);
+      toast('Scheduled send failed: '+e.message,'warn')}}}
+
+/* ── Email Rules (Supabase) ── */
+async function loadEmailRules(){
+  var uid=await getUserId();if(!uid)return;
+  var res=await _sb.from('email_rules').select('*').eq('user_id',uid).order('priority',{ascending:false});
+  S.emailRules=(res.data||[]).map(function(r){return{
+    id:r.id,name:r.name,conditions:r.conditions||[],actions:r.actions||[],
+    isActive:r.is_active,priority:r.priority||0,createdAt:r.created_at}})}
+
+function applyEmailRules(thread){
+  if(!S.emailRules||!S.emailRules.length)return null;
+  var rules=S.emailRules.filter(function(r){return r.isActive}).sort(function(a,b){return(b.priority||0)-(a.priority||0)});
+  for(var i=0;i<rules.length;i++){
+    var rule=rules[i];
+    if(!rule.conditions.length)continue;
+    var allMatch=true;
+    for(var j=0;j<rule.conditions.length;j++){
+      var cond=rule.conditions[j];
+      var val=(cond.value||'').toLowerCase();
+      if(!val){allMatch=false;break}
+      /* Gather thread participants */
+      var from=((thread.from_email||thread.fromEmail||'')).toLowerCase();
+      var fromDomain=from.indexOf('@')!==-1?from.split('@')[1]:'';
+      var subj=((thread.subject||'')).toLowerCase();
+      var toCc=((thread.to||'')+ ' '+(thread.cc||'')).toLowerCase();
+      var allParticipants=(from+' '+toCc).toLowerCase();
+
+      if(cond.type==='from_domain_equals'&&fromDomain!==val){allMatch=false;break}
+      else if(cond.type==='from_email_contains'&&from.indexOf(val)===-1){allMatch=false;break}
+      else if(cond.type==='subject_contains'&&subj.indexOf(val)===-1){allMatch=false;break}
+      else if(cond.type==='to_or_cc_contains'&&toCc.indexOf(val)===-1){allMatch=false;break}
+      else if(cond.type==='any_participant_domain'){
+        var hasDomain=allParticipants.indexOf('@'+val)!==-1;
+        if(!hasDomain){allMatch=false;break}}}
+    if(allMatch)return rule.actions}
+  return null}
+
+async function _applyRuleActionsToThread(threadId,actions){
+  if(!actions||!actions.length||!threadId)return;
+  var updates={};
+  actions.forEach(function(act){
+    if(act.type==='assign_client')updates.client_id=act.value||null;
+    else if(act.type==='assign_end_client')updates.end_client=act.value||'';
+    else if(act.type==='assign_campaign')updates.campaign_id=act.value||null;
+    else if(act.type==='assign_opportunity')updates.opportunity_id=act.value||null});
+  if(Object.keys(updates).length){
+    await _sb.from('gmail_threads').update(updates).eq('thread_id',threadId);
+    /* Update local cache */
+    var cached=S.gmailThreads.find(function(t){return(t.thread_id||t.threadId)===threadId});
+    if(cached){Object.keys(updates).forEach(function(k){cached[k]=updates[k]})}
+    S._threadCrmCache={}}
+  /* Handle auto-archive */
+  var archiveAct=actions.find(function(a){return a.type==='auto_archive'});
+  if(archiveAct)archiveEmail(threadId)}
+
+async function saveEmailRule(ruleData){
+  var uid=await getUserId();if(!uid)return;
+  var row={user_id:uid,name:ruleData.name||'Untitled Rule',
+    conditions:ruleData.conditions||[],actions:ruleData.actions||[],
+    is_active:ruleData.isActive!==false,priority:ruleData.priority||0};
+  if(ruleData.id){
+    var res=await _sb.from('email_rules').update(row).eq('id',ruleData.id);
+    if(res.error){toast('Save failed: '+res.error.message,'warn');return}}
+  else{
+    var res2=await _sb.from('email_rules').insert(row);
+    if(res2.error){toast('Save failed: '+res2.error.message,'warn');return}}
+  await loadEmailRules();toast('Rule saved','ok')}
+
+async function deleteEmailRule(id){
+  var res=await _sb.from('email_rules').delete().eq('id',id);
+  if(res.error){toast('Delete failed: '+res.error.message,'warn');return}
+  await loadEmailRules();toast('Rule deleted','ok');render()}
+
+async function toggleEmailRule(id,active){
+  await _sb.from('email_rules').update({is_active:active}).eq('id',id);
+  await loadEmailRules();render()}
 
 /* ── Contact autocomplete ── */
 window._composeRecipients={to:[],cc:[],bcc:[]};
@@ -2315,7 +2621,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -2958,6 +3264,8 @@ function buildSubNav(sec){
     h+='<span class="ico">'+icon(sub.icon,14)+'</span>'+sub.label;
     if(sub.id==='inbox'){var _sib=S.tasks.filter(function(t){return t.isInbox}).length;if(_sib>0)h+='<span class="sub-badge">'+_sib+'</span>'}
     if(sub.id==='review'&&S.review.length>0)h+='<span class="sub-badge">'+S.review.length+'</span>';
+    if(sub.id==='e-drafts'){var _dc=getDraftCount();if(_dc>0)h+='<span class="sub-badge">'+_dc+'</span>'}
+    if(sub.id==='e-scheduled'){var _sc2=(S.scheduledEmails||[]).filter(function(e){return e.status==='pending'}).length;if(_sc2>0)h+='<span class="sub-badge">'+_sc2+'</span>'}
     /* Smart inbox badges */
     if(sub.smart&&sec.id==='email'){
       var _sc=_countSmartInbox(sub.id);

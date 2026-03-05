@@ -243,7 +243,27 @@ function openDetail(id){
   gel('detail-body').innerHTML=h;
   gel('detail-modal').classList.add('on','full-detail')}
 
-function closeModal(){var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail');var m=gel('modal');if(m)m.classList.remove('on')}
+function closeModal(){
+  /* Check if compose is active — offer to save as draft */
+  var editor=gel('compose-body');
+  if(editor){
+    var to=window._composeRecipients.to||[];
+    var subject=(gel('compose-subject')||{}).value||'';
+    var body=editor.innerHTML||'';
+    var hasContent=to.length||subject||
+      (body&&body!=='<br>'&&body!=='<div><br></div>'&&!body.match(/^(<br\s*\/?>|<div><br><\/div>|\s)*(<br\s*\/?>)?<div class="email-signature">[\s\S]*<\/div>$/));
+    if(hasContent){
+      var saveDraft=confirm('Save this message as a draft?');
+      if(saveDraft){_saveDraft(window._composeDraftId);toast('Draft saved','ok')}
+      else if(window._composeDraftId){_deleteDraft(window._composeDraftId)}}
+    /* Clear timer + state */
+    if(window._composeDraftTimer){clearInterval(window._composeDraftTimer);window._composeDraftTimer=null}
+    window._composeDraftId=null;
+    document.removeEventListener('selectionchange',updateComposeToolbar);
+    window._composeAttachments=[];
+    var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
+    inner.classList.remove('tf-modal-wide')}
+  var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail');var m=gel('modal');if(m)m.classList.remove('on')}
 
 async function saveDetail(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
@@ -3902,21 +3922,59 @@ function openComposeEmail(opts){
   /* ── Formatting toolbar + Editor ── */
   h+='<div class="compose-body-wrap">';
   h+='<div class="compose-toolbar">';
-  var tbBtns=[
+  /* Row 1: Font + Size + Text formatting + Color + Clear */
+  h+='<div class="compose-toolbar-row">';
+  h+='<select class="compose-font-select" onchange="TF.execComposeCmd(\'fontName\',this.value)" title="Font family">';
+  h+='<option value="">Font</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option>';
+  h+='<option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option>';
+  h+='<option value="Verdana">Verdana</option><option value="Trebuchet MS">Trebuchet MS</option></select>';
+  h+='<select class="compose-size-select" onchange="TF.execComposeCmd(\'fontSize\',this.value)" title="Font size">';
+  h+='<option value="">Size</option><option value="1">Small</option><option value="3" selected>Normal</option>';
+  h+='<option value="4">Large</option><option value="5">Huge</option></select>';
+  h+='<div class="compose-toolbar-sep"></div>';
+  var row1Btns=[
     {cmd:'bold',icon:'bold',title:'Bold (Ctrl+B)'},
     {cmd:'italic',icon:'italic',title:'Italic (Ctrl+I)'},
     {cmd:'underline',icon:'underline',title:'Underline (Ctrl+U)'},
-    {cmd:'strikethrough',icon:'strikethrough',title:'Strikethrough'},
+    {cmd:'strikethrough',icon:'strikethrough',title:'Strikethrough'}
+  ];
+  row1Btns.forEach(function(b){
+    h+='<button class="compose-toolbar-btn" data-compose-cmd="'+b.cmd+'" title="'+b.title+'" onclick="event.preventDefault();TF.execComposeCmd(\''+b.cmd+'\')">'+icon(b.icon,12)+'</button>'});
+  h+='<div class="compose-toolbar-sep"></div>';
+  /* Color pickers */
+  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Text color" onclick="event.preventDefault();TF.toggleColorPicker(\'text\')"><span style="border-bottom:3px solid #e06666;display:flex">'+icon('type',12)+'</span></button>';
+  h+='<div class="compose-color-picker" id="compose-text-color-picker"></div></div>';
+  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Highlight color" onclick="event.preventDefault();TF.toggleColorPicker(\'bg\')">'+icon('highlighter',12)+'</button>';
+  h+='<div class="compose-color-picker" id="compose-bg-color-picker"></div></div>';
+  h+='<div class="compose-toolbar-sep"></div>';
+  h+='<button class="compose-toolbar-btn" title="Clear formatting" onclick="event.preventDefault();TF.execComposeCmd(\'removeFormat\')">'+icon('eraser',12)+'</button>';
+  h+='</div>';
+  /* Row 2: Alignment + Lists/Indent/Quote + Link/Emoji/Image + Undo/Redo */
+  h+='<div class="compose-toolbar-row">';
+  var row2Btns=[
+    {cmd:'justifyLeft',icon:'align_left',title:'Align left'},
+    {cmd:'justifyCenter',icon:'align_center',title:'Align center'},
+    {cmd:'justifyRight',icon:'align_right',title:'Align right'},
     {sep:true},
     {cmd:'insertUnorderedList',icon:'list_ul',title:'Bullet list'},
     {cmd:'insertOrderedList',icon:'list_ol',title:'Numbered list'},
+    {cmd:'indent',icon:'indent',title:'Indent more'},
+    {cmd:'outdent',icon:'outdent',title:'Indent less'},
     {cmd:'formatBlock_blockquote',icon:'quote',title:'Quote'},
     {sep:true},
-    {cmd:'createLink',icon:'link',title:'Insert link'}
+    {cmd:'createLink',icon:'link',title:'Insert link'},
   ];
-  tbBtns.forEach(function(b){
+  row2Btns.forEach(function(b){
     if(b.sep){h+='<div class="compose-toolbar-sep"></div>';return}
-    h+='<button class="compose-toolbar-btn" data-compose-cmd="'+b.cmd+'" title="'+b.title+'" onclick="event.preventDefault();TF.execComposeCmd(\''+(b.cmd==='formatBlock_blockquote'?'formatBlock\',\'blockquote':b.cmd+'\',\'')+'\')">'+icon(b.icon,13)+'</button>'});
+    h+='<button class="compose-toolbar-btn" data-compose-cmd="'+b.cmd+'" title="'+b.title+'" onclick="event.preventDefault();TF.execComposeCmd(\''+(b.cmd==='formatBlock_blockquote'?'formatBlock\',\'blockquote':b.cmd+'\',\'')+'\')">'+icon(b.icon,12)+'</button>'});
+  /* Emoji picker */
+  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Insert emoji" onclick="event.preventDefault();TF.toggleEmojiPicker()">'+icon('smile',12)+'</button>';
+  h+='<div class="compose-emoji-picker" id="compose-emoji-picker"></div></div>';
+  h+='<button class="compose-toolbar-btn" title="Insert image" onclick="event.preventDefault();TF.execComposeCmd(\'insertImage\')">'+icon('image',12)+'</button>';
+  h+='<div class="compose-toolbar-sep"></div>';
+  h+='<button class="compose-toolbar-btn" title="Undo (Ctrl+Z)" onclick="event.preventDefault();TF.execComposeCmd(\'undo\')">'+icon('undo',12)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Redo (Ctrl+Y)" onclick="event.preventDefault();TF.execComposeCmd(\'redo\')">'+icon('redo',12)+'</button>';
+  h+='</div>';
   h+='</div>';
 
   /* Contenteditable editor */
@@ -3954,7 +4012,22 @@ function openComposeEmail(opts){
 
   /* ── Bottom bar ── */
   h+='<div style="display:flex;align-items:center;gap:8px;margin-top:12px">';
-  h+='<button class="btn btn-p compose-send-btn" id="compose-send-btn" onclick="TF.sendEmail()" style="font-size:13px;padding:8px 24px;opacity:.5;pointer-events:none" disabled>'+icon('send',12)+' Send</button>';
+  /* Split send button */
+  h+='<div class="compose-split-btn">';
+  h+='<button class="btn btn-p compose-send-btn" id="compose-send-btn" onclick="TF.sendEmail()" style="font-size:13px;padding:8px 24px;opacity:.5;pointer-events:none;border-radius:10px 0 0 10px" disabled>'+icon('send',12)+' Send</button>';
+  h+='<button class="btn btn-p compose-schedule-toggle" id="compose-schedule-toggle" onclick="TF.toggleScheduleMenu()" style="font-size:11px;padding:8px 6px;opacity:.5;pointer-events:none;border-radius:0 10px 10px 0;border-left:1px solid rgba(255,255,255,.2)" disabled>'+icon('chevron_down',10)+'</button>';
+  h+='<div class="compose-schedule-menu" id="compose-schedule-menu">';
+  h+='<div class="compose-schedule-header">'+icon('clock',12)+' Schedule Send</div>';
+  h+='<div class="compose-schedule-note">Emails send when TaskFlow is open in your browser</div>';
+  h+='<div class="compose-schedule-opt" onclick="TF.schedulePreset(\'1h\')">In 1 hour</div>';
+  h+='<div class="compose-schedule-opt" onclick="TF.schedulePreset(\'tomorrow_am\')">Tomorrow morning (9:00 AM)</div>';
+  h+='<div class="compose-schedule-opt" onclick="TF.schedulePreset(\'tomorrow_pm\')">Tomorrow afternoon (2:00 PM)</div>';
+  h+='<div class="compose-schedule-opt" onclick="TF.schedulePreset(\'monday\')">Monday morning (9:00 AM)</div>';
+  h+='<div class="compose-schedule-custom">';
+  h+='<label style="font-size:11px;color:var(--t3)">Custom date & time</label>';
+  h+='<input type="datetime-local" class="edf" id="compose-schedule-dt" style="font-size:12px;padding:5px 8px;margin-top:4px">';
+  h+='<button class="btn btn-p" onclick="TF.scheduleCustom()" style="font-size:11px;padding:5px 12px;margin-top:6px;width:100%">Schedule</button>';
+  h+='</div></div></div>';
   h+='<button class="btn" onclick="TF.addComposeAttachment()" style="font-size:12px;padding:7px 14px">'+icon('paperclip',12)+' Attach</button>';
   h+='<div style="flex:1"></div>';
   h+='<button class="btn" onclick="TF.closeModal()" style="font-size:12px;padding:7px 14px">Discard</button>';
@@ -3967,18 +4040,50 @@ function openComposeEmail(opts){
   var inner=modal.querySelector('.tf-modal-inner')||modal;
   inner.classList.add('tf-modal-wide');
 
+  /* Draft tracking */
+  window._composeDraftId=opts._draftId||null;
+  if(window._composeDraftTimer)clearInterval(window._composeDraftTimer);
+  window._composeDraftTimer=setInterval(function(){
+    if(!gel('compose-body')){clearInterval(window._composeDraftTimer);return}
+    window._composeDraftId=_saveDraft(window._composeDraftId)},10000);
+
   /* Render initial chips */
   setTimeout(function(){
+    /* Restore draft recipients if coming from a draft */
+    if(opts._draftRecipients){
+      window._composeRecipients.to=opts._draftRecipients.to||[];
+      window._composeRecipients.cc=opts._draftRecipients.cc||[];
+      window._composeRecipients.bcc=opts._draftRecipients.bcc||[];
+      if(opts._draftRecipients.cc.length){var ccw=gel('compose-cc-wrap');if(ccw)ccw.style.display='block';var ccl=gel('compose-show-cc');if(ccl)ccl.style.display='none'}
+      if(opts._draftRecipients.bcc.length){var bccw=gel('compose-bcc-wrap');if(bccw)bccw.style.display='block';var bccl=gel('compose-show-bcc');if(bccl)bccl.style.display='none'}
+    }
     renderRecipientChips('to');renderRecipientChips('cc');renderRecipientChips('bcc');
     /* Focus editor for new, or To for forward */
     if(isForward){var ti=gel('compose-to-input');if(ti)ti.focus()}
-    else if(!isReply){var ed=gel('compose-body');if(ed){ed.focus();
+    else if(!isReply&&!opts._draftId){var ed=gel('compose-body');if(ed){ed.focus();
       /* Move cursor to beginning */
       var sel=window.getSelection();var rng=document.createRange();rng.setStart(ed,0);rng.collapse(true);sel.removeAllRanges();sel.addRange(rng)}}
     /* Listen for selection changes to update toolbar */
     document.addEventListener('selectionchange',updateComposeToolbar);
-    /* Auto-detect CRM context from recipients */
-    _composeCatAutoDetect();
+    /* Close color/emoji pickers on outside click */
+    document.addEventListener('mousedown',function _closePickers(e){
+      if(!gel('compose-body')){document.removeEventListener('mousedown',_closePickers);return}
+      if(!e.target.closest('.compose-color-wrap')){
+        document.querySelectorAll('.compose-color-picker,.compose-emoji-picker').forEach(function(p){p.classList.remove('open')})}});
+    /* Restore draft categorization */
+    if(opts._draftCat){
+      var dc=opts._draftCat;
+      if(dc.none){var nb=gel('compose-cat-none');if(nb){nb.checked=true;composeCatNoneChange()}}
+      else{
+        if(dc.client){var cs=gel('compose-cat-client');if(cs){cs.value=dc.client;composeCatClientChange()}}
+        setTimeout(function(){
+          if(dc.ec){var es=gel('compose-cat-ec');if(es)es.value=dc.ec}
+          if(dc.campaign){var cps=gel('compose-cat-campaign');if(cps)cps.value=dc.campaign}
+          if(dc.opp){var os=gel('compose-cat-opportunity');if(os)os.value=dc.opp}
+          _composeCatValidate()},100)}
+    }else{
+      /* Auto-detect CRM context from recipients */
+      _composeCatAutoDetect();}
   },50)}
 
 function _composeCatAutoDetect(){
@@ -4033,6 +4138,7 @@ function composeCatNoneChange(){
 
 function _composeCatValidate(){
   var btn=gel('compose-send-btn');if(!btn)return;
+  var schedBtn=gel('compose-schedule-toggle');
   var none=gel('compose-cat-none');
   var client=(gel('compose-cat-client')||{}).value||'';
   var ec=(gel('compose-cat-ec')||{}).value||'';
@@ -4041,7 +4147,8 @@ function _composeCatValidate(){
   var valid=(none&&none.checked)||client||ec||camp||opp;
   btn.disabled=!valid;
   btn.style.opacity=valid?'1':'.5';
-  btn.style.pointerEvents=valid?'auto':'none'}
+  btn.style.pointerEvents=valid?'auto':'none';
+  if(schedBtn){schedBtn.disabled=!valid;schedBtn.style.opacity=valid?'1':'.5';schedBtn.style.pointerEvents=valid?'auto':'none'}}
 
 async function sendEmail(){
   var to=window._composeRecipients.to.join(', ');
@@ -4103,16 +4210,182 @@ async function sendEmail(){
         S._threadCrmCache={}})}
 
     toast('Email sent!','ok');
-    /* Clean up */
+    /* Clean up draft */
+    if(window._composeDraftTimer){clearInterval(window._composeDraftTimer);window._composeDraftTimer=null}
+    if(window._composeDraftId){_deleteDraft(window._composeDraftId);window._composeDraftId=null}
+    /* Clean up compose state */
     document.removeEventListener('selectionchange',updateComposeToolbar);
     window._composeAttachments=[];
     var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
     inner.classList.remove('tf-modal-wide');
-    closeModal();
+    /* Close without draft prompt — we already handled it */
+    var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail');var m=gel('modal');if(m)m.classList.remove('on');
 
     /* Auto-archive replies/forwards */
     if(threadId){archiveEmail(threadId)}
   }catch(e){toast('Send failed: '+e.message,'warn')}}
+
+/* ── Schedule Send helpers ── */
+function toggleScheduleMenu(){
+  var menu=gel('compose-schedule-menu');if(!menu)return;
+  menu.classList.toggle('open');
+  /* Set default datetime-local value to tomorrow 9am */
+  if(menu.classList.contains('open')){
+    var dt=gel('compose-schedule-dt');
+    if(dt&&!dt.value){
+      var tm=new Date();tm.setDate(tm.getDate()+1);tm.setHours(9,0,0,0);
+      dt.value=tm.toISOString().slice(0,16)}}}
+
+function schedulePreset(preset){
+  var dt=new Date();
+  if(preset==='1h'){dt.setHours(dt.getHours()+1)}
+  else if(preset==='tomorrow_am'){dt.setDate(dt.getDate()+1);dt.setHours(9,0,0,0)}
+  else if(preset==='tomorrow_pm'){dt.setDate(dt.getDate()+1);dt.setHours(14,0,0,0)}
+  else if(preset==='monday'){
+    var day=dt.getDay();var add=day===0?1:(8-day);
+    dt.setDate(dt.getDate()+add);dt.setHours(9,0,0,0)}
+  scheduleEmail(dt.toISOString())}
+
+function scheduleCustom(){
+  var dt=gel('compose-schedule-dt');if(!dt||!dt.value){toast('Pick a date and time','warn');return}
+  var parsed=new Date(dt.value);
+  if(isNaN(parsed.getTime())){toast('Invalid date','warn');return}
+  if(parsed<=new Date()){toast('Pick a future date','warn');return}
+  scheduleEmail(parsed.toISOString())}
+
+/* ═══════════ EMAIL RULES MODAL ═══════════ */
+function openEmailRulesModal(){
+  var h='<h2 style="margin-bottom:16px">'+icon('filter',16)+' Email Rules</h2>';
+  h+='<p style="font-size:12px;color:var(--t3);margin-bottom:16px">Rules automatically categorize incoming emails based on conditions you define.</p>';
+  h+='<button class="btn btn-p" onclick="TF.openAddRuleModal()" style="font-size:12px;padding:7px 14px;margin-bottom:16px">+ Add Rule</button>';
+  var rules=S.emailRules||[];
+  if(!rules.length){
+    h+='<div style="text-align:center;padding:24px;color:var(--t4)">No rules yet. Click "Add Rule" to create one.</div>'}
+  else{
+    rules.forEach(function(r){
+      var condSummary=r.conditions.map(function(c){return _ruleCondLabel(c.type)+' "'+esc(c.value||'')+'"'}).join(' AND ');
+      var actSummary=r.actions.map(function(a){return _ruleActLabel(a.type)+' → '+esc(_ruleActValueLabel(a))}).join(', ');
+      h+='<div class="rule-card'+(r.isActive?'':' rule-disabled')+'">';
+      h+='<div class="rule-card-head">';
+      h+='<div class="rule-card-name">'+esc(r.name)+'</div>';
+      h+='<div class="rule-card-actions">';
+      h+='<label class="rule-toggle"><input type="checkbox" '+(r.isActive?'checked':'')+' onchange="TF.toggleEmailRule(\''+esc(r.id)+'\',this.checked)"><span class="rule-toggle-slider"></span></label>';
+      h+='<button class="btn" onclick="TF.openEditRuleModal(\''+esc(r.id)+'\')" style="font-size:10px;padding:3px 8px">Edit</button>';
+      h+='<button class="btn" onclick="TF.deleteEmailRule(\''+esc(r.id)+'\')" style="font-size:10px;padding:3px 8px">'+icon('trash',10)+'</button>';
+      h+='</div></div>';
+      h+='<div class="rule-card-detail"><strong>When:</strong> '+condSummary+'</div>';
+      h+='<div class="rule-card-detail"><strong>Then:</strong> '+actSummary+'</div>';
+      h+='</div>'})}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+function _ruleCondLabel(type){
+  var map={from_domain_equals:'From domain equals',from_email_contains:'From email contains',
+    subject_contains:'Subject contains',to_or_cc_contains:'To/CC contains',
+    any_participant_domain:'Any participant domain'};
+  return map[type]||type}
+
+function _ruleActLabel(type){
+  var map={assign_client:'Assign client',assign_end_client:'Assign end client',
+    assign_campaign:'Assign campaign',assign_opportunity:'Assign opportunity',
+    auto_archive:'Auto-archive'};
+  return map[type]||type}
+
+function _ruleActValueLabel(act){
+  if(act.type==='assign_client'){var cr=S.clientRecords.find(function(r){return r.name===act.value});return cr?cr.name:(act.value||'')}
+  if(act.type==='assign_campaign'){var cp=S.campaigns.find(function(c){return c.id===act.value});return cp?cp.name:(act.value||'')}
+  if(act.type==='assign_opportunity'){var op=S.opportunities.find(function(o){return o.id===act.value});return op?op.name:(act.value||'')}
+  if(act.type==='auto_archive')return'Yes';
+  return act.value||''}
+
+function openAddRuleModal(){_openRuleEditor(null)}
+function openEditRuleModal(id){
+  var rule=(S.emailRules||[]).find(function(r){return r.id===id});
+  if(!rule){toast('Rule not found','warn');return}
+  _openRuleEditor(rule)}
+
+function _openRuleEditor(rule){
+  window._editingRule=rule?{id:rule.id,name:rule.name,conditions:JSON.parse(JSON.stringify(rule.conditions)),
+    actions:JSON.parse(JSON.stringify(rule.actions)),isActive:rule.isActive,priority:rule.priority}
+    :{id:null,name:'',conditions:[{type:'from_domain_equals',value:''}],actions:[{type:'assign_client',value:''}],isActive:true,priority:0};
+  _renderRuleEditor()}
+
+function _renderRuleEditor(){
+  var r=window._editingRule;if(!r)return;
+  var h='<h2 style="margin-bottom:16px">'+(r.id?'Edit':'New')+' Email Rule</h2>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Rule Name</span>';
+  h+='<input type="text" class="edf" id="rule-name" value="'+escAttr(r.name)+'" placeholder="e.g. Auto-categorize Acme emails" onchange="window._editingRule.name=this.value"></div>';
+
+  /* Conditions */
+  h+='<div style="margin-bottom:12px"><span class="ed-lbl">When all of these match:</span></div>';
+  r.conditions.forEach(function(cond,i){
+    h+='<div class="rule-editor-row">';
+    h+='<select class="edf rule-cond-type" onchange="TF.ruleCondTypeChange('+i+',this.value)" style="flex:1;font-size:11px;padding:5px">';
+    ['from_domain_equals','from_email_contains','subject_contains','to_or_cc_contains','any_participant_domain'].forEach(function(t){
+      h+='<option value="'+t+'"'+(cond.type===t?' selected':'')+'>'+_ruleCondLabel(t)+'</option>'});
+    h+='</select>';
+    h+='<input type="text" class="edf" value="'+escAttr(cond.value||'')+'" placeholder="Value..." onchange="TF.ruleCondValueChange('+i+',this.value)" style="flex:1;font-size:11px;padding:5px">';
+    h+='<button class="btn" onclick="TF.removeRuleCond('+i+')" style="font-size:10px;padding:3px 6px">'+icon('x',10)+'</button>';
+    h+='</div>'});
+  h+='<button class="btn" onclick="TF.addRuleCond()" style="font-size:11px;padding:4px 10px;margin-bottom:16px">+ Add condition</button>';
+
+  /* Actions */
+  h+='<div style="margin-bottom:12px"><span class="ed-lbl">Then do:</span></div>';
+  r.actions.forEach(function(act,i){
+    h+='<div class="rule-editor-row">';
+    h+='<select class="edf rule-act-type" onchange="TF.ruleActTypeChange('+i+',this.value)" style="flex:1;font-size:11px;padding:5px">';
+    ['assign_client','assign_end_client','assign_campaign','assign_opportunity','auto_archive'].forEach(function(t){
+      h+='<option value="'+t+'"'+(act.type===t?' selected':'')+'>'+_ruleActLabel(t)+'</option>'});
+    h+='</select>';
+    h+=_ruleActionValueSelector(act,i);
+    h+='<button class="btn" onclick="TF.removeRuleAct('+i+')" style="font-size:10px;padding:3px 6px">'+icon('x',10)+'</button>';
+    h+='</div>'});
+  h+='<button class="btn" onclick="TF.addRuleAct()" style="font-size:11px;padding:4px 10px;margin-bottom:16px">+ Add action</button>';
+
+  h+='<div style="display:flex;gap:8px;margin-top:16px">';
+  h+='<button class="btn btn-p" onclick="TF.saveRule()" style="font-size:13px;padding:8px 20px">Save Rule</button>';
+  h+='<button class="btn" onclick="TF.openEmailRulesModal()" style="font-size:12px;padding:7px 14px">Cancel</button>';
+  h+='</div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+function _ruleActionValueSelector(act,idx){
+  if(act.type==='auto_archive')return'<span style="flex:1;font-size:11px;color:var(--t3);padding:5px">Automatically archive</span>';
+  if(act.type==='assign_client'){
+    var h='<select class="edf" onchange="TF.ruleActValueChange('+idx+',this.value)" style="flex:1;font-size:11px;padding:5px">';
+    h+='<option value="">— Select client —</option>';
+    S.clientRecords.forEach(function(cr){h+='<option value="'+esc(cr.name)+'"'+(act.value===cr.name?' selected':'')+'>'+esc(cr.name)+'</option>'});
+    return h+'</select>'}
+  if(act.type==='assign_campaign'){
+    var h2='<select class="edf" onchange="TF.ruleActValueChange('+idx+',this.value)" style="flex:1;font-size:11px;padding:5px">';
+    h2+='<option value="">— Select campaign —</option>';
+    S.campaigns.forEach(function(c){h2+='<option value="'+esc(c.id)+'"'+(act.value===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+    return h2+'</select>'}
+  if(act.type==='assign_opportunity'){
+    var h3='<select class="edf" onchange="TF.ruleActValueChange('+idx+',this.value)" style="flex:1;font-size:11px;padding:5px">';
+    h3+='<option value="">— Select opportunity —</option>';
+    S.opportunities.filter(function(o){return!o.closedAt}).forEach(function(o){h3+='<option value="'+esc(o.id)+'"'+(act.value===o.id?' selected':'')+'>'+esc(o.name)+'</option>'});
+    return h3+'</select>'}
+  /* assign_end_client — text input */
+  return'<input type="text" class="edf" value="'+escAttr(act.value||'')+'" placeholder="End client name..." onchange="TF.ruleActValueChange('+idx+',this.value)" style="flex:1;font-size:11px;padding:5px">'}
+
+/* Rule editor state manipulation */
+function addRuleCond(){window._editingRule.conditions.push({type:'from_domain_equals',value:''});_renderRuleEditor()}
+function removeRuleCond(i){window._editingRule.conditions.splice(i,1);_renderRuleEditor()}
+function ruleCondTypeChange(i,v){window._editingRule.conditions[i].type=v;_renderRuleEditor()}
+function ruleCondValueChange(i,v){window._editingRule.conditions[i].value=v}
+function addRuleAct(){window._editingRule.actions.push({type:'assign_client',value:''});_renderRuleEditor()}
+function removeRuleAct(i){window._editingRule.actions.splice(i,1);_renderRuleEditor()}
+function ruleActTypeChange(i,v){window._editingRule.actions[i].type=v;window._editingRule.actions[i].value='';_renderRuleEditor()}
+function ruleActValueChange(i,v){window._editingRule.actions[i].value=v}
+
+function saveRule(){
+  var r=window._editingRule;if(!r)return;
+  r.name=r.name||(gel('rule-name')||{}).value||'Untitled Rule';
+  if(!r.conditions.length){toast('Add at least one condition','warn');return}
+  if(!r.actions.length){toast('Add at least one action','warn');return}
+  /* Validate conditions have values */
+  var emptyC=r.conditions.some(function(c){return!c.value});
+  if(emptyC){toast('Fill in all condition values','warn');return}
+  saveEmailRule(r).then(function(){openEmailRulesModal()})}
 
 function openReplyEmail(msgIdx){
   if(!S.gmailThread||!S.gmailThread.messages||!S.gmailThread.messages.length)return;

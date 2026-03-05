@@ -1169,14 +1169,47 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .compose-ac-email{font-size:11px;color:var(--t4)}
 
 /* ── Compose toolbar (formatting) ── */
-.compose-toolbar{display:flex;gap:1px;padding:4px 6px;border-bottom:1px solid var(--gborder);
-  background:rgba(255,255,255,.015);flex-wrap:wrap}
+.compose-toolbar{display:flex;flex-direction:column;border-bottom:1px solid var(--gborder);
+  background:rgba(255,255,255,.015)}
+.compose-toolbar-row{display:flex;align-items:center;gap:1px;padding:3px 6px;flex-wrap:wrap}
 .compose-toolbar-btn{width:30px;height:28px;border-radius:5px;border:none;background:transparent;
   cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t3);
   transition:all .12s;font-size:13px;font-weight:600}
 .compose-toolbar-btn:hover{background:rgba(255,255,255,.08);color:var(--t1)}
 .compose-toolbar-btn.active{background:var(--accent);color:#fff}
 .compose-toolbar-sep{width:1px;height:20px;background:var(--gborder);margin:4px 4px;align-self:center}
+
+/* Font / Size selects */
+.compose-font-select,.compose-size-select{background:rgba(255,255,255,.04);border:1px solid var(--gborder);
+  border-radius:5px;color:var(--t2);font-size:11px;padding:4px 6px;height:28px;cursor:pointer;
+  outline:none;max-width:110px}
+.compose-font-select:hover,.compose-size-select:hover{border-color:var(--accent);color:var(--t1)}
+.compose-font-select:focus,.compose-size-select:focus{border-color:var(--accent)}
+.compose-font-select option,.compose-size-select option{background:var(--bg);color:var(--t1)}
+.compose-size-select{max-width:72px}
+
+/* Color picker wrapper + panel */
+.compose-color-wrap{position:relative;display:inline-flex}
+.compose-color-picker{display:none;position:absolute;top:100%;left:0;z-index:200;
+  background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--gborder);
+  border-radius:8px;padding:8px;margin-top:4px;
+  grid-template-columns:repeat(5,1fr);gap:4px;min-width:140px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.compose-color-picker.open{display:grid}
+.color-swatch{width:22px;height:22px;border-radius:4px;cursor:pointer;border:2px solid transparent;
+  transition:all .12s}
+.color-swatch:hover{border-color:rgba(255,255,255,.6);transform:scale(1.15)}
+
+/* Emoji picker */
+.compose-emoji-picker{display:none;position:absolute;top:100%;left:0;z-index:200;
+  background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--gborder);
+  border-radius:8px;padding:8px;margin-top:4px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:220px;overflow-y:auto}
+.compose-emoji-picker.open{display:block}
+.emoji-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:2px}
+.emoji-item{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  font-size:16px;cursor:pointer;border-radius:4px;transition:background .1s}
+.emoji-item:hover{background:rgba(255,255,255,.1)}
 
 /* ── Compose editor (contenteditable) ── */
 .compose-editor{min-height:250px;max-height:60vh;overflow-y:auto;padding:14px 16px;
@@ -1193,6 +1226,22 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   background:rgba(255,255,255,.02);transition:border-color .2s}
 .compose-body-wrap:focus-within{border-color:var(--accent)}
 
+/* ── Split send button + Schedule menu ── */
+.compose-split-btn{display:inline-flex;position:relative}
+.compose-schedule-menu{display:none;position:absolute;bottom:100%;left:0;z-index:200;
+  background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--gborder);
+  border-radius:10px;padding:8px 0;margin-bottom:6px;min-width:260px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.compose-schedule-menu.open{display:block}
+.compose-schedule-header{padding:6px 14px;font-size:12px;font-weight:600;color:var(--t1);
+  display:flex;align-items:center;gap:6px}
+.compose-schedule-note{padding:2px 14px 8px;font-size:10px;color:var(--t4);
+  border-bottom:1px solid var(--gborder)}
+.compose-schedule-opt{padding:8px 14px;font-size:12px;color:var(--t2);cursor:pointer;
+  transition:background .1s}
+.compose-schedule-opt:hover{background:rgba(255,255,255,.06);color:var(--t1)}
+.compose-schedule-custom{padding:8px 14px;border-top:1px solid var(--gborder)}
+
 /* ── Compose attachments bar ── */
 .compose-attach-list{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;
   border-top:1px solid var(--gborder)}
@@ -1200,6 +1249,25 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   background:rgba(255,255,255,.05);border:1px solid var(--gborder);border-radius:6px;
   font-size:11px;color:var(--t2)}
 .compose-attach-chip .compose-chip-x{font-size:12px}
+
+/* ── Email Rules ── */
+.rule-card{background:var(--glass);border:1px solid var(--gborder);border-radius:10px;
+  padding:12px 16px;margin-bottom:8px;transition:opacity .2s}
+.rule-card.rule-disabled{opacity:.5}
+.rule-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.rule-card-name{font-weight:600;font-size:13px;color:var(--t1)}
+.rule-card-actions{display:flex;align-items:center;gap:6px}
+.rule-card-detail{font-size:11px;color:var(--t3);margin-bottom:2px}
+.rule-editor-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+/* Toggle switch */
+.rule-toggle{position:relative;display:inline-block;width:32px;height:18px}
+.rule-toggle input{opacity:0;width:0;height:0}
+.rule-toggle-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+  background:rgba(255,255,255,.1);border-radius:18px;transition:.2s}
+.rule-toggle-slider:before{position:absolute;content:"";height:14px;width:14px;left:2px;bottom:2px;
+  background:#fff;border-radius:50%;transition:.2s}
+.rule-toggle input:checked+.rule-toggle-slider{background:var(--accent)}
+.rule-toggle input:checked+.rule-toggle-slider:before{transform:translateX(14px)}
 
 /* ── Email attachment cards in thread view ── */
 .email-attachments{display:flex;flex-wrap:wrap;gap:8px;padding:8px 16px 12px}

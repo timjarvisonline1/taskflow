@@ -64,6 +64,15 @@ async function syncGmail(userId) {
       if (c.email && c.client_id) contactEmailMap[c.email.toLowerCase()] = c.client_id;
     });
 
+    // Load email rules for server-side auto-categorization
+    const { data: emailRules } = await client
+      .from('email_rules')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('priority', { ascending: false });
+    const activeRules = emailRules || [];
+
     // Fetch each thread's metadata and upsert
     for (const thread of threads) {
       try {
@@ -126,6 +135,52 @@ async function syncGmail(userId) {
           }
         }
 
+        // Apply email rules if no client match found
+        let ruleEndClient = null;
+        let ruleCampaignId = null;
+        let ruleOpportunityId = null;
+        let ruleAutoArchive = false;
+        if (!clientId && activeRules.length) {
+          const threadData4Rules = {
+            from_email: fromEmail,
+            subject: subject || '',
+            to: toRaw || '',
+            cc: ccRaw || ''
+          };
+          for (const rule of activeRules) {
+            const conds = rule.conditions || [];
+            if (!conds.length) continue;
+            let allMatch = true;
+            for (const cond of conds) {
+              const val = (cond.value || '').toLowerCase();
+              if (!val) { allMatch = false; break; }
+              const from = fromEmail.toLowerCase();
+              const fromDomain = from.includes('@') ? from.split('@')[1] : '';
+              const subj = (subject || '').toLowerCase();
+              const toCc = ((toRaw || '') + ' ' + (ccRaw || '')).toLowerCase();
+              const allP = (from + ' ' + toCc).toLowerCase();
+              if (cond.type === 'from_domain_equals' && fromDomain !== val) { allMatch = false; break; }
+              else if (cond.type === 'from_email_contains' && !from.includes(val)) { allMatch = false; break; }
+              else if (cond.type === 'subject_contains' && !subj.includes(val)) { allMatch = false; break; }
+              else if (cond.type === 'to_or_cc_contains' && !toCc.includes(val)) { allMatch = false; break; }
+              else if (cond.type === 'any_participant_domain' && !allP.includes('@' + val)) { allMatch = false; break; }
+            }
+            if (allMatch) {
+              const acts = rule.actions || [];
+              for (const act of acts) {
+                if (act.type === 'assign_client') {
+                  const cr = (clientRecords || []).find(c => c.name === act.value);
+                  if (cr) clientId = cr.id;
+                } else if (act.type === 'assign_end_client') ruleEndClient = act.value;
+                else if (act.type === 'assign_campaign') ruleCampaignId = act.value;
+                else if (act.type === 'assign_opportunity') ruleOpportunityId = act.value;
+                else if (act.type === 'auto_archive') ruleAutoArchive = true;
+              }
+              break; // first matching rule wins
+            }
+          }
+        }
+
         // Upsert to gmail_threads
         const row = {
           user_id: userId,
@@ -144,6 +199,9 @@ async function syncGmail(userId) {
           last_message_from: lastFromEmail,
           synced_at: new Date().toISOString()
         };
+        if (ruleEndClient) row.end_client = ruleEndClient;
+        if (ruleCampaignId) row.campaign_id = ruleCampaignId;
+        if (ruleOpportunityId) row.opportunity_id = ruleOpportunityId;
 
         const { data: existing } = await client
           .from('gmail_threads')

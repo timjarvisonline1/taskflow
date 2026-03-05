@@ -4612,9 +4612,122 @@ function rEmailSkeleton(){
     h+='</div>'}
   h+='</div>';return h}
 
+function rEmailDraftList(){
+  var drafts=_loadDrafts();
+  var h='<div class="pg-head"><h1>'+icon('edit',18)+' Drafts';
+  if(drafts.length)h+=' <span style="background:var(--accent);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+drafts.length+'</span>';
+  h+='</h1>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn btn-p" onclick="TF.openComposeEmail()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('edit',12)+' Compose</button>';
+  h+='</div></div>';
+  if(!drafts.length){
+    h+='<div class="email-empty">'+icon('edit',32)+'<p>No drafts.</p><p style="font-size:12px;color:var(--t4)">Drafts are auto-saved while composing.</p></div>';
+    return h}
+  /* Sort by updatedAt desc */
+  drafts.sort(function(a,b){return(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||'')});
+  h+='<div class="email-list">';
+  drafts.forEach(function(d){
+    var to=(d.to||[]).join(', ')||'No recipients';
+    var subj=d.subject||'(no subject)';
+    /* Strip HTML for preview */
+    var tmp=document.createElement('div');tmp.innerHTML=d.body||'';
+    var preview=(tmp.textContent||tmp.innerText||'').substring(0,80);
+    var dt=d.updatedAt||d.createdAt||'';
+    var dateStr='';
+    if(dt){var dd=new Date(dt);dateStr=(dd.getMonth()+1)+'/'+dd.getDate()+' '+(dd.getHours()%12||12)+':'+String(dd.getMinutes()).padStart(2,'0')+(dd.getHours()<12?' AM':' PM')}
+    h+='<div class="email-row" onclick="TF.openDraft(\''+esc(d.id)+'\')" style="cursor:pointer">';
+    h+='<div class="email-row-left">';
+    h+='<div class="email-from" style="color:var(--accent)">Draft</div>';
+    h+='<div class="email-to" style="font-size:11px;color:var(--t3)">To: '+esc(to)+'</div>';
+    h+='</div>';
+    h+='<div class="email-row-mid">';
+    h+='<div class="email-subject">'+esc(subj)+'</div>';
+    h+='<div class="email-preview">'+esc(preview)+'</div>';
+    h+='</div>';
+    h+='<div class="email-row-right">';
+    h+='<span class="email-date">'+dateStr+'</span>';
+    h+='<button class="btn" onclick="event.stopPropagation();TF.deleteDraft(\''+esc(d.id)+'\')" style="font-size:10px;padding:3px 8px;margin-left:8px" title="Delete draft">'+icon('trash',10)+'</button>';
+    h+='</div>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+function rEmailScheduledList(){
+  var emails=(S.scheduledEmails||[]);
+  var pending=emails.filter(function(e){return e.status==='pending'});
+  var sent=emails.filter(function(e){return e.status==='sent'});
+  var failed=emails.filter(function(e){return e.status==='failed'});
+
+  var h='<div class="pg-head"><h1>'+icon('clock',18)+' Scheduled Emails';
+  if(pending.length)h+=' <span style="background:var(--accent);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+pending.length+'</span>';
+  h+='</h1>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn btn-p" onclick="TF.openComposeEmail()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('edit',12)+' Compose</button>';
+  h+='</div></div>';
+
+  if(!emails.length){
+    h+='<div class="email-empty">'+icon('clock',32)+'<p>No scheduled emails.</p><p style="font-size:12px;color:var(--t4)">Use the ▾ button next to Send to schedule emails.</p></div>';
+    return h}
+
+  function _fmtSchedDate(iso){
+    var d=new Date(iso);
+    return(d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear()+' '+(d.getHours()%12||12)+':'+String(d.getMinutes()).padStart(2,'0')+(d.getHours()<12?' AM':' PM')}
+
+  function _fmtCountdown(iso){
+    var diff=new Date(iso)-new Date();if(diff<=0)return'Sending soon...';
+    var hrs=Math.floor(diff/3600000);var mins=Math.floor((diff%3600000)/60000);
+    if(hrs>24){var days=Math.floor(hrs/24);return'in '+days+'d '+( hrs%24)+'h'}
+    if(hrs>0)return'in '+hrs+'h '+mins+'m';
+    return'in '+mins+'m'}
+
+  h+='<div class="email-list">';
+  if(pending.length){
+    h+='<div style="font-size:12px;font-weight:600;color:var(--t2);padding:8px 16px;border-bottom:1px solid var(--gborder)">Pending ('+pending.length+')</div>';
+    pending.forEach(function(e){
+      h+='<div class="email-row" style="cursor:default">';
+      h+='<div class="email-row-left">';
+      h+='<div class="email-from" style="color:var(--accent)">To: '+esc(e.to)+'</div>';
+      h+='<div style="font-size:10px;color:var(--t4)">'+_fmtCountdown(e.scheduledAt)+'</div>';
+      h+='</div>';
+      h+='<div class="email-row-mid">';
+      h+='<div class="email-subject">'+esc(e.subject||'(no subject)')+'</div>';
+      h+='<div class="email-preview">Scheduled for '+_fmtSchedDate(e.scheduledAt)+'</div>';
+      h+='</div>';
+      h+='<div class="email-row-right">';
+      h+='<button class="btn" onclick="TF.cancelScheduledEmail(\''+esc(e.id)+'\')" style="font-size:10px;padding:3px 10px" title="Cancel">'+icon('x',10)+' Cancel</button>';
+      h+='</div></div>'})}
+
+  if(failed.length){
+    h+='<div style="font-size:12px;font-weight:600;color:#e06666;padding:8px 16px;border-bottom:1px solid var(--gborder)">Failed ('+failed.length+')</div>';
+    failed.forEach(function(e){
+      h+='<div class="email-row" style="cursor:default;border-left:3px solid #e06666">';
+      h+='<div class="email-row-left"><div class="email-from" style="color:#e06666">To: '+esc(e.to)+'</div></div>';
+      h+='<div class="email-row-mid">';
+      h+='<div class="email-subject">'+esc(e.subject||'(no subject)')+'</div>';
+      h+='<div class="email-preview" style="color:#e06666">Error: '+esc(e.error||'Unknown error')+'</div>';
+      h+='</div>';
+      h+='<div class="email-row-right">';
+      h+='<button class="btn" onclick="TF.cancelScheduledEmail(\''+esc(e.id)+'\')" style="font-size:10px;padding:3px 10px" title="Remove">'+icon('trash',10)+'</button>';
+      h+='</div></div>'})}
+
+  if(sent.length){
+    h+='<div style="font-size:12px;font-weight:600;color:var(--t3);padding:8px 16px;border-bottom:1px solid var(--gborder)">Sent ('+sent.length+')</div>';
+    sent.slice(0,20).forEach(function(e){
+      h+='<div class="email-row" style="cursor:default;opacity:.6">';
+      h+='<div class="email-row-left"><div class="email-from">To: '+esc(e.to)+'</div></div>';
+      h+='<div class="email-row-mid">';
+      h+='<div class="email-subject">'+esc(e.subject||'(no subject)')+'</div>';
+      h+='<div class="email-preview">Sent '+_fmtSchedDate(e.sentAt||e.scheduledAt)+'</div>';
+      h+='</div><div class="email-row-right"></div></div>'})}
+
+  h+='</div>';
+  return h}
+
 function rEmail(){
   var sub=S.subView||'inbox';
   var isSmartInbox=sub.indexOf('e-')===0;
+  if(sub==='e-drafts')return rEmailDraftList();
+  if(sub==='e-scheduled')return rEmailScheduledList();
   if(S.gmailThreadId){return rEmailThread()}
 
   var h='<div class="pg-head"><h1>'+icon('mail',18)+' Email';
@@ -4623,6 +4736,7 @@ function rEmail(){
   h+='<div style="display:flex;gap:8px;align-items:center">';
   h+='<button class="btn btn-p" onclick="TF.openComposeEmail()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('edit',12)+' Compose</button>';
   h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Refresh</button>';
+  h+='<button class="btn" onclick="TF.openEmailRulesModal()" style="font-size:12px;padding:7px 14px;border-radius:10px" title="Email Rules">'+icon('settings',12)+'</button>';
   h+='</div></div>';
 
   var _smartLabels={'e-active':'Clients (Active)','e-lapsed':'Clients (Lapsed)','e-prospects':'Prospects','e-campaigns':'By Campaign','e-opportunities':'By Opportunity','e-other':'Other'};
