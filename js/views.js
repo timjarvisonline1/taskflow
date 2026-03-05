@@ -4888,8 +4888,8 @@ function rEmail(){
   h+='</div>';
 
   /* Thread list — smart inboxes ALWAYS use cached S.gmailThreads, never live */
-  /* Thread list — smart inboxes ALWAYS use cached S.gmailThreads, never live */
   var threads;
+  console.log('[EMAIL-DEBUG] rEmail: sub='+sub+', isSmartInbox='+isSmartInbox+', gmailFilter='+S.gmailFilter+', liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null')+', supabaseThreads='+S.gmailThreads.length+', cache keys='+Object.keys(S._gmailCache||{}));
   if(isSmartInbox){
     threads=S.gmailThreads.filter(function(t){
       /* Only show inbox threads (exclude archived) */
@@ -4906,9 +4906,12 @@ function rEmail(){
   }else{
     threads=S._gmailLiveThreads||null;
     if(threads===null){
+      console.log('[EMAIL-DEBUG] rEmail: liveThreads is null, falling back to supabase ('+S.gmailThreads.length+' threads)');
       threads=S.gmailThreads;
       if(sub==='inbox')threads=threads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1});
       else if(sub==='sent')threads=threads.filter(function(t){return(t.labels||'').indexOf('SENT')!==-1});
+    }else{
+      console.log('[EMAIL-DEBUG] rEmail: using liveThreads ('+threads.length+') for sub='+sub);
     }
   }
 
@@ -4923,6 +4926,7 @@ function rEmail(){
     }else if(S._gmailFetching){
       h+=rEmailSkeleton();
     }else{
+      console.log('[EMAIL-DEBUG] rEmail: 0 threads shown, scheduling ensureGmailThreads via setTimeout');
       setTimeout(function(){ensureGmailThreads()},0);
       h+=rEmailSkeleton();
     }

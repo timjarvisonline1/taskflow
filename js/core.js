@@ -1787,14 +1787,19 @@ async function searchGmail(query){
 
 function setGmailFilter(filter){
   /* Save current view's live threads into per-filter cache */
+  var _prevFilter=S.gmailFilter;
+  var _prevCount=S._gmailLiveThreads?S._gmailLiveThreads.length:0;
   if(S.gmailFilter&&S._gmailLiveThreads){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
+  console.log('[EMAIL-DEBUG] setGmailFilter: '+_prevFilter+' ('+_prevCount+' threads) → '+filter+' | cache keys:', Object.keys(S._gmailCache));
   S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';
   S.gmailThread=null;S.gmailThreadId='';
   /* Restore from cache if available, otherwise null to trigger fetch */
   var cached=S._gmailCache[filter];
-  if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage}
-  else{S._gmailLiveThreads=null;S._gmailNextPage=null}
+  if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage;
+    console.log('[EMAIL-DEBUG] setGmailFilter: restored '+cached.threads.length+' threads from cache for '+filter)}
+  else{S._gmailLiveThreads=null;S._gmailNextPage=null;
+    console.log('[EMAIL-DEBUG] setGmailFilter: no cache for '+filter+', will fetch')}
   save();render();
   /* Smart inboxes use cached threads, not live fetch */
   if(filter.indexOf('e-')!==0)ensureGmailThreads()}
@@ -1810,29 +1815,34 @@ async function loadMoreGmailThreads(){
     render()}}
 
 async function refreshGmailInbox(){
+  console.log('[EMAIL-DEBUG] refreshGmailInbox: filter='+S.gmailFilter+', current threads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
   toast('Refreshing inbox...','info');
   /* Clear all cached views so stale data doesn't persist */
   S._gmailCache={};
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
+  console.log('[EMAIL-DEBUG] refreshGmailInbox: fetched '+(data?(data.threads||[]).length:'null')+' threads');
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   /* Reload Supabase threads so smart inboxes / Action Required / CRM stay in sync */
   await loadGmailThreads();
+  console.log('[EMAIL-DEBUG] refreshGmailInbox: done. liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null')+', cache keys='+Object.keys(S._gmailCache));
   render();
   /* Trigger AI analysis for new threads */
   analyzeNewEmails()}
 
 /* ═══════════ AUTO-FETCH & POLLING ═══════════ */
 async function ensureGmailThreads(){
-  if(S._gmailFetching)return;
-  if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0)return;
+  if(S._gmailFetching){console.log('[EMAIL-DEBUG] ensureGmailThreads: already fetching, skip');return}
+  if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0){console.log('[EMAIL-DEBUG] ensureGmailThreads: already have '+S._gmailLiveThreads.length+' threads for '+S.gmailFilter+', skip');return}
+  console.log('[EMAIL-DEBUG] ensureGmailThreads: FETCHING for filter='+S.gmailFilter+', liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
   S._gmailFetching=true;render();
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   S._gmailFetching=false;
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
-    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
+    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage};
+    console.log('[EMAIL-DEBUG] ensureGmailThreads: fetched '+S._gmailLiveThreads.length+' threads for '+S.gmailFilter)}
   render()}
 
 var _emailPollTimer=null;
@@ -1851,6 +1861,7 @@ function stopEmailPolling(){
 
 async function pollGmailInbox(){
   try{
+    console.log('[EMAIL-DEBUG] pollGmailInbox: filter='+S.gmailFilter+', current='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
     var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
     if(!data)return;
     var newThreads=data.threads||[];
