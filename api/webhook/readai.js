@@ -1,5 +1,6 @@
 const { getServiceClient } = require('../_lib/supabase');
 const { analyzeMeetingForTasks } = require('../_lib/analyze-meeting');
+const { getOpenAIKey, embedTexts, chunkMeeting, storeChunks, upsertSource } = require('../_lib/embeddings');
 
 /* ── Text-format parsers (Read.ai via Zapier sends text; direct webhook may send JSON) ── */
 
@@ -316,7 +317,43 @@ module.exports = async function handler(req, res) {
       console.error('Meeting AI analysis error (non-fatal):', aiErr.message);
     }
 
-    return res.status(200).json({ status: 'ok', session_id: sessionId, tasks_generated: tasksGenerated });
+    // Knowledge base embedding (best-effort — meeting is already saved)
+    var chunksEmbedded = 0;
+    try {
+      var openaiKey = await getOpenAIKey(userId);
+      if (openaiKey && (transcript || summary)) {
+        var meetingForEmbed = {
+          title: event.title || '',
+          start_time: startTime,
+          summary: summary,
+          transcript: transcript,
+          action_items: actionItems,
+          chapter_summaries: chapterSummaries,
+          participants: participants,
+          client_id: clientId,
+          end_client: '',
+          campaign_id: null
+        };
+        var chunks = chunkMeeting(meetingForEmbed);
+        if (chunks.length > 0) {
+          var texts = chunks.map(function(c) { return c.content; });
+          var embeddings = await embedTexts(openaiKey, texts);
+          for (var ei = 0; ei < chunks.length; ei++) {
+            chunks[ei].embedding = embeddings[ei].embedding;
+            chunks[ei].tokens = embeddings[ei].tokens;
+          }
+          var embMeetingId = meetingRes && meetingRes.data ? meetingRes.data.id : sessionId;
+          await storeChunks(client, userId, 'meeting', embMeetingId, chunks);
+          var embTokens = chunks.reduce(function(s, c) { return s + (c.tokens || 0); }, 0);
+          await upsertSource(client, userId, 'meeting', embMeetingId, event.title || '', 'complete', chunks.length, embTokens, '');
+          chunksEmbedded = chunks.length;
+        }
+      }
+    } catch (embedErr) {
+      console.error('Meeting embedding error (non-fatal):', embedErr.message);
+    }
+
+    return res.status(200).json({ status: 'ok', session_id: sessionId, tasks_generated: tasksGenerated, chunks_embedded: chunksEmbedded });
   } catch (e) {
     console.error('Read.ai webhook error:', e);
     return res.status(200).json({ status: 'error', error: e.message });

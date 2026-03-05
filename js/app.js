@@ -86,7 +86,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   applyNewEmails:applyNewEmails,startEmailPolling:startEmailPolling,stopEmailPolling:stopEmailPolling,
   analyzeNewEmails:analyzeNewEmails,dismissEmailAction:dismissEmailAction,snoozeEmailAction:snoozeEmailAction,openSnoozeMenu:openSnoozeMenu,
   dismissFollowup:dismissFollowup,summarizeThread:summarizeThread,doSummarize:doSummarize,resummarizeThread:resummarizeThread,createTaskFromSuggestion:createTaskFromSuggestion,
-  openComposeEmail:openComposeEmail,sendEmail:sendEmail,openReplyEmail:openReplyEmail,dbLinkEmailToTask:dbLinkEmailToTask,
+  openComposeEmail:openComposeEmail,sendEmail:sendEmail,openReplyEmail:openReplyEmail,dbLinkEmailToTask:dbLinkEmailToTask,aiDraft:aiDraft,
   toggleEmailRead:toggleEmailRead,trashEmail:trashEmail,quickReplyEmail:quickReplyEmail,createTaskFromEmail:createTaskFromEmail,
   forwardEmail:forwardEmail,replyAllEmail:replyAllEmail,execComposeCmd:execComposeCmd,updateComposeToolbar:updateComposeToolbar,
   toggleColorPicker:toggleColorPicker,selectColor:selectColor,toggleEmojiPicker:toggleEmojiPicker,insertEmoji:insertEmoji,

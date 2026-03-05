@@ -5,6 +5,9 @@
     },
     "api/webhook/readai.js": {
       "maxDuration": 60
+    },
+    "api/knowledge/*.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

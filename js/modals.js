@@ -3466,6 +3466,9 @@ var INTG_PLATFORMS=[
   {id:'anthropic',label:'Anthropic (Claude AI)',color:'#D4A574',desc:'AI-powered email analysis',
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[{key:'model',label:'Model (default: claude-sonnet-4-6)',type:'text'}]},
+  {id:'openai',label:'OpenAI (Embeddings)',color:'#10A37F',desc:'Knowledge base vector embeddings',
+    fields:[{key:'api_key',label:'API Key',type:'password'}],
+    configFields:[]},
   {id:'readai',label:'Read.ai',color:'#6366F1',desc:'Meeting transcripts and recordings',
     fields:[],
     configFields:[{key:'webhook_secret',label:'Webhook Secret',type:'text'}]},
@@ -4052,6 +4055,7 @@ function openComposeEmail(opts){
   h+='<button class="btn btn-p" onclick="TF.scheduleCustom()" style="font-size:11px;padding:5px 12px;margin-top:6px;width:100%">Schedule</button>';
   h+='</div></div></div>';
   h+='<button class="btn" onclick="TF.addComposeAttachment()" style="font-size:12px;padding:7px 14px">'+icon('paperclip',12)+' Attach</button>';
+  if(isReply){h+='<button class="btn ai-draft-btn" id="ai-draft-btn" onclick="TF.aiDraft()" style="font-size:12px;padding:7px 14px;background:rgba(16,163,127,.12);border-color:rgba(16,163,127,.3);color:#10A37F" title="Draft reply using your knowledge base">'+icon('sparkle',12)+' AI Draft</button>'}
   h+='<div style="flex:1"></div>';
   h+='<button class="btn" onclick="TF.closeModal()" style="font-size:12px;padding:7px 14px">Discard</button>';
   h+='</div>';
@@ -4172,6 +4176,99 @@ function _composeCatValidate(){
   btn.style.opacity=valid?'1':'.5';
   btn.style.pointerEvents=valid?'auto':'none';
   if(schedBtn){schedBtn.disabled=!valid;schedBtn.style.opacity=valid?'1':'.5';schedBtn.style.pointerEvents=valid?'auto':'none'}}
+
+/* ═══════════ AI DRAFT (Knowledge Base) ═══════════ */
+async function aiDraft(){
+  var threadId=(gel('compose-threadId')||{}).value||'';
+  if(!threadId){toast('AI Draft is available when replying to an email','info');return}
+  var btn=gel('ai-draft-btn');
+  if(btn){btn.disabled=true;btn.innerHTML=icon('sparkle',12)+' Drafting...';btn.style.opacity='.6'}
+
+  try{
+    /* Get auth token */
+    var sess=await _sb.auth.getSession();
+    if(!sess.data||!sess.data.session){toast('Not authenticated','warn');return}
+    var token=sess.data.session.access_token;
+
+    /* Get the cached thread messages */
+    var thread=S._gmailCache&&S._gmailCache[threadId];
+    var messages=[];
+    if(thread&&thread.messages){
+      messages=thread.messages.map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})
+    }
+    if(!messages.length){
+      /* Fetch thread from API if not cached */
+      var resp=await fetch('/api/gmail/thread?id='+threadId,{headers:{'Authorization':'Bearer '+token}});
+      if(resp.ok){
+        var data=await resp.json();
+        messages=(data.messages||[]).map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})
+      }
+    }
+    if(!messages.length){toast('Could not load email thread','warn');return}
+
+    /* Get subject and client context */
+    var subject=(gel('compose-subject')||{}).value||messages[0].subject||'';
+    var gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId});
+    var clientId=gmailThread?gmailThread.clientId:null;
+
+    /* Call AI Draft endpoint */
+    var draftResp=await fetch('/api/knowledge/ai-draft',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({threadId:threadId,messages:messages,subject:subject,clientId:clientId})
+    });
+
+    if(!draftResp.ok){
+      var errData=await draftResp.json().catch(function(){return{}});
+      throw new Error(errData.error||'AI Draft failed (HTTP '+draftResp.status+')')
+    }
+
+    var result=await draftResp.json();
+    var draft=result.draft||'';
+    if(!draft){toast('AI could not generate a draft','warn');return}
+
+    /* Insert draft into editor (before signature if present) */
+    var editor=gel('compose-body');
+    if(editor){
+      var sig=editor.querySelector('.email-signature');
+      if(sig){
+        /* Insert before signature */
+        var draftDiv=document.createElement('div');
+        draftDiv.innerHTML=draft;
+        editor.insertBefore(draftDiv,sig);
+        /* Add spacing */
+        var br=document.createElement('br');
+        editor.insertBefore(br,sig)
+      }else{
+        editor.innerHTML=draft+editor.innerHTML
+      }
+    }
+
+    /* Show sources info */
+    var sources=result.sources||[];
+    if(sources.length>0){
+      var srcList=sources.slice(0,5).map(function(s){return s.source_type+': '+s.title+' ('+s.similarity+'%)'});
+      /* Show sources panel below editor */
+      var srcPanel=gel('ai-draft-sources');
+      if(!srcPanel){
+        srcPanel=document.createElement('div');
+        srcPanel.id='ai-draft-sources';
+        srcPanel.style.cssText='margin-top:8px;padding:8px 12px;background:rgba(16,163,127,.06);border:1px solid rgba(16,163,127,.15);border-radius:8px;font-size:11px;color:var(--t3)';
+        var editorWrap=editor.closest('.compose-body-wrap');
+        if(editorWrap)editorWrap.parentNode.insertBefore(srcPanel,editorWrap.nextSibling)
+      }
+      srcPanel.innerHTML='<div style="font-weight:600;color:#10A37F;margin-bottom:4px">'+icon('sparkle',10)+' Knowledge sources used ('+sources.length+')</div>'+
+        srcList.map(function(s){return '<div style="padding:1px 0">'+s+'</div>'}).join('')
+    }
+
+    toast('Draft generated from '+sources.length+' knowledge sources','ok')
+  }catch(e){
+    console.error('aiDraft error:',e);
+    toast(e.message||'AI Draft failed','err')
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=icon('sparkle',12)+' AI Draft';btn.style.opacity='1'}
+  }
+}
 
 async function sendEmail(){
   var to=window._composeRecipients.to.join(', ');
