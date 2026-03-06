@@ -151,6 +151,10 @@ module.exports = async function handler(req, res) {
           entityStr += '\nKey metrics: ' + dataPoints.join(', ') + '.';
         }
       }
+      // Append structured live data (actual records from the app state)
+      if (entityContext.liveData) {
+        entityStr += '\n\n--- LIVE DATA FROM APP ---\n' + entityContext.liveData;
+      }
     }
 
     // Build knowledge context

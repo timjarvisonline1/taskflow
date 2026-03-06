@@ -1874,13 +1874,25 @@ function openOpportunityDetail(id){
 
   /* RIGHT PANE */
   h+='<div class="detail-split-right">';
-  /* AI Assistant */
+  /* AI Assistant — build opportunity live data */
   var opClientRec=S.clientRecords?S.clientRecords.find(function(cr){return cr.name===op.client}):null;
+  var _opLive='\nOPPORTUNITY DETAILS:\n';
+  _opLive+='- Name: '+op.name+'\n- Client: '+(op.client||'N/A')+'\n- End Client: '+(op.endClient||'N/A')+'\n';
+  _opLive+='- Stage: '+op.stage+'\n- Type: '+conf.label+'\n- Probability: '+(op.probability||0)+'%\n';
+  _opLive+='- Strategy Fee: '+fmtUSD(op.strategyFee||0)+'\n- Setup Fee: '+fmtUSD(op.setupFee||0)+'\n- Monthly Fee: '+fmtUSD(op.monthlyFee||0)+'/mo\n';
+  _opLive+='- Total Value: '+fmtUSD(st.totalValue)+'\n';
+  if(op.notes)_opLive+='- Notes: '+op.notes+'\n';
+  if(st.openTasks.length){_opLive+='\nOPEN TASKS ('+st.openTasks.length+'):\n';st.openTasks.forEach(function(t){_opLive+='- '+t.item+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
+  if(st.doneTasks.length){_opLive+='\nCOMPLETED TASKS ('+Math.min(st.doneTasks.length,10)+'):\n';st.doneTasks.slice(0,10).forEach(function(d){_opLive+='- '+d.item+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'')+'\n'})}
+  if(st.meetings.length){_opLive+='\nRELATED MEETINGS ('+st.meetings.length+'):\n';st.meetings.slice(0,10).forEach(function(m){_opLive+='- '+m.title+(m.start?' ('+m.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')'  :'')+'\n'})}
+  if(st.nextDue)_opLive+='\nNEXT DUE: '+st.nextDue.item+' on '+st.nextDue.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'\n';
+
   h+=aiBox('opp-ai',{clientId:opClientRec?opClientRec.id:null,clientName:op.client,
     sourceTypes:['opportunity','meeting','email','task','contact'],
     entityContext:{type:'opportunity',name:op.name,data:{
       stage:op.stage,client:op.client,endClient:op.endClient,
-      probability:op.probability+'%',totalValue:fmtUSD(st.totalValue),type:conf.label}},
+      probability:op.probability+'%',totalValue:fmtUSD(st.totalValue),type:conf.label},
+      liveData:_opLive},
     suggestedPrompts:['Summarize all interactions for this deal',
       'What are the next steps for '+op.name+'?',
       'Review meeting notes for '+(op.client||op.endClient||'this prospect'),
@@ -2286,12 +2298,19 @@ function openProjectDetail(id){
 
   /* ── Right pane: phases + tasks + charts ── */
   h+='<div class="detail-split-right">';
-  /* AI Assistant */
+  /* AI Assistant — build project live data */
+  var _pjLive='\nPROJECT: '+proj.name+' ('+proj.status+')\nProgress: '+st.progress+'%\n';
+  if(proj.notes)_pjLive+='Notes: '+proj.notes+'\n';
+  if(st.openTasks.length){_pjLive+='\nOPEN TASKS ('+st.openTasks.length+'):\n';st.openTasks.forEach(function(t){_pjLive+='- '+t.item+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.phase?' Phase: '+t.phase:'')+'\n'})}
+  if(st.doneTasks.length){_pjLive+='\nCOMPLETED ('+Math.min(st.doneTasks.length,10)+'):\n';st.doneTasks.slice(0,10).forEach(function(d){_pjLive+='- '+d.item+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'')+'\n'})}
+  if(st.phases.length){_pjLive+='\nPHASES ('+st.phases.length+'):\n';st.phases.forEach(function(ph){_pjLive+='- '+ph.name+' ('+ph.status+')'+(ph.tasks?' '+ph.tasks.length+' tasks':'')+'\n'})}
+
   h+=aiBox('proj-ai',{clientId:null,clientName:null,
     sourceTypes:['project','task','meeting'],
     entityContext:{type:'project',name:proj.name,data:{
       status:proj.status,progress:st.progress+'%',openTasks:st.openCount,
-      doneTasks:st.doneCount,totalTime:fmtM(st.totalTime)}},
+      doneTasks:st.doneCount,totalTime:fmtM(st.totalTime)},
+      liveData:_pjLive},
     suggestedPrompts:['What is the status of '+proj.name+'?','What are the blockers for this project?',
       'Summarize recent progress on '+proj.name,'What should I work on next?'],
     placeholder:'Ask about '+proj.name+'...',collapsed:true});

@@ -223,11 +223,47 @@ function rDashboard(){
       h+='<span style="font-size:12px;color:var(--t1)">'+esc(m.title)+'</span></div>'});
     h+='</div>'}
 
-  /* AI Briefing */
+  /* AI Briefing — build live data summary */
+  var _aiLive='';
+  // Overdue tasks (sorted oldest first, top 25)
+  var _odTasks=S.tasks.filter(function(t){return t.due&&t.due<td_}).sort(function(a,b){return a.due-b.due}).slice(0,25);
+  if(_odTasks.length){
+    _aiLive+='\nOVERDUE TASKS ('+_odTasks.length+(overdueTasks>25?' of '+overdueTasks:'')+'):\n';
+    _odTasks.forEach(function(t){_aiLive+='- '+t.item+(t.client?' ['+t.client+']':'')+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+'\n'})}
+  // Due today
+  if(dueTodayTasks.length){
+    _aiLive+='\nDUE TODAY ('+dueTodayTasks.length+'):\n';
+    dueTodayTasks.forEach(function(t){_aiLive+='- '+t.item+(t.client?' ['+t.client+']':'')+(t.endClient?' ('+t.endClient+')':'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+'\n'})}
+  // Upcoming tasks (next 7 days, top 15)
+  var _upTasks=S.tasks.filter(function(t){return t.due&&t.due>=tdEnd&&t.due<new Date(td_.getTime()+7*864e5)}).sort(function(a,b){return a.due-b.due}).slice(0,15);
+  if(_upTasks.length){
+    _aiLive+='\nUPCOMING TASKS (next 7 days, '+_upTasks.length+'):\n';
+    _upTasks.forEach(function(t){_aiLive+='- '+t.item+(t.client?' ['+t.client+']':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
+  // No-date tasks (top 10)
+  var _ndTasks=S.tasks.filter(function(t){return!t.due}).slice(0,10);
+  if(_ndTasks.length){
+    _aiLive+='\nTASKS WITHOUT DUE DATE ('+_ndTasks.length+' of '+S.tasks.filter(function(t){return!t.due}).length+'):\n';
+    _ndTasks.forEach(function(t){_aiLive+='- '+t.item+(t.client?' ['+t.client+']':'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
+  // Active deals
+  if(activeOpps.length){
+    _aiLive+='\nACTIVE DEALS ('+activeOpps.length+', pipeline '+fmtUSD(pipelineValue)+'):\n';
+    activeOpps.sort(function(a,b){var va=(a.strategyFee||0)+(a.setupFee||0)+((a.monthlyFee||0)*12);var vb=(b.strategyFee||0)+(b.setupFee||0)+((b.monthlyFee||0)*12);return vb-va}).slice(0,20).forEach(function(o){
+      var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
+      _aiLive+='- '+o.name+' ['+o.client+'] Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'% prob)':'')+'\n'})}
+  // Today's meetings
+  if(todayMeetings.length){
+    _aiLive+='\nTODAY\'S MEETINGS ('+todayMeetings.length+'):\n';
+    todayMeetings.forEach(function(m){_aiLive+='- '+m.start.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' '+m.title+'\n'})}
+  // Recent completions
+  if(todayDone.length){
+    _aiLive+='\nCOMPLETED TODAY ('+todayDone.length+'):\n';
+    todayDone.slice(0,10).forEach(function(d){_aiLive+='- '+d.item+(d.client?' ['+d.client+']':'')+(d.duration?' ('+fmtM(d.duration)+')':'')+'\n'})}
+
   h+=aiBox('dash-ai',{clientId:null,clientName:null,sourceTypes:null,
     entityContext:{type:'dashboard',name:'Main Dashboard',data:{
       openTasks:openTasks,overdueTasks:overdueTasks,todayDone:todayDone.length,
-      pendingReplies:_pendingReplies,activeDeals:activeOpps.length,pipelineValue:fmtUSD(pipelineValue)}},
+      pendingReplies:_pendingReplies,activeDeals:activeOpps.length,pipelineValue:fmtUSD(pipelineValue)},
+      liveData:_aiLive},
     suggestedPrompts:['What should I focus on today?','Summarize this week\'s activity',
       'Any overdue items I should address?','What\'s the status of my active deals?'],
     placeholder:'Ask about your business...',collapsed:false});
@@ -476,11 +512,27 @@ function rClientDashboard(c){
   h+=dashMet('Pipeline',fmtUSD(c.pipelineValue),'var(--purple50)');
   h+='</div>';
 
-  /* AI Assistant */
+  /* AI Assistant — build client live data */
+  var _cLive='';
+  var _cTasks=S.tasks.filter(function(t){return t.client===c.name});
+  var _cOd=_cTasks.filter(function(t){return t.due&&t.due<td_}).sort(function(a,b){return a.due-b.due});
+  if(_cOd.length){_cLive+='\nOVERDUE TASKS ('+_cOd.length+'):\n';_cOd.forEach(function(t){_cLive+='- '+t.item+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+'\n'})}
+  var _cOpen=_cTasks.filter(function(t){return!t.due||t.due>=td_});
+  if(_cOpen.length){_cLive+='\nOPEN TASKS ('+_cOpen.length+'):\n';_cOpen.slice(0,20).forEach(function(t){_cLive+='- '+t.item+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
+  var _cOpps=S.opportunities.filter(function(o){return o.client===c.name&&o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
+  if(_cOpps.length){_cLive+='\nACTIVE DEALS ('+_cOpps.length+'):\n';_cOpps.forEach(function(o){var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);_cLive+='- '+o.name+' Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'%)':'')+'\n'})}
+  var _cCamps=S.campaigns.filter(function(cp){return cp.client===c.name&&cp.status==='Active'});
+  if(_cCamps.length){_cLive+='\nACTIVE CAMPAIGNS ('+_cCamps.length+'):\n';_cCamps.forEach(function(cp){_cLive+='- '+cp.name+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+'\n'})}
+  var _cContacts=c.clientId?S.contacts.filter(function(cc){return cc.clientId===c.clientId}):[];
+  if(_cContacts.length){_cLive+='\nCONTACTS ('+_cContacts.length+'):\n';_cContacts.forEach(function(cc){var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();_cLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(cc.email?' '+cc.email:'')+'\n'})}
+  var _cDone=S.done.filter(function(d){return d.client===c.name}).slice(0,10);
+  if(_cDone.length){_cLive+='\nRECENT COMPLETED TASKS ('+_cDone.length+'):\n';_cDone.forEach(function(d){_cLive+='- '+d.item+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')'  :'')+(d.duration?' '+fmtM(d.duration):'')+'\n'})}
+
   h+=aiBox('client-ai',{clientId:c.clientId,clientName:c.name,sourceTypes:null,
     entityContext:{type:'client',name:c.name,data:{
       status:st,totalRevenue:c.totalRevenue,openTasks:c.openTasks,
-      overdueTasks:c.overdueTasks,activeCampaigns:c.activeCampaigns,pipelineValue:c.pipelineValue}},
+      overdueTasks:c.overdueTasks,activeCampaigns:c.activeCampaigns,pipelineValue:c.pipelineValue},
+      liveData:_cLive},
     suggestedPrompts:['Summarize recent activity for '+c.name,'What are the open issues with '+c.name+'?',
       'Review meeting notes for '+c.name,'What is the revenue trend for '+c.name+'?'],
     placeholder:'Ask about '+c.name+'...',collapsed:true});
@@ -2288,12 +2340,19 @@ function rOppAnalytics(){
     h+='</div>'});
   h+='</div>';
 
-  /* AI Assistant */
+  /* AI Assistant — build pipeline live data */
+  var _sLive='\nALL ACTIVE DEALS ('+active.length+', pipeline '+fmtUSD(totalPipeline)+'):\n';
+  active.sort(function(a,b){var va=(a.strategyFee||0)+(a.setupFee||0)+((a.monthlyFee||0)*12);var vb=(b.strategyFee||0)+(b.setupFee||0)+((b.monthlyFee||0)*12);return vb-va}).forEach(function(o){
+    var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
+    _sLive+='- '+o.name+' ['+o.client+'] Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'% prob)':'')+(o.type?' Type: '+o.type:'')+'\n'});
+  if(awaiting.length){_sLive+='\nAWAITING RESPONSE ('+awaiting.length+'):\n';awaiting.forEach(function(o){var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);_sLive+='- '+o.name+' ['+o.client+'] '+fmtUSD(v)+'\n'})}
+
   h+=aiBox('sales-ai',{clientId:null,clientName:null,
     sourceTypes:['opportunity','meeting','email'],
     entityContext:{type:'sales_pipeline',name:'Sales Pipeline',data:{
       totalPipeline:fmtUSD(totalPipeline),weightedPipeline:fmtUSD(weightedPipeline),
-      activeDeals:active.length,winRate:winRate+'%',avgDealSize:fmtUSD(avgDeal)}},
+      activeDeals:active.length,winRate:winRate+'%',avgDealSize:fmtUSD(avgDeal)},
+      liveData:_sLive},
     suggestedPrompts:['Which deals need attention this week?','Provide a breakdown of all opportunities',
       'What\'s the forecast for next month?','Which prospects have gone cold?'],
     placeholder:'Ask about your sales pipeline...',collapsed:true});
@@ -2731,13 +2790,19 @@ function rCpTabOverview(cp,st){
     h+='</div>'}
   h+='</div>';
 
-  /* AI Assistant */
+  /* AI Assistant — build campaign live data */
   var cpClientRec=S.clientRecords?S.clientRecords.find(function(cr){return cr.name===cp.partner}):null;
+  var _cpLive='';
+  if(st.openTasks.length){_cpLive+='\nOPEN TASKS ('+st.openTasks.length+'):\n';st.openTasks.forEach(function(t){_cpLive+='- '+t.item+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
+  if(st.doneTasks.length){_cpLive+='\nRECENT COMPLETED ('+Math.min(st.doneTasks.length,10)+'):\n';st.doneTasks.slice(0,10).forEach(function(d){_cpLive+='- '+d.item+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'')+(d.duration?' '+fmtM(d.duration):'')+'\n'})}
+  if(st.payments&&st.payments.length){_cpLive+='\nPAYMENTS ('+st.payments.length+'):\n';st.payments.slice(0,10).forEach(function(p){_cpLive+='- '+fmtUSD(p.amount)+(p.date?' on '+p.date.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(p.description?' '+p.description:'')+'\n'})}
+
   h+=aiBox('campaign-ai',{clientId:cpClientRec?cpClientRec.id:null,clientName:cp.partner,
     sourceTypes:['campaign','meeting','email','task'],
     entityContext:{type:'campaign',name:cp.name,data:{
       status:cp.status,partner:cp.partner,endClient:cp.endClient,
-      monthlyFee:cp.monthlyFee,openTasks:st.openCount,timeTracked:fmtM(st.totalTime),revenue:fmtUSD(st.finRevenue)}},
+      monthlyFee:cp.monthlyFee,openTasks:st.openCount,timeTracked:fmtM(st.totalTime),revenue:fmtUSD(st.finRevenue)},
+      liveData:_cpLive},
     suggestedPrompts:['Summarize recent work on '+cp.name,'What are the outstanding tasks?',
       'Review meetings related to '+cp.name,'How is billing tracking for this campaign?'],
     placeholder:'Ask about '+cp.name+'...',collapsed:true});
@@ -4112,11 +4177,22 @@ function rFinanceOverview(){
     h+='</div>'}
   h+='</div>';
 
-  /* AI Assistant */
+  /* AI Assistant — build finance live data */
+  var _fLive='';
+  // Recent payments (last 20)
+  var _recentPay=S.financePayments.filter(function(p){return p.status!=='excluded'&&p.type!=='transfer'}).sort(function(a,b){return(b.date||0)-(a.date||0)}).slice(0,20);
+  if(_recentPay.length){_fLive+='\nRECENT TRANSACTIONS ('+_recentPay.length+'):\n';_recentPay.forEach(function(p){_fLive+='- '+(p.direction==='inflow'?'+':'-')+fmtUSD(p.amount)+' '+(p.payerName||p.description||'')+(p.client?' ['+p.client+']':'')+(p.date?' ('+p.date.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')'  :'')+'\n'})}
+  // Scheduled/recurring items
+  var _schedActive=S.scheduledItems.filter(function(i){return i.isActive});
+  if(_schedActive.length){_fLive+='\nRECURRING ITEMS ('+_schedActive.length+'):\n';_schedActive.forEach(function(i){_fLive+='- '+(i.direction==='inflow'?'+':'-')+fmtUSD(i.amount)+' '+i.name+' ('+i.frequency+')'+(i.nextDate?' next: '+i.nextDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+'\n'})}
+  // Bank balances
+  if(mercData&&mercData.accounts){_fLive+='\nBANK ACCOUNTS:\n';mercData.accounts.forEach(function(a){_fLive+='- '+(a.accountName||'Account')+' ('+a.accountType+'): '+fmtUSD(a.currentBalance)+'\n'})}
+
   h+=aiBox('finance-ai',{clientId:null,clientName:null,
     sourceTypes:['finance','scheduled_item'],
     entityContext:{type:'finance',name:'Finance Overview',data:{
-      unreconciledExpenses:unreconciledExp}},
+      unreconciledExpenses:unreconciledExp},
+      liveData:_fLive},
     suggestedPrompts:['Summarize recent financial activity','What expenses are unreconciled?',
       'How is cash flow trending?','What major payments are coming up?'],
     placeholder:'Ask about your finances...',collapsed:true});
