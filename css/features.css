@@ -1461,6 +1461,23 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px}
 .ai-draft-prompt-go:hover{background:#0e9370;transform:translateY(-1px)}
 
+/* ── Inline Reply Header & Recipients ── */
+.inline-reply-header{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--gborder)}
+.inline-reply-mode-label{font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.3px}
+.inline-reply-toggle-btn{font-size:10px;color:var(--t4);cursor:pointer;background:none;border:1px solid var(--gborder);
+  padding:2px 8px;border-radius:4px;transition:all .15s}
+.inline-reply-toggle-btn:hover{color:var(--t1);border-color:rgba(255,255,255,.2)}
+.inline-recipients-section{padding:0 14px;border-bottom:1px solid var(--gborder)}
+.inline-recipient-row{display:flex;align-items:center;gap:6px;padding:4px 0;min-height:32px}
+.inline-recipient-label{font-size:11px;font-weight:600;color:var(--t3);width:30px;flex-shrink:0;text-align:right}
+.inline-recipient-wrap{flex:1;min-height:28px}
+.inline-recipient-wrap .compose-recipient-input{min-width:60px}
+.inline-attachments-bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 14px;border-top:1px solid var(--gborder)}
+.inline-att-chip{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);
+  background:rgba(255,255,255,.04);border:1px solid var(--gborder);border-radius:6px;padding:3px 8px}
+.inline-att-chip .compose-chip-x{cursor:pointer;color:var(--t4);margin-left:4px}
+.inline-att-chip .compose-chip-x:hover{color:var(--red)}
+
 /* ── Compact Action Cards ── */
 .action-card-compact{background:var(--glass);border:1px solid var(--gborder);border-radius:10px;
   padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:background .12s,border-color .12s}

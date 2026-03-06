@@ -4647,7 +4647,8 @@ function openAddContactModal(clientId,prefill){
   if(prefill){
     if(prefill.email){var fe=gel('fc-email');if(fe)fe.value=prefill.email}
     if(prefill.firstName){var fn=gel('fc-first-name');if(fn)fn.value=prefill.firstName}
-    if(prefill.lastName){var ln=gel('fc-last-name');if(ln)ln.value=prefill.lastName}}
+    if(prefill.lastName){var ln=gel('fc-last-name');if(ln)ln.value=prefill.lastName}
+    if(prefill.clientId&&!clientId){var cs=gel('fc-client-id');if(cs){cs.value=prefill.clientId;if(typeof TF!=='undefined'&&TF.refreshContactEndClients)TF.refreshContactEndClients()}}}
   setTimeout(function(){var n=gel('fc-first-name');if(n)n.focus()},100)}
 
 function openEditContactModal(contactId){

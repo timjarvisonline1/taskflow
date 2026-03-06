@@ -2475,9 +2475,15 @@ async function analyzeNewEmails(){
       toEmails:t.to_emails||'',ccEmails:t.cc_emails||'',
       labels:t.labels||'',messageCount:t.message_count||1,
       lastMessageAt:t.last_message_at||'',userSentLast:userSentLast}});
+    /* Build campaign + opportunity context for smart CRM matching */
+    var campPayloads=(S.campaigns||[]).filter(function(c){return c.status==='Active'||c.status==='Setup'}).map(function(c){
+      return{id:c.id,name:c.name||'',partner:c.partner||'',endClient:c.endClient||'',status:c.status||''}});
+    var oppPayloads=(S.opportunities||[]).filter(function(o){return!o.closedAt}).map(function(o){
+      return{id:o.id,name:o.name||'',client:o.client||'',endClient:o.endClient||'',
+        contactName:o.contactName||'',contactEmail:o.contactEmail||'',stage:o.stage||''}});
     var resp=await fetch('/api/gmail/analyze',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({threads:threadPayloads,clients:clients,contacts:contacts})});
+      body:JSON.stringify({threads:threadPayloads,clients:clients,contacts:contacts,campaigns:campPayloads,opportunities:oppPayloads})});
     if(!resp.ok){var errData=await resp.json();console.warn('Email analysis:',errData.error);_analyzingEmails=false;return}
     var result=await resp.json();
     /* Merge results into local state */
@@ -2491,7 +2497,12 @@ async function analyzeNewEmails(){
           t.followup_details=r.followup_details||'';t.ai_client_name=r.ai_client_name||'';
           t.ai_suggested_task=r.ai_suggested_task||'';
           t.ai_analyzed_at=r.ai_analyzed_at||'';
-          if(r.client_id)t.client_id=r.client_id}});
+          if(r.client_id)t.client_id=r.client_id;
+          if(r.end_client)t.end_client=r.end_client;
+          if(r.campaign_id)t.campaign_id=r.campaign_id;
+          if(r.opportunity_id)t.opportunity_id=r.opportunity_id}});
+      /* Invalidate CRM cache so thread modals show updated data */
+      S._threadCrmCache={};
       render();buildNav()}
   }catch(e){console.warn('analyzeNewEmails:',e)}
   _analyzingEmails=false}
@@ -2719,26 +2730,56 @@ async function quickReplyEmail(){
   var thread=S.gmailThread;if(!thread)return;
   var msgs=thread.messages||[];
   var lastMsg=msgs[msgs.length-1];if(!lastMsg)return;
-  var replyTo=lastMsg.fromEmail||'';
+  var mode=window._inlineReplyMode||'reply';
   var subject=lastMsg.subject||'';
-  if(subject.indexOf('Re:')!==0)subject='Re: '+subject;
-  /* Wrap in styled div for inline reply */
-  var htmlBody='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>';
+
+  /* Build payload based on mode */
+  var payload={body:'<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>'};
+  if(mode==='forward'){
+    /* Forward: use inline recipients, Fwd: prefix, NO threadId */
+    if(!window._inlineRecipients.to.length){toast('Add at least one recipient','warn');return}
+    payload.to=window._inlineRecipients.to.join(',');
+    if(window._inlineRecipients.cc.length)payload.cc=window._inlineRecipients.cc.join(',');
+    if(window._inlineRecipients.bcc.length)payload.bcc=window._inlineRecipients.bcc.join(',');
+    payload.subject=subject.indexOf('Fwd:')===0?subject:'Fwd: '+subject;
+  }else if(mode==='replyAll'){
+    /* Reply All: use inline recipients, Re: prefix, include threadId */
+    payload.to=window._inlineRecipients.to.join(',')||lastMsg.fromEmail||'';
+    if(window._inlineRecipients.cc.length)payload.cc=window._inlineRecipients.cc.join(',');
+    if(window._inlineRecipients.bcc.length)payload.bcc=window._inlineRecipients.bcc.join(',');
+    payload.subject=subject.indexOf('Re:')===0?subject:'Re: '+subject;
+    payload.threadId=S.gmailThreadId;
+    payload.messageId=lastMsg.messageId||lastMsg.id||'';
+  }else{
+    /* Simple reply */
+    payload.to=lastMsg.fromEmail||'';
+    payload.subject=subject.indexOf('Re:')===0?subject:'Re: '+subject;
+    payload.threadId=S.gmailThreadId;
+    payload.messageId=lastMsg.messageId||lastMsg.id||'';
+  }
+  /* Include inline attachments */
+  if(window._inlineAttachments&&window._inlineAttachments.length){
+    payload.attachments=window._inlineAttachments}
   try{
     var sess=await _sb.auth.getSession();if(!sess.data.session)return;
     var token=sess.data.session.access_token;
-    toast('Sending reply...','info');
+    toast('Sending '+(mode==='forward'?'forward':'reply')+'...','info');
     var resp=await fetch('/api/gmail/send',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({to:replyTo,subject:subject,body:htmlBody,
-        threadId:S.gmailThreadId,messageId:lastMsg.messageId||lastMsg.id||''})});
+      body:JSON.stringify(payload)});
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Send failed')}
-    toast('Reply sent','ok');
+    toast(mode==='forward'?'Email forwarded':'Reply sent','ok');
     if(editor)editor.innerHTML='';
     if(ta)ta.value='';
+    /* Reset inline state */
+    window._inlineReplyMode='reply';
+    window._inlineRecipients={to:[],cc:[],bcc:[]};
+    window._inlineAttachments=[];
+    var recSec=gel('inline-recipients-section');if(recSec)recSec.style.display='none';
+    var attBar=gel('inline-attachments-bar');if(attBar){attBar.innerHTML='';attBar.style.display='none'}
     /* Refresh thread to show the new message */
     openEmailThread(S.gmailThreadId)
-  }catch(e){toast('Reply failed: '+e.message,'warn')}}
+  }catch(e){toast((mode==='forward'?'Forward':'Reply')+' failed: '+e.message,'warn')}}
 
 /* ── Inline AI Draft (in thread quick reply) ── */
 function inlineAiDraft(){
@@ -3158,10 +3199,17 @@ async function toggleEmailRule(id,active){
 /* ── Contact autocomplete ── */
 window._composeRecipients={to:[],cc:[],bcc:[]};
 
-function acRecipient(field){
-  var input=gel('compose-'+field+'-input');if(!input)return;
+/* ── Inline reply state ── */
+window._inlineReplyMode='reply';
+window._inlineRecipients={to:[],cc:[],bcc:[]};
+window._inlineAttachments=[];
+
+function acRecipient(field,prefix){
+  var p=prefix||'compose';
+  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  var input=gel(p+'-'+field+'-input');if(!input)return;
   var q=input.value.toLowerCase().trim();
-  var dd=gel('compose-'+field+'-ac');if(!dd)return;
+  var dd=gel(p+'-'+field+'-ac');if(!dd)return;
   if(!q||q.length<1){dd.classList.remove('open');return}
   /* Search contacts */
   var results=S.contacts.filter(function(c){
@@ -3176,47 +3224,177 @@ function acRecipient(field){
     var fullName=((c.firstName||'')+' '+(c.lastName||'')).trim();
     var initial=(c.firstName||c.email||'?').charAt(0).toUpperCase();
     var bg=emailAvatarColor(c.email);
-    h+='<div class="compose-ac-item" onclick="TF.acSelect(\''+field+'\',\''+escAttr(c.email)+'\',\''+escAttr(fullName)+'\')">';
+    h+='<div class="compose-ac-item" onclick="TF.acSelect(\''+field+'\',\''+escAttr(c.email)+'\',\''+escAttr(fullName)+'\',\''+p+'\')">';
     h+='<div class="compose-ac-avatar" style="background:'+bg+'">'+initial+'</div>';
     h+='<div><span class="compose-ac-name">'+esc(fullName)+'</span> <span class="compose-ac-email">'+esc(c.email)+'</span></div>';
     h+='</div>'});
   dd.innerHTML=h;dd.classList.add('open')}
 
-function acSelect(field,email,name){
-  var display=name?name+' <'+email+'>':email;
-  window._composeRecipients[field].push(email);
-  renderRecipientChips(field);
-  var input=gel('compose-'+field+'-input');if(input){input.value='';input.focus()}
-  var dd=gel('compose-'+field+'-ac');if(dd)dd.classList.remove('open')}
+function acSelect(field,email,name,prefix){
+  var p=prefix||'compose';
+  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  recs[field].push(email);
+  renderRecipientChips(field,p);
+  var input=gel(p+'-'+field+'-input');if(input){input.value='';input.focus()}
+  var dd=gel(p+'-'+field+'-ac');if(dd)dd.classList.remove('open')}
 
-function acRemoveChip(field,idx){
-  window._composeRecipients[field].splice(idx,1);
-  renderRecipientChips(field)}
+function acRemoveChip(field,idx,prefix){
+  var p=prefix||'compose';
+  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  recs[field].splice(idx,1);
+  renderRecipientChips(field,p)}
 
-function renderRecipientChips(field){
-  var wrap=gel('compose-'+field+'-chips');if(!wrap)return;
+function renderRecipientChips(field,prefix){
+  var p=prefix||'compose';
+  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  var wrap=gel(p+'-'+field+'-chips');if(!wrap)return;
   var h='';
-  window._composeRecipients[field].forEach(function(email,i){
+  recs[field].forEach(function(email,i){
     /* Find contact name for display */
     var c=S.contacts.find(function(ct){return ct.email&&ct.email.toLowerCase()===email.toLowerCase()});
     var display=c?((c.firstName||'')+' '+(c.lastName||'')).trim():email;
     if(!display)display=email;
-    h+='<span class="compose-chip">'+esc(display)+' <span class="compose-chip-x" onclick="event.stopPropagation();TF.acRemoveChip(\''+field+'\','+i+')">&times;</span></span>'});
+    h+='<span class="compose-chip">'+esc(display)+' <span class="compose-chip-x" onclick="event.stopPropagation();TF.acRemoveChip(\''+field+'\','+i+',\''+p+'\')">&times;</span></span>'});
   wrap.innerHTML=h}
 
-function recipientKeydown(field,e){
-  var input=gel('compose-'+field+'-input');if(!input)return;
+function recipientKeydown(field,e,prefix){
+  var p=prefix||'compose';
+  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  var input=gel(p+'-'+field+'-input');if(!input)return;
   if(e.key==='Enter'||e.key===','||e.key==='Tab'){
     e.preventDefault();
     var val=input.value.trim().replace(/,$/,'');
     if(val&&val.indexOf('@')!==-1){
-      window._composeRecipients[field].push(val);
-      renderRecipientChips(field);
+      recs[field].push(val);
+      renderRecipientChips(field,p);
       input.value=''}
-    var dd=gel('compose-'+field+'-ac');if(dd)dd.classList.remove('open')}
-  else if(e.key==='Backspace'&&!input.value&&window._composeRecipients[field].length>0){
-    window._composeRecipients[field].pop();
-    renderRecipientChips(field)}}
+    var dd=gel(p+'-'+field+'-ac');if(dd)dd.classList.remove('open')}
+  else if(e.key==='Backspace'&&!input.value&&recs[field].length>0){
+    recs[field].pop();
+    renderRecipientChips(field,p)}}
+
+/* ── Inline Reply / Reply All / Forward ── */
+function inlineReply(msgIdx){
+  window._inlineReplyMode='reply';
+  var thread=S.gmailThread;if(!thread)return;
+  var msgs=thread.messages||[];
+  var msg=typeof msgIdx==='number'?msgs[msgIdx]:msgs[msgs.length-1];
+  if(!msg)return;
+  window._inlineRecipients={to:[msg.fromEmail||''],cc:[],bcc:[]};
+  window._inlineAttachments=[];
+  _showInlineRecipients();
+  var editor=gel('email-inline-reply-editor');
+  if(editor){editor.innerHTML='';editor.focus()}}
+
+function inlineReplyAll(msgIdx){
+  window._inlineReplyMode='replyAll';
+  var thread=S.gmailThread;if(!thread)return;
+  var msgs=thread.messages||[];
+  var msg=typeof msgIdx==='number'?msgs[msgIdx]:msgs[msgs.length-1];
+  if(!msg)return;
+  var ue=S._userEmails||[];if(!ue.length){var _u=(S._userEmail||'').toLowerCase();if(_u)ue=[_u]}
+  /* To = original sender */
+  var to=[msg.fromEmail||''];
+  /* CC = all other recipients minus user */
+  var cc=[];
+  var allRecips=((msg.to||'')+',' +(msg.cc||'')).split(',');
+  allRecips.forEach(function(r){
+    r=r.trim();if(!r)return;
+    var emailMatch=r.match(/<(.+?)>/);
+    var addr=(emailMatch?emailMatch[1]:r).trim().toLowerCase();
+    if(!addr)return;
+    if(ue.indexOf(addr)!==-1)return;
+    if(to.indexOf(addr)!==-1)return;
+    if(cc.indexOf(addr)===-1)cc.push(addr)});
+  window._inlineRecipients={to:to,cc:cc,bcc:[]};
+  window._inlineAttachments=[];
+  _showInlineRecipients();
+  var editor=gel('email-inline-reply-editor');
+  if(editor){editor.innerHTML='';editor.focus()}}
+
+function inlineForward(msgIdx){
+  window._inlineReplyMode='forward';
+  var thread=S.gmailThread;if(!thread)return;
+  var msgs=thread.messages||[];
+  var msg=typeof msgIdx==='number'?msgs[msgIdx]:msgs[msgs.length-1];
+  if(!msg)return;
+  window._inlineRecipients={to:[],cc:[],bcc:[]};
+  window._inlineAttachments=[];
+  _showInlineRecipients();
+  var editor=gel('email-inline-reply-editor');
+  if(editor){
+    /* Insert forwarded message body */
+    var fwdHeader='<div style="color:var(--t4);border-top:1px solid var(--gborder);padding-top:12px;margin-top:12px;font-size:12px">';
+    fwdHeader+='---------- Forwarded message ----------<br>';
+    fwdHeader+='From: '+esc(msg.fromName||'')+' &lt;'+esc(msg.fromEmail||'')+'&gt;<br>';
+    fwdHeader+='Date: '+esc(msg.date||'')+'<br>';
+    fwdHeader+='Subject: '+esc(msg.subject||'')+'<br>';
+    if(msg.to)fwdHeader+='To: '+esc(msg.to)+'<br>';
+    fwdHeader+='</div><br>';
+    editor.innerHTML='<br>'+fwdHeader+(msg.body||esc(msg.snippet||''));
+    /* Move cursor to the beginning */
+    var range=document.createRange();var sel=window.getSelection();
+    range.setStart(editor,0);range.collapse(true);sel.removeAllRanges();sel.addRange(range)}
+  /* Focus on the To field */
+  var toInput=gel('inline-to-input');if(toInput)toInput.focus()}
+
+function _showInlineRecipients(){
+  var wrap=gel('inline-recipients-section');if(!wrap)return;
+  wrap.style.display='block';
+  /* Update mode label */
+  var label=gel('inline-reply-mode-label');
+  if(label){
+    var labels={reply:'Reply',replyAll:'Reply All',forward:'Forward'};
+    label.textContent=labels[window._inlineReplyMode]||'Reply'}
+  /* Render chips */
+  renderRecipientChips('to','inline');
+  renderRecipientChips('cc','inline');
+  renderRecipientChips('bcc','inline');
+  /* Show/hide CC/BCC based on content */
+  var ccWrap=gel('inline-cc-wrap');
+  var bccWrap=gel('inline-bcc-wrap');
+  if(ccWrap)ccWrap.style.display=window._inlineRecipients.cc.length||window._inlineReplyMode!=='reply'?'flex':'none';
+  if(bccWrap)bccWrap.style.display=window._inlineRecipients.bcc.length?'flex':'none';
+  renderInlineAttachments()}
+
+function addInlineAttachment(){
+  var fi=gel('inline-file-input');
+  if(!fi){fi=document.createElement('input');fi.type='file';fi.multiple=true;fi.id='inline-file-input';fi.style.display='none';
+    fi.onchange=function(){_handleInlineFiles(fi.files);fi.value=''};document.body.appendChild(fi)}
+  fi.click()}
+
+function _handleInlineFiles(files){
+  if(!files||!files.length)return;
+  Array.from(files).forEach(function(f){
+    var reader=new FileReader();
+    reader.onload=function(){
+      var base64=reader.result.split(',')[1];
+      window._inlineAttachments.push({filename:f.name,mimeType:f.type,size:f.size,data:base64});
+      renderInlineAttachments()};
+    reader.readAsDataURL(f)})}
+
+function renderInlineAttachments(){
+  var wrap=gel('inline-attachments-bar');if(!wrap)return;
+  if(!window._inlineAttachments.length){wrap.innerHTML='';wrap.style.display='none';return}
+  wrap.style.display='flex';
+  var h='';
+  window._inlineAttachments.forEach(function(att,i){
+    var sizeStr='';
+    if(att.size>1048576)sizeStr=(att.size/1048576).toFixed(1)+' MB';
+    else if(att.size>1024)sizeStr=Math.round(att.size/1024)+' KB';
+    else sizeStr=att.size+' B';
+    h+='<span class="inline-att-chip">'+icon('paperclip',10)+' '+esc(att.filename)+' <span style="opacity:.5;font-size:10px">'+sizeStr+'</span>';
+    h+=' <span class="compose-chip-x" onclick="event.stopPropagation();TF.removeInlineAttachment('+i+')">&times;</span></span>'});
+  wrap.innerHTML=h}
+
+function removeInlineAttachment(idx){
+  window._inlineAttachments.splice(idx,1);
+  renderInlineAttachments()}
+
+function toggleInlineCcBcc(field){
+  var wrap=gel('inline-'+field+'-wrap');if(!wrap)return;
+  wrap.style.display=wrap.style.display==='none'?'flex':'none';
+  var input=gel('inline-'+field+'-input');if(input)input.focus()}
 
 /* ── Compose attachments ── */
 window._composeAttachments=[];
@@ -3327,7 +3505,12 @@ function addContactFromEmail(email,optName){
   var parts=name.split(' ');
   var firstName=parts[0]||'';
   var lastName=parts.slice(1).join(' ')||'';
-  openAddContactModal(null,{email:email,firstName:firstName,lastName:lastName})}
+  /* Pre-fill client from thread CRM context if available */
+  var prefill={email:email,firstName:firstName,lastName:lastName};
+  if(S.gmailThreadId){
+    var cached=S.gmailThreads.find(function(t){return t.thread_id===S.gmailThreadId});
+    if(cached&&cached.client_id)prefill.clientId=cached.client_id}
+  openAddContactModal(null,prefill)}
 
 /* ── Add client note from email sidebar ── */
 function openAddNoteFromEmail(clientId){

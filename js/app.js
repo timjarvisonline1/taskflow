@@ -98,6 +98,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   addRuleCond:addRuleCond,removeRuleCond:removeRuleCond,ruleCondTypeChange:ruleCondTypeChange,ruleCondValueChange:ruleCondValueChange,
   addRuleAct:addRuleAct,removeRuleAct:removeRuleAct,ruleActTypeChange:ruleActTypeChange,ruleActValueChange:ruleActValueChange,
   acRecipient:acRecipient,acSelect:acSelect,acRemoveChip:acRemoveChip,recipientKeydown:recipientKeydown,
+  inlineReply:inlineReply,inlineReplyAll:inlineReplyAll,inlineForward:inlineForward,
+  addInlineAttachment:addInlineAttachment,removeInlineAttachment:removeInlineAttachment,toggleInlineCcBcc:toggleInlineCcBcc,
   addComposeAttachment:addComposeAttachment,removeComposeAttachment:removeComposeAttachment,downloadAttachment:downloadAttachment,
   openSignatureEditor:openSignatureEditor,renderRecipientChips:renderRecipientChips,handleComposeFiles:handleComposeFiles,renderComposeAttachments:renderComposeAttachments,
   addContactFromEmail:addContactFromEmail,openAddNoteFromEmail:openAddNoteFromEmail,

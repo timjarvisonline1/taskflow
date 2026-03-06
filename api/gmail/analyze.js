@@ -9,7 +9,7 @@ module.exports = async function handler(req, res) {
   const userId = await verifyUserToken(req);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { threads, clients, contacts } = req.body || {};
+  const { threads, clients, contacts, campaigns, opportunities } = req.body || {};
   if (!threads || !threads.length) return res.status(200).json({ results: [] });
 
   // Load Anthropic credentials
@@ -33,6 +33,22 @@ module.exports = async function handler(req, res) {
       clientContext += '\n\nKnown contacts:\n' +
         contacts.slice(0, 50).map(c => '- ' + (c.firstName || '') + ' ' + (c.lastName || '') + ' <' + c.email + '>' +
           (c.clientName ? ' \u2192 ' + c.clientName : '') + (c.endClient ? ' / ' + c.endClient : '')).join('\n');
+    }
+    if (campaigns && campaigns.length) {
+      clientContext += '\n\nActive/Setup campaigns:\n' +
+        campaigns.map(c => '- ID: ' + c.id + ' | Name: ' + c.name +
+          (c.partner ? ' | Client: ' + c.partner : '') +
+          (c.endClient ? ' | End-Client: ' + c.endClient : '') +
+          (c.status ? ' [' + c.status + ']' : '')).join('\n');
+    }
+    if (opportunities && opportunities.length) {
+      clientContext += '\n\nOpen opportunities:\n' +
+        opportunities.map(o => '- ID: ' + o.id + ' | Name: ' + o.name +
+          (o.client ? ' | Client: ' + o.client : '') +
+          (o.endClient ? ' | End-Client: ' + o.endClient : '') +
+          (o.contactName ? ' | Contact: ' + o.contactName : '') +
+          (o.contactEmail ? ' <' + o.contactEmail + '>' : '') +
+          (o.stage ? ' [' + o.stage + ']' : '')).join('\n');
     }
 
     // Process in batches of 30
@@ -69,6 +85,9 @@ Return ONLY a valid JSON array with one object per thread, in the same order as 
 - needs_followup (boolean: true if the user made an unresolved commitment in this thread)
 - followup_details (string: what the user promised to do, else empty string)
 - suggested_client (string: exact client name from the list below if you can infer which client this relates to, else empty string)
+- suggested_end_client (string: exact end-client name from campaign/opportunity context if you can infer it, else empty string)
+- suggested_campaign (string: exact campaign ID from the list below if this email relates to a specific campaign, else empty string)
+- suggested_opportunity (string: exact opportunity ID from the list below if this email relates to a specific opportunity, else empty string)
 - suggested_task (object or null: if the email implies a clear task beyond just replying, return {"item": "task description", "notes": "context from email", "importance": "Critical" or "Important" or "When Time Allows", "category": "best match", "est": estimated_minutes}. Return null if no task is warranted)
 
 ═══ NEEDS REPLY RULES ═══
@@ -117,7 +136,12 @@ Set needs_followup=true if the user (Tim Jarvis) appears to have made a commitme
 followup_details should describe what was promised, e.g. "Promised to send revised proposal by Friday".
 
 ═══ SMART CRM MATCHING ═══
-Based on sender name, email domain, subject line, and conversation content, infer which client from the list below this relates to. Return the exact client name string as it appears in the list. Return empty string if unsure or if it's clearly not related to any listed client.
+Based on sender name, email domain, subject line, and conversation content, infer which client, end-client, campaign, and/or opportunity from the lists below this relates to:
+- suggested_client: Return the exact client name string as it appears in the clients list. Return empty string if unsure.
+- suggested_end_client: Return the exact end-client name from the campaigns/opportunities context. Return empty string if unsure.
+- suggested_campaign: Return the exact campaign ID (not name) if this email clearly relates to a specific campaign. Return empty string if unsure.
+- suggested_opportunity: Return the exact opportunity ID (not name) if this email clearly relates to a specific opportunity. Return empty string if unsure.
+Match using sender/recipient email addresses, contact associations, subject keywords, and campaign/opportunity names.
 
 ═══ TASK SUGGESTION ═══
 If the email implies a clear actionable task the user should do (beyond just hitting reply), suggest it. Examples:
@@ -190,20 +214,31 @@ ${threadList}`;
         ai_analyzed_at: now
       };
 
-      // CRM auto-association: if Claude suggested a client and thread has no client_id
-      if (result.suggested_client) {
-        const matchedId = clientNameMap[result.suggested_client.toLowerCase()];
-        if (matchedId) {
-          // Only apply if thread doesn't already have a client_id
-          const { data: threadRow } = await client
-            .from('gmail_threads')
-            .select('client_id')
-            .eq('user_id', userId)
-            .eq('thread_id', result.thread_id)
-            .single();
-          if (threadRow && !threadRow.client_id) {
-            updateData.client_id = matchedId;
-          }
+      // CRM auto-association: check existing values first, then apply AI suggestions
+      const { data: threadRow } = await client
+        .from('gmail_threads')
+        .select('client_id, end_client, campaign_id, opportunity_id')
+        .eq('user_id', userId)
+        .eq('thread_id', result.thread_id)
+        .single();
+
+      if (threadRow) {
+        // Auto-set client_id
+        if (!threadRow.client_id && result.suggested_client) {
+          const matchedId = clientNameMap[result.suggested_client.toLowerCase()];
+          if (matchedId) updateData.client_id = matchedId;
+        }
+        // Auto-set end_client
+        if (!threadRow.end_client && result.suggested_end_client) {
+          updateData.end_client = result.suggested_end_client;
+        }
+        // Auto-set campaign_id
+        if (!threadRow.campaign_id && result.suggested_campaign) {
+          updateData.campaign_id = result.suggested_campaign;
+        }
+        // Auto-set opportunity_id
+        if (!threadRow.opportunity_id && result.suggested_opportunity) {
+          updateData.opportunity_id = result.suggested_opportunity;
         }
       }
 
