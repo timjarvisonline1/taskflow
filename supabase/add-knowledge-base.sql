@@ -51,6 +51,12 @@ CREATE INDEX IF NOT EXISTS idx_kc_date ON knowledge_chunks(user_id, date DESC);
 CREATE INDEX IF NOT EXISTS idx_kc_hash ON knowledge_chunks(user_id, content_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_kc_source_chunk ON knowledge_chunks(user_id, source_type, source_id, chunk_index);
 
+-- Vector similarity index (HNSW) for fast cosine distance searches
+-- HNSW is preferred over IVFFlat: no training required, better recall, works well up to ~1M rows
+CREATE INDEX IF NOT EXISTS idx_kc_embedding ON knowledge_chunks
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+
 -- RLS
 ALTER TABLE knowledge_chunks ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users CRUD own knowledge_chunks" ON knowledge_chunks;

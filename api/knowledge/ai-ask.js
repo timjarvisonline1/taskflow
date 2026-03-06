@@ -73,49 +73,50 @@ module.exports = async function handler(req, res) {
     var queryEmbeddings = await embedTexts(openaiKey, [question]);
     var queryEmbedding = queryEmbeddings[0].embedding;
 
-    // Two-tier search: client-scoped first, then broaden
+    // Multi-tier search: scoped first, then broaden, always run broad
     var results = [];
+    var seenIds = {};
+
+    function mergeResults(newResults) {
+      newResults.forEach(function(r) {
+        if (!seenIds[r.id]) { results.push(r); seenIds[r.id] = true; }
+      });
+    }
 
     // Tier 1: Client-scoped search
     if (clientId) {
-      results = await searchKnowledge(client, userId, queryEmbedding, {
+      var clientResults = await searchKnowledge(client, userId, queryEmbedding, {
         clientId: clientId,
-        limit: 10,
-        threshold: 0.25
+        limit: 15,
+        threshold: 0.2
       });
+      mergeResults(clientResults);
     }
 
     // Tier 2: Source-type filtered search (if specified)
-    if (sourceTypes && sourceTypes.length > 0 && results.length < 10) {
-      for (var st = 0; st < sourceTypes.length && results.length < 12; st++) {
+    if (sourceTypes && sourceTypes.length > 0) {
+      for (var st = 0; st < sourceTypes.length; st++) {
         var typeResults = await searchKnowledge(client, userId, queryEmbedding, {
           sourceType: sourceTypes[st],
-          limit: 5,
-          threshold: 0.25
+          limit: 10,
+          threshold: 0.2
         });
-        var seenIds = {};
-        results.forEach(function(r) { seenIds[r.id] = true; });
-        typeResults.forEach(function(r) {
-          if (!seenIds[r.id]) { results.push(r); seenIds[r.id] = true; }
-        });
+        mergeResults(typeResults);
       }
     }
 
-    // Tier 3: Broad search if not enough results
-    if (results.length < 8) {
-      var broadResults = await searchKnowledge(client, userId, queryEmbedding, {
-        limit: 15,
-        threshold: 0.3
-      });
-      var seenBroad = {};
-      results.forEach(function(r) { seenBroad[r.id] = true; });
-      broadResults.forEach(function(r) {
-        if (!seenBroad[r.id]) { results.push(r); seenBroad[r.id] = true; }
-      });
-    }
+    // Tier 3: Always run broad search to catch cross-cutting results
+    var broadResults = await searchKnowledge(client, userId, queryEmbedding, {
+      limit: 20,
+      threshold: 0.18
+    });
+    mergeResults(broadResults);
 
-    // Cap at 15
-    results = results.slice(0, 15);
+    // Re-rank all results by similarity (best matches first)
+    results.sort(function(a, b) { return b.similarity - a.similarity; });
+
+    // Cap at 25
+    results = results.slice(0, 25);
 
     // Build entity context string
     var entityStr = '';
@@ -158,7 +159,7 @@ module.exports = async function handler(req, res) {
       knowledgeContext = '\n\n--- RELEVANT CONTEXT FROM KNOWLEDGE BASE ---\n\n';
       knowledgeContext += results.map(function(r, i) {
         var label = SOURCE_LABELS[r.source_type] || 'Document';
-        return '(' + (i + 1) + ') [' + label + '] ' + r.title + ' (relevance: ' + Math.round(r.similarity * 100) + '%)\n' + r.content.substring(0, 1500);
+        return '(' + (i + 1) + ') [' + label + '] ' + r.title + ' (relevance: ' + Math.round(r.similarity * 100) + '%)\n' + r.content.substring(0, 3000);
       }).join('\n\n');
     }
 
@@ -210,7 +211,7 @@ RULES:
     // Call Claude
     var response = await anthropic.messages.create({
       model: model,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: systemPrompt,
       messages: claudeMessages
     });
@@ -221,7 +222,7 @@ RULES:
     answer = answer.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/g, '').trim();
 
     // Build sources list
-    var sources = results.slice(0, 8).map(function(r) {
+    var sources = results.slice(0, 15).map(function(r) {
       return {
         title: r.title,
         type: SOURCE_LABELS[r.source_type] || 'Document',
