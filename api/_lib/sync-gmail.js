@@ -215,7 +215,7 @@ async function syncGmail(userId) {
           }
         }
 
-        // Upsert to gmail_threads
+        // Build base row with Gmail metadata (no CRM fields yet)
         const row = {
           user_id: userId,
           thread_id: thread.id,
@@ -229,22 +229,24 @@ async function syncGmail(userId) {
           message_count: messages.length,
           is_unread: isUnread,
           labels: allLabels,
-          client_id: clientId,
           last_message_from: lastFromEmail,
           synced_at: new Date().toISOString()
         };
-        if (ruleEndClient) row.end_client = ruleEndClient;
-        if (ruleCampaignId) row.campaign_id = ruleCampaignId;
-        if (ruleOpportunityId) row.opportunity_id = ruleOpportunityId;
 
         const { data: existing } = await client
           .from('gmail_threads')
-          .select('id, needs_reply, reply_status, last_message_from')
+          .select('id, needs_reply, reply_status, last_message_from, client_id, end_client, campaign_id, opportunity_id')
           .eq('user_id', userId)
           .eq('thread_id', thread.id)
           .single();
 
         if (existing) {
+          // Preserve manually-saved CRM fields — only set if currently empty
+          if (!existing.client_id && clientId) row.client_id = clientId;
+          if (!existing.end_client && ruleEndClient) row.end_client = ruleEndClient;
+          if (!existing.campaign_id && ruleCampaignId) row.campaign_id = ruleCampaignId;
+          if (!existing.opportunity_id && ruleOpportunityId) row.opportunity_id = ruleOpportunityId;
+
           // Auto-detect replies: if last_message_from changed to user's email
           // and thread previously needed a reply, clear it
           if (existing.needs_reply === true &&
@@ -263,6 +265,11 @@ async function syncGmail(userId) {
           await client.from('gmail_threads').update(row).eq('id', existing.id);
           stats.updated++;
         } else {
+          // New thread — set all CRM fields from email matching and rules
+          row.client_id = clientId;
+          if (ruleEndClient) row.end_client = ruleEndClient;
+          if (ruleCampaignId) row.campaign_id = ruleCampaignId;
+          if (ruleOpportunityId) row.opportunity_id = ruleOpportunityId;
           await client.from('gmail_threads').insert(row);
           stats.inserted++;
           newThreads.push({ thread_id: thread.id, subject: subject, client_id: clientId, end_client: ruleEndClient || '', campaign_id: ruleCampaignId || null });
