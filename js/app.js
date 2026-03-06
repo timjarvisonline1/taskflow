@@ -76,6 +76,9 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openEditClient:openEditClient,saveClient:saveClient,
   openAddClientModal:openAddClientModal,addNewClient:addNewClient,
   openClientDashboard:openClientDashboard,closeClientDashboard:closeClientDashboard,openClientDetailModal:openClientDetailModal,setClientSort:setClientSort,
+  openEndClientDetailModal:openEndClientDetailModal,closeEndClientDashboard:closeEndClientDashboard,
+  openAddEndClientModal:openAddEndClientModal,saveEndClient:saveEndClient,
+  openEditEndClientModal:openEditEndClientModal,saveEditEndClient:saveEditEndClient,deleteEndClient:deleteEndClient,setEcSort:setEcSort,
   addCampaignNote:addCampaignNote,addClientNote:addClientNote,deleteCampaignNote:deleteCampaignNote,deleteClientNote:deleteClientNote,
   setCampaignTab:setCampaignTab,saveCampaignBilling:saveCampaignBilling,
   /* Email */

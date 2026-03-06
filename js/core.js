@@ -90,7 +90,8 @@ var ICONS={
   image:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>',
   type:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>',
   highlighter:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>',
-  filter:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>'
+  filter:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
+  building:'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>'
 };
 function icon(name,size){var s=ICONS[name]||'';if(size&&s){s=s.replace(/width="\d+"/,'width="'+size+'"').replace(/height="\d+"/,'height="'+size+'"')}return s}
 
@@ -129,7 +130,8 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   emailFilters:{client:'',endClient:'',opportunity:'',campaign:''},emailFilterExclude:{client:false,endClient:false,opportunity:false,campaign:false},
   emailBulkMode:false,emailBulkSelected:{},
   contacts:[],scheduledEmails:[],emailRules:[],
-  meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1};
+  meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,
+  endClients:[],ecSort:'name'};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -167,7 +169,8 @@ var SECTIONS=[
   ]},
   {id:'clients',icon:'clients',label:'Clients',kbd:'7',subs:[
     {id:'active',label:'Active',icon:'clients'},
-    {id:'lapsed',label:'Lapsed',icon:'clock'}
+    {id:'lapsed',label:'Lapsed',icon:'clock'},
+    {id:'end_clients',label:'End Clients',icon:'building'}
   ]},
   {id:'finance',icon:'activity',label:'Finance',kbd:'8',subs:[
     {id:'overview',label:'Overview',icon:'dashboard'},
@@ -783,6 +786,12 @@ async function loadClientRecords(){
   var cls=S.clientRecords.filter(function(r){return r.status==='active'}).map(function(r){return r.name});
   cls.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
   S.clients=cls}
+
+async function loadEndClients(){
+  var res=await _sb.from('end_clients').select('*').order('name');
+  if(res.error){console.error('loadEndClients:',res.error);return}
+  S.endClients=(res.data||[]).map(function(r){
+    return{id:r.id,name:r.name||'',clientId:r.client_id||'',notes:r.notes||'',status:r.status||'active',createdAt:r.created_at||''}})}
 
 async function loadContacts(){
   var res=await _sb.from('contacts').select('*').order('last_name');
@@ -3708,7 +3717,7 @@ function fmtUSD(n){return'$'+Number(n||0).toLocaleString('en-US',{minimumFractio
 async function loadData(){toast('Loading data...','info');
   try{
     /* Load campaigns first (payments/meetings reference them) */
-    await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities()]);
+    await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities(),loadEndClients()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
     await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
@@ -4016,6 +4025,38 @@ async function dbAddClient(name,status){
     if(res.error.code==='23505')return true;/* already exists, not an error */
     toast('Client save failed: '+res.error.message,'warn');return false}
   return true}
+
+/* ═══════════ END CLIENTS CRUD ═══════════ */
+async function dbAddEndClient(data){
+  var uid=await getUserId();if(!uid)return false;
+  var rec={user_id:uid,name:data.name,client_id:data.clientId||null,notes:data.notes||'',status:data.status||'active'};
+  var res=await _sb.from('end_clients').insert(rec).select().single();
+  if(res.error){
+    if(res.error.code==='23505'){toast('End client "'+data.name+'" already exists','warn');return false}
+    toast('End client save failed: '+res.error.message,'warn');return false}
+  await loadEndClients();render();return true}
+
+async function dbEditEndClient(id,data){
+  var row={};
+  if(data.name!==undefined)row.name=data.name;
+  if(data.clientId!==undefined)row.client_id=data.clientId||null;
+  if(data.notes!==undefined)row.notes=data.notes;
+  if(data.status!==undefined)row.status=data.status;
+  var res=await _sb.from('end_clients').update(row).eq('id',id);
+  if(res.error){toast('End client update failed: '+res.error.message,'warn');return false}
+  await loadEndClients();render();return true}
+
+async function dbDeleteEndClient(id){
+  var res=await _sb.from('end_clients').delete().eq('id',id);
+  if(res.error){toast('End client delete failed: '+res.error.message,'warn');return false}
+  await loadEndClients();render();return true}
+
+function setEcSort(v){
+  var cur=S.ecSort||'name';
+  var col=cur.replace(/^-/,'');
+  if(col===v){S.ecSort=cur.charAt(0)==='-'?v:'-'+v}
+  else{S.ecSort=(v==='name')?v:'-'+v}
+  render()}
 
 /* ═══════════ CALENDAR (cached, non-blocking) ═══════════ */
 var calLoading=false;

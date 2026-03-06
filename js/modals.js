@@ -1131,6 +1131,16 @@ function showCalSetup(){
 
 function buildEndClientOptions(currentValue,filterClient){
   var ecs=[];
+  /* Primary source: end_clients table */
+  S.endClients.forEach(function(ec){
+    if(filterClient){
+      /* Match by client name via clientId */
+      var cr=ec.clientId?S.clientRecords.find(function(r){return r.id===ec.clientId}):null;
+      if(cr&&cr.name!==filterClient)return;
+      if(!cr&&filterClient)return;/* no client assigned, skip if filtering */
+    }
+    if(ecs.indexOf(ec.name)===-1)ecs.push(ec.name)});
+  /* Merge orphaned strings from campaigns, tasks, opportunities */
   S.campaigns.forEach(function(c){
     if(filterClient&&c.partner!==filterClient)return;
     if(c.endClient&&ecs.indexOf(c.endClient)===-1)ecs.push(c.endClient)});
@@ -4632,7 +4642,13 @@ function openSignatureEditor(){
 
 /* ═══════════ CONTACT MODALS ═══════════ */
 
-function openAddContactModal(clientId,prefill){
+function openAddContactModal(clientId,prefillOrEC){
+  /* Support two call patterns: openAddContactModal(clientId, {prefill}) or openAddContactModal(clientId, 'endClientName') */
+  var prefill=typeof prefillOrEC==='object'?prefillOrEC:null;
+  if(typeof prefillOrEC==='string'&&prefillOrEC){prefill=prefill||{};prefill.endClient=prefillOrEC}
+  /* Forward to original implementation */
+  _openAddContactModalImpl(clientId,prefill)}
+function _openAddContactModalImpl(clientId,prefill){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Add Contact</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   if(clientId){
@@ -4714,8 +4730,9 @@ async function saveContact(){
   closeModal();
   /* Invalidate CRM + domain caches so pills/smart inboxes update */
   _buildDomainMap();S._threadCrmCache={};
-  /* Re-open client dashboard if it was open, otherwise re-render */
-  if(S._lastClientDash)openClientDashboard(S._lastClientDash);
+  /* Re-open end-client or client dashboard if it was open, otherwise re-render */
+  if(S._lastEndClientDash)openEndClientDetailModal(S._lastEndClientDash);
+  else if(S._lastClientDash)openClientDashboard(S._lastClientDash);
   else render()}
 
 async function saveEditContact(){
@@ -4730,9 +4747,68 @@ async function saveEditContact(){
     company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||'',
     endClient:ecVal,clientId:clientId});
   closeModal();
-  if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
+  if(S._lastEndClientDash)openEndClientDetailModal(S._lastEndClientDash);
+  else if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
 
 function confirmDeleteContact(id){
   if(!confirm('Delete this contact?'))return;
   dbDeleteContact(id);closeModal();
-  if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
+  if(S._lastEndClientDash)openEndClientDetailModal(S._lastEndClientDash);
+  else if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
+
+/* ═══════════ END CLIENT MODALS ═══════════ */
+function openAddEndClientModal(){
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('building',12)+' Add End Client</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="fec-name" placeholder="End client name" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fec-client"><option value="">— No client —</option>';
+  (S.clientRecords||[]).forEach(function(cr){
+    h+='<option value="'+escAttr(cr.id)+'">'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fec-notes" rows="3" placeholder="Optional notes"></textarea></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEndClient()">Add End Client</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('fec-name');if(n)n.focus()},100)}
+
+async function saveEndClient(){
+  var name=(gel('fec-name')||{}).value||'';
+  if(!name.trim()){toast('Enter an end client name','warn');return}
+  var clientId=(gel('fec-client')||{}).value||'';
+  var notes=(gel('fec-notes')||{}).value||'';
+  var ok=await dbAddEndClient({name:name.trim(),clientId:clientId,notes:notes.trim()});
+  if(ok){closeModal();toast('End client added','ok')}}
+
+function openEditEndClientModal(id){
+  var ec=S.endClients.find(function(e){return e.id===id});if(!ec)return;
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('building',12)+' Edit End Client</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="fec-id" value="'+escAttr(id)+'">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="fec-name" value="'+escAttr(ec.name)+'" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fec-client"><option value="">— No client —</option>';
+  (S.clientRecords||[]).forEach(function(cr){
+    h+='<option value="'+escAttr(cr.id)+'"'+(ec.clientId===cr.id?' selected':'')+'>'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fec-notes" rows="3">'+esc(ec.notes||'')+'</textarea></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="fec-status">';
+  h+='<option value="active"'+(ec.status==='active'?' selected':'')+'>Active</option>';
+  h+='<option value="inactive"'+(ec.status==='inactive'?' selected':'')+'>Inactive</option>';
+  h+='</select></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditEndClient()">Save</button>';
+  h+='<button class="btn" onclick="TF.deleteEndClient(\''+escAttr(id)+'\')" style="color:var(--red)">Delete</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('fec-name');if(n)n.focus()},100)}
+
+async function saveEditEndClient(){
+  var id=(gel('fec-id')||{}).value;if(!id)return;
+  var name=(gel('fec-name')||{}).value||'';
+  if(!name.trim()){toast('Enter an end client name','warn');return}
+  var clientId=(gel('fec-client')||{}).value||'';
+  var notes=(gel('fec-notes')||{}).value||'';
+  var status=(gel('fec-status')||{}).value||'active';
+  var ok=await dbEditEndClient(id,{name:name.trim(),clientId:clientId,notes:notes.trim(),status:status});
+  if(ok){closeModal();toast('End client updated','ok');
+    if(S._lastEndClientDash)openEndClientDetailModal(name.trim())}}
+
+function deleteEndClient(id){
+  if(!confirm('Delete this end client? This only removes the record — campaigns, tasks, and contacts will keep their end-client text.'))return;
+  dbDeleteEndClient(id);closeModal();S._lastEndClientDash=''}

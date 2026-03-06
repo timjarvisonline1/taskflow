@@ -424,6 +424,11 @@ function buildClientMap(){
   return clientMap}
 
 function rClients(){
+  var sub=S.subView||'active';
+  if(sub==='end_clients')return rEndClients();
+  return rClientsDirectory()}
+
+function rClientsDirectory(){
   var td_=today();
   var clientMap=buildClientMap();
   var clients=Object.keys(clientMap).map(function(k){return clientMap[k]});
@@ -497,6 +502,238 @@ function rClients(){
   if(!filtered.length){
     h+='<div style="padding:30px;text-align:center;color:var(--t4);font-size:13px">No '+(sub==='lapsed'?'lapsed':'active')+' clients.</div>'}
 
+  return h}
+
+/* ═══════════ END CLIENTS ═══════════ */
+function buildEndClientMap(){
+  var td_=today();
+  var ecMap={};
+  /* Seed from end_clients table */
+  S.endClients.forEach(function(ec){
+    ecMap[ec.name]={name:ec.name,id:ec.id,clientId:ec.clientId||'',clientName:'',notes:ec.notes||'',status:ec.status||'active',
+      campaigns:0,activeCampaigns:0,monthlyRev:0,opportunities:0,pipelineValue:0,
+      openTasks:0,overdueTasks:0,contacts:0,lastActivity:null,
+      campaignList:[],oppList:[],contactList:[],inTable:true}});
+  /* Also pick up orphaned end-client strings from entities not yet in table */
+  function ensureEC(name){
+    if(!name||name==='')return;
+    if(!ecMap[name])ecMap[name]={name:name,id:'',clientId:'',clientName:'',notes:'',status:'active',
+      campaigns:0,activeCampaigns:0,monthlyRev:0,opportunities:0,pipelineValue:0,
+      openTasks:0,overdueTasks:0,contacts:0,lastActivity:null,
+      campaignList:[],oppList:[],contactList:[],inTable:false}}
+  /* Campaigns */
+  S.campaigns.forEach(function(cp){
+    if(!cp.endClient)return;ensureEC(cp.endClient);
+    var e=ecMap[cp.endClient];e.campaigns++;
+    if(cp.status==='Active'){e.activeCampaigns++;e.monthlyRev+=(cp.monthlyFee||0)}
+    e.campaignList.push({name:cp.name,status:cp.status,id:cp.id});
+    if(!e.clientId&&cp.partner){
+      var cr=S.clientRecords.find(function(r){return r.name===cp.partner});
+      if(cr)e.clientId=cr.id}});
+  /* Opportunities */
+  S.opportunities.forEach(function(op){
+    if(!op.endClient)return;ensureEC(op.endClient);
+    var e=ecMap[op.endClient];
+    if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
+      e.opportunities++;e.pipelineValue+=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12)}
+    e.oppList.push({name:op.name,stage:op.stage,id:op.id,type:op.type});
+    if(!e.clientId&&op.client){
+      var cr=S.clientRecords.find(function(r){return r.name===op.client});
+      if(cr)e.clientId=cr.id}});
+  /* Tasks */
+  S.tasks.forEach(function(t){
+    if(!t.endClient)return;ensureEC(t.endClient);
+    ecMap[t.endClient].openTasks++;
+    if(t.due&&t.due<td_)ecMap[t.endClient].overdueTasks++});
+  /* Done */
+  S.done.forEach(function(d){
+    if(!d.endClient)return;ensureEC(d.endClient);
+    var e=ecMap[d.endClient];
+    if(d.completed&&(!e.lastActivity||d.completed>e.lastActivity))e.lastActivity=d.completed});
+  /* Contacts */
+  S.contacts.forEach(function(cc){
+    if(!cc.endClient)return;ensureEC(cc.endClient);
+    ecMap[cc.endClient].contacts++;
+    ecMap[cc.endClient].contactList.push(cc)});
+  /* Resolve client names */
+  Object.keys(ecMap).forEach(function(k){
+    var e=ecMap[k];
+    if(e.clientId){
+      var cr=S.clientRecords.find(function(r){return r.id===e.clientId});
+      if(cr)e.clientName=cr.name}});
+  return ecMap}
+
+function rEndClients(){
+  var ecMap=buildEndClientMap();
+  var ecs=Object.keys(ecMap).map(function(k){return ecMap[k]});
+
+  var h='<div class="pg-head"><h1>'+icon('building',18)+' End Clients</h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddEndClientModal()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add End Client</button></div>';
+
+  if(!ecs.length){
+    h+='<div style="padding:30px;text-align:center;color:var(--t4);font-size:13px">No end clients yet. Add one or they will appear as you create campaigns, tasks, and contacts with end-client fields.</div>';
+    return h}
+
+  /* Sort */
+  var srt=S.ecSort||'name';
+  var desc=srt.charAt(0)==='-';
+  var col=desc?srt.slice(1):srt;
+  function sortArrow(c){
+    if(col!==c)return '';
+    return ' <span style="font-size:8px;opacity:.7">'+(desc?'▼':'▲')+'</span>'}
+  ecs.sort(function(a,b){
+    var v=0;
+    if(col==='name')v=(a.name||'').localeCompare(b.name||'');
+    else if(col==='client')v=(a.clientName||'').localeCompare(b.clientName||'');
+    else if(col==='contacts')v=(a.contacts||0)-(b.contacts||0);
+    else if(col==='campaigns')v=(a.activeCampaigns||0)-(b.activeCampaigns||0);
+    else if(col==='tasks')v=(a.openTasks||0)-(b.openTasks||0);
+    else if(col==='pipeline')v=(a.pipelineValue||0)-(b.pipelineValue||0);
+    return desc?-v:v});
+
+  var thStyle='cursor:pointer;user-select:none;transition:color .15s';
+  h+='<div class="tb-wrap"><table class="tb"><thead><tr>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setEcSort(\'name\')">End Client'+sortArrow('name')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setEcSort(\'client\')">Client'+sortArrow('client')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'contacts\')">Contacts'+sortArrow('contacts')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'campaigns\')">Campaigns'+sortArrow('campaigns')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'tasks\')">Open Tasks'+sortArrow('tasks')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'pipeline\')">Pipeline'+sortArrow('pipeline')+'</th>';
+  h+='</tr></thead><tbody>';
+
+  ecs.forEach(function(ec){
+    h+='<tr style="cursor:pointer" onclick="TF.openEndClientDetailModal(\''+escAttr(ec.name)+'\')">';
+    h+='<td style="font-weight:600;color:var(--t1)" data-label="End Client">';
+    h+=icon('building',12)+' '+esc(ec.name);
+    if(!ec.inTable)h+=' <span style="font-size:9px;color:var(--t4);opacity:.6" title="Not yet in end_clients table">(orphan)</span>';
+    h+='</td>';
+    h+='<td data-label="Client">';
+    if(ec.clientName)h+='<span class="bg" style="font-size:10px;padding:2px 8px;cursor:pointer" onclick="event.stopPropagation();TF.openClientDetailModal(\''+escAttr(ec.clientName)+'\')">'+esc(ec.clientName)+'</span>';
+    else h+='<span style="color:var(--t4)">-</span>';
+    h+='</td>';
+    h+='<td class="nm" data-label="Contacts">'+ec.contacts+'</td>';
+    h+='<td class="nm" data-label="Campaigns">';
+    if(ec.campaigns)h+='<span style="color:var(--amber)">'+ec.activeCampaigns+'</span> <span style="color:var(--t4);font-size:10px">/ '+ec.campaigns+'</span>';
+    else h+='<span style="color:var(--t4)">-</span>';
+    h+='</td>';
+    h+='<td class="nm" style="color:'+(ec.overdueTasks?'var(--red)':'var(--t2)')+'" data-label="Open Tasks">'+ec.openTasks;
+    if(ec.overdueTasks)h+=' <span style="color:var(--red);font-size:10px">('+ec.overdueTasks+')</span>';
+    h+='</td>';
+    h+='<td class="nm" data-label="Pipeline">';
+    if(ec.pipelineValue)h+='<span style="color:var(--purple50)">'+fmtUSD(ec.pipelineValue)+'</span>';
+    else h+='<span style="color:var(--t4)">-</span>';
+    h+='</td>';
+    h+='</tr>'});
+
+  h+='</tbody></table></div>';
+  return h}
+
+function openEndClientDetailModal(name){
+  var ecMap=buildEndClientMap();
+  var ec=ecMap[name];if(!ec)return;
+  S._lastEndClientDash=name;
+  var h=rEndClientDashboard(ec);
+  gel('detail-body').innerHTML=h;
+  gel('detail-modal').classList.add('on','full-detail')}
+
+function closeEndClientDashboard(){S._lastEndClientDash='';closeModal()}
+
+function rEndClientDashboard(ec){
+  var td_=today();
+  var h='<div class="tf-modal-top" style="padding:20px 28px 16px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;flex:1">';
+  h+='<span style="color:var(--accent)">'+icon('building',18)+'</span>';
+  h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(ec.name)+'</h2>';
+  if(ec.clientName)h+='<span class="bg" style="font-size:10px;padding:3px 10px;cursor:pointer" onclick="TF.openClientDetailModal(\''+escAttr(ec.clientName)+'\')">'+esc(ec.clientName)+'</span>';
+  if(ec.id)h+='<button class="btn" onclick="TF.openEditEndClientModal(\''+escAttr(ec.id)+'\')" style="font-size:11px;padding:5px 12px;margin-left:auto">'+icon('edit',11)+' Edit</button>';
+  h+='</div>';
+  h+='<button class="tf-modal-close" onclick="TF.closeEndClientDashboard()">&times;</button>';
+  h+='</div>';
+  h+='<div style="padding:0 28px 28px;overflow-y:auto;flex:1">';
+
+  /* KPI strip */
+  h+='<div class="dash-mets">';
+  h+=dashMet('Monthly Revenue',fmtUSD(ec.monthlyRev),'var(--green)');
+  h+=dashMet('Open Tasks',ec.openTasks,'var(--blue)');
+  h+=dashMet('Overdue',ec.overdueTasks,ec.overdueTasks?'var(--red)':'var(--green)');
+  h+=dashMet('Contacts',ec.contacts,'var(--t1)');
+  h+=dashMet('Campaigns',ec.activeCampaigns+'/'+ec.campaigns,'var(--amber)');
+  h+=dashMet('Pipeline',fmtUSD(ec.pipelineValue),'var(--purple50)');
+  h+='</div>';
+
+  /* Contacts section */
+  var ecContacts=S.contacts.filter(function(cc){return cc.endClient===ec.name});
+  h+='<div class="dash-section" style="display:flex;align-items:center;justify-content:space-between">'+icon('contact',13)+' Contacts ('+ecContacts.length+')';
+  h+=' <button class="btn" onclick="TF.openAddContactModal(\''+escAttr(ec.clientId||'')+'\',\''+escAttr(ec.name)+'\')" style="font-size:11px;padding:4px 10px">'+icon('plus',10)+' Add</button></div>';
+  if(ecContacts.length){
+    h+='<div class="contact-list" style="margin-bottom:16px;display:flex;flex-direction:column;gap:4px">';
+    ecContacts.forEach(function(cc){
+      h+='<div class="contact-card" onclick="TF.openEditContactModal(\''+escAttr(cc.id)+'\')" style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s">';
+      var fullName=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
+      var initial=(cc.firstName||cc.lastName||cc.email||'?').charAt(0).toUpperCase();
+      var avatarBg=emailAvatarColor(cc.email);
+      h+='<div style="width:32px;height:32px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(fullName||'Unnamed')+'</div>';
+      h+='<div style="font-size:11px;color:var(--t4);display:flex;gap:12px;flex-wrap:wrap">';
+      if(cc.role)h+='<span>'+esc(cc.role)+'</span>';
+      if(cc.email)h+='<span>'+esc(cc.email)+'</span>';
+      if(cc.phone)h+='<span>'+esc(cc.phone)+'</span>';
+      h+='</div></div></div>'});
+    h+='</div>'}
+  else{
+    h+='<div style="padding:8px 0 16px;font-size:12px;color:var(--t4)">No contacts added yet.</div>'}
+
+  /* Campaigns */
+  if(ec.campaignList.length){
+    h+='<div class="dash-section">'+icon('target',13)+' Campaigns ('+ec.campaignList.length+')</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+    ec.campaignList.forEach(function(cp){
+      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')">';
+      h+='<span style="font-size:12px;color:var(--t1);font-weight:600">'+esc(cp.name)+'</span>';
+      h+='<span class="bg" style="font-size:9px;padding:2px 6px">'+esc(cp.status)+'</span></div>'});
+    h+='</div>'}
+
+  /* Opportunities */
+  if(ec.oppList.length){
+    h+='<div class="dash-section">'+icon('gem',13)+' Opportunities ('+ec.oppList.length+')</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+    ec.oppList.forEach(function(op){
+      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')">';
+      h+='<span style="font-size:12px;color:var(--t1);font-weight:600">'+esc(op.name)+'</span>';
+      h+='<span class="bg '+opStageClass(op.stage,op.type)+'" style="font-size:9px;padding:2px 6px">'+esc(op.stage)+'</span></div>'});
+    h+='</div>'}
+
+  /* Open Tasks */
+  var ecTasks=S.tasks.filter(function(t){return t.endClient===ec.name});
+  if(ecTasks.length){
+    h+='<div class="dash-section">'+icon('tasks',13)+' Open Tasks ('+ecTasks.length+')</div>';
+    h+='<div class="tk-list" style="margin-bottom:16px">';
+    ecTasks.sort(function(a,b){return(b._score||taskScore(b))-(a._score||taskScore(a))}).forEach(function(t,idx){h+=taskCard(t,td_,idx)});
+    h+='</div>'}
+
+  /* Recent Completed */
+  var ecDone=S.done.filter(function(d){return d.endClient===ec.name}).slice(0,10);
+  if(ecDone.length){
+    h+='<div class="dash-section">Recent Completed</div>';
+    h+='<div class="dash-recent" style="margin-bottom:16px">';
+    ecDone.forEach(function(d){
+      h+='<div class="dash-recent-item">';
+      h+='<span class="dash-recent-check">'+CK_XS+'</span>';
+      h+='<span class="dash-recent-name">'+esc(d.item)+'</span>';
+      h+='<span class="dash-recent-meta">';
+      if(d.duration)h+='<span>'+fmtM(d.duration)+'</span>';
+      if(d.completed)h+='<span>'+fmtDShort(d.completed)+'</span>';
+      h+='</span></div>'});
+    h+='</div>'}
+
+  /* Emails */
+  var ecEmails=S.gmailThreads.filter(function(t){return t.end_client===ec.name}).slice(0,10);
+  if(ecEmails.length){
+    h+='<div class="dash-section">'+icon('mail',13)+' Emails</div>';
+    h+=rEmailList(ecEmails)}
+
+  h+='</div>';/* close scrollable content wrapper */
   return h}
 
 function openClientDashboard(name){openClientDetailModal(name)}
