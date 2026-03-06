@@ -4,6 +4,13 @@
  * Syncs one entity type into the knowledge base.
  * Called periodically by the frontend (every 90s, rotating through types).
  *
+ * Uses batch processing:
+ *   1. Pre-fetch ALL existing hashes for the source_type in one query
+ *   2. Compare in memory to find changed records
+ *   3. Embed ALL changed chunks in one batch API call
+ *   4. Store individually (fast DB writes)
+ *   5. Clean up orphans (deleted records)
+ *
  * Body: { entityType: "task" | "task_done" | "client" | "campaign" |
  *         "contact" | "project" | "opportunity" | "activity_log" |
  *         "finance" | "scheduled_item" | "team_member" }
@@ -12,7 +19,7 @@
  */
 
 var { getServiceClient, verifyUserToken, cors } = require('../_lib/supabase');
-var { getOpenAIKey, embedTexts, contentHash, storeChunks, upsertSource, cleanOrphans } = require('../_lib/embeddings');
+var { getOpenAIKey, embedTexts, contentHash, storeChunks, upsertSource, cleanOrphans, EMBED_MODEL } = require('../_lib/embeddings');
 var chunkers = require('../_lib/entity-chunkers');
 
 module.exports = async function handler(req, res) {
@@ -58,62 +65,162 @@ module.exports = async function handler(req, res) {
 
 
 /* ─────────────────────────────────────────────
-   Helper: embed only changed chunks for a source
+   Batch processing: pre-fetch hashes, batch embed, store
    ───────────────────────────────────────────── */
 
-async function embedSource(client, userId, openaiKey, sourceType, sourceId, chunks) {
-  if (!chunks || chunks.length === 0) return { embedded: 0, skipped: 0, tokens: 0 };
+/**
+ * Fetches ALL existing chunk hashes for a source_type in one query.
+ * Returns: { sourceId: { chunkIndex: { hash, id } } }
+ */
+async function fetchAllHashes(client, userId, sourceType) {
+  var allRows = [];
+  var offset = 0;
+  while (true) {
+    var page = await client.from('knowledge_chunks')
+      .select('source_id, chunk_index, content_hash, id')
+      .eq('user_id', userId)
+      .eq('source_type', sourceType)
+      .range(offset, offset + 999);
+    var rows = page.data || [];
+    allRows = allRows.concat(rows);
+    if (rows.length < 1000) break;
+    offset += 1000;
+  }
 
-  // Check existing hashes to skip unchanged content
-  var existing = await client.from('knowledge_chunks')
-    .select('chunk_index, content_hash')
-    .eq('user_id', userId)
-    .eq('source_type', sourceType)
-    .eq('source_id', sourceId);
+  var lookup = {};
+  allRows.forEach(function(r) {
+    if (!lookup[r.source_id]) lookup[r.source_id] = {};
+    lookup[r.source_id][r.chunk_index] = { hash: r.content_hash, id: r.id };
+  });
+  return lookup;
+}
 
-  var existingHashes = {};
-  (existing.data || []).forEach(function(r) { existingHashes[r.chunk_index] = r.content_hash; });
+/**
+ * Batch-process an array of entity chunks:
+ * entityChunks = [{ sourceId: uuid, chunks: [{title, content, metadata}] }]
+ *
+ * 1. Pre-fetches all hashes (1 query)
+ * 2. Compares in memory
+ * 3. Embeds all changed chunks (1 API call)
+ * 4. Stores each changed chunk
+ * 5. Cleans orphans
+ */
+async function batchProcess(client, userId, openaiKey, sourceType, entityChunks) {
+  // 1. Pre-fetch all existing hashes for this source_type
+  var hashLookup = await fetchAllHashes(client, userId, sourceType);
 
-  // Identify which chunks actually changed
-  var changed = [];
-  var changedIdx = [];
+  // 2. Find changed chunks
+  var toEmbed = [];   // { sourceId, chunkIdx, chunk, hash, existingId }
   var skipped = 0;
 
-  for (var i = 0; i < chunks.length; i++) {
-    var hash = contentHash(chunks[i].content);
-    if (existingHashes[i] === hash) {
-      skipped++;
-    } else {
-      changed.push(chunks[i]);
-      changedIdx.push(i);
+  for (var i = 0; i < entityChunks.length; i++) {
+    var entity = entityChunks[i];
+    var existingEntity = hashLookup[entity.sourceId] || {};
+
+    for (var j = 0; j < entity.chunks.length; j++) {
+      var chunk = entity.chunks[j];
+      var hash = contentHash(chunk.content);
+      var existing = existingEntity[j];
+
+      if (existing && existing.hash === hash) {
+        skipped++;
+        continue;
+      }
+
+      toEmbed.push({
+        sourceId: entity.sourceId,
+        chunkIdx: j,
+        chunk: chunk,
+        hash: hash,
+        existingId: existing ? existing.id : null
+      });
     }
   }
 
-  // Also check if chunks were removed (fewer chunks now than before)
-  var needsStore = changed.length > 0 || chunks.length !== Object.keys(existingHashes).length;
-  if (!needsStore) return { embedded: 0, skipped: skipped, tokens: 0 };
-
-  // Embed only the changed chunks
+  // 3. Batch embed all changed chunks in one API call
   var totalTokens = 0;
-  if (changed.length > 0) {
-    var texts = changed.map(function(c) { return c.content; });
+  if (toEmbed.length > 0) {
+    var texts = toEmbed.map(function(e) { return e.chunk.content; });
     var embeddings = await embedTexts(openaiKey, texts);
-    for (var j = 0; j < changed.length; j++) {
-      changed[j].embedding = embeddings[j].embedding;
-      changed[j].tokens = embeddings[j].tokens;
-      totalTokens += embeddings[j].tokens;
+    for (var k = 0; k < toEmbed.length; k++) {
+      toEmbed[k].embedding = embeddings[k].embedding;
+      toEmbed[k].tokens = embeddings[k].tokens;
+      totalTokens += embeddings[k].tokens;
     }
   }
 
-  // For storeChunks, we need to pass ALL chunks (it handles index management).
-  // Unchanged chunks need their existing embedding — storeChunks will skip them via hash.
-  await storeChunks(client, userId, sourceType, sourceId, chunks);
+  // 4. Store changed chunks (batch inserts, individual updates)
+  var inserts = [];
+  var updates = [];
 
-  // Track source
-  var title = chunks[0] ? chunks[0].title : '';
-  await upsertSource(client, userId, sourceType, sourceId, title, 'complete', chunks.length, totalTokens, '');
+  for (var m = 0; m < toEmbed.length; m++) {
+    var e = toEmbed[m];
+    var meta = e.chunk.metadata || {};
 
-  return { embedded: changed.length, skipped: skipped, tokens: totalTokens };
+    var row = {
+      user_id: userId,
+      source_type: sourceType,
+      source_id: e.sourceId,
+      chunk_index: e.chunkIdx,
+      title: e.chunk.title || '',
+      content: e.chunk.content,
+      client_id: meta.client_id || null,
+      end_client: meta.end_client || '',
+      campaign_id: meta.campaign_id || null,
+      date: meta.date || null,
+      people: meta.people || [],
+      tags: meta.tags || [],
+      embedding: '[' + e.embedding.join(',') + ']',
+      embedding_model: EMBED_MODEL,
+      token_count: e.tokens || 0,
+      content_hash: e.hash,
+      updated_at: new Date().toISOString()
+    };
+
+    if (e.existingId) {
+      updates.push({ id: e.existingId, row: row });
+    } else {
+      inserts.push(row);
+    }
+  }
+
+  // Batch insert new chunks (50 at a time — embeddings are large)
+  for (var bi = 0; bi < inserts.length; bi += 50) {
+    var batch = inserts.slice(bi, bi + 50);
+    await client.from('knowledge_chunks').insert(batch);
+  }
+
+  // Update existing chunks individually (usually few during normal syncs)
+  for (var u = 0; u < updates.length; u++) {
+    await client.from('knowledge_chunks')
+      .update(updates[u].row)
+      .eq('id', updates[u].id);
+  }
+
+  // 5. Batch upsert source tracking
+  for (var si = 0; si < entityChunks.length; si++) {
+    var ent = entityChunks[si];
+    var title = ent.chunks[0] ? ent.chunks[0].title : '';
+    // Only upsert if this entity had changes or is new
+    var hadExisting = !!hashLookup[ent.sourceId];
+    var hadChanges = toEmbed.some(function(te) { return te.sourceId === ent.sourceId; });
+    if (!hadExisting || hadChanges) {
+      await upsertSource(client, userId, sourceType, ent.sourceId, title, 'complete', ent.chunks.length, 0, '');
+    }
+  }
+
+  // 6. Clean orphans
+  var validIds = entityChunks.map(function(e) { return e.sourceId; });
+  var deleted = await cleanOrphans(client, userId, sourceType, validIds);
+
+  return {
+    entityType: sourceType,
+    processed: entityChunks.length,
+    embedded: toEmbed.length,
+    skipped: skipped,
+    deleted: deleted,
+    tokens: totalTokens
+  };
 }
 
 
@@ -138,20 +245,15 @@ async function syncTasks(client, userId, openaiKey) {
   var records = res.data || [];
   var clientMap = await buildClientMap(client, userId);
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var task = records[i];
-    sourceIds.push(task.id);
     var chunks = chunkers.chunkTask(task);
     chunks.forEach(function(c) { c.metadata.client_id = clientMap[task.client] || null; });
-    var r = await embedSource(client, userId, openaiKey, 'task', task.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: task.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'task', sourceIds);
-  return { entityType: 'task', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'task', entityChunks);
 }
 
 
@@ -162,20 +264,15 @@ async function syncCompletedTasks(client, userId, openaiKey) {
   var records = res.data || [];
   var clientMap = await buildClientMap(client, userId);
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var task = records[i];
-    sourceIds.push(task.id);
     var chunks = chunkers.chunkCompletedTask(task);
     chunks.forEach(function(c) { c.metadata.client_id = clientMap[task.client] || null; });
-    var r = await embedSource(client, userId, openaiKey, 'task_done', task.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: task.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'task_done', sourceIds);
-  return { entityType: 'task_done', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'task_done', entityChunks);
 }
 
 
@@ -191,20 +288,15 @@ async function syncClients(client, userId, openaiKey) {
     notesByClient[n.client_id].push(n);
   });
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var c = records[i];
-    sourceIds.push(c.id);
     var notes = notesByClient[c.id] || [];
     var chunks = chunkers.chunkClient(c, notes);
-    var r = await embedSource(client, userId, openaiKey, 'client', c.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: c.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'client', sourceIds);
-  return { entityType: 'client', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'client', entityChunks);
 }
 
 
@@ -219,25 +311,18 @@ async function syncCampaigns(client, userId, openaiKey) {
     notesByCampaign[n.campaign_id].push(n);
   });
 
-  // Build client name map for partner field
   var clientMap = await buildClientMap(client, userId);
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var camp = records[i];
-    sourceIds.push(camp.id);
     var notes = notesByCampaign[camp.id] || [];
     var chunks = chunkers.chunkCampaign(camp, notes);
-    // Resolve client_id from partner name
     chunks.forEach(function(c) { c.metadata.client_id = clientMap[camp.partner] || null; });
-    var r = await embedSource(client, userId, openaiKey, 'campaign', camp.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: camp.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'campaign', sourceIds);
-  return { entityType: 'campaign', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'campaign', entityChunks);
 }
 
 
@@ -245,19 +330,14 @@ async function syncContacts(client, userId, openaiKey) {
   var res = await client.from('contacts').select('*').eq('user_id', userId);
   var records = res.data || [];
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var contact = records[i];
-    sourceIds.push(contact.id);
     var chunks = chunkers.chunkContact(contact);
-    var r = await embedSource(client, userId, openaiKey, 'contact', contact.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: contact.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'contact', sourceIds);
-  return { entityType: 'contact', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'contact', entityChunks);
 }
 
 
@@ -272,20 +352,15 @@ async function syncProjects(client, userId, openaiKey) {
     phasesByProject[p.project_id].push(p);
   });
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var proj = records[i];
-    sourceIds.push(proj.id);
     var phases = phasesByProject[proj.id] || [];
     var chunks = chunkers.chunkProject(proj, phases);
-    var r = await embedSource(client, userId, openaiKey, 'project', proj.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: proj.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'project', sourceIds);
-  return { entityType: 'project', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'project', entityChunks);
 }
 
 
@@ -294,20 +369,15 @@ async function syncOpportunities(client, userId, openaiKey) {
   var records = res.data || [];
   var clientMap = await buildClientMap(client, userId);
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var opp = records[i];
-    sourceIds.push(opp.id);
     var chunks = chunkers.chunkOpportunity(opp);
     chunks.forEach(function(c) { c.metadata.client_id = clientMap[opp.client] || null; });
-    var r = await embedSource(client, userId, openaiKey, 'opportunity', opp.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: opp.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'opportunity', sourceIds);
-  return { entityType: 'opportunity', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'opportunity', entityChunks);
 }
 
 
@@ -329,46 +399,36 @@ async function syncActivityLogs(client, userId, openaiKey) {
     logsByTask[l.task_id].push(l);
   });
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
+  var entityChunks = [];
   var taskIds = Object.keys(logsByTask);
 
   for (var i = 0; i < taskIds.length; i++) {
     var taskId = taskIds[i];
     var logs = logsByTask[taskId];
-    sourceIds.push(taskId);
     var taskItem = taskNames[taskId] || taskId;
     var chunks = chunkers.chunkActivityLogs(taskId, taskItem, logs);
     if (chunks.length === 0) continue;
-    var r = await embedSource(client, userId, openaiKey, 'activity_log', taskId, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: taskId, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'activity_log', sourceIds);
-  return { entityType: 'activity_log', processed: taskIds.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'activity_log', entityChunks);
 }
 
 
 async function syncFinancePayments(client, userId, openaiKey) {
-  // Only sync payments with descriptions or payer info (skip empty ones)
   var res = await client.from('finance_payments').select('*').eq('user_id', userId);
   var records = (res.data || []).filter(function(p) {
     return p.description || p.payer_name || p.payer_email || p.notes;
   });
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var payment = records[i];
-    sourceIds.push(payment.id);
     var chunks = chunkers.chunkFinancePayment(payment);
-    var r = await embedSource(client, userId, openaiKey, 'finance', payment.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: payment.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'finance', sourceIds);
-  return { entityType: 'finance', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'finance', entityChunks);
 }
 
 
@@ -376,19 +436,14 @@ async function syncScheduledItems(client, userId, openaiKey) {
   var res = await client.from('scheduled_items').select('*').eq('user_id', userId);
   var records = res.data || [];
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var item = records[i];
-    sourceIds.push(item.id);
     var chunks = chunkers.chunkScheduledItem(item);
-    var r = await embedSource(client, userId, openaiKey, 'scheduled_item', item.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: item.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'scheduled_item', sourceIds);
-  return { entityType: 'scheduled_item', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'scheduled_item', entityChunks);
 }
 
 
@@ -396,17 +451,12 @@ async function syncTeamMembers(client, userId, openaiKey) {
   var res = await client.from('team_members').select('*').eq('user_id', userId);
   var records = res.data || [];
 
-  var embedded = 0, skipped = 0, totalTokens = 0;
-  var sourceIds = [];
-
+  var entityChunks = [];
   for (var i = 0; i < records.length; i++) {
     var member = records[i];
-    sourceIds.push(member.id);
     var chunks = chunkers.chunkTeamMember(member);
-    var r = await embedSource(client, userId, openaiKey, 'team_member', member.id, chunks);
-    embedded += r.embedded; skipped += r.skipped; totalTokens += r.tokens;
+    entityChunks.push({ sourceId: member.id, chunks: chunks });
   }
 
-  var deleted = await cleanOrphans(client, userId, 'team_member', sourceIds);
-  return { entityType: 'team_member', processed: records.length, embedded: embedded, skipped: skipped, deleted: deleted, tokens: totalTokens };
+  return batchProcess(client, userId, openaiKey, 'team_member', entityChunks);
 }
