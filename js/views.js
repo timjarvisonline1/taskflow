@@ -240,6 +240,25 @@ function rDashboard(){
     activeOpps.sort(function(a,b){var va=(a.strategyFee||0)+(a.setupFee||0)+((a.monthlyFee||0)*12);var vb=(b.strategyFee||0)+(b.setupFee||0)+((b.monthlyFee||0)*12);return vb-va}).forEach(function(o){
       var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
       _aiLive+='- '+o.name+' ['+o.client+'] Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'% prob)':'')+(o.endClient?' EC: '+o.endClient:'')+(o.type?' Type: '+o.type:'')+'\n'})}
+  // ALL contacts
+  if(S.contacts&&S.contacts.length){
+    _aiLive+='\nALL CONTACTS ('+S.contacts.length+'):\n';
+    S.contacts.forEach(function(cc){
+      var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
+      var client=cc.clientId?S.clientRecords.find(function(cr){return cr.id===cc.clientId}):null;
+      _aiLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(client?' ['+client.name+']':'')+(cc.endClient?' EC: '+cc.endClient:'')+(cc.email?' '+cc.email:'')+(cc.phone?' '+cc.phone:'')+'\n'})}
+  // ALL active campaigns
+  if(activeCampaigns.length){
+    _aiLive+='\nACTIVE CAMPAIGNS ('+activeCampaigns.length+'):\n';
+    activeCampaigns.forEach(function(cp){_aiLive+='- '+cp.name+' ['+cp.client+']'+(cp.endClient?' ('+cp.endClient+')':'')+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+'\n'})}
+  // ALL clients
+  if(S.clientRecords&&S.clientRecords.length){
+    _aiLive+='\nALL CLIENTS ('+S.clientRecords.length+'):\n';
+    S.clientRecords.forEach(function(cr){_aiLive+='- '+cr.name+' ('+cr.status+')'+(cr.email?' '+cr.email:'')+(cr.industry?' Industry: '+cr.industry:'')+'\n'})}
+  // ALL projects
+  if(S.projects&&S.projects.length){
+    _aiLive+='\nPROJECTS ('+S.projects.length+'):\n';
+    S.projects.forEach(function(p){_aiLive+='- '+p.name+' ('+p.status+')'+(p.client?' ['+p.client+']':'')+'\n'})}
   // Today's meetings
   if(todayMeetings.length){
     _aiLive+='\nTODAY\'S MEETINGS ('+todayMeetings.length+'):\n';
