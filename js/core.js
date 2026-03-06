@@ -1935,7 +1935,12 @@ async function openEmailThread(threadId){
   /* Start silent email timer */
   S._emailTimer={threadId:threadId,started:Date.now(),subject:'',categorization:null};
 
-  S.gmailThreadId=threadId;S.gmailThread=null;render();
+  S.gmailThreadId=threadId;S.gmailThread=null;
+
+  /* Show full-screen modal with skeleton */
+  gel('detail-body').innerHTML=rEmailThreadModal(threadId);
+  gel('detail-modal').classList.add('on','full-detail');
+
   try{
     var sess=await _sb.auth.getSession();
     if(!sess.data.session)return;
@@ -1954,7 +1959,10 @@ async function openEmailThread(threadId){
     if(cached&&!cached.client_id&&!cached.end_client&&!cached.campaign_id&&!cached.opportunity_id){
       var ruleActions=applyEmailRules(cached);
       if(ruleActions)_applyRuleActionsToThread(threadId,ruleActions)}
-    render();
+
+    /* Re-render modal content with loaded data */
+    gel('detail-body').innerHTML=rEmailThreadModal(threadId);
+    initEmailIframes();
   }catch(e){toast('Gmail: '+e.message,'warn')}}
 
 function _flushEmailTimer(){
@@ -1979,7 +1987,81 @@ function _flushEmailTimer(){
       importance:'When Time Allows',est:0,notes:''})}});
   S._emailTimer=null}
 
-function closeEmailThread(){_flushEmailTimer();S.gmailThread=null;S.gmailThreadId='';render()}
+function closeEmailThread(){
+  _flushEmailTimer();S.gmailThread=null;S.gmailThreadId='';
+  gel('detail-modal').classList.remove('on','full-detail');
+  render()}
+
+/* ═══════════ THREAD CRM CATEGORIZATION ═══════════ */
+function threadCrmClientChange(){
+  var client=(gel('thread-crm-client')||{}).value||'';
+  /* Refresh end-client options */
+  var ecSel=gel('thread-crm-ec');if(ecSel){
+    var oh='<option value="">— Select —</option>';
+    var ecs=[];
+    S.campaigns.forEach(function(c){if(!client||c.partner===client){if(c.endClient&&ecs.indexOf(c.endClient)===-1)ecs.push(c.endClient)}});
+    S.tasks.concat(S.done).forEach(function(t){if(!client||t.client===client){if(t.endClient&&ecs.indexOf(t.endClient)===-1)ecs.push(t.endClient)}});
+    S.opportunities.forEach(function(o){if(!client||o.client===client){if(o.endClient&&ecs.indexOf(o.endClient)===-1)ecs.push(o.endClient)}});
+    ecs.sort().forEach(function(ec){oh+='<option value="'+esc(ec)+'">'+esc(ec)+'</option>'});
+    ecSel.innerHTML=oh}
+  /* Refresh campaign options */
+  var cpSel=gel('thread-crm-campaign');if(cpSel){
+    var ch='<option value="">— Select —</option>';
+    S.campaigns.filter(function(c){return!client||c.partner===client}).forEach(function(c){
+      ch+='<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>'});
+    cpSel.innerHTML=ch}
+  /* Refresh opportunity options */
+  var opSel=gel('thread-crm-opportunity');if(opSel){
+    var oph='<option value="">— Select —</option>';
+    S.opportunities.filter(function(o){return!o.closedAt&&(!client||o.client===client)}).forEach(function(o){
+      oph+='<option value="'+esc(o.id)+'">'+esc(o.name)+'</option>'});
+    opSel.innerHTML=oph}
+  threadCrmSave()}
+
+async function threadCrmSave(){
+  var threadId=S.gmailThreadId;if(!threadId)return;
+  var uid=await getUserId();if(!uid)return;
+  var client=(gel('thread-crm-client')||{}).value||'';
+  var ec=(gel('thread-crm-ec')||{}).value||'';
+  var campId=(gel('thread-crm-campaign')||{}).value||'';
+  var oppId=(gel('thread-crm-opportunity')||{}).value||'';
+  var none=gel('thread-crm-none');
+  var isNone=none&&none.checked;
+  var updates={
+    client_id:isNone?null:(client||null),
+    end_client:isNone?'':(ec||''),
+    campaign_id:isNone?null:(campId||null),
+    opportunity_id:isNone?null:(oppId||null)};
+  await _sb.from('gmail_threads').update(updates).eq('user_id',uid).eq('thread_id',threadId);
+  /* Update local cache */
+  var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
+  if(cached){cached.client_id=updates.client_id;cached.end_client=updates.end_client;
+    cached.campaign_id=updates.campaign_id;cached.opportunity_id=updates.opportunity_id}
+  S._threadCrmCache={};
+  /* Update email timer categorization */
+  if(S._emailTimer&&S._emailTimer.threadId===threadId){
+    S._emailTimer.categorization={client:client,endClient:ec,campaignId:campId,opportunityId:oppId}}
+  /* Refresh the right pane context */
+  _refreshThreadCrmContext()}
+
+function threadCrmNoneChange(){
+  var none=gel('thread-crm-none');
+  if(none&&none.checked){
+    ['thread-crm-client','thread-crm-ec','thread-crm-campaign','thread-crm-opportunity'].forEach(function(id){
+      var el=gel(id);if(el){el.value='';el.disabled=true}})
+  }else{
+    ['thread-crm-client','thread-crm-ec','thread-crm-campaign','thread-crm-opportunity'].forEach(function(id){
+      var el=gel(id);if(el)el.disabled=false})
+  }
+  threadCrmSave()}
+
+function _refreshThreadCrmContext(){
+  var ctx=gel('thread-crm-context');if(!ctx)return;
+  var client=(gel('thread-crm-client')||{}).value||'';
+  var ec=(gel('thread-crm-ec')||{}).value||'';
+  var campId=(gel('thread-crm-campaign')||{}).value||'';
+  var oppId=(gel('thread-crm-opportunity')||{}).value||'';
+  ctx.innerHTML=rThreadCrmContext(client,ec,campId,oppId)}
 
 async function searchGmail(query){
   S.gmailSearch=query;
@@ -2571,7 +2653,8 @@ async function archiveEmail(threadId){
     var st=S.gmailThreads.find(function(t){return t.thread_id===threadId});
     if(st){st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-    if(S.gmailThreadId===threadId){S.gmailThread=null;S.gmailThreadId=''}
+    if(S.gmailThreadId===threadId){S.gmailThread=null;S.gmailThreadId='';
+      gel('detail-modal').classList.remove('on','full-detail')}
     setTimeout(function(){render();if(emailHasActiveFilters())loadFilteredEmailThreads()},400);
     toast('Email archived','ok')
   }catch(e){
@@ -2598,7 +2681,8 @@ async function toggleEmailRead(threadId,markUnread){
     S.gmailThreads.forEach(updateThread);
     if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(updateThread);
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-    if(markUnread){S.gmailThread=null;S.gmailThreadId=''}
+    if(markUnread){S.gmailThread=null;S.gmailThreadId='';
+      gel('detail-modal').classList.remove('on','full-detail')}
     render();toast(markUnread?'Marked as unread':'Marked as read','ok')
   }catch(e){toast('Failed: '+e.message,'warn')}}
 
@@ -2616,6 +2700,7 @@ async function trashEmail(threadId){
     S.gmailThreads=S.gmailThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
     S.gmailThread=null;S.gmailThreadId='';
+    gel('detail-modal').classList.remove('on','full-detail');
     render();toast('Email moved to trash','ok')
   }catch(e){toast('Trash failed: '+e.message,'warn')}}
 

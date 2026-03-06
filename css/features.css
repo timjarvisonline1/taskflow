@@ -1086,7 +1086,8 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 
 /* Collapsible messages */
 .email-message.collapsed .email-msg-body,
-.email-message.collapsed .email-msg-to{display:none}
+.email-message.collapsed .email-msg-to,
+.email-message.collapsed .email-msg-actions{display:none}
 .email-message.collapsed{opacity:.65}
 .email-message.collapsed:hover{opacity:.9}
 
@@ -1492,6 +1493,37 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;gap:4px;
   transition:all .12s}
 .email-msg-action-btn:hover{background:rgba(255,255,255,.06);color:var(--t1);border-color:rgba(255,255,255,.12)}
+
+/* ── Action card always-visible action text ── */
+.action-card-compact-action{font-size:11px;color:var(--t3);padding:4px 0 0 18px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;
+  display:flex;align-items:center;gap:4px}
+
+/* ── Attachment badge in message header ── */
+.email-msg-att-badge{font-size:10px;color:var(--t4);display:inline-flex;align-items:center;gap:3px;
+  margin-left:6px;flex-shrink:0}
+
+/* ── Thread modal ── */
+.email-thread-modal-subject{font-size:18px;font-weight:700;color:var(--t1);line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.email-thread-modal-toolbar{display:flex;align-items:center;gap:2px;padding:8px 0 12px;
+  border-bottom:1px solid var(--gborder);flex-wrap:wrap}
+.email-thread-modal-toolbar .email-toolbar-btn{font-size:11px;padding:5px 10px}
+
+/* ── Thread CRM section (right pane) ── */
+.thread-crm-section{margin-bottom:16px}
+.thread-crm-row{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.thread-crm-row .edf{flex:1;font-size:12px;padding:6px 10px}
+.thread-crm-add{width:28px;height:28px;border-radius:6px;border:1px solid var(--gborder);
+  background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:all .12s;flex-shrink:0}
+.thread-crm-add:hover{background:rgba(255,255,255,.06);color:var(--t1)}
+
+/* ── Thread context info panels ── */
+.thread-context-panel{background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);
+  padding:14px 16px;margin-bottom:12px}
+.thread-context-title{font-size:11px;font-weight:700;color:var(--t4);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:5px}
 
 /* ── MEETINGS ── */
 .mtg-pages{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;padding:12px 0}

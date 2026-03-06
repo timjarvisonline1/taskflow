@@ -246,7 +246,7 @@ function openDetail(id){
 function closeModal(){
   /* Check if compose is active — offer to save as draft */
   var editor=gel('compose-body');
-  if(editor){
+  if(window._composeModalActive&&editor){
     var to=window._composeRecipients.to||[];
     var subject=(gel('compose-subject')||{}).value||'';
     var body=editor.innerHTML||'';
@@ -256,6 +256,7 @@ function closeModal(){
       var saveDraft=confirm('Save this message as a draft?');
       if(saveDraft){_saveDraft(window._composeDraftId);toast('Draft saved','ok')}
       else if(window._composeDraftId){_deleteDraft(window._composeDraftId)}}
+    window._composeModalActive=false;
     /* Clear timer + state */
     if(window._composeDraftTimer){clearInterval(window._composeDraftTimer);window._composeDraftTimer=null}
     window._composeDraftId=null;
@@ -263,7 +264,9 @@ function closeModal(){
     window._composeAttachments=[];
     var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
     inner.classList.remove('tf-modal-wide')}
-  var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail');var m=gel('modal');if(m)m.classList.remove('on')}
+  /* Only close detail-modal if no email thread is currently open */
+  if(!S.gmailThreadId){var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail')}
+  var m=gel('modal');if(m)m.classList.remove('on')}
 
 async function saveDetail(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
@@ -3945,6 +3948,9 @@ function openComposeEmail(opts){
   var isReply=!!opts.replyToThreadId;
   var isForward=!!opts.isForward;
   var title=isReply?'Reply':isForward?'Forward':'New Email';
+
+  /* Flag that compose is active so closeModal() only shows draft prompt for compose */
+  window._composeModalActive=true;
 
   /* Reset compose state */
   window._composeRecipients={to:[],cc:[],bcc:[]};

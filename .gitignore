@@ -1,6 +1,17 @@
 # OAuth credentials (import scripts)
 scripts/.readai-import-creds.json
 
+# Scripts with credentials
+scripts/run-embed.sh
+scripts/embed-batch.py
+scripts/embed-meetings-lite.py
+scripts/import-opportunities.py
+scripts/create-vector-index.py
+scripts/run-migration.py
+
+# Log files
+*.log
+
 # OS files
 .DS_Store
 
