@@ -916,6 +916,43 @@ function getThreadCrmContext(t){
   var to=t.to_emails||t.toEmails||'';
   var cc=t.cc_emails||t.ccEmails||'';
   var ctx=resolveThreadCrmContext(from,to,cc);
+
+  /* Merge saved CRM fields — override email-based matching with explicit categorization */
+  var savedClient=t.client_id||'';
+  var savedEC=t.end_client||'';
+  var savedCamp=t.campaign_id||'';
+  var savedOpp=t.opportunity_id||'';
+
+  if(savedClient){
+    var cr=S.clientRecords.find(function(r){return r.id===savedClient});
+    if(cr){
+      /* Ensure saved client is primaryClient (first in list) */
+      var alreadyHas=ctx.clients.some(function(c){return c.clientId===savedClient});
+      if(!alreadyHas)ctx.clients.unshift({clientId:cr.id,clientName:cr.name,status:cr.status||'active'});
+      else{/* Move to front */var idx=ctx.clients.findIndex(function(c){return c.clientId===savedClient});
+        if(idx>0){var item=ctx.clients.splice(idx,1)[0];ctx.clients.unshift(item)}}
+      ctx.primaryClient=ctx.clients[0];
+      ctx.hasActiveClient=ctx.clients.some(function(c){return c.status==='active'})}}
+
+  if(savedEC){
+    var ecExists=ctx.endClients.some(function(e){return e.name===savedEC});
+    if(!ecExists){var ecClient=ctx.primaryClient?ctx.primaryClient.clientName:'';ctx.endClients.unshift({name:savedEC,clientName:ecClient})}
+    ctx.primaryEndClient=savedEC}
+
+  if(savedCamp){
+    var campMatch=S.campaigns.find(function(c){return c.id===savedCamp});
+    if(campMatch){
+      var campExists=ctx.campaigns.some(function(c){return c.id===savedCamp});
+      if(!campExists)ctx.campaigns.unshift({id:campMatch.id,name:campMatch.name,status:campMatch.status,client:campMatch.partner,endClient:campMatch.endClient});
+      ctx.hasCampaign=true}}
+
+  if(savedOpp){
+    var oppMatch=S.opportunities.find(function(o){return o.id===savedOpp});
+    if(oppMatch){
+      var oppExists=ctx.opportunities.some(function(o){return o.id===savedOpp});
+      if(!oppExists)ctx.opportunities.unshift({id:oppMatch.id,name:oppMatch.name,stage:oppMatch.stage,value:oppMatch.monthlyFee,client:oppMatch.client,endClient:oppMatch.endClient});
+      ctx.hasOpportunity=true}}
+
   S._threadCrmCache[tid]=ctx;
   return ctx}
 

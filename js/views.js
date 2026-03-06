@@ -5268,6 +5268,8 @@ function rEmailList(threads){
     if(companyPill)h+='<span class="email-client-badge">'+esc(companyPill)+'</span>';
     /* End-client pill */
     if(crmCtx&&crmCtx.primaryEndClient)h+='<span class="email-ec-pill">'+esc(crmCtx.primaryEndClient)+'</span>';
+    /* Campaign pill */
+    if(crmCtx&&crmCtx.campaigns.length)h+='<span class="email-camp-pill">'+esc(crmCtx.campaigns[0].name)+'</span>';
     /* Opportunity pills — max 2 */
     if(crmCtx&&crmCtx.opportunities.length){
       var _oppMax=Math.min(crmCtx.opportunities.length,2);
@@ -5576,8 +5578,28 @@ function rEmailThreadModal(threadId){
   h+=rThreadCrmContext(curClient,curEc,curCamp,curOpp);
   h+='</div>';
 
-  /* Contact info */
-  if(senderEmail){
+  /* Contact info — show all thread participants, not just sender */
+  var _threadCrmCtx=getThreadCrmContext(cached||{thread_id:threadId,from_email:senderEmail,
+    to_emails:firstMsg.to||'',cc_emails:firstMsg.cc||'',
+    client_id:curClient,end_client:curEc,campaign_id:curCamp,opportunity_id:curOpp});
+  if(_threadCrmCtx&&_threadCrmCtx.contacts.length){
+    h+='<div class="crm-sb-section">';
+    h+='<div class="crm-sb-header">'+icon('contact',13)+' People ('+_threadCrmCtx.contacts.length+')</div>';
+    _threadCrmCtx.contacts.forEach(function(c){
+      var initial=(c.contactName||c.contactEmail||'?').charAt(0).toUpperCase();
+      var avatarBg=emailAvatarColor(c.contactEmail);
+      h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.03)">';
+      h+='<div style="width:32px;height:32px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:12px;font-weight:600;color:var(--t1)">'+esc(c.contactName||'Unknown')+'</div>';
+      if(c.contactRole)h+='<div style="font-size:10px;color:var(--t3)">'+esc(c.contactRole)+'</div>';
+      var labels=[];
+      if(c.clientName)labels.push(c.clientName);
+      if(c.endClient)labels.push(c.endClient);
+      if(labels.length)h+='<div style="font-size:10px;color:var(--t4)">'+esc(labels.join(' · '))+'</div>';
+      h+='</div></div>'});
+    h+='</div>';
+  }else if(senderEmail){
     if(clientMatch){
       h+=rCrmContactCard(clientMatch,senderEmail);
     }else{
@@ -5588,9 +5610,19 @@ function rEmailThreadModal(threadId){
       h+='</div>';
     }
   }
+  /* Show unknown addresses with Add Contact buttons */
+  if(_threadCrmCtx&&_threadCrmCtx.unknownAddrs.length){
+    h+='<div class="crm-sb-section">';
+    h+='<div class="crm-sb-header" style="color:var(--t4)">'+icon('contact',13)+' Unknown Addresses</div>';
+    _threadCrmCtx.unknownAddrs.slice(0,5).forEach(function(addr){
+      h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">';
+      h+='<span style="font-size:11px;color:var(--t3);flex:1;overflow:hidden;text-overflow:ellipsis">'+esc(addr)+'</span>';
+      h+='<button class="btn" onclick="TF.addContactFromEmail(\''+escAttr(addr)+'\')" style="font-size:10px;padding:2px 8px;flex-shrink:0">+ Add</button>';
+      h+='</div>'});
+    h+='</div>'}
 
-  /* Other threads from same sender */
-  if(senderEmail)h+=rCrmOtherThreads(senderEmail,clientMatch?clientMatch.clientId:'');
+  /* Other threads — prioritize campaign/opportunity context */
+  h+=rCrmOtherThreads(senderEmail,clientMatch?clientMatch.clientId:'',curCamp,curOpp);
 
   h+='</div>'; /* close .detail-split-right */
   h+='</div>'; /* close .detail-split */
@@ -6007,18 +6039,33 @@ function rCrmOpenOpps(clientName){
   h+='</div>';
   return h}
 
-function rCrmOtherThreads(senderEmail,clientId){
+function rCrmOtherThreads(senderEmail,clientId,campaignId,opportunityId){
   var currentId=S.gmailThreadId;
-  var se=senderEmail.toLowerCase();
-  var others=S.gmailThreads.filter(function(t){
-    var tid=t.thread_id||t.threadId||'';
-    if(tid===currentId)return false;
-    if(clientId&&t.client_id===clientId)return true;
-    var tEmail=(t.from_email||t.fromEmail||'').toLowerCase();
-    return tEmail===se}).slice(0,5);
+  var se=(senderEmail||'').toLowerCase();
+  /* Prioritize: opportunity > campaign > client > sender email */
+  var others;
+  var headerLabel='Other Threads';
+  if(opportunityId){
+    others=S.gmailThreads.filter(function(t){
+      var tid=t.thread_id||t.threadId||'';
+      return tid!==currentId&&t.opportunity_id===opportunityId});
+    headerLabel='Opportunity Threads';
+  }else if(campaignId){
+    others=S.gmailThreads.filter(function(t){
+      var tid=t.thread_id||t.threadId||'';
+      return tid!==currentId&&t.campaign_id===campaignId});
+    headerLabel='Campaign Threads';
+  }else{
+    others=S.gmailThreads.filter(function(t){
+      var tid=t.thread_id||t.threadId||'';
+      if(tid===currentId)return false;
+      if(clientId&&t.client_id===clientId)return true;
+      if(se){var tEmail=(t.from_email||t.fromEmail||'').toLowerCase();return tEmail===se}
+      return false})}
+  others=others.slice(0,8);
   if(!others.length)return'';
   var h='<div class="crm-sb-section">';
-  h+='<div class="crm-sb-header">'+icon('mail',13)+' Other Threads ('+others.length+')</div>';
+  h+='<div class="crm-sb-header">'+icon('mail',13)+' '+headerLabel+' ('+others.length+')</div>';
   others.forEach(function(t){
     var subject=t.subject||'(no subject)';
     if(subject.length>40)subject=subject.substring(0,38)+'…';
