@@ -934,27 +934,38 @@ function getThreadCrmContext(t){
       ctx.primaryClient=ctx.clients[0];
       ctx.hasActiveClient=ctx.clients.some(function(c){return c.status==='active'})}}
 
-  if(savedEC){
-    var ecClient=ctx.primaryClient?ctx.primaryClient.clientName:'';
-    /* When end-client is explicitly saved, ONLY show that one — filter out email-resolved ones */
-    ctx.endClients=[{name:savedEC,clientName:ecClient}];
-    ctx.primaryEndClient=savedEC}
+  /* ── Unified CRM filtering ──
+     When ANY specific CRM field is saved (end-client, campaign, or opportunity),
+     narrow ALL arrays to only the explicitly saved/derived values.
+     This prevents email-resolved campaigns, opportunities, and end-clients
+     from other parts of the same client showing up in the pills. */
+  if(savedEC||savedCamp||savedOpp){
+    /* 1. Determine effective end-client: explicit > from campaign > from opportunity */
+    var _effEC=savedEC||'';
+    var _campObj=savedCamp?S.campaigns.find(function(c){return c.id===savedCamp}):null;
+    var _oppObj=savedOpp?S.opportunities.find(function(o){return o.id===savedOpp}):null;
+    if(!_effEC&&_campObj&&_campObj.endClient)_effEC=_campObj.endClient;
+    if(!_effEC&&_oppObj&&_oppObj.endClient)_effEC=_oppObj.endClient;
 
-  if(savedCamp){
-    var campMatch=S.campaigns.find(function(c){return c.id===savedCamp});
-    if(campMatch){
-      /* When campaign is explicitly saved, ONLY show that one */
-      ctx.campaigns=[{id:campMatch.id,name:campMatch.name,status:campMatch.status,client:campMatch.partner,endClient:campMatch.endClient}];
+    /* 2. End-clients: only the effective one */
+    if(_effEC){
+      var ecClient=ctx.primaryClient?ctx.primaryClient.clientName:'';
+      ctx.endClients=[{name:_effEC,clientName:ecClient}];
+      ctx.primaryEndClient=_effEC}
+    else{ctx.endClients=[];ctx.primaryEndClient=''}
+
+    /* 3. Campaigns: only the explicitly saved one */
+    if(_campObj){
+      ctx.campaigns=[{id:_campObj.id,name:_campObj.name,status:_campObj.status,client:_campObj.partner,endClient:_campObj.endClient}];
       ctx.hasCampaign=true}
-    else{ctx.campaigns=[];ctx.hasCampaign=false}}
+    else{ctx.campaigns=[];ctx.hasCampaign=false}
 
-  if(savedOpp){
-    var oppMatch=S.opportunities.find(function(o){return o.id===savedOpp});
-    if(oppMatch){
-      /* When opportunity is explicitly saved, ONLY show that one */
-      ctx.opportunities=[{id:oppMatch.id,name:oppMatch.name,stage:oppMatch.stage,value:oppMatch.monthlyFee,client:oppMatch.client,endClient:oppMatch.endClient}];
+    /* 4. Opportunities: only the explicitly saved one */
+    if(_oppObj){
+      ctx.opportunities=[{id:_oppObj.id,name:_oppObj.name,stage:_oppObj.stage,value:_oppObj.monthlyFee,client:_oppObj.client,endClient:_oppObj.endClient}];
       ctx.hasOpportunity=true}
-    else{ctx.opportunities=[];ctx.hasOpportunity=false}}
+    else{ctx.opportunities=[];ctx.hasOpportunity=false}
+  }
 
   S._threadCrmCache[tid]=ctx;
   return ctx}

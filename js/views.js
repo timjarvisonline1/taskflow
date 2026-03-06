@@ -5896,12 +5896,16 @@ function findLastEmailDate(email){
 
 function rEmailCrmSidebar(clientMatch,senderEmail,msgs){
   var h='<div class="email-crm-sidebar">';
-  /* Get full thread CRM context for richer info */
-  var toEmails_sb='',ccEmails_sb='';
-  if(msgs&&msgs.length){
-    var getH=function(msg,n){var hd=(msg.payload&&msg.payload.headers||[]).find(function(hh){return hh.name.toLowerCase()===n.toLowerCase()});return hd?hd.value:''};
-    toEmails_sb=getH(msgs[0],'To');ccEmails_sb=getH(msgs[0],'Cc')}
-  var threadCtx=resolveThreadCrmContext(senderEmail,toEmails_sb,ccEmails_sb);
+  /* Use saved CRM context (respects saved categorization) instead of raw email resolution */
+  var _sbThread=S.gmailThreads.find(function(t){return(t.thread_id||t.threadId)===S.gmailThreadId});
+  var threadCtx=_sbThread?getThreadCrmContext(_sbThread):null;
+  if(!threadCtx){
+    /* Fallback to raw email resolution if thread not found */
+    var toEmails_sb='',ccEmails_sb='';
+    if(msgs&&msgs.length){
+      var getH=function(msg,n){var hd=(msg.payload&&msg.payload.headers||[]).find(function(hh){return hh.name.toLowerCase()===n.toLowerCase()});return hd?hd.value:''};
+      toEmails_sb=getH(msgs[0],'To');ccEmails_sb=getH(msgs[0],'Cc')}
+    threadCtx=resolveThreadCrmContext(senderEmail,toEmails_sb,ccEmails_sb)}
 
   if(!clientMatch){
     /* Unknown sender */
@@ -5943,8 +5947,10 @@ function rEmailCrmSidebar(clientMatch,senderEmail,msgs){
       h+='<span style="font-size:10px;color:var(--t4)">'+esc(o.stage)+'</span></div>'});
     h+='</div>';
   }else if(clientMatch.clientName){h+=rCrmOpenOpps(clientMatch.clientName)}
-  /* 6. Other Threads */
-  h+=rCrmOtherThreads(senderEmail,clientMatch.clientId);
+  /* 6. Other Threads — pass saved campaign/opportunity for context-aware filtering */
+  var _sbCampId=_sbThread?(_sbThread.campaign_id||''):'';
+  var _sbOppId=_sbThread?(_sbThread.opportunity_id||''):'';
+  h+=rCrmOtherThreads(senderEmail,clientMatch.clientId,_sbCampId,_sbOppId);
   /* 7. Recent Notes */
   if(clientMatch.clientId)h+=rCrmRecentNotes(clientMatch.clientId);
   /* 8. Quick Actions */
