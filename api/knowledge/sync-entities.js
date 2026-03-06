@@ -198,15 +198,59 @@ async function batchProcess(client, userId, openaiKey, sourceType, entityChunks)
   }
 
   // 5. Batch upsert source tracking
+  // Build set of changed sourceIds for quick lookup
+  var changedSourceIds = {};
+  toEmbed.forEach(function(te) { changedSourceIds[te.sourceId] = true; });
+
+  // Fetch existing source tracking rows in one query
+  var existingSources = await client.from('knowledge_sources')
+    .select('source_id')
+    .eq('user_id', userId)
+    .eq('source_type', sourceType);
+  var existingSourceSet = {};
+  (existingSources.data || []).forEach(function(s) { existingSourceSet[s.source_id] = true; });
+
+  // Build rows to insert (new) and update (changed)
+  var sourceInserts = [];
+  var sourceUpdates = [];
+  var now = new Date().toISOString();
+
   for (var si = 0; si < entityChunks.length; si++) {
     var ent = entityChunks[si];
     var title = ent.chunks[0] ? ent.chunks[0].title : '';
-    // Only upsert if this entity had changes or is new
-    var hadExisting = !!hashLookup[ent.sourceId];
-    var hadChanges = toEmbed.some(function(te) { return te.sourceId === ent.sourceId; });
-    if (!hadExisting || hadChanges) {
-      await upsertSource(client, userId, sourceType, ent.sourceId, title, 'complete', ent.chunks.length, 0, '');
+    var isNew = !existingSourceSet[ent.sourceId];
+    var hasChanges = !!changedSourceIds[ent.sourceId];
+
+    if (isNew) {
+      sourceInserts.push({
+        user_id: userId,
+        source_type: sourceType,
+        source_id: ent.sourceId,
+        name: title,
+        status: 'complete',
+        chunks_count: ent.chunks.length,
+        tokens_used: 0,
+        error_message: '',
+        last_ingested_at: now
+      });
+    } else if (hasChanges) {
+      sourceUpdates.push(ent.sourceId);
     }
+  }
+
+  // Batch insert new source rows (100 at a time)
+  for (var sbi = 0; sbi < sourceInserts.length; sbi += 100) {
+    var srcBatch = sourceInserts.slice(sbi, sbi + 100);
+    await client.from('knowledge_sources').insert(srcBatch);
+  }
+
+  // Update changed sources (usually few during normal syncs)
+  for (var su = 0; su < sourceUpdates.length; su++) {
+    await client.from('knowledge_sources')
+      .update({ last_ingested_at: now, status: 'complete' })
+      .eq('user_id', userId)
+      .eq('source_type', sourceType)
+      .eq('source_id', sourceUpdates[su]);
   }
 
   // 6. Clean orphans
