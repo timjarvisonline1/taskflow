@@ -223,41 +223,32 @@ function rDashboard(){
       h+='<span style="font-size:12px;color:var(--t1)">'+esc(m.title)+'</span></div>'});
     h+='</div>'}
 
-  /* AI Briefing — build live data summary */
+  /* AI Briefing — build live data: ALL tasks + ALL deals */
   var _aiLive='';
-  // Overdue tasks (sorted oldest first, top 25)
-  var _odTasks=S.tasks.filter(function(t){return t.due&&t.due<td_}).sort(function(a,b){return a.due-b.due}).slice(0,25);
-  if(_odTasks.length){
-    _aiLive+='\nOVERDUE TASKS ('+_odTasks.length+(overdueTasks>25?' of '+overdueTasks:'')+'):\n';
-    _odTasks.forEach(function(t){_aiLive+='- '+t.item+(t.client?' ['+t.client+']':'')+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+'\n'})}
-  // Due today
-  if(dueTodayTasks.length){
-    _aiLive+='\nDUE TODAY ('+dueTodayTasks.length+'):\n';
-    dueTodayTasks.forEach(function(t){_aiLive+='- '+t.item+(t.client?' ['+t.client+']':'')+(t.endClient?' ('+t.endClient+')':'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+'\n'})}
-  // Upcoming tasks (next 7 days, top 15)
-  var _upTasks=S.tasks.filter(function(t){return t.due&&t.due>=tdEnd&&t.due<new Date(td_.getTime()+7*864e5)}).sort(function(a,b){return a.due-b.due}).slice(0,15);
-  if(_upTasks.length){
-    _aiLive+='\nUPCOMING TASKS (next 7 days, '+_upTasks.length+'):\n';
-    _upTasks.forEach(function(t){_aiLive+='- '+t.item+(t.client?' ['+t.client+']':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
-  // No-date tasks (top 10)
-  var _ndTasks=S.tasks.filter(function(t){return!t.due}).slice(0,10);
-  if(_ndTasks.length){
-    _aiLive+='\nTASKS WITHOUT DUE DATE ('+_ndTasks.length+' of '+S.tasks.filter(function(t){return!t.due}).length+'):\n';
-    _ndTasks.forEach(function(t){_aiLive+='- '+t.item+(t.client?' ['+t.client+']':'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
-  // Active deals
+  var _allSorted=S.tasks.slice().sort(function(a,b){
+    var aOd=a.due&&a.due<td_?0:1,bOd=b.due&&b.due<td_?0:1;
+    if(aOd!==bOd)return aOd-bOd;
+    if(a.due&&b.due)return a.due-b.due;
+    if(a.due)return -1;if(b.due)return 1;return 0});
+  _aiLive+='\nALL OPEN TASKS ('+S.tasks.length+'):\n';
+  _allSorted.forEach(function(t){
+    var isOd=t.due&&t.due<td_;
+    _aiLive+='- '+(isOd?'[OVERDUE] ':'')+t.item+(t.client?' ['+t.client+']':'')+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+(t.notes?' — '+t.notes.substring(0,150):'')+'\n'});
+  // Active deals (ALL)
   if(activeOpps.length){
-    _aiLive+='\nACTIVE DEALS ('+activeOpps.length+', pipeline '+fmtUSD(pipelineValue)+'):\n';
-    activeOpps.sort(function(a,b){var va=(a.strategyFee||0)+(a.setupFee||0)+((a.monthlyFee||0)*12);var vb=(b.strategyFee||0)+(b.setupFee||0)+((b.monthlyFee||0)*12);return vb-va}).slice(0,20).forEach(function(o){
+    _aiLive+='\nALL ACTIVE DEALS ('+activeOpps.length+', pipeline '+fmtUSD(pipelineValue)+'):\n';
+    activeOpps.sort(function(a,b){var va=(a.strategyFee||0)+(a.setupFee||0)+((a.monthlyFee||0)*12);var vb=(b.strategyFee||0)+(b.setupFee||0)+((b.monthlyFee||0)*12);return vb-va}).forEach(function(o){
       var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
-      _aiLive+='- '+o.name+' ['+o.client+'] Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'% prob)':'')+'\n'})}
+      _aiLive+='- '+o.name+' ['+o.client+'] Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'% prob)':'')+(o.endClient?' EC: '+o.endClient:'')+(o.type?' Type: '+o.type:'')+'\n'})}
   // Today's meetings
   if(todayMeetings.length){
     _aiLive+='\nTODAY\'S MEETINGS ('+todayMeetings.length+'):\n';
     todayMeetings.forEach(function(m){_aiLive+='- '+m.start.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' '+m.title+'\n'})}
-  // Recent completions
-  if(todayDone.length){
-    _aiLive+='\nCOMPLETED TODAY ('+todayDone.length+'):\n';
-    todayDone.slice(0,10).forEach(function(d){_aiLive+='- '+d.item+(d.client?' ['+d.client+']':'')+(d.duration?' ('+fmtM(d.duration)+')':'')+'\n'})}
+  // Recent completions (last 20)
+  var _recentDone=S.done.slice(0,20);
+  if(_recentDone.length){
+    _aiLive+='\nRECENTLY COMPLETED ('+_recentDone.length+' of '+S.done.length+'):\n';
+    _recentDone.forEach(function(d){_aiLive+='- '+d.item+(d.client?' ['+d.client+']':'')+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'')+(d.duration?' '+fmtM(d.duration):'')+'\n'})}
 
   h+=aiBox('dash-ai',{clientId:null,clientName:null,sourceTypes:null,
     entityContext:{type:'dashboard',name:'Main Dashboard',data:{
@@ -512,21 +503,21 @@ function rClientDashboard(c){
   h+=dashMet('Pipeline',fmtUSD(c.pipelineValue),'var(--purple50)');
   h+='</div>';
 
-  /* AI Assistant — build client live data */
+  /* AI Assistant — build client live data (ALL tasks) */
   var _cLive='';
-  var _cTasks=S.tasks.filter(function(t){return t.client===c.name});
-  var _cOd=_cTasks.filter(function(t){return t.due&&t.due<td_}).sort(function(a,b){return a.due-b.due});
-  if(_cOd.length){_cLive+='\nOVERDUE TASKS ('+_cOd.length+'):\n';_cOd.forEach(function(t){_cLive+='- '+t.item+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+'\n'})}
-  var _cOpen=_cTasks.filter(function(t){return!t.due||t.due>=td_});
-  if(_cOpen.length){_cLive+='\nOPEN TASKS ('+_cOpen.length+'):\n';_cOpen.slice(0,20).forEach(function(t){_cLive+='- '+t.item+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
+  var _cTasks=S.tasks.filter(function(t){return t.client===c.name}).sort(function(a,b){
+    var aOd=a.due&&a.due<td_?0:1,bOd=b.due&&b.due<td_?0:1;
+    if(aOd!==bOd)return aOd-bOd;if(a.due&&b.due)return a.due-b.due;if(a.due)return -1;if(b.due)return 1;return 0});
+  if(_cTasks.length){_cLive+='\nALL OPEN TASKS FOR '+c.name+' ('+_cTasks.length+'):\n';_cTasks.forEach(function(t){
+    var isOd=t.due&&t.due<td_;_cLive+='- '+(isOd?'[OVERDUE] ':'')+t.item+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+(t.notes?' — '+t.notes.substring(0,150):'')+'\n'})}
   var _cOpps=S.opportunities.filter(function(o){return o.client===c.name&&o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
-  if(_cOpps.length){_cLive+='\nACTIVE DEALS ('+_cOpps.length+'):\n';_cOpps.forEach(function(o){var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);_cLive+='- '+o.name+' Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'%)':'')+'\n'})}
+  if(_cOpps.length){_cLive+='\nACTIVE DEALS ('+_cOpps.length+'):\n';_cOpps.forEach(function(o){var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);_cLive+='- '+o.name+' Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'%)':'')+(o.notes?' — '+o.notes.substring(0,150):'')+'\n'})}
   var _cCamps=S.campaigns.filter(function(cp){return cp.client===c.name&&cp.status==='Active'});
-  if(_cCamps.length){_cLive+='\nACTIVE CAMPAIGNS ('+_cCamps.length+'):\n';_cCamps.forEach(function(cp){_cLive+='- '+cp.name+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+'\n'})}
+  if(_cCamps.length){_cLive+='\nACTIVE CAMPAIGNS ('+_cCamps.length+'):\n';_cCamps.forEach(function(cp){_cLive+='- '+cp.name+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+(cp.endClient?' EC: '+cp.endClient:'')+'\n'})}
   var _cContacts=c.clientId?S.contacts.filter(function(cc){return cc.clientId===c.clientId}):[];
-  if(_cContacts.length){_cLive+='\nCONTACTS ('+_cContacts.length+'):\n';_cContacts.forEach(function(cc){var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();_cLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(cc.email?' '+cc.email:'')+'\n'})}
-  var _cDone=S.done.filter(function(d){return d.client===c.name}).slice(0,10);
-  if(_cDone.length){_cLive+='\nRECENT COMPLETED TASKS ('+_cDone.length+'):\n';_cDone.forEach(function(d){_cLive+='- '+d.item+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')'  :'')+(d.duration?' '+fmtM(d.duration):'')+'\n'})}
+  if(_cContacts.length){_cLive+='\nCONTACTS ('+_cContacts.length+'):\n';_cContacts.forEach(function(cc){var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();_cLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(cc.email?' '+cc.email:'')+(cc.phone?' '+cc.phone:'')+'\n'})}
+  var _cDone=S.done.filter(function(d){return d.client===c.name}).slice(0,20);
+  if(_cDone.length){_cLive+='\nRECENT COMPLETED ('+_cDone.length+'):\n';_cDone.forEach(function(d){_cLive+='- '+d.item+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'')+(d.duration?' '+fmtM(d.duration):'')+'\n'})}
 
   h+=aiBox('client-ai',{clientId:c.clientId,clientName:c.name,sourceTypes:null,
     entityContext:{type:'client',name:c.name,data:{
@@ -2344,7 +2335,7 @@ function rOppAnalytics(){
   var _sLive='\nALL ACTIVE DEALS ('+active.length+', pipeline '+fmtUSD(totalPipeline)+'):\n';
   active.sort(function(a,b){var va=(a.strategyFee||0)+(a.setupFee||0)+((a.monthlyFee||0)*12);var vb=(b.strategyFee||0)+(b.setupFee||0)+((b.monthlyFee||0)*12);return vb-va}).forEach(function(o){
     var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
-    _sLive+='- '+o.name+' ['+o.client+'] Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'% prob)':'')+(o.type?' Type: '+o.type:'')+'\n'});
+    _sLive+='- '+o.name+' ['+o.client+'] Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'% prob)':'')+(o.type?' Type: '+o.type:'')+(o.endClient?' EC: '+o.endClient:'')+(o.notes?' — '+o.notes.substring(0,150):'')+'\n'});
   if(awaiting.length){_sLive+='\nAWAITING RESPONSE ('+awaiting.length+'):\n';awaiting.forEach(function(o){var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);_sLive+='- '+o.name+' ['+o.client+'] '+fmtUSD(v)+'\n'})}
 
   h+=aiBox('sales-ai',{clientId:null,clientName:null,
