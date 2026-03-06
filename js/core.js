@@ -935,23 +935,26 @@ function getThreadCrmContext(t){
       ctx.hasActiveClient=ctx.clients.some(function(c){return c.status==='active'})}}
 
   if(savedEC){
-    var ecExists=ctx.endClients.some(function(e){return e.name===savedEC});
-    if(!ecExists){var ecClient=ctx.primaryClient?ctx.primaryClient.clientName:'';ctx.endClients.unshift({name:savedEC,clientName:ecClient})}
+    var ecClient=ctx.primaryClient?ctx.primaryClient.clientName:'';
+    /* When end-client is explicitly saved, ONLY show that one — filter out email-resolved ones */
+    ctx.endClients=[{name:savedEC,clientName:ecClient}];
     ctx.primaryEndClient=savedEC}
 
   if(savedCamp){
     var campMatch=S.campaigns.find(function(c){return c.id===savedCamp});
     if(campMatch){
-      var campExists=ctx.campaigns.some(function(c){return c.id===savedCamp});
-      if(!campExists)ctx.campaigns.unshift({id:campMatch.id,name:campMatch.name,status:campMatch.status,client:campMatch.partner,endClient:campMatch.endClient});
-      ctx.hasCampaign=true}}
+      /* When campaign is explicitly saved, ONLY show that one */
+      ctx.campaigns=[{id:campMatch.id,name:campMatch.name,status:campMatch.status,client:campMatch.partner,endClient:campMatch.endClient}];
+      ctx.hasCampaign=true}
+    else{ctx.campaigns=[];ctx.hasCampaign=false}}
 
   if(savedOpp){
     var oppMatch=S.opportunities.find(function(o){return o.id===savedOpp});
     if(oppMatch){
-      var oppExists=ctx.opportunities.some(function(o){return o.id===savedOpp});
-      if(!oppExists)ctx.opportunities.unshift({id:oppMatch.id,name:oppMatch.name,stage:oppMatch.stage,value:oppMatch.monthlyFee,client:oppMatch.client,endClient:oppMatch.endClient});
-      ctx.hasOpportunity=true}}
+      /* When opportunity is explicitly saved, ONLY show that one */
+      ctx.opportunities=[{id:oppMatch.id,name:oppMatch.name,stage:oppMatch.stage,value:oppMatch.monthlyFee,client:oppMatch.client,endClient:oppMatch.endClient}];
+      ctx.hasOpportunity=true}
+    else{ctx.opportunities=[];ctx.hasOpportunity=false}}
 
   S._threadCrmCache[tid]=ctx;
   return ctx}
