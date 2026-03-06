@@ -225,30 +225,50 @@ function chunkMeeting(meeting) {
 
 /**
  * Chunk an email thread into embeddable pieces.
- * Each message = one chunk.
+ * Each message = one or more chunks. Long messages are split into sub-chunks
+ * to stay within the embedding model's 8192 token limit (~28,000 chars).
  * messages: [{from, fromName, date, body, subject}]
  */
 function chunkEmailThread(threadId, subject, messages, crmMetadata) {
   if (!messages || messages.length === 0) return [];
 
-  return messages.map(function(msg, idx) {
+  // ~5000 tokens = ~15,000 chars — conservative for URL-heavy content
+  var MAX_BODY_CHARS = 15000;
+  var results = [];
+
+  messages.forEach(function(msg) {
     var fromLabel = msg.fromName || msg.from || 'Unknown';
     var dateStr = msg.date ? new Date(msg.date).toISOString().split('T')[0] : '';
-    var body = (msg.body || '').substring(0, 3000);
-    if (!body.trim()) return null;
+    var body = (msg.body || '');
+    if (!body.trim()) return;
 
-    return {
-      title: (subject || 'Email') + ' - ' + fromLabel + (dateStr ? ' (' + dateStr + ')' : ''),
-      content: 'From: ' + fromLabel + '\nDate: ' + (dateStr || 'unknown') + '\nSubject: ' + (subject || '') + '\n\n' + body,
-      metadata: {
-        client_id: (crmMetadata && crmMetadata.client_id) || null,
-        end_client: (crmMetadata && crmMetadata.end_client) || '',
-        campaign_id: (crmMetadata && crmMetadata.campaign_id) || null,
-        date: msg.date || null,
-        people: [fromLabel]
-      }
+    var header = 'From: ' + fromLabel + '\nDate: ' + (dateStr || 'unknown') + '\nSubject: ' + (subject || '') + '\n\n';
+    var baseTitle = (subject || 'Email') + ' - ' + fromLabel + (dateStr ? ' (' + dateStr + ')' : '');
+    var meta = {
+      client_id: (crmMetadata && crmMetadata.client_id) || null,
+      end_client: (crmMetadata && crmMetadata.end_client) || '',
+      campaign_id: (crmMetadata && crmMetadata.campaign_id) || null,
+      date: msg.date || null,
+      people: [fromLabel]
     };
-  }).filter(Boolean);
+
+    if (body.length <= MAX_BODY_CHARS) {
+      // Single chunk
+      results.push({ title: baseTitle, content: header + body, metadata: meta });
+    } else {
+      // Split long body into sub-chunks
+      var bodyChunks = chunkText(body, MAX_BODY_CHARS, 200);
+      bodyChunks.forEach(function(bc, ci) {
+        results.push({
+          title: baseTitle + (bodyChunks.length > 1 ? ' (Part ' + (ci + 1) + ')' : ''),
+          content: header + bc,
+          metadata: meta
+        });
+      });
+    }
+  });
+
+  return results;
 }
 
 
@@ -446,6 +466,46 @@ async function searchKnowledge(client, userId, queryEmbedding, opts) {
 }
 
 
+/* ═══════════ Orphan Cleanup ═══════════ */
+
+/**
+ * Remove embeddings for records that no longer exist in the source table.
+ * validSourceIds: array of source_id strings that still exist.
+ * Deletes any knowledge_chunks/knowledge_sources whose source_id is NOT in validSourceIds.
+ */
+async function cleanOrphans(client, userId, sourceType, validSourceIds) {
+  var existing = await client.from('knowledge_sources')
+    .select('source_id')
+    .eq('user_id', userId)
+    .eq('source_type', sourceType);
+
+  var validSet = {};
+  validSourceIds.forEach(function(id) { validSet[id] = true; });
+
+  var orphanIds = (existing.data || [])
+    .filter(function(r) { return !validSet[r.source_id]; })
+    .map(function(r) { return r.source_id; });
+
+  if (orphanIds.length === 0) return 0;
+
+  for (var i = 0; i < orphanIds.length; i++) {
+    await client.from('knowledge_chunks')
+      .delete()
+      .eq('user_id', userId)
+      .eq('source_type', sourceType)
+      .eq('source_id', orphanIds[i]);
+
+    await client.from('knowledge_sources')
+      .delete()
+      .eq('user_id', userId)
+      .eq('source_type', sourceType)
+      .eq('source_id', orphanIds[i]);
+  }
+
+  return orphanIds.length;
+}
+
+
 /* ═══════════ Exports ═══════════ */
 
 module.exports = {
@@ -458,6 +518,7 @@ module.exports = {
   contentHash: contentHash,
   storeChunks: storeChunks,
   upsertSource: upsertSource,
+  cleanOrphans: cleanOrphans,
   searchKnowledge: searchKnowledge,
   EMBED_MODEL: EMBED_MODEL,
   EMBED_DIMS: EMBED_DIMS

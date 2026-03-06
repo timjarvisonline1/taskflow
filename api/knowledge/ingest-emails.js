@@ -118,7 +118,7 @@ module.exports = async function handler(req, res) {
             from: fromRaw,
             fromName: fromMatch ? fromMatch[1].replace(/"/g, '').trim() : fromRaw.trim(),
             date: new Date(parseInt(msg.internalDate)).toISOString(),
-            body: txtBody.substring(0, 3000),
+            body: txtBody,
             subject: getHeader('Subject')
           };
         }).filter(function(m) { return m.body.trim().length > 0; });

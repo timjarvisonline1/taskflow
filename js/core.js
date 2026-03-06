@@ -2160,7 +2160,54 @@ async function refreshGmailInbox(){
   _refreshing=false;
   render();
   /* Trigger AI analysis for new threads */
-  analyzeNewEmails()}
+  analyzeNewEmails();
+  /* Embed any un-embedded threads into knowledge base (best-effort, non-blocking) */
+  embedNewEmails()}
+
+/* ═══════════ KNOWLEDGE BASE AUTO-EMBED ═══════════ */
+var _embeddingEmails=false;
+async function embedNewEmails(){
+  if(_embeddingEmails)return;
+  _embeddingEmails=true;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session){_embeddingEmails=false;return}
+    var token=sess.data.session.access_token;
+    await fetch('/api/knowledge/ingest-emails',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({batchSize:25})});
+  }catch(e){console.warn('Email embed:',e)}
+  _embeddingEmails=false}
+
+/* ═══════════ KNOWLEDGE BASE PERIODIC SYNC ═══════════ */
+var _knowledgeEntityTypes=['task','task_done','client','campaign','contact',
+  'project','opportunity','activity_log','finance','scheduled_item','team_member'];
+var _knowledgeSyncIdx=0;
+var _knowledgeSyncTimer=null;
+var _knowledgeSyncing=false;
+
+function startKnowledgeSync(){
+  if(_knowledgeSyncTimer)return;
+  /* First sync after 15 seconds (let data load), then every 90 seconds */
+  setTimeout(function(){
+    doKnowledgeSync();
+    _knowledgeSyncTimer=setInterval(doKnowledgeSync,90000)
+  },15000)}
+
+async function doKnowledgeSync(){
+  if(_knowledgeSyncing)return;
+  _knowledgeSyncing=true;
+  var entityType=_knowledgeEntityTypes[_knowledgeSyncIdx%_knowledgeEntityTypes.length];
+  _knowledgeSyncIdx++;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session){_knowledgeSyncing=false;return}
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/knowledge/sync-entities',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({entityType:entityType})});
+    var data=await resp.json();
+    if(data.embedded>0)console.log('Knowledge sync ['+entityType+']: '+data.embedded+' embedded, '+data.skipped+' unchanged')
+  }catch(e){console.warn('Knowledge sync error:',e.message)}
+  _knowledgeSyncing=false}
 
 /* ═══════════ AUTO-FETCH & POLLING ═══════════ */
 async function ensureGmailThreads(){
@@ -3197,6 +3244,8 @@ async function loadData(){toast('Loading data...','info');
     toast('Loaded '+S.tasks.length+' tasks, '+S.done.length+' completed'+(S.review.length?', '+S.review.length+' to review':''),'ok');
     /* Trigger AI email analysis for unanalyzed threads (background, non-blocking) */
     setTimeout(function(){analyzeNewEmails()},500);
+    /* Start periodic knowledge base sync (embeds all entity data) */
+    startKnowledgeSync();
   }catch(e){toast(''+e.message,'warn')}
   render()}
 

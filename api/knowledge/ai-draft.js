@@ -106,10 +106,15 @@ module.exports = async function handler(req, res) {
     if (results.length > 0) {
       knowledgeContext = '\n\n--- RELEVANT CONTEXT FROM KNOWLEDGE BASE ---\n\n';
       knowledgeContext += results.map(function(r, i) {
-        var sourceLabel = r.source_type === 'meeting' ? 'Meeting' :
-                         r.source_type === 'email' ? 'Email' :
-                         r.source_type === 'webpage' ? 'Web Page' :
-                         r.source_type === 'youtube' ? 'YouTube' : 'Document';
+        var sourceLabels = {
+          meeting: 'Meeting', email: 'Email', webpage: 'Web Page',
+          youtube: 'YouTube', document: 'Document', task: 'Task',
+          task_done: 'Completed Task', client: 'Client', campaign: 'Campaign',
+          contact: 'Contact', project: 'Project', opportunity: 'Opportunity',
+          activity_log: 'Activity', finance: 'Payment',
+          scheduled_item: 'Recurring Item', team_member: 'Team'
+        };
+        var sourceLabel = sourceLabels[r.source_type] || 'Document';
         return '(' + (i + 1) + ') [' + sourceLabel + '] ' + r.title + ' (relevance: ' + Math.round(r.similarity * 100) + '%)\n' + r.content.substring(0, 1500);
       }).join('\n\n');
     }
@@ -155,13 +160,17 @@ Reply:`;
 
     // Build sources list for display
     var sources = results.slice(0, 8).map(function(r) {
-      var sourceLabel = r.source_type === 'meeting' ? 'Meeting' :
-                       r.source_type === 'email' ? 'Email' :
-                       r.source_type === 'webpage' ? 'Web Page' :
-                       r.source_type === 'youtube' ? 'YouTube' : 'Document';
+      var srcLabels = {
+        meeting: 'Meeting', email: 'Email', webpage: 'Web Page',
+        youtube: 'YouTube', document: 'Document', task: 'Task',
+        task_done: 'Completed Task', client: 'Client', campaign: 'Campaign',
+        contact: 'Contact', project: 'Project', opportunity: 'Opportunity',
+        activity_log: 'Activity', finance: 'Payment',
+        scheduled_item: 'Recurring Item', team_member: 'Team'
+      };
       return {
         title: r.title,
-        source_type: sourceLabel,
+        source_type: srcLabels[r.source_type] || 'Document',
         similarity: Math.round(r.similarity * 100)
       };
     });

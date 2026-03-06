@@ -1,5 +1,6 @@
 const { getServiceClient, getCredentials, updateSyncStatus } = require('./supabase');
 const { refreshGmailToken } = require('./gmail-auth');
+const { getOpenAIKey, embedTexts, chunkEmailThread, storeChunks, upsertSource } = require('./embeddings');
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -12,7 +13,8 @@ async function syncGmail(userId) {
   const credRow = await getCredentials(userId, 'gmail');
   if (!credRow) throw new Error('Gmail not connected');
 
-  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: null };
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, embedded: 0, error: null };
+  const newThreads = []; // Track newly inserted threads for embedding
 
   try {
     const accessToken = await refreshGmailToken(credRow);
@@ -263,20 +265,118 @@ async function syncGmail(userId) {
         } else {
           await client.from('gmail_threads').insert(row);
           stats.inserted++;
+          newThreads.push({ thread_id: thread.id, subject: subject, client_id: clientId, end_client: ruleEndClient || '', campaign_id: ruleCampaignId || null });
         }
       } catch (threadErr) {
         stats.skipped++;
       }
     }
 
+    // Auto-embed newly inserted threads into knowledge base (best-effort)
+    // Process ALL new threads — no limit. If timeout interrupts, the frontend
+    // safety-net call to /api/knowledge/ingest-emails will catch stragglers.
+    if (newThreads.length > 0) {
+      try {
+        var openaiKey = await getOpenAIKey(userId);
+        if (openaiKey) {
+          for (var ti = 0; ti < newThreads.length; ti++) {
+            try {
+              var t = newThreads[ti];
+              // Fetch full thread body from Gmail
+              var fullResp = await fetch(
+                GMAIL_API + '/threads/' + t.thread_id + '?format=full',
+                { headers: { 'Authorization': 'Bearer ' + accessToken } }
+              );
+              if (!fullResp.ok) continue;
+              var fullData = await fullResp.json();
+
+              var emailMessages = (fullData.messages || []).map(function(msg) {
+                var getH = function(name) {
+                  var h = (msg.payload && msg.payload.headers || []).find(function(hdr) {
+                    return hdr.name.toLowerCase() === name.toLowerCase();
+                  });
+                  return h ? h.value : '';
+                };
+                var body = extractTextBody(msg.payload);
+                if (!body || body.trim().length < 10) return null;
+                var fr = getH('From');
+                var fm = fr.match(/^(.+?)\s*<(.+?)>$/);
+                return {
+                  from: fr,
+                  fromName: fm ? fm[1].replace(/"/g, '').trim() : fr.trim(),
+                  date: new Date(parseInt(msg.internalDate)).toISOString(),
+                  body: body,
+                  subject: getH('Subject')
+                };
+              }).filter(function(m) { return m !== null; });
+
+              if (emailMessages.length === 0) continue;
+
+              var chunks = chunkEmailThread(
+                t.thread_id,
+                t.subject || emailMessages[0].subject || '',
+                emailMessages,
+                { client_id: t.client_id, end_client: t.end_client || '', campaign_id: t.campaign_id }
+              );
+              if (chunks.length === 0) continue;
+
+              var texts = chunks.map(function(c) { return c.content; });
+              var embeddings = await embedTexts(openaiKey, texts);
+              for (var ei = 0; ei < chunks.length; ei++) {
+                chunks[ei].embedding = embeddings[ei].embedding;
+                chunks[ei].tokens = embeddings[ei].tokens;
+              }
+              await storeChunks(client, userId, 'email', t.thread_id, chunks);
+              var tokUsed = chunks.reduce(function(s, c) { return s + (c.tokens || 0); }, 0);
+              await upsertSource(client, userId, 'email', t.thread_id, t.subject || '', 'complete', chunks.length, tokUsed, '');
+              stats.embedded++;
+            } catch (singleErr) {
+              // Skip this thread, continue with others
+            }
+          }
+        }
+      } catch (embedErr) {
+        console.error('Gmail embedding error (non-fatal):', embedErr.message);
+      }
+    }
+
     await updateSyncStatus(userId, 'gmail', 'ok',
-      stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : ''));
+      stats.inserted + ' new, ' + stats.updated + ' updated' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : '') + (stats.embedded ? ', ' + stats.embedded + ' embedded' : ''));
     return stats;
   } catch (e) {
     stats.error = e.message;
     await updateSyncStatus(userId, 'gmail', 'error', e.message);
     throw e;
   }
+}
+
+/* ═══════════ Text body extraction for embedding ═══════════ */
+function extractTextBody(payload) {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/plain' && payload.body && payload.body.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+  var parts = payload.parts || [];
+  for (var i = 0; i < parts.length; i++) {
+    if (parts[i].mimeType === 'text/plain' && parts[i].body && parts[i].body.data) {
+      return decodeBase64Url(parts[i].body.data);
+    }
+    if (parts[i].parts) {
+      var nested = extractTextBody(parts[i]);
+      if (nested) return nested;
+    }
+  }
+  for (var j = 0; j < parts.length; j++) {
+    if (parts[j].mimeType === 'text/html' && parts[j].body && parts[j].body.data) {
+      return decodeBase64Url(parts[j].body.data).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+  }
+  return '';
+}
+
+function decodeBase64Url(data) {
+  var base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(base64, 'base64').toString('utf-8');
 }
 
 module.exports = { syncGmail };
