@@ -2209,6 +2209,99 @@ async function doKnowledgeSync(){
   }catch(e){console.warn('Knowledge sync error:',e.message)}
   _knowledgeSyncing=false}
 
+/* ═══════════ AI BOX FUNCTIONS ═══════════ */
+
+function aiToggle(id){
+  var body=gel('ai-body-'+id);
+  var chev=gel('ai-chev-'+id);
+  if(!body)return;
+  var showing=body.style.display==='none';
+  body.style.display=showing?'block':'none';
+  if(chev)chev.innerHTML=icon(showing?'chevron-down':'chevron-right',14);
+  /* Auto-focus input when expanding */
+  if(showing){var inp=gel('ai-input-'+id);if(inp)setTimeout(function(){inp.focus()},100)}}
+
+async function aiAsk(id,promptOverride){
+  var config=window._aiBoxConfigs[id];
+  if(!config)return;
+  var question=promptOverride||(gel('ai-input-'+id)?gel('ai-input-'+id).value:'');
+  question=question.trim();
+  if(!question)return;
+
+  var history=gel('ai-history-'+id);
+  var input=gel('ai-input-'+id);
+  var sendBtn=gel('ai-send-'+id);
+  var prompts=gel('ai-prompts-'+id);
+
+  /* Clear input */
+  if(input)input.value='';
+  /* Hide suggested prompts after first use */
+  if(prompts)prompts.style.display='none';
+  /* Disable send */
+  if(sendBtn)sendBtn.disabled=true;
+
+  /* Show user message */
+  if(history)history.innerHTML+='<div class="ai-msg ai-msg-user">'+esc(question)+'</div>';
+
+  /* Show loading */
+  var loadingId='ai-load-'+Date.now();
+  if(history)history.innerHTML+='<div class="ai-msg-loading" id="'+loadingId+'"><span class="ai-dot"></span><span class="ai-dot"></span><span class="ai-dot"></span><span style="margin-left:4px">Thinking...</span></div>';
+  if(history)history.scrollTop=history.scrollHeight;
+
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)throw new Error('Not authenticated');
+    var token=sess.data.session.access_token;
+
+    var resp=await fetch('/api/knowledge/ai-ask',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({
+        question:question,
+        context:{
+          clientId:config.clientId||null,
+          sourceTypes:config.sourceTypes||null,
+          entityContext:config.entityContext||null,
+          conversationHistory:window._aiConversations[id]||[]
+        }
+      })});
+
+    var data=await resp.json();
+    /* Remove loading indicator */
+    var loadEl=gel(loadingId);if(loadEl)loadEl.remove();
+
+    if(data.error){
+      if(history)history.innerHTML+='<div class="ai-msg ai-msg-ai" style="color:var(--red)"><p>'+esc(data.error)+'</p></div>';
+    }else{
+      /* Show AI answer */
+      if(history)history.innerHTML+='<div class="ai-msg ai-msg-ai">'+data.answer+'</div>';
+      /* Show sources */
+      if(data.sources&&data.sources.length>0){
+        var srcHtml='<div class="ai-msg-sources"><span>Sources: </span>';
+        data.sources.slice(0,5).forEach(function(s){
+          srcHtml+='<span class="ai-src">'+esc(s.type)+': '+esc(s.title.substring(0,40))+(s.title.length>40?'...':'')+' ('+s.similarity+'%)</span>'});
+        srcHtml+='</div>';
+        if(history)history.innerHTML+=srcHtml}
+      /* Track conversation for follow-ups */
+      if(!window._aiConversations[id])window._aiConversations[id]=[];
+      window._aiConversations[id].push({role:'user',content:question});
+      window._aiConversations[id].push({role:'assistant',content:data.answer.replace(/<[^>]+>/g,' ').substring(0,500)});
+      /* Update badge */
+      var badge=gel('ai-badge-'+id);
+      if(badge){badge.textContent=window._aiConversations[id].length/2+' Q&A';badge.style.display='inline'}
+    }
+  }catch(e){
+    var loadEl2=gel(loadingId);if(loadEl2)loadEl2.remove();
+    if(history)history.innerHTML+='<div class="ai-msg ai-msg-ai" style="color:var(--red)"><p>Error: '+esc(e.message)+'</p></div>';
+  }
+  if(sendBtn)sendBtn.disabled=false;
+  if(history)history.scrollTop=history.scrollHeight}
+
+function aiClearHistory(id){
+  window._aiConversations[id]=[];
+  var history=gel('ai-history-'+id);if(history)history.innerHTML='';
+  var prompts=gel('ai-prompts-'+id);if(prompts)prompts.style.display='flex';
+  var badge=gel('ai-badge-'+id);if(badge)badge.style.display='none'}
+
 /* ═══════════ AUTO-FETCH & POLLING ═══════════ */
 async function ensureGmailThreads(){
   if(_refreshing)return;

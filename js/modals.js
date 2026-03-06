@@ -1874,6 +1874,18 @@ function openOpportunityDetail(id){
 
   /* RIGHT PANE */
   h+='<div class="detail-split-right">';
+  /* AI Assistant */
+  var opClientRec=S.clientRecords?S.clientRecords.find(function(cr){return cr.name===op.client}):null;
+  h+=aiBox('opp-ai',{clientId:opClientRec?opClientRec.id:null,clientName:op.client,
+    sourceTypes:['opportunity','meeting','email','task','contact'],
+    entityContext:{type:'opportunity',name:op.name,data:{
+      stage:op.stage,client:op.client,endClient:op.endClient,
+      probability:op.probability+'%',totalValue:fmtUSD(st.totalValue),type:conf.label}},
+    suggestedPrompts:['Summarize all interactions for this deal',
+      'What are the next steps for '+op.name+'?',
+      'Review meeting notes for '+(op.client||op.endClient||'this prospect'),
+      'What is the risk assessment for this opportunity?'],
+    placeholder:'Ask about this opportunity...',collapsed:true});
   /* Brief Fields (F&C Partnership) */
   if(op.type==='fc_partnership'){
     var hasBrief=op.previousRelationship||op.companyDescription||op.prospectDescription||op.videoStrategyBenefits;
@@ -2274,6 +2286,15 @@ function openProjectDetail(id){
 
   /* ── Right pane: phases + tasks + charts ── */
   h+='<div class="detail-split-right">';
+  /* AI Assistant */
+  h+=aiBox('proj-ai',{clientId:null,clientName:null,
+    sourceTypes:['project','task','meeting'],
+    entityContext:{type:'project',name:proj.name,data:{
+      status:proj.status,progress:st.progress+'%',openTasks:st.openCount,
+      doneTasks:st.doneCount,totalTime:fmtM(st.totalTime)}},
+    suggestedPrompts:['What is the status of '+proj.name+'?','What are the blockers for this project?',
+      'Summarize recent progress on '+proj.name,'What should I work on next?'],
+    placeholder:'Ask about '+proj.name+'...',collapsed:true});
 
   /* Phases */
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';

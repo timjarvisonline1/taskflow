@@ -1,5 +1,6 @@
 /* ═══════════ RENDER ═══════════ */
 function render(){
+  window._aiBoxConfigs={};window._aiConversations={};
   buildNav();
   var m=gel('main'),html='';
   /* Mobile: focused 4-view experience */
@@ -115,6 +116,33 @@ function miniRow(t,td){
   h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid+'\')" title="Done">'+CK_XS+'</button>';
   h+='</span></div>';return h}
 
+/* ═══════════ AI BOX ═══════════ */
+window._aiBoxConfigs={};window._aiConversations={};
+function aiBox(id,config){
+  window._aiBoxConfigs[id]=config;
+  if(!window._aiConversations[id])window._aiConversations[id]=[];
+  var collapsed=config.collapsed!==false;
+  var prompts=config.suggestedPrompts||[];
+  var ph=config.placeholder||'Ask a question...';
+  var h='<div class="ai-box" id="ai-box-'+id+'">';
+  h+='<div class="ai-box-header" onclick="TF.aiToggle(\''+id+'\')">';
+  h+='<span class="ai-box-icon">'+icon('sparkle',14)+'</span>';
+  h+='<span class="ai-box-title">AI Assistant</span>';
+  h+='<span class="ai-box-badge" id="ai-badge-'+id+'"></span>';
+  h+='<span class="ai-box-chevron" id="ai-chev-'+id+'">'+icon(collapsed?'chevron-right':'chevron-down',14)+'</span>';
+  h+='</div>';
+  h+='<div class="ai-box-body" id="ai-body-'+id+'" style="display:'+(collapsed?'none':'block')+'">';
+  if(prompts.length){
+    h+='<div class="ai-box-prompts" id="ai-prompts-'+id+'">';
+    prompts.forEach(function(p){h+='<button class="ai-prompt-pill" onclick="TF.aiAsk(\''+id+'\',\''+p.replace(/'/g,"\\'")+'\')">' +esc(p)+'</button>'});
+    h+='</div>'}
+  h+='<div class="ai-box-history" id="ai-history-'+id+'"></div>';
+  h+='<div class="ai-box-input-wrap">';
+  h+='<input type="text" class="ai-box-input" id="ai-input-'+id+'" placeholder="'+esc(ph)+'" onkeydown="if(event.key===\'Enter\')TF.aiAsk(\''+id+'\')">';
+  h+='<button class="ai-box-send" id="ai-send-'+id+'" onclick="TF.aiAsk(\''+id+'\')">'+icon('send',14)+'</button>';
+  h+='</div></div></div>';
+  return h}
+
 /* ═══════════ DASHBOARD ═══════════ */
 function dashMet(label,value,color){return'<div class="dash-met"><div class="dash-met-v" style="color:'+color+'">'+value+'</div><div class="dash-met-l">'+label+'</div></div>'}
 
@@ -194,6 +222,15 @@ function rDashboard(){
       h+='<span style="font-size:11px;font-weight:600;color:var(--pink);font-family:var(--fd)">'+t1+'</span>';
       h+='<span style="font-size:12px;color:var(--t1)">'+esc(m.title)+'</span></div>'});
     h+='</div>'}
+
+  /* AI Briefing */
+  h+=aiBox('dash-ai',{clientId:null,clientName:null,sourceTypes:null,
+    entityContext:{type:'dashboard',name:'Main Dashboard',data:{
+      openTasks:openTasks,overdueTasks:overdueTasks,todayDone:todayDone.length,
+      pendingReplies:_pendingReplies,activeDeals:activeOpps.length,pipelineValue:fmtUSD(pipelineValue)}},
+    suggestedPrompts:['What should I focus on today?','Summarize this week\'s activity',
+      'Any overdue items I should address?','What\'s the status of my active deals?'],
+    placeholder:'Ask about your business...',collapsed:false});
 
   /* Row 2: Productivity */
   h+='<div class="dash-section">Productivity</div>';
@@ -438,6 +475,15 @@ function rClientDashboard(c){
   h+=dashMet('Campaigns',c.activeCampaigns+'/'+c.campaigns,'var(--amber)');
   h+=dashMet('Pipeline',fmtUSD(c.pipelineValue),'var(--purple50)');
   h+='</div>';
+
+  /* AI Assistant */
+  h+=aiBox('client-ai',{clientId:c.clientId,clientName:c.name,sourceTypes:null,
+    entityContext:{type:'client',name:c.name,data:{
+      status:st,totalRevenue:c.totalRevenue,openTasks:c.openTasks,
+      overdueTasks:c.overdueTasks,activeCampaigns:c.activeCampaigns,pipelineValue:c.pipelineValue}},
+    suggestedPrompts:['Summarize recent activity for '+c.name,'What are the open issues with '+c.name+'?',
+      'Review meeting notes for '+c.name,'What is the revenue trend for '+c.name+'?'],
+    placeholder:'Ask about '+c.name+'...',collapsed:true});
 
   /* Contacts */
   if(c.clientId){
@@ -2242,6 +2288,16 @@ function rOppAnalytics(){
     h+='</div>'});
   h+='</div>';
 
+  /* AI Assistant */
+  h+=aiBox('sales-ai',{clientId:null,clientName:null,
+    sourceTypes:['opportunity','meeting','email'],
+    entityContext:{type:'sales_pipeline',name:'Sales Pipeline',data:{
+      totalPipeline:fmtUSD(totalPipeline),weightedPipeline:fmtUSD(weightedPipeline),
+      activeDeals:active.length,winRate:winRate+'%',avgDealSize:fmtUSD(avgDeal)}},
+    suggestedPrompts:['Which deals need attention this week?','Provide a breakdown of all opportunities',
+      'What\'s the forecast for next month?','Which prospects have gone cold?'],
+    placeholder:'Ask about your sales pipeline...',collapsed:true});
+
   /* Charts */
   h+='<div class="op-chart-grid">';
   h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);padding:18px"><div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:12px">Pipeline Value by Stage</div><div style="height:220px"><canvas id="opp-stage-chart"></canvas></div></div>';
@@ -2674,6 +2730,17 @@ function rCpTabOverview(cp,st){
     h+='<div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden"><div style="background:'+barColor+';height:100%;width:'+pct+'%;border-radius:4px;transition:width .4s var(--ease)"></div></div>';
     h+='</div>'}
   h+='</div>';
+
+  /* AI Assistant */
+  var cpClientRec=S.clientRecords?S.clientRecords.find(function(cr){return cr.name===cp.partner}):null;
+  h+=aiBox('campaign-ai',{clientId:cpClientRec?cpClientRec.id:null,clientName:cp.partner,
+    sourceTypes:['campaign','meeting','email','task'],
+    entityContext:{type:'campaign',name:cp.name,data:{
+      status:cp.status,partner:cp.partner,endClient:cp.endClient,
+      monthlyFee:cp.monthlyFee,openTasks:st.openCount,timeTracked:fmtM(st.totalTime),revenue:fmtUSD(st.finRevenue)}},
+    suggestedPrompts:['Summarize recent work on '+cp.name,'What are the outstanding tasks?',
+      'Review meetings related to '+cp.name,'How is billing tracking for this campaign?'],
+    placeholder:'Ask about '+cp.name+'...',collapsed:true});
 
   /* Notes timeline */
   var cpNotes=S.campaignNotes[cp.id]||[];
@@ -4044,6 +4111,15 @@ function rFinanceOverview(){
     h+='<div style="font-size:10px;color:var(--amber);margin-top:4px">Click to reconcile →</div>';
     h+='</div>'}
   h+='</div>';
+
+  /* AI Assistant */
+  h+=aiBox('finance-ai',{clientId:null,clientName:null,
+    sourceTypes:['finance','scheduled_item'],
+    entityContext:{type:'finance',name:'Finance Overview',data:{
+      unreconciledExpenses:unreconciledExp}},
+    suggestedPrompts:['Summarize recent financial activity','What expenses are unreconciled?',
+      'How is cash flow trending?','What major payments are coming up?'],
+    placeholder:'Ask about your finances...',collapsed:true});
 
   /* Row 2 — Key metrics */
   var fc=buildForecast(90,'expected');
