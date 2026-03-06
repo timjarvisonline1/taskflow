@@ -73,7 +73,7 @@ module.exports = async function handler(req, res) {
     var queryEmbeddings = await embedTexts(openaiKey, [question]);
     var queryEmbedding = queryEmbeddings[0].embedding;
 
-    // Multi-tier search: scoped first, then broaden, always run broad
+    // Multi-tier search: vector + keyword
     var results = [];
     var seenIds = {};
 
@@ -83,36 +83,80 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Tier 1: Client-scoped search
-    if (clientId) {
-      var clientResults = await searchKnowledge(client, userId, queryEmbedding, {
-        clientId: clientId,
-        limit: 15,
-        threshold: 0.2
-      });
-      mergeResults(clientResults);
-    }
+    // ── KEYWORD SEARCH (finds exact name/term mentions) ──
+    // Extract significant words (4+ chars, skip common words)
+    var stopWords = ['what','when','where','which','about','their','there','these','those','should','would','could','have','been','from','with','this','that','your','will','they','them','were','than','then','into','some','more','most','also','each','does','doing','done','made','make','just','over','such','take','only','come','know','very','after','before','between','being','other','well','back','much','even','here','want','tell','give','find','need','like','look','help','show','list','name','think','going','really','still','first','last'];
+    var keywords = question.toLowerCase().split(/\s+/).filter(function(w) {
+      var clean = w.replace(/[^a-z0-9]/g, '');
+      return clean.length >= 3 && stopWords.indexOf(clean) === -1;
+    });
+    // Also extract original-case words for proper nouns
+    var originalWords = question.split(/\s+/).filter(function(w) {
+      return w.length >= 3 && w.charAt(0) === w.charAt(0).toUpperCase() && w !== w.toUpperCase();
+    });
+    // Combine unique search terms (prefer original case for proper nouns)
+    var searchTerms = [];
+    var termsSeen = {};
+    originalWords.concat(keywords).forEach(function(w) {
+      var key = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (key.length >= 3 && !termsSeen[key]) { searchTerms.push(w.replace(/[^a-zA-Z0-9&-]/g, '')); termsSeen[key] = true; }
+    });
 
-    // Tier 2: Source-type filtered search (if specified)
+    // Run keyword searches in parallel for top terms (max 5)
+    var kwTerms = searchTerms.slice(0, 5);
+    var kwPromises = kwTerms.map(function(term) {
+      var q = client.from('knowledge_chunks')
+        .select('id, source_type, source_id, title, content, client_id, date, people, tags')
+        .eq('user_id', userId)
+        .ilike('content', '%' + term + '%')
+        .order('date', { ascending: false, nullsFirst: false })
+        .limit(10);
+      if (clientId) q = q.eq('client_id', clientId);
+      return q;
+    });
+
+    // ── VECTOR SEARCH tiers (run in parallel with keyword search) ──
+    var vectorPromises = [];
+
+    // Tier 1: Client-scoped
+    if (clientId) {
+      vectorPromises.push(searchKnowledge(client, userId, queryEmbedding, {
+        clientId: clientId, limit: 15, threshold: 0.2
+      }));
+    }
+    // Tier 2: Source-type filtered
     if (sourceTypes && sourceTypes.length > 0) {
       for (var st = 0; st < sourceTypes.length; st++) {
-        var typeResults = await searchKnowledge(client, userId, queryEmbedding, {
-          sourceType: sourceTypes[st],
-          limit: 10,
-          threshold: 0.2
-        });
-        mergeResults(typeResults);
+        vectorPromises.push(searchKnowledge(client, userId, queryEmbedding, {
+          sourceType: sourceTypes[st], limit: 10, threshold: 0.2
+        }));
       }
     }
+    // Tier 3: Broad
+    vectorPromises.push(searchKnowledge(client, userId, queryEmbedding, {
+      limit: 20, threshold: 0.18
+    }));
 
-    // Tier 3: Always run broad search to catch cross-cutting results
-    var broadResults = await searchKnowledge(client, userId, queryEmbedding, {
-      limit: 20,
-      threshold: 0.18
-    });
-    mergeResults(broadResults);
+    // Run all searches in parallel
+    var allSearches = await Promise.all(kwPromises.concat(vectorPromises));
 
-    // Re-rank all results by similarity (best matches first)
+    // Merge keyword results (add similarity score for ranking)
+    for (var ki = 0; ki < kwPromises.length; ki++) {
+      var kwRes = allSearches[ki];
+      if (kwRes.data && kwRes.data.length > 0) {
+        var kwChunks = kwRes.data.map(function(r) {
+          r.similarity = 0.85; // keyword matches get high base score
+          return r;
+        });
+        mergeResults(kwChunks);
+      }
+    }
+    // Merge vector results
+    for (var vi = kwPromises.length; vi < allSearches.length; vi++) {
+      mergeResults(allSearches[vi]);
+    }
+
+    // Re-rank: keyword matches first (0.85), then by vector similarity
     results.sort(function(a, b) { return b.similarity - a.similarity; });
 
     // Cap at 25
