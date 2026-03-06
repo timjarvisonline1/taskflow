@@ -4811,67 +4811,47 @@ function rEmailActionRequired(){
 
   ['critical','high','normal','low'].forEach(function(urg){
     if(!groups[urg].length)return;
-    h+='<div style="margin-bottom:20px">';
-    h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:'+urgColors[urg]+';margin-bottom:8px;padding-left:4px">'+urgLabels[urg]+' ('+groups[urg].length+')</div>';
+    h+='<div style="margin-bottom:16px">';
+    h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:'+urgColors[urg]+';margin-bottom:6px;padding-left:4px">'+urgLabels[urg]+' ('+groups[urg].length+')</div>';
     groups[urg].forEach(function(t){
       var fromEmail=t.from_email||'';
       var fromName=t.from_name||fromEmail.split('@')[0]||'';
-      var avatarCol=emailAvatarColor(fromEmail);
-      var initials=(fromName||'?').charAt(0).toUpperCase();
       var ctx=getThreadCrmContext(t);
       /* Time ago */
       var ago='';
       if(t.last_message_at){
         var diff=Date.now()-new Date(t.last_message_at).getTime();
         var mins=Math.floor(diff/60000);
-        if(mins<60)ago=mins+'m ago';
-        else if(mins<1440)ago=Math.floor(mins/60)+'h ago';
-        else if(mins<10080)ago=Math.floor(mins/1440)+'d ago';
+        if(mins<60)ago=mins+'m';
+        else if(mins<1440)ago=Math.floor(mins/60)+'h';
+        else if(mins<10080)ago=Math.floor(mins/1440)+'d';
         else ago=new Date(t.last_message_at).toLocaleDateString()}
 
-      h+='<div class="action-card" style="border-left-color:'+urgBorders[urg]+'" onclick="TF.openEmailThread(\''+esc(t.thread_id)+'\')">';
-      h+='<div class="action-card-top">';
-      /* Avatar */
-      h+='<div class="action-avatar" style="background:'+avatarCol+'">'+initials+'</div>';
-      h+='<div class="action-card-info">';
-      h+='<div class="action-card-sender">'+esc(fromName);
-      if(fromEmail)h+=' <span style="color:var(--t4);font-weight:400">'+esc(fromEmail)+'</span>';
+      h+='<div class="action-card-compact" onclick="TF.openEmailThread(\''+esc(t.thread_id)+'\')">';
+      h+='<div class="action-card-compact-top">';
+      /* Urgency dot */
+      h+='<div class="action-urgency-dot" style="background:'+urgBorders[urg]+'"></div>';
+      /* Sender */
+      h+='<span class="action-card-compact-sender">'+esc(fromName)+'</span>';
+      h+='<span class="action-card-compact-sep">&mdash;</span>';
+      /* Subject */
+      h+='<span class="action-card-compact-subject">'+esc(t.subject||'(no subject)')+'</span>';
+      /* Client badge inline */
+      if(ctx&&ctx.primaryClient)h+='<span class="email-client-badge" style="font-size:9px;padding:1px 6px;margin-left:4px;flex-shrink:0">'+esc(ctx.primaryClient.clientName)+'</span>';
+      if(t.has_meeting)h+='<span class="email-meeting-badge" style="margin-left:4px;flex-shrink:0" title="Meeting">'+icon('calendar',9)+'</span>';
+      /* Right side */
+      h+='<div class="action-card-compact-right">';
+      if(ago)h+='<span class="action-card-compact-time">'+ago+'</span>';
+      /* Expand toggle for AI summary */
+      if(t.ai_summary)h+='<span class="action-card-compact-expand" onclick="event.stopPropagation();TF.toggleActionExpand(this)" title="Show AI summary">'+icon('chevron_down',9)+'</span>';
+      /* Action buttons (visible on hover) */
+      h+='<div class="action-card-compact-btns">';
+      h+='<button class="action-card-compact-btn" onclick="event.stopPropagation();TF.dismissEmailAction(\''+esc(t.thread_id)+'\')">'+icon('x',9)+'</button>';
+      h+='<button class="action-card-compact-btn" onclick="event.stopPropagation();TF.openSnoozeMenu(\''+esc(t.thread_id)+'\',event)">'+icon('clock',9)+'</button>';
       h+='</div>';
-      h+='<div class="action-card-subject">'+esc(t.subject||'(no subject)')+'</div>';
-      h+='</div>';
-      /* Time + urgency badge */
-      h+='<div class="action-card-meta">';
-      if(ago)h+='<span style="font-size:11px;color:var(--t4);white-space:nowrap">'+ago+'</span>';
-      h+='<span class="action-urgency" style="background:'+urgColors[urg]+'15;color:'+urgColors[urg]+'">'+esc(t.ai_urgency||'normal')+'</span>';
-      if(t.ai_sentiment&&t.ai_sentiment!=='neutral'){
-        var _sc={positive:'var(--green)',cautious:'var(--amber)',negative:'var(--red)'};
-        var _sl={positive:'Positive',cautious:'Cautious',negative:'Negative'};
-        h+='<span class="action-sentiment" style="background:'+_sc[t.ai_sentiment]+'15;color:'+_sc[t.ai_sentiment]+'">'+_sl[t.ai_sentiment]+'</span>'}
-      if(t.has_meeting)h+='<span class="action-meeting-badge">'+icon('calendar',10)+' Meeting</span>';
       h+='</div></div>';
-
-      /* AI Summary */
-      if(t.ai_summary)h+='<div class="action-summary">'+esc(t.ai_summary)+'</div>';
-      /* Meeting details */
-      if(t.has_meeting&&t.meeting_details)h+='<div class="action-meeting-detail">'+icon('calendar',11)+' '+esc(t.meeting_details)+'</div>';
-
-      /* CRM context pills */
-      var pills='';
-      if(ctx&&ctx.primaryClient)pills+='<span class="bg bg-cl">'+esc(ctx.primaryClient.clientName)+'</span>';
-      if(ctx&&ctx.primaryEndClient)pills+='<span class="bg bg-ec">'+esc(ctx.primaryEndClient)+'</span>';
-      if(ctx&&ctx.campaigns&&ctx.campaigns.length)pills+='<span class="bg" style="background:rgba(255,0,153,0.1);color:var(--pink)">'+esc(ctx.campaigns[0].name)+'</span>';
-      if(ctx&&ctx.opportunities&&ctx.opportunities.length)pills+='<span class="bg" style="background:rgba(99,102,241,0.1);color:#6366f1">'+esc(ctx.opportunities[0].name)+'</span>';
-      if(t.ai_category)pills+='<span class="bg bg-ca">'+esc(t.ai_category)+'</span>';
-
-      if(pills){h+='<div class="action-pills">'+pills+'</div>'}
-
-      /* Actions */
-      h+='<div class="action-actions">';
-      h+='<button class="action-btn action-btn-open" onclick="event.stopPropagation();TF.openEmailThread(\''+esc(t.thread_id)+'\')">'+icon('mail',12)+' Open</button>';
-      if(t.ai_suggested_task)h+='<button class="action-btn action-btn-task" onclick="event.stopPropagation();TF.createTaskFromSuggestion(\''+esc(t.thread_id)+'\')">'+icon('tasks',12)+' Create Task</button>';
-      h+='<button class="action-btn action-btn-dismiss" onclick="event.stopPropagation();TF.dismissEmailAction(\''+esc(t.thread_id)+'\')">'+icon('x',12)+' Dismiss</button>';
-      h+='<button class="action-btn action-btn-snooze" onclick="TF.openSnoozeMenu(\''+esc(t.thread_id)+'\',event)">'+icon('clock',12)+' Snooze</button>';
-      h+='</div>';
+      /* Expandable AI summary */
+      if(t.ai_summary)h+='<div class="action-card-compact-summary">'+icon('sparkle',10)+' '+esc(t.ai_summary)+'</div>';
       h+='</div>'});
     h+='</div>'});
 
@@ -4879,28 +4859,25 @@ function rEmailActionRequired(){
   var followups=S.gmailThreads.filter(function(t){
     return t.needs_followup===true&&(t.labels||'').indexOf('INBOX')!==-1});
   if(followups.length){
-    h+='<div style="margin-top:24px;margin-bottom:20px">';
-    h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--amber);margin-bottom:8px;padding-left:4px">'+icon('clock',12)+' Follow-Up Required ('+followups.length+')</div>';
+    h+='<div style="margin-top:20px;margin-bottom:16px">';
+    h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--amber);margin-bottom:6px;padding-left:4px">'+icon('clock',12)+' Follow-Up Required ('+followups.length+')</div>';
     followups.forEach(function(t){
       var fromEmail=t.from_email||'';
       var fromName=t.from_name||fromEmail.split('@')[0]||'';
-      var avatarCol=emailAvatarColor(fromEmail);
-      var initials=(fromName||'?').charAt(0).toUpperCase();
-      h+='<div class="action-card" style="border-left-color:var(--amber)" onclick="TF.openEmailThread(\''+esc(t.thread_id)+'\')">';
-      h+='<div class="action-card-top">';
-      h+='<div class="action-avatar" style="background:'+avatarCol+'">'+initials+'</div>';
-      h+='<div class="action-card-info">';
-      h+='<div class="action-card-sender">'+esc(fromName)+'</div>';
-      h+='<div class="action-card-subject">'+esc(t.subject||'(no subject)')+'</div>';
+      h+='<div class="action-card-compact" onclick="TF.openEmailThread(\''+esc(t.thread_id)+'\')">';
+      h+='<div class="action-card-compact-top">';
+      h+='<div class="action-urgency-dot" style="background:var(--amber)"></div>';
+      h+='<span class="action-card-compact-sender">'+esc(fromName)+'</span>';
+      h+='<span class="action-card-compact-sep">&mdash;</span>';
+      h+='<span class="action-card-compact-subject">'+esc(t.subject||'(no subject)')+'</span>';
+      h+='<div class="action-card-compact-right">';
+      if(t.followup_details)h+='<span class="action-card-compact-expand" onclick="event.stopPropagation();TF.toggleActionExpand(this)" title="Details">'+icon('chevron_down',9)+'</span>';
+      h+='<div class="action-card-compact-btns">';
+      h+='<button class="action-card-compact-btn" onclick="event.stopPropagation();TF.dismissFollowup(\''+esc(t.thread_id)+'\')">'+icon('check',9)+' Done</button>';
       h+='</div>';
-      h+='<div class="action-card-meta"><span class="action-urgency" style="background:rgba(245,158,11,.15);color:var(--amber)">follow-up</span></div>';
-      h+='</div>';
-      if(t.followup_details)h+='<div class="action-summary" style="color:var(--amber)">'+icon('clock',11)+' '+esc(t.followup_details)+'</div>';
-      h+='<div class="action-actions">';
-      h+='<button class="action-btn action-btn-open" onclick="event.stopPropagation();TF.openEmailThread(\''+esc(t.thread_id)+'\')">'+icon('mail',12)+' Open</button>';
-      if(t.ai_suggested_task)h+='<button class="action-btn action-btn-task" onclick="event.stopPropagation();TF.createTaskFromSuggestion(\''+esc(t.thread_id)+'\')">'+icon('tasks',12)+' Create Task</button>';
-      h+='<button class="action-btn action-btn-dismiss" onclick="event.stopPropagation();TF.dismissFollowup(\''+esc(t.thread_id)+'\')">'+icon('check',12)+' Done</button>';
-      h+='</div></div>'});
+      h+='</div></div>';
+      if(t.followup_details)h+='<div class="action-card-compact-summary" style="color:var(--amber)">'+icon('clock',10)+' '+esc(t.followup_details)+'</div>';
+      h+='</div>'});
     h+='</div>'}
 
   return h}
@@ -5309,15 +5286,16 @@ function rEmailThread(){
   h+='<div class="email-toolbar">';
   h+='<button class="email-toolbar-btn" onclick="TF.closeEmailThread()">'+icon('arrow_left',14)+' Back</button>';
   h+='<div class="email-toolbar-sep"></div>';
-  h+='<button class="email-toolbar-btn" onclick="TF.archiveEmail(\''+esc(threadId)+'\')">'+icon('archive',13)+' Archive</button>';
-  h+='<button class="email-toolbar-btn btn-danger" onclick="TF.trashEmail(\''+esc(threadId)+'\')">'+icon('trash',13)+' Trash</button>';
-  h+='<button class="email-toolbar-btn" onclick="TF.toggleEmailRead(\''+esc(threadId)+'\',true)">'+icon('eye_off',13)+' Unread</button>';
-  h+='<div class="email-toolbar-sep"></div>';
-  h+='<button class="email-toolbar-btn btn-create" onclick="TF.createTaskFromEmail()">'+icon('tasks',13)+' Create Task</button>';
-  h+='<div style="flex:1"></div>';
-  h+='<button class="email-toolbar-btn" onclick="TF.forwardEmail()">'+icon('forward',13)+' Forward</button>';
+  h+='<button class="email-toolbar-btn" onclick="TF.openReplyEmail()" style="color:var(--accent);font-weight:600">'+icon('reply',13)+' Reply</button>';
   h+='<button class="email-toolbar-btn" onclick="TF.replyAllEmail()">'+icon('reply_all',13)+' Reply All</button>';
+  h+='<button class="email-toolbar-btn" onclick="TF.forwardEmail()">'+icon('forward',13)+' Forward</button>';
   h+='<div class="email-toolbar-sep"></div>';
+  h+='<button class="email-toolbar-btn" onclick="TF.archiveEmail(\''+esc(threadId)+'\')">'+icon('archive',13)+' Archive</button>';
+  h+='<button class="email-toolbar-btn btn-danger" onclick="TF.trashEmail(\''+esc(threadId)+'\')">'+icon('trash',13)+'</button>';
+  h+='<button class="email-toolbar-btn" onclick="TF.toggleEmailRead(\''+esc(threadId)+'\',true)">'+icon('eye_off',13)+'</button>';
+  h+='<div class="email-toolbar-sep"></div>';
+  h+='<button class="email-toolbar-btn btn-create" onclick="TF.createTaskFromEmail()">'+icon('tasks',13)+' Task</button>';
+  h+='<div style="flex:1"></div>';
   h+='<button class="email-toolbar-btn" onclick="TF.openComposeEmail()">'+icon('edit',13)+' New</button>';
   h+='</div>';
 
@@ -5335,6 +5313,29 @@ function rEmailThread(){
   }
   h+='</div>';
 
+  /* ── Inline Reply (at top, before messages) ── */
+  var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
+  h+='<div class="email-inline-reply">';
+  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..."></div>';
+  h+='<div class="email-inline-reply-toolbar">';
+  h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Italic" onclick="event.preventDefault();document.execCommand(\'italic\')">'+icon('italic',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Link" onclick="event.preventDefault();var u=prompt(\'URL:\');if(u)document.execCommand(\'createLink\',false,u)">'+icon('link',11)+'</button>';
+  h+='<div style="flex:1"></div>';
+  h+='<button class="email-inline-reply-btn ai-draft-inline" onclick="TF.inlineAiDraft()">'+icon('sparkle',11)+' AI Draft</button>';
+  h+='</div>';
+  /* AI Draft prompt input (hidden by default) */
+  h+='<div class="ai-draft-prompt-wrap" id="inline-ai-draft-prompt">';
+  h+='<input class="ai-draft-prompt-input" id="inline-ai-draft-input" placeholder="What should the reply focus on? (optional)">';
+  h+='<button class="ai-draft-prompt-go" id="inline-ai-draft-go" onclick="TF.inlineAiDraftGo()">'+icon('sparkle',10)+' Draft</button>';
+  h+='</div>';
+  h+='<div class="email-inline-reply-actions">';
+  h+='<button class="email-inline-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.replyAllEmail()">'+icon('reply_all',11)+' Reply All</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.forwardEmail()">'+icon('forward',11)+' Forward</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.openReplyEmail()" style="margin-left:auto">'+icon('maximize',11)+' Full Reply</button>';
+  h+='</div></div>';
+
   /* ── Summarize button for long threads ── */
   if(totalMsgs>=10){
     var _cachedThread=S.gmailThreads.find(function(th){return th.thread_id===threadId});
@@ -5350,10 +5351,13 @@ function rEmailThread(){
     }
     h+='</div>'}
 
-  /* ── Messages ── */
-  msgs.forEach(function(msg,idx){
-    var isLast=idx===msgs.length-1;
-    var isCollapsed=totalMsgs>1&&!isLast;
+  /* ── Messages (newest first) ── */
+  var renderOrder=[];
+  for(var ri=msgs.length-1;ri>=0;ri--)renderOrder.push(ri);
+  renderOrder.forEach(function(idx){
+    var msg=msgs[idx];
+    var isNewest=idx===msgs.length-1;
+    var isCollapsed=totalMsgs>1&&!isNewest;
     var fromDisplay=msg.fromName||msg.fromEmail||'';
     var initial=(msg.fromName||msg.fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(msg.fromEmail);
@@ -5363,7 +5367,7 @@ function rEmailThread(){
     /* Match this message sender to a contact */
     var msgMatch=matchEmailToClient(msg.fromEmail);
 
-    h+='<div class="email-message'+(isLast?' email-message-last':'')+(isCollapsed?' collapsed':'')+'" data-msg-idx="'+idx+'">';
+    h+='<div class="email-message'+(isNewest?' email-message-last':'')+(isCollapsed?' collapsed':'')+'" data-msg-idx="'+idx+'">';
     h+='<div class="email-msg-header" onclick="TF.toggleEmailMsg('+idx+')">';
     h+='<div class="email-msg-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
     h+='<div class="email-msg-info">';
@@ -5421,17 +5425,6 @@ function rEmailThread(){
 
     h+='</div>';
   });
-
-  /* ── Quick reply ── */
-  var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
-  h+='<div class="email-quick-reply-wrap">';
-  h+='<textarea class="email-quick-reply-ta" id="email-quick-reply" placeholder="Reply to '+esc(replyTo)+'..."></textarea>';
-  h+='<div class="email-quick-reply-actions">';
-  h+='<button class="email-quick-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
-  h+='<button class="email-quick-reply-full" onclick="TF.openReplyEmail()">Full Reply</button>';
-  h+='<button class="email-quick-reply-full" onclick="TF.replyAllEmail()">Reply All</button>';
-  h+='<button class="email-quick-reply-full" onclick="TF.forwardEmail()">Forward</button>';
-  h+='</div></div>';
 
   h+='</div>'; /* close .email-thread-detail */
   h+='</div>'; /* close .email-thread-main */

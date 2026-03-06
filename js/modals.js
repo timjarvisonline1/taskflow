@@ -4095,10 +4095,17 @@ function openComposeEmail(opts){
   h+='<button class="btn btn-p" onclick="TF.scheduleCustom()" style="font-size:11px;padding:5px 12px;margin-top:6px;width:100%">Schedule</button>';
   h+='</div></div></div>';
   h+='<button class="btn" onclick="TF.addComposeAttachment()" style="font-size:12px;padding:7px 14px">'+icon('paperclip',12)+' Attach</button>';
-  if(isReply){h+='<button class="btn ai-draft-btn" id="ai-draft-btn" onclick="TF.aiDraft()" style="font-size:12px;padding:7px 14px;background:rgba(16,163,127,.12);border-color:rgba(16,163,127,.3);color:#10A37F" title="Draft reply using your knowledge base">'+icon('sparkle',12)+' AI Draft</button>'}
+  if(isReply){h+='<button class="btn ai-draft-btn" id="ai-draft-btn" onclick="TF.toggleComposeDraftPrompt()" style="font-size:12px;padding:7px 14px;background:rgba(16,163,127,.12);border-color:rgba(16,163,127,.3);color:#10A37F" title="Draft reply using your knowledge base">'+icon('sparkle',12)+' AI Draft</button>'}
   h+='<div style="flex:1"></div>';
   h+='<button class="btn" onclick="TF.closeModal()" style="font-size:12px;padding:7px 14px">Discard</button>';
   h+='</div>';
+  /* AI Draft prompt input for compose modal */
+  if(isReply){
+    h+='<div class="ai-draft-prompt-wrap" id="compose-ai-draft-prompt">';
+    h+='<input class="ai-draft-prompt-input" id="compose-ai-draft-input" placeholder="What should the reply focus on? (optional, press Enter or click Draft)"';
+    h+=' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.aiDraft()}">';
+    h+='<button class="ai-draft-prompt-go" onclick="TF.aiDraft()">'+icon('sparkle',10)+' Draft</button>';
+    h+='</div>'}
   h+='</div>';
 
   gel('m-body').innerHTML=h;
@@ -4218,11 +4225,22 @@ function _composeCatValidate(){
   if(schedBtn){schedBtn.disabled=!valid;schedBtn.style.opacity=valid?'1':'.5';schedBtn.style.pointerEvents=valid?'auto':'none'}}
 
 /* ═══════════ AI DRAFT (Knowledge Base) ═══════════ */
+function toggleComposeDraftPrompt(){
+  var wrap=gel('compose-ai-draft-prompt');
+  if(!wrap)return;
+  if(wrap.classList.contains('open')){wrap.classList.remove('open');return}
+  wrap.classList.add('open');
+  var inp=gel('compose-ai-draft-input');if(inp)inp.focus()}
+
 async function aiDraft(){
   var threadId=(gel('compose-threadId')||{}).value||'';
   if(!threadId){toast('AI Draft is available when replying to an email','info');return}
   var btn=gel('ai-draft-btn');
   if(btn){btn.disabled=true;btn.innerHTML=icon('sparkle',12)+' Drafting...';btn.style.opacity='.6'}
+
+  /* Get custom prompt if present */
+  var promptInput=gel('compose-ai-draft-input');
+  var customPrompt=promptInput?promptInput.value.trim():'';
 
   try{
     /* Get auth token */
@@ -4249,13 +4267,17 @@ async function aiDraft(){
     /* Get subject and client context */
     var subject=(gel('compose-subject')||{}).value||messages[0].subject||'';
     var gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId});
-    var clientId=gmailThread?gmailThread.clientId:null;
+    var clientId=gmailThread?gmailThread.clientId||gmailThread.client_id:null;
+
+    /* Build payload with optional custom prompt */
+    var payload={threadId:threadId,messages:messages,subject:subject,clientId:clientId};
+    if(customPrompt)payload.customPrompt=customPrompt;
 
     /* Call AI Draft endpoint */
     var draftResp=await fetch('/api/knowledge/ai-draft',{
       method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({threadId:threadId,messages:messages,subject:subject,clientId:clientId})
+      body:JSON.stringify(payload)
     });
 
     if(!draftResp.ok){
@@ -4283,6 +4305,11 @@ async function aiDraft(){
         editor.innerHTML=draft+editor.innerHTML
       }
     }
+
+    /* Hide prompt and clear */
+    var promptWrap=gel('compose-ai-draft-prompt');
+    if(promptWrap)promptWrap.classList.remove('open');
+    if(promptInput)promptInput.value='';
 
     /* Show sources info */
     var sources=result.sources||[];

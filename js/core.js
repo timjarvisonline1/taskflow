@@ -2620,26 +2620,97 @@ async function trashEmail(threadId){
   }catch(e){toast('Trash failed: '+e.message,'warn')}}
 
 async function quickReplyEmail(){
-  var ta=gel('email-quick-reply');if(!ta||!ta.value.trim()){toast('Type a reply first','warn');return}
+  /* Support both old textarea and new contenteditable inline reply */
+  var editor=gel('email-inline-reply-editor');
+  var ta=gel('email-quick-reply');
+  var body='';
+  if(editor){
+    body=editor.innerHTML||'';
+    if(!body||body==='<br>'||body==='<div><br></div>'){toast('Type a reply first','warn');return}
+  }else if(ta){
+    if(!ta.value.trim()){toast('Type a reply first','warn');return}
+    body='<div>'+ta.value.trim().replace(/\n/g,'<br>')+'</div>';
+  }else{toast('Type a reply first','warn');return}
   var thread=S.gmailThread;if(!thread)return;
   var msgs=thread.messages||[];
   var lastMsg=msgs[msgs.length-1];if(!lastMsg)return;
   var replyTo=lastMsg.fromEmail||'';
   var subject=lastMsg.subject||'';
   if(subject.indexOf('Re:')!==0)subject='Re: '+subject;
+  /* Wrap in styled div for inline reply */
+  var htmlBody='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>';
   try{
     var sess=await _sb.auth.getSession();if(!sess.data.session)return;
     var token=sess.data.session.access_token;
     toast('Sending reply...','info');
     var resp=await fetch('/api/gmail/send',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({to:replyTo,subject:subject,body:'<div>'+ta.value.trim().replace(/\n/g,'<br>')+'</div>',
+      body:JSON.stringify({to:replyTo,subject:subject,body:htmlBody,
         threadId:S.gmailThreadId,messageId:lastMsg.messageId||lastMsg.id||''})});
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Send failed')}
-    toast('Reply sent','ok');ta.value='';
+    toast('Reply sent','ok');
+    if(editor)editor.innerHTML='';
+    if(ta)ta.value='';
     /* Refresh thread to show the new message */
     openEmailThread(S.gmailThreadId)
   }catch(e){toast('Reply failed: '+e.message,'warn')}}
+
+/* ── Inline AI Draft (in thread quick reply) ── */
+function inlineAiDraft(){
+  var wrap=gel('inline-ai-draft-prompt');
+  if(!wrap)return;
+  if(wrap.classList.contains('open')){
+    wrap.classList.remove('open');return}
+  wrap.classList.add('open');
+  var inp=gel('inline-ai-draft-input');if(inp)inp.focus()}
+
+async function inlineAiDraftGo(){
+  var threadId=S.gmailThreadId;
+  if(!threadId){toast('No thread open','warn');return}
+  var promptInput=gel('inline-ai-draft-input');
+  var customPrompt=promptInput?promptInput.value.trim():'';
+  var goBtn=gel('inline-ai-draft-go');
+  if(goBtn){goBtn.disabled=true;goBtn.innerHTML=icon('sparkle',10)+' Drafting...'}
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data||!sess.data.session){toast('Not authenticated','warn');return}
+    var token=sess.data.session.access_token;
+    /* Get thread messages */
+    var thread=S._gmailCache&&S._gmailCache[threadId];
+    var messages=[];
+    if(thread&&thread.messages){
+      messages=thread.messages.map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})}
+    if(!messages.length){
+      var resp=await fetch('/api/gmail/thread?id='+threadId,{headers:{'Authorization':'Bearer '+token}});
+      if(resp.ok){var data=await resp.json();messages=(data.messages||[]).map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})}}
+    if(!messages.length){toast('Could not load thread','warn');return}
+    var subject=messages[0].subject||'';
+    var gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId||t.thread_id===threadId});
+    var clientId=gmailThread?gmailThread.clientId||gmailThread.client_id:null;
+    var payload={threadId:threadId,messages:messages,subject:subject,clientId:clientId};
+    if(customPrompt)payload.customPrompt=customPrompt;
+    var draftResp=await fetch('/api/knowledge/ai-draft',{
+      method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify(payload)});
+    if(!draftResp.ok){var errData=await draftResp.json().catch(function(){return{}});throw new Error(errData.error||'AI Draft failed')}
+    var result=await draftResp.json();
+    var draft=result.draft||'';
+    if(!draft){toast('AI could not generate a draft','warn');return}
+    /* Insert into inline reply editor */
+    var editor=gel('email-inline-reply-editor');
+    if(editor)editor.innerHTML=draft;
+    /* Hide prompt */
+    var wrap=gel('inline-ai-draft-prompt');if(wrap)wrap.classList.remove('open');
+    if(promptInput)promptInput.value='';
+    var sources=result.sources||[];
+    toast('Draft generated from '+sources.length+' knowledge sources','ok')
+  }catch(e){console.error('inlineAiDraft error:',e);toast(e.message||'AI Draft failed','err')
+  }finally{if(goBtn){goBtn.disabled=false;goBtn.innerHTML=icon('sparkle',10)+' Draft'}}}
+
+/* ── Toggle action card expand (for compact cards) ── */
+function toggleActionExpand(el){
+  var card=el.closest('.action-card-compact');
+  if(card)card.classList.toggle('expanded')}
 
 function createTaskFromEmail(){
   if(!S.gmailThread)return;
@@ -3999,7 +4070,10 @@ function closeMenu(){gel('sidebar').classList.remove('open');gel('mob-overlay').
 document.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&!e.shiftKey){
     var modal=gel('modal');if(modal&&modal.classList.contains('on')){
-      var isTextarea=e.target.tagName==='TEXTAREA';if(!isTextarea){
+      var isTextarea=e.target.tagName==='TEXTAREA';
+      var isEditable=e.target.isContentEditable;
+      var isComposeInput=e.target.classList.contains('compose-recipient-input');
+      if(!isTextarea&&!isEditable&&!isComposeInput){
         e.preventDefault();
         var saveBtn=modal.querySelector('.btn-p');if(saveBtn)saveBtn.click();return}}}
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.target.isContentEditable)return;

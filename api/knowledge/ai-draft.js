@@ -36,6 +36,7 @@ module.exports = async function handler(req, res) {
     var messages = body.messages || [];
     var subject = body.subject || '';
     var clientId = body.clientId || null;
+    var customPrompt = body.customPrompt || '';
 
     if (!messages.length) {
       return res.status(400).json({ error: 'No email messages provided' });
@@ -143,7 +144,7 @@ ${threadText}
 ${knowledgeContext}
 
 Draft a reply to the most recent message. If the knowledge base context contains relevant information (previous discussions, meeting notes, project details), weave it naturally into your response. Do not mention that you are using a knowledge base or AI.
-
+${customPrompt ? '\nIMPORTANT - The user wants the reply to focus on: ' + customPrompt + '\n' : ''}
 Reply:`;
 
     // Call Claude
