@@ -2966,27 +2966,30 @@ function rCpTabEmails(cp,st){
   }
 
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
-  h+='<span style="font-size:13px;color:var(--t2)">Email threads'+( clientEmail?' with <strong>'+esc(clientEmail)+'</strong>':'')+'</span>';
+  h+='<span style="font-size:13px;color:var(--t2)">Email threads for this campaign</span>';
   if(clientEmail){
     h+='<button class="btn btn-go" onclick="TF.openComposeEmail({to:\''+escAttr(clientEmail)+'\',subject:\''+escAttr(cp.name)+'\'})" style="font-size:12px;padding:6px 14px">'+icon('mail',11)+' Email Client</button>';
   }
   h+='</div>';
 
-  /* Filter threads by client_id */
-  var threads=[];
+  /* Filter threads assigned to THIS campaign */
+  var campaignThreads=S.gmailThreads.filter(function(t){return t.campaign_id===cp.id});
+  /* Also include threads assigned to the client but not to any campaign (general client threads) */
+  var clientThreads=[];
   if(clientRec){
-    threads=S.gmailThreads.filter(function(t){return t.client_id===clientRec.id});
-  }
+    clientThreads=S.gmailThreads.filter(function(t){return t.client_id===clientRec.id&&!t.campaign_id&&campaignThreads.indexOf(t)===-1})}
+  var threads=campaignThreads.concat(clientThreads);
 
   if(!threads.length){
-    if(!clientEmail){
-      h+='<div class="email-empty" style="padding:30px">'+icon('mail',24)+'<p style="font-size:12px">No client email on file. Add an email to the client record to see threads here.</p></div>';
-    }else{
-      h+='<div class="email-empty" style="padding:30px">'+icon('inbox',24)+'<p style="font-size:12px">No email threads found for this client. Try syncing Gmail.</p></div>';
-    }
+    h+='<div class="email-empty" style="padding:30px">'+icon('inbox',24)+'<p style="font-size:12px">No email threads assigned to this campaign yet.</p>';
+    h+='<p style="font-size:11px;color:var(--t4)">Assign emails from the thread view, or let AI auto-categorize.</p></div>';
     return h}
 
-  h+=rEmailList(threads);
+  if(campaignThreads.length)h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);margin-bottom:6px">Campaign Emails ('+campaignThreads.length+')</div>';
+  h+=rEmailList(campaignThreads);
+  if(clientThreads.length){
+    h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t4);margin:12px 0 6px">Other Client Emails ('+clientThreads.length+')</div>';
+    h+=rEmailList(clientThreads)}
   return h}
 
 /* ── Campaign Tab: Details ── */

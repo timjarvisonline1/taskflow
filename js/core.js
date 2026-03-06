@@ -3158,6 +3158,7 @@ function applyEmailRules(thread){
 
 async function _applyRuleActionsToThread(threadId,actions){
   if(!actions||!actions.length||!threadId)return;
+  var uid=await getUserId();if(!uid)return;
   var updates={};
   actions.forEach(function(act){
     if(act.type==='assign_client')updates.client_id=act.value||null;
@@ -3165,7 +3166,7 @@ async function _applyRuleActionsToThread(threadId,actions){
     else if(act.type==='assign_campaign')updates.campaign_id=act.value||null;
     else if(act.type==='assign_opportunity')updates.opportunity_id=act.value||null});
   if(Object.keys(updates).length){
-    await _sb.from('gmail_threads').update(updates).eq('thread_id',threadId);
+    await _sb.from('gmail_threads').update(updates).eq('user_id',uid).eq('thread_id',threadId);
     /* Update local cache */
     var cached=S.gmailThreads.find(function(t){return(t.thread_id||t.threadId)===threadId});
     if(cached){Object.keys(updates).forEach(function(k){cached[k]=updates[k]})}

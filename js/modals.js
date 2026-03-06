@@ -1966,6 +1966,24 @@ function openOpportunityDetail(id){
       h+='</div>'});
     h+='</div>'}
 
+  /* Email Threads */
+  var oppThreads=S.gmailThreads.filter(function(t){return t.opportunity_id===id});
+  if(oppThreads.length){
+    h+='<div style="margin-bottom:16px;border-top:1px solid var(--gborder);padding-top:14px">';
+    h+='<span class="ed-lbl" style="display:block;margin-bottom:8px">'+icon('mail',12)+' Email Threads ('+oppThreads.length+')</span>';
+    oppThreads.slice(0,10).forEach(function(t){
+      var subject=t.subject||'(no subject)';
+      if(subject.length>50)subject=subject.substring(0,48)+'…';
+      var dateStr=t.last_message_at||t.date||'';
+      var dateLabel=dateStr?fmtDShort(new Date(dateStr)):'';
+      var fromName=t.from_name||t.from_email||'';
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03);cursor:pointer" onclick="TF.closeModal();TF.openEmailThread(\''+escAttr(t.thread_id)+'\')">';
+      h+='<span style="font-size:12px;color:var(--t2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(fromName)+' — '+esc(subject)+'</span>';
+      h+='<span style="font-size:10px;color:var(--t4);flex-shrink:0">'+dateLabel+'</span>';
+      h+='</div>'});
+    if(oppThreads.length>10)h+='<div style="font-size:11px;color:var(--accent);margin-top:6px;cursor:pointer" onclick="TF.closeModal();TF.nav(\'email\')">View all emails →</div>';
+    h+='</div>'}
+
   h+='</div></div>';
 
   gel('detail-body').innerHTML=h;
@@ -4393,14 +4411,15 @@ async function sendEmail(){
     if(threadId&&(_catClient||_catEC||_catCampaign||_catOpp)){
       var _catClientId='';
       if(_catClient){var _cr=S.clientRecords.find(function(r){return r.name===_catClient});if(_cr)_catClientId=_cr.id}
-      _sb.from('gmail_threads').update({
+      var _catUid=await getUserId();
+      if(_catUid){_sb.from('gmail_threads').update({
         client_id:_catClientId||null,end_client:_catEC,
         campaign_id:_catCampaign||null,opportunity_id:_catOpp||null
-      }).eq('thread_id',threadId).then(function(){
+      }).eq('user_id',_catUid).eq('thread_id',threadId).then(function(){
         /* Update local cache too */
         var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
         if(cached){cached.client_id=_catClientId;cached.end_client=_catEC;cached.campaign_id=_catCampaign;cached.opportunity_id=_catOpp}
-        S._threadCrmCache={}})}
+        S._threadCrmCache={}})}}
 
     toast('Email sent!','ok');
     /* Clean up draft */
