@@ -1473,12 +1473,13 @@ function rEcReview(){
     h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
     h+=buildEndClientOptions(c.suggestedECId||c.suggestedEC||'',c.clientName||'');
     h+='</select></div>';
-    /* Prospect company dropdown (hidden by default) */
-    h+='<div id="cr-pc-wrap-'+_i+'" style="display:none">';
+    /* Prospect company typeahead (hidden by default) */
+    h+='<div id="cr-pc-wrap-'+_i+'" style="display:none;position:relative">';
     h+='<div style="font-size:10px;color:var(--t4);margin-bottom:3px">Prospect Company</div>';
-    h+='<select class="edf" id="cr-pc-'+_i+'" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px" onchange="TF.pcAddNew(\'cr-pc-'+_i+'\')">';
-    h+=buildProspectCompanyOptions('');
-    h+='</select></div>';
+    h+='<input type="hidden" id="cr-pc-id-'+_i+'" value="">';
+    h+='<input type="text" class="edf" id="cr-pc-'+_i+'" value="" placeholder="Type company name..." autocomplete="off" oninput="TF._crPcAc('+_i+')" onfocus="TF._crPcAc('+_i+')" onkeydown="TF._crPcKey('+_i+',event)" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px">';
+    h+='<div id="cr-pc-ac-'+_i+'" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;max-height:180px;overflow-y:auto;background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--gborder);border-radius:8px;margin-top:2px"></div>';
+    h+='</div>';
     /* Add button */
     h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:12px;padding:7px 0;border-radius:8px;width:100%;margin-top:auto">'+icon('check',11)+' Add Contact</button>';
     h+='</div>'});

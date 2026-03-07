@@ -3952,6 +3952,8 @@ async function loadData(){toast('Loading data...','info');
     setTimeout(function(){analyzeNewEmails()},500);
     /* Backfill end_clients table from string data across all entities */
     setTimeout(function(){syncEndClientRecords().then(backfillEndClientIds)},200);
+    /* Sync RL opportunity company names into prospect_companies */
+    setTimeout(function(){syncRlProspectCompanies()},400);
     /* Start periodic knowledge base sync (embeds all entity data) */
     startKnowledgeSync();
   }catch(e){toast(''+e.message,'warn')}
@@ -4466,6 +4468,36 @@ async function ensureProspectCompanyExists(name){
   await loadProspectCompanies();
   return(S.prospectCompanies||[]).find(function(pc){return pc.name.toLowerCase()===name.toLowerCase()})||null}
 
+/* Sync existing RL opportunity company names into prospect_companies table */
+async function syncRlProspectCompanies(){
+  var rlOpps=(S.opportunities||[]).filter(function(o){
+    return o.type==='retain_live'&&o.client&&!o.prospectCompanyId});
+  if(!rlOpps.length)return;
+  /* Collect unique company names */
+  var names={};
+  rlOpps.forEach(function(o){var n=o.client.trim();if(n)names[n.toLowerCase()]={name:n,opps:[]}});
+  rlOpps.forEach(function(o){var k=o.client.trim().toLowerCase();if(names[k])names[k].opps.push(o)});
+  var keys=Object.keys(names);if(!keys.length)return;
+  /* Ensure each company exists and link opps */
+  for(var i=0;i<keys.length;i++){
+    var entry=names[keys[i]];
+    var pc=await ensureProspectCompanyExists(entry.name);
+    if(!pc)continue;
+    /* Update website/description from first opp that has them */
+    var firstOp=entry.opps.find(function(o){return o.prospectWebsite||o.companyDescription});
+    if(firstOp&&(!pc.website&&firstOp.prospectWebsite||!pc.description&&firstOp.companyDescription)){
+      var upd={};
+      if(firstOp.prospectWebsite&&!pc.website)upd.website=firstOp.prospectWebsite;
+      if(firstOp.companyDescription&&!pc.description)upd.description=firstOp.companyDescription;
+      if(Object.keys(upd).length)await dbEditProspectCompany(pc.id,upd)}
+    /* Link each opp */
+    for(var j=0;j<entry.opps.length;j++){
+      var op=entry.opps[j];
+      await _sb.from('opportunities').update({prospect_company_id:pc.id}).eq('id',op.id);
+      op.prospectCompanyId=pc.id}}
+  await loadProspectCompanies();
+  console.log('Synced '+keys.length+' prospect companies from RL opportunities')}
+
 function setPcSort(v){
   var cur=S.pcSort||'name';
   var col=cur.replace(/^-/,'');
@@ -4594,6 +4626,55 @@ function _crClientSelect(idx,id,name){
   var ecSel=gel('cr-ec-'+idx);
   if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',name)}
 
+function _crPcAc(idx){
+  var input=gel('cr-pc-'+idx);
+  var dd=gel('cr-pc-ac-'+idx);
+  if(!input||!dd)return;
+  var q=(input.value||'').toLowerCase().trim();
+  /* Clear hidden ID if typed text no longer matches selected company */
+  var hidden=gel('cr-pc-id-'+idx);
+  if(hidden&&hidden.value){
+    var selPc=(S.prospectCompanies||[]).find(function(pc){return pc.id===hidden.value});
+    if(!selPc||selPc.name!==input.value)hidden.value=''}
+  var matches=(S.prospectCompanies||[]).filter(function(pc){
+    return pc.status==='active'&&(!q||pc.name.toLowerCase().indexOf(q)!==-1)}).slice(0,8);
+  if(!matches.length&&q){
+    /* Show "+ Create" option for new company */
+    dd.innerHTML='<div onmousedown="TF._crPcCreate('+idx+')" style="padding:6px 10px;font-size:12px;cursor:pointer;color:var(--accent);border-bottom:1px solid var(--gborder)" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'none\'">'+icon('plus',11)+' Create &ldquo;'+esc(q)+'&rdquo;</div>';
+    dd.style.display='';
+    input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)};return}
+  if(!matches.length){dd.style.display='none';return}
+  var h='';
+  matches.forEach(function(pc){
+    h+='<div onmousedown="TF._crPcSelect('+idx+',\''+escAttr(pc.id)+'\',\''+escAttr(pc.name)+'\')" style="padding:6px 10px;font-size:12px;cursor:pointer;color:var(--t1);border-bottom:1px solid var(--gborder)" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'none\'">'+esc(pc.name)+'</div>'});
+  dd.innerHTML=h;dd.style.display='';
+  input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
+
+function _crPcKey(idx,e){
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  var input=gel('cr-pc-'+idx);if(!input)return;
+  var q=(input.value||'').toLowerCase().trim();
+  var matches=(S.prospectCompanies||[]).filter(function(pc){
+    return pc.status==='active'&&(!q||pc.name.toLowerCase().indexOf(q)!==-1)});
+  if(matches.length===1){
+    _crPcSelect(idx,matches[0].id,matches[0].name);
+    _crSubmit(idx)}}
+
+function _crPcSelect(idx,id,name){
+  var input=gel('cr-pc-'+idx);
+  var hidden=gel('cr-pc-id-'+idx);
+  var dd=gel('cr-pc-ac-'+idx);
+  if(input)input.value=name;
+  if(hidden)hidden.value=id;
+  if(dd)dd.style.display='none'}
+
+async function _crPcCreate(idx){
+  var input=gel('cr-pc-'+idx);if(!input)return;
+  var name=input.value.trim();if(!name)return;
+  var pc=await ensureProspectCompanyExists(name);
+  if(pc)_crPcSelect(idx,pc.id,pc.name)}
+
 async function _crSubmit(idx){
   /* Find candidate by email from card data-attr (immune to index shifting after splices) */
   var card=gel('cr-card-'+idx);
@@ -4611,13 +4692,13 @@ async function _crSubmit(idx){
 
   if(modeVal==='prospect'){
     /* ── PROSPECT MODE ── */
-    var pcSel=gel('cr-pc-'+idx);
-    var pcRaw=pcSel?pcSel.value:'';
-    var pcId=null;
-    if(pcSel&&pcSel.tagName==='INPUT'){
-      var pcName=pcSel.value.trim();
+    var pcHidden=gel('cr-pc-id-'+idx);
+    var pcInput=gel('cr-pc-'+idx);
+    var pcId=pcHidden?pcHidden.value:null;
+    /* If typed a name but didn't select from dropdown, ensure company exists */
+    if(!pcId&&pcInput){
+      var pcName=(pcInput.value||'').trim();
       if(pcName){var pcRec=await ensureProspectCompanyExists(pcName);if(pcRec)pcId=pcRec.id}}
-    else if(pcRaw&&pcRaw!=='__addnew__'){pcId=resolveProspectCompanyId(pcRaw)}
     /* Insert into prospects table */
     var pRow={user_id:uid,prospect_company_id:pcId,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
       email:c.email||'',phone:'',role:'',linkedin_url:'',source:'contact_review',notes:'',status:'active'};
