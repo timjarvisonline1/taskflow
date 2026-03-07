@@ -1426,6 +1426,7 @@ function rEcReview(){
     return h}
 
   cands.forEach(function(c,idx){c._idx=idx});
+  h+='<style>[id^="cr-card-"]{transition:border-color .2s,box-shadow .2s}[id^="cr-card-"]:focus-within{border-color:var(--accent)!important;box-shadow:0 0 0 1px var(--accent)}</style>';
   h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
   cands.forEach(function(c){
     var displayName=(c.name||'').trim();
@@ -1454,7 +1455,7 @@ function rEcReview(){
     h+='<div id="cr-cli-wrap-'+_i+'" style="position:relative">';
     h+='<div style="font-size:10px;color:var(--t4);margin-bottom:3px">Client</div>';
     h+='<input type="hidden" id="cr-client-id-'+_i+'" value="'+escAttr(_preClientId)+'">';
-    h+='<input type="text" class="edf" id="cr-client-'+_i+'" value="'+escAttr(_preClient)+'" placeholder="Type client name..." autocomplete="off" oninput="TF._crClientAc('+_i+')" onfocus="TF._crClientAc('+_i+')" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px">';
+    h+='<input type="text" class="edf" id="cr-client-'+_i+'" value="'+escAttr(_preClient)+'" placeholder="Type client name..." autocomplete="off" oninput="TF._crClientAc('+_i+')" onfocus="TF._crClientAc('+_i+')" onkeydown="TF._crClientKey('+_i+',event)" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px">';
     h+='<div id="cr-client-ac-'+_i+'" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;max-height:180px;overflow-y:auto;background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--gborder);border-radius:8px;margin-top:2px"></div>';
     h+='</div>';
     /* Type toggle */

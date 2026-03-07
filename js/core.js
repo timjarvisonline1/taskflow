@@ -4572,6 +4572,17 @@ function _crClientAc(idx){
   /* Close on blur after short delay (let mousedown fire first) */
   input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
 
+function _crClientKey(idx,e){
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  var input=gel('cr-client-'+idx);if(!input)return;
+  var q=(input.value||'').toLowerCase().trim();
+  var matches=(S.clientRecords||[]).filter(function(cr){
+    return cr.status==='active'&&(!q||cr.name.toLowerCase().indexOf(q)!==-1)});
+  if(matches.length===1){
+    _crClientSelect(idx,matches[0].id,matches[0].name);
+    _crSubmit(idx)}}
+
 function _crClientSelect(idx,id,name){
   var input=gel('cr-client-'+idx);
   var hidden=gel('cr-client-id-'+idx);
