@@ -1300,7 +1300,7 @@ function rClTabDetails(c,td_){
 function rEcReview(){
   var cands=S._ecCandidates||[];
   var analyzing=S._ecAnalyzing;
-  var h='<div class="pg-head"><h1>'+icon('sparkle',18)+' EC Review'+(cands.length?' <span style="font-weight:400;color:var(--t4);font-size:14px">('+cands.length+')</span>':'')+'</h1>';
+  var h='<div class="pg-head"><h1>'+icon('sparkle',18)+' Contact Review'+(cands.length?' <span style="font-weight:400;color:var(--t4);font-size:14px">('+cands.length+')</span>':'')+'</h1>';
   h+='<button class="btn btn-p" onclick="TF.scanEcReview()" style="font-size:13px;padding:8px 16px;border-radius:10px"'+(analyzing?' disabled':'')+'>'+icon('sparkle',12)+' Scan</button></div>';
 
   /* Loading state */
@@ -1316,8 +1316,8 @@ function rEcReview(){
   if(!cands.length&&!analyzing){
     h+='<div style="padding:60px 0;text-align:center">';
     h+='<div style="font-size:28px;margin-bottom:12px;opacity:.5">'+icon('sparkle',28)+'</div>';
-    h+='<div style="color:var(--t3);font-size:14px;margin-bottom:6px">Discover unlinked contacts</div>';
-    h+='<div style="color:var(--t4);font-size:12px;max-width:420px;margin:0 auto">Click <strong>Scan</strong> to find external email addresses from your emails and meetings that aren\'t linked to an end client yet. AI will suggest matches.</div>';
+    h+='<div style="color:var(--t3);font-size:14px;margin-bottom:6px">Review unlinked contacts</div>';
+    h+='<div style="color:var(--t4);font-size:12px;max-width:420px;margin:0 auto">Click <strong>Scan</strong> to find external email addresses from your emails and meetings that haven\'t been reviewed yet. AI will suggest end-client matches.</div>';
     h+='</div>';
     return h}
 
@@ -1366,12 +1366,9 @@ function rEcReview(){
         h+='</div>'}
       else if(!analyzing){
         h+='<div style="margin-bottom:10px;padding:6px 12px;font-size:11px;color:var(--t4)">No AI suggestion yet — click Scan to analyze</div>'}
-      /* Row 3: Action buttons — associate to end-client OR just client */
+      /* Row 3: Action buttons — Review or Dismiss */
       h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
-      if(c.aiSuggestion){
-        h+='<button class="btn btn-p" onclick="TF.approveEcReview('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+' Approve EC</button>'}
-      h+='<button class="btn" onclick="TF.approveEcReviewAs('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('building',10)+' Choose EC</button>';
-      h+='<button class="btn" onclick="TF.approveEcAsContact('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('contact',10)+' Add as Contact</button>';
+      h+='<button class="btn btn-p" onclick="TF.openContactReviewModal('+c._idx+',event)" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+' Review</button>';
       h+='<button class="btn" onclick="TF.dismissEcReview('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px;color:var(--t4)">'+icon('x',10)+' Dismiss</button>';
       if(c.existingContactId)h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">Existing contact</span>';
       else h+='<span style="font-size:10px;color:var(--blue);margin-left:auto">New contact</span>';
