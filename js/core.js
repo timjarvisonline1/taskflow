@@ -1078,6 +1078,9 @@ function getThreadCrmContext(t){
 
 async function dbAddContact(clientId,data){
   var uid=await getUserId();if(!uid)return null;
+  if(data.endClient){
+    var _cr=clientId?(S.clientRecords||[]).find(function(r){return r.id===clientId}):null;
+    ensureEndClientExists(data.endClient,_cr?_cr.name:'')}/* fire-and-forget */
   var row={user_id:uid,client_id:clientId||null,first_name:data.firstName||'',last_name:data.lastName||'',
     email:data.email||'',role:data.role||'',phone:data.phone||'',
     company:data.company||'',website:data.website||'',status:data.status||'active',
@@ -1087,6 +1090,9 @@ async function dbAddContact(clientId,data){
   await loadContacts();render();toast('Contact added','ok');return res.data}
 
 async function dbEditContact(id,data){
+  if(data.endClient){
+    var _ec=data.clientId?(S.clientRecords||[]).find(function(r){return r.id===data.clientId}):null;
+    ensureEndClientExists(data.endClient,_ec?_ec.name:'')}/* fire-and-forget */
   var upd={};
   if(data.firstName!==undefined)upd.first_name=data.firstName;
   if(data.lastName!==undefined)upd.last_name=data.lastName;
@@ -3875,6 +3881,8 @@ async function loadData(){toast('Loading data...','info');
     toast('Loaded '+S.tasks.length+' tasks, '+S.done.length+' completed'+(S.review.length?', '+S.review.length+' to review':''),'ok');
     /* Trigger AI email analysis for unanalyzed threads (background, non-blocking) */
     setTimeout(function(){analyzeNewEmails()},500);
+    /* Backfill end_clients table from string data across all entities */
+    setTimeout(function(){syncEndClientRecords()},200);
     /* Start periodic knowledge base sync (embeds all entity data) */
     startKnowledgeSync();
   }catch(e){toast(''+e.message,'warn')}
@@ -3900,6 +3908,7 @@ async function dbEditTask(id,taskData){
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
     flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||'',
     project:taskData.project||'',phase:taskData.phase||'',opportunity:taskData.opportunity||'',is_inbox:!!taskData.isInbox};
+  if(taskData.endClient)ensureEndClientExists(taskData.endClient,taskData.client);/* fire-and-forget */
   var res=await _sb.from('tasks').update(row).eq('id',id);
   if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
   return true}
@@ -3944,6 +3953,7 @@ async function dbDeleteReview(id){
 
 async function dbAddCampaign(data){
   var uid=await getUserId();if(!uid)return null;
+  if(data.endClient)ensureEndClientExists(data.endClient,data.partner);/* fire-and-forget */
   var row={user_id:uid,name:data.name,partner:data.partner||'',end_client:data.endClient||'',
     status:data.status||'Setup',platform:data.platform||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,
@@ -3962,6 +3972,7 @@ async function dbAddCampaign(data){
   return res.data}
 
 async function dbEditCampaign(id,data){
+  if(data.endClient)ensureEndClientExists(data.endClient,data.partner);/* fire-and-forget */
   var row={};
   if('name' in data)row.name=data.name;
   if('partner' in data)row.partner=data.partner||'';
@@ -4081,6 +4092,7 @@ async function dbDeletePhase(id){
 /* ═══════════ OPPORTUNITY CRUD ═══════════ */
 async function dbAddOpportunity(data){
   var uid=await getUserId();if(!uid)return null;
+  if(data.endClient)ensureEndClientExists(data.endClient,data.client);/* fire-and-forget */
   var row={user_id:uid,name:data.name,description:data.description||'',stage:data.stage||'Lead',
     type:data.type||'fc_partnership',
     client:data.client||'',end_client:data.endClient||'',contact_name:data.contactName||'',contact_email:data.contactEmail||'',
@@ -4099,6 +4111,7 @@ async function dbAddOpportunity(data){
   return res.data}
 
 async function dbEditOpportunity(id,data){
+  if(data.endClient)ensureEndClientExists(data.endClient,data.client);/* fire-and-forget */
   var row={name:data.name,description:data.description||'',stage:data.stage||'Lead',
     type:data.type||'fc_partnership',
     client:data.client||'',end_client:data.endClient||'',contact_name:data.contactName||'',contact_email:data.contactEmail||'',
@@ -4188,6 +4201,56 @@ async function dbDeleteEndClient(id){
   var res=await _sb.from('end_clients').delete().eq('id',id);
   if(res.error){toast('End client delete failed: '+res.error.message,'warn');return false}
   await loadEndClients();render();return true}
+
+/* Ensure an end_clients record exists for a given name. Lightweight — skips if already in S.endClients.
+   Returns the end_clients record {id, name, clientId} or null. Does NOT render/reload — caller handles that. */
+async function ensureEndClientExists(ecName,clientName){
+  if(!ecName||ecName==='__addnew__')return null;
+  var existing=(S.endClients||[]).find(function(ec){return ec.name.toLowerCase()===ecName.toLowerCase()});
+  if(existing)return existing;
+  /* Resolve clientName to clientId */
+  var clientId=null;
+  if(clientName){
+    var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
+    if(cr)clientId=cr.id}
+  /* Insert silently — no toast, no render */
+  var uid=await getUserId();if(!uid)return null;
+  var rec={user_id:uid,name:ecName,client_id:clientId,notes:'',status:'active'};
+  var res=await _sb.from('end_clients').upsert(rec,{onConflict:'user_id,name',ignoreDuplicates:true}).select().single();
+  if(res.error&&res.error.code!=='23505')return null;
+  /* Refresh end clients in memory */
+  await loadEndClients();
+  return(S.endClients||[]).find(function(ec){return ec.name.toLowerCase()===ecName.toLowerCase()})||null}
+
+/* Backfill: scan all end-client strings across tasks, campaigns, opportunities, contacts, done
+   and create end_clients records for any that don't already exist. Runs silently. */
+async function syncEndClientRecords(){
+  var names={};/* {ecName: clientName} — collect unique end-client names with best client guess */
+  function add(ecName,clientName){
+    if(!ecName||ecName==='__addnew__')return;
+    if(!names[ecName])names[ecName]=clientName||'';
+    else if(!names[ecName]&&clientName)names[ecName]=clientName}
+  (S.campaigns||[]).forEach(function(c){if(c.endClient)add(c.endClient,c.partner)});
+  (S.opportunities||[]).forEach(function(o){if(o.endClient)add(o.endClient,o.client)});
+  (S.tasks||[]).forEach(function(t){if(t.endClient)add(t.endClient,t.client)});
+  (S.done||[]).forEach(function(d){if(d.endClient)add(d.endClient,d.client)});
+  (S.contacts||[]).forEach(function(c){
+    if(!c.endClient)return;
+    var cr=c.clientId?(S.clientRecords||[]).find(function(r){return r.id===c.clientId}):null;
+    add(c.endClient,cr?cr.name:'')});
+  /* Filter to only names not already in end_clients */
+  var existing={};
+  (S.endClients||[]).forEach(function(ec){existing[ec.name.toLowerCase()]=true});
+  var missing=Object.keys(names).filter(function(n){return!existing[n.toLowerCase()]});
+  if(!missing.length)return;
+  /* Batch insert missing records */
+  var uid=await getUserId();if(!uid)return;
+  var rows=missing.map(function(ecName){
+    var clientName=names[ecName];
+    var cr=clientName?(S.clientRecords||[]).find(function(r){return r.name===clientName}):null;
+    return{user_id:uid,name:ecName,client_id:cr?cr.id:null,notes:'',status:'active'}});
+  await _sb.from('end_clients').upsert(rows,{onConflict:'user_id,name',ignoreDuplicates:true});
+  await loadEndClients()}
 
 function setEcSort(v){
   var cur=S.ecSort||'name';
@@ -4351,9 +4414,8 @@ async function _crSubmit(idx){
     /* Handle text input (from ecAddNew) */
     if(ecSel&&ecSel.tagName==='INPUT')ecName=ecSel.value.trim();
     if(!ecName||ecName==='__addnew__'){toast('Select an end client','warn');return}
-    /* Create end-client if doesn't exist */
-    var exists=(S.endClients||[]).find(function(ec){return ec.name.toLowerCase()===ecName.toLowerCase()});
-    if(!exists){await dbAddEndClient({name:ecName,clientId:selectedClientId})}
+    /* Ensure end-client record exists in end_clients table */
+    await ensureEndClientExists(ecName,selectedClientName)
     /* Update or create contact with endClient */
     if(c.existingContactId){
       await dbEditContact(c.existingContactId,{endClient:ecName,clientId:selectedClientId})}
