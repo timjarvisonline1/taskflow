@@ -4787,7 +4787,10 @@ async function _crBatchDomain(triggerEmail,mode,clientId,clientName,ecId,ecName,
       (function(el){setTimeout(function(){el.remove()},300)})(card)}
     count++}
   if(count){_crUpdateCount();
-    var label=mode==='prospect'?(prospectCompanyNameById(pcId)||domain):(clientName||domain);
+    var label;
+    if(mode==='prospect')label=prospectCompanyNameById(pcId)||domain;
+    else if(mode==='ec'&&ecName)label=ecName+' ('+clientName+')';
+    else label=clientName||domain;
     toast('+'+count+' more from @'+domain+' added to '+label,'ok')}}
 
 function _crUpdateCount(){
