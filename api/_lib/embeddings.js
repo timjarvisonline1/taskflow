@@ -162,6 +162,7 @@ function chunkMeeting(meeting) {
   var metadata = {
     client_id: meeting.client_id || null,
     end_client: meeting.end_client || '',
+    end_client_id: meeting.end_client_id || null,
     campaign_id: meeting.campaign_id || null,
     date: meeting.start_time || null,
     people: people
@@ -247,6 +248,7 @@ function chunkEmailThread(threadId, subject, messages, crmMetadata) {
     var meta = {
       client_id: (crmMetadata && crmMetadata.client_id) || null,
       end_client: (crmMetadata && crmMetadata.end_client) || '',
+      end_client_id: (crmMetadata && crmMetadata.end_client_id) || null,
       campaign_id: (crmMetadata && crmMetadata.campaign_id) || null,
       date: msg.date || null,
       people: [fromLabel]
@@ -287,6 +289,7 @@ function chunkWebPage(text, title, url) {
       metadata: {
         client_id: null,
         end_client: '',
+        end_client_id: null,
         campaign_id: null,
         date: new Date().toISOString(),
         people: [],
@@ -358,6 +361,7 @@ async function storeChunks(client, userId, sourceType, sourceId, chunks) {
       content: chunk.content,
       client_id: meta.client_id || null,
       end_client: meta.end_client || '',
+      end_client_id: meta.end_client_id || null,
       campaign_id: meta.campaign_id || null,
       date: meta.date || null,
       people: meta.people || [],

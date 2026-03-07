@@ -231,6 +231,9 @@ ${threadList}`;
         // Auto-set end_client
         if (!threadRow.end_client && result.suggested_end_client) {
           updateData.end_client = result.suggested_end_client;
+          const { data: ecRow } = await client.from('end_clients')
+            .select('id').eq('user_id', userId).eq('name', result.suggested_end_client).maybeSingle();
+          if (ecRow) updateData.end_client_id = ecRow.id;
         }
         // Auto-set campaign_id
         if (!threadRow.campaign_id && result.suggested_campaign) {

@@ -205,7 +205,7 @@ async function syncGmail(userId) {
                 if (act.type === 'assign_client') {
                   const cr = (clientRecords || []).find(c => c.name === act.value);
                   if (cr) clientId = cr.id;
-                } else if (act.type === 'assign_end_client') ruleEndClient = act.value;
+                } else if (act.type === 'assign_end_client') { ruleEndClient = act.value; }
                 else if (act.type === 'assign_campaign') ruleCampaignId = act.value;
                 else if (act.type === 'assign_opportunity') ruleOpportunityId = act.value;
                 else if (act.type === 'auto_archive') ruleAutoArchive = true;
@@ -213,6 +213,14 @@ async function syncGmail(userId) {
               break; // first matching rule wins
             }
           }
+        }
+
+        // Resolve end-client name to UUID
+        let ruleEndClientId = null;
+        if (ruleEndClient) {
+          const { data: ecRow } = await client.from('end_clients')
+            .select('id').eq('user_id', userId).eq('name', ruleEndClient).maybeSingle();
+          if (ecRow) ruleEndClientId = ecRow.id;
         }
 
         // Build base row with Gmail metadata (no CRM fields yet)
@@ -243,7 +251,7 @@ async function syncGmail(userId) {
         if (existing) {
           // Preserve manually-saved CRM fields — only set if currently empty
           if (!existing.client_id && clientId) row.client_id = clientId;
-          if (!existing.end_client && ruleEndClient) row.end_client = ruleEndClient;
+          if (!existing.end_client && ruleEndClient) { row.end_client = ruleEndClient; row.end_client_id = ruleEndClientId; }
           if (!existing.campaign_id && ruleCampaignId) row.campaign_id = ruleCampaignId;
           if (!existing.opportunity_id && ruleOpportunityId) row.opportunity_id = ruleOpportunityId;
 
@@ -267,12 +275,12 @@ async function syncGmail(userId) {
         } else {
           // New thread — set all CRM fields from email matching and rules
           row.client_id = clientId;
-          if (ruleEndClient) row.end_client = ruleEndClient;
+          if (ruleEndClient) { row.end_client = ruleEndClient; row.end_client_id = ruleEndClientId; }
           if (ruleCampaignId) row.campaign_id = ruleCampaignId;
           if (ruleOpportunityId) row.opportunity_id = ruleOpportunityId;
           await client.from('gmail_threads').insert(row);
           stats.inserted++;
-          newThreads.push({ thread_id: thread.id, subject: subject, client_id: clientId, end_client: ruleEndClient || '', campaign_id: ruleCampaignId || null });
+          newThreads.push({ thread_id: thread.id, subject: subject, client_id: clientId, end_client: ruleEndClient || '', end_client_id: ruleEndClientId || null, campaign_id: ruleCampaignId || null });
         }
       } catch (threadErr) {
         stats.skipped++;
@@ -323,7 +331,7 @@ async function syncGmail(userId) {
                 t.thread_id,
                 t.subject || emailMessages[0].subject || '',
                 emailMessages,
-                { client_id: t.client_id, end_client: t.end_client || '', campaign_id: t.campaign_id }
+                { client_id: t.client_id, end_client: t.end_client || '', end_client_id: t.end_client_id || null, campaign_id: t.campaign_id }
               );
               if (chunks.length === 0) continue;
 

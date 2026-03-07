@@ -653,24 +653,22 @@ function rClientsDirectory(){
 /* ═══════════ END CLIENTS ═══════════ */
 function buildEndClientMap(){
   var td_=today();
-  var ecMap={};
+  var ecMap={};/* keyed by end_client UUID */
   /* Seed from end_clients table */
   S.endClients.forEach(function(ec){
-    ecMap[ec.name]={name:ec.name,id:ec.id,clientId:ec.clientId||'',clientName:'',notes:ec.notes||'',status:ec.status||'active',
+    ecMap[ec.id]={name:ec.name,id:ec.id,clientId:ec.clientId||'',clientName:'',notes:ec.notes||'',status:ec.status||'active',
       campaigns:0,activeCampaigns:0,monthlyRev:0,opportunities:0,pipelineValue:0,
       openTasks:0,overdueTasks:0,contacts:0,lastActivity:null,
       campaignList:[],oppList:[],contactList:[],inTable:true}});
-  /* Also pick up orphaned end-client strings from entities not yet in table */
-  function ensureEC(name){
-    if(!name||name==='')return;
-    if(!ecMap[name])ecMap[name]={name:name,id:'',clientId:'',clientName:'',notes:'',status:'active',
-      campaigns:0,activeCampaigns:0,monthlyRev:0,opportunities:0,pipelineValue:0,
-      openTasks:0,overdueTasks:0,contacts:0,lastActivity:null,
-      campaignList:[],oppList:[],contactList:[],inTable:false}}
+  /* Resolve entity to ecMap key: prefer endClientId, fall back to name lookup */
+  function ecKey(endClientId,endClientName){
+    if(endClientId&&ecMap[endClientId])return endClientId;
+    if(endClientName){var ec=(S.endClients||[]).find(function(e){return e.name===endClientName});if(ec)return ec.id}
+    return null}
   /* Campaigns */
   S.campaigns.forEach(function(cp){
-    if(!cp.endClient)return;ensureEC(cp.endClient);
-    var e=ecMap[cp.endClient];e.campaigns++;
+    var k=ecKey(cp.endClientId,cp.endClient);if(!k)return;
+    var e=ecMap[k];e.campaigns++;
     if(cp.status==='Active'){e.activeCampaigns++;e.monthlyRev+=(cp.monthlyFee||0)}
     e.campaignList.push({name:cp.name,status:cp.status,id:cp.id});
     if(!e.clientId&&cp.partner){
@@ -678,8 +676,8 @@ function buildEndClientMap(){
       if(cr)e.clientId=cr.id}});
   /* Opportunities */
   S.opportunities.forEach(function(op){
-    if(!op.endClient)return;ensureEC(op.endClient);
-    var e=ecMap[op.endClient];
+    var k=ecKey(op.endClientId,op.endClient);if(!k)return;
+    var e=ecMap[k];
     if(op.stage!=='Closed Won'&&op.stage!=='Closed Lost'){
       e.opportunities++;e.pipelineValue+=(op.strategyFee||0)+(op.setupFee||0)+((op.monthlyFee||0)*12)}
     e.oppList.push({name:op.name,stage:op.stage,id:op.id,type:op.type});
@@ -688,19 +686,19 @@ function buildEndClientMap(){
       if(cr)e.clientId=cr.id}});
   /* Tasks */
   S.tasks.forEach(function(t){
-    if(!t.endClient)return;ensureEC(t.endClient);
-    ecMap[t.endClient].openTasks++;
-    if(t.due&&t.due<td_)ecMap[t.endClient].overdueTasks++});
+    var k=ecKey(t.endClientId,t.endClient);if(!k)return;
+    ecMap[k].openTasks++;
+    if(t.due&&t.due<td_)ecMap[k].overdueTasks++});
   /* Done */
   S.done.forEach(function(d){
-    if(!d.endClient)return;ensureEC(d.endClient);
-    var e=ecMap[d.endClient];
+    var k=ecKey(d.endClientId,d.endClient);if(!k)return;
+    var e=ecMap[k];
     if(d.completed&&(!e.lastActivity||d.completed>e.lastActivity))e.lastActivity=d.completed});
   /* Contacts */
   S.contacts.forEach(function(cc){
-    if(!cc.endClient)return;ensureEC(cc.endClient);
-    ecMap[cc.endClient].contacts++;
-    ecMap[cc.endClient].contactList.push(cc)});
+    var k=ecKey(cc.endClientId,cc.endClient);if(!k)return;
+    ecMap[k].contacts++;
+    ecMap[k].contactList.push(cc)});
   /* Resolve client names */
   Object.keys(ecMap).forEach(function(k){
     var e=ecMap[k];
@@ -776,7 +774,10 @@ function rEndClients(){
 
 function openEndClientDetailModal(name){
   var ecMap=buildEndClientMap();
-  var ec=ecMap[name];if(!ec)return;
+  /* Look up by UUID first, then by name */
+  var ec=ecMap[name];
+  if(!ec){var _ecr=(S.endClients||[]).find(function(e){return e.name===name});if(_ecr)ec=ecMap[_ecr.id]}
+  if(!ec)return;
   S._lastEndClientDash=name;
   S.endClientTab='overview';
   var h=rEndClientDashboard(ec);

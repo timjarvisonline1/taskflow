@@ -275,14 +275,15 @@ async function saveDetail(){
   task.importance=gel('d-imp').value;task.category=gel('d-cat').value;
   var cliToggle=gel('dt-cli')||gel('mb-cli');
   task.client=(cliToggle&&cliToggle.checked)?(gel('d-cli').value||''):'';
-  task.endClient=(cliToggle&&cliToggle.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
+  var _ecv1=(cliToggle&&cliToggle.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
+  task.endClientId=resolveEndClientId(_ecv1)||null;task.endClient=task.endClientId?endClientNameById(task.endClientId):_ecv1;
   task.type=gel('d-type').value;
   task.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   task.project=gel('d-project')?gel('d-project').value:'';
   task.phase=gel('d-phase')?gel('d-phase').value:'';
   task.opportunity=gel('d-opportunity')?gel('d-opportunity').value:'';
   task.meetingKey=gel('d-mtg')?gel('d-mtg').value:'';
-  if(task.campaign&&!task.endClient){var _cpsd=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpsd)task.endClient=_cpsd.endClient}
+  if(task.campaign&&!task.endClient){var _cpsd=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpsd){task.endClient=_cpsd.endClient;task.endClientId=_cpsd.endClientId||null}}
   task.est=parseInt(gel('d-est').value)||0;task.notes=gel('d-notes').value;
   var wasFlagged=task.flag;
   task.flag=gel('d-flag').checked;
@@ -303,19 +304,20 @@ async function markAlreadyCompleted(id){
   task.importance=gel('d-imp').value;task.category=gel('d-cat').value;
   var cliToggle2=gel('dt-cli')||gel('mb-cli');
   task.client=(cliToggle2&&cliToggle2.checked)?(gel('d-cli').value||''):'';
-  task.endClient=(cliToggle2&&cliToggle2.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
+  var _ecv2=(cliToggle2&&cliToggle2.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
+  task.endClientId=resolveEndClientId(_ecv2)||null;task.endClient=task.endClientId?endClientNameById(task.endClientId):_ecv2;
   task.type=gel('d-type').value;
   task.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   task.project=gel('d-project')?gel('d-project').value:'';
   task.phase=gel('d-phase')?gel('d-phase').value:'';
   task.opportunity=gel('d-opportunity')?gel('d-opportunity').value:'';
-  if(task.campaign&&!task.endClient){var _cpmac=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpmac)task.endClient=_cpmac.endClient}
+  if(task.campaign&&!task.endClient){var _cpmac=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpmac){task.endClient=_cpmac.endClient;task.endClientId=_cpmac.endClientId||null}}
   task.est=parseInt(gel('d-est').value)||0;task.notes=gel('d-notes').value;
   task.flag=gel('d-flag').checked;
   var mins=parseInt((gel('d-already-dur')||{}).value)||task.est||0;
   /* Move to done — DB first */
   var doneData={item:task.item,due:task.due,importance:task.importance,category:task.category,
-    client:task.client,endClient:task.endClient,type:task.type,duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||'',opportunity:task.opportunity||''};
+    client:task.client,endClient:task.endClient,endClientId:task.endClientId||null,type:task.type,duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||'',opportunity:task.opportunity||''};
   var result=await dbCompleteTask(doneData);
   if(result){await dbDeleteTask(id);
     S.tasks=S.tasks.filter(function(t){return t.id!==id});delete S.timers[id];
@@ -412,7 +414,7 @@ function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHou
     setTimeout(function(){if(prefill.phase){var ph=gel('f-phase');if(ph)ph.value=prefill.phase}},50)}}
   if(prefill.client){var ctg=gel('mt-cli');if(ctg){ctg.checked=true;modalToggle('mt-cli-fields',true)}
     var cs=gel('f-cli');if(cs){cs.value=prefill.client;refreshAddEndClients()}
-    if(prefill.endClient){setTimeout(function(){var ecs=gel('f-ec');if(ecs)ecs.value=prefill.endClient},50)}}
+    if(prefill.endClient){setTimeout(function(){var ecs=gel('f-ec');if(ecs)ecs.value=resolveEndClientId(prefill.endClient)||prefill.endClient},50)}}
   if(prefill.campaign){var cptg=gel('mt-campaign');if(cptg){cptg.checked=true;modalToggle('mt-campaign-fields',true)}
     var cp=gel('f-campaign');if(cp)cp.value=prefill.campaign}
   if(prefill.opportunity){var otg=gel('mt-opp');if(otg){otg.checked=true;modalToggle('mt-opp-fields',true)}
@@ -433,28 +435,29 @@ async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim
   var markDone=gel('f-done')&&gel('f-done').checked;
   var isInbox=gel('f-inbox')&&gel('f-inbox').value==='true';
   var cpVal=(gel('f-campaign')||{}).value||'';
-  var ecVal=(gel('f-ec')?gel('f-ec').value:'').trim();
-  if(cpVal&&!ecVal){var _cpaf=S.campaigns.find(function(c){return c.id===cpVal});if(_cpaf)ecVal=_cpaf.endClient}
+  var _ecvRaw=(gel('f-ec')?gel('f-ec').value:'').trim();
+  var _ecvId=resolveEndClientId(_ecvRaw)||null;var ecVal=_ecvId?endClientNameById(_ecvId):_ecvRaw;
+  if(cpVal&&!ecVal){var _cpaf=S.campaigns.find(function(c){return c.id===cpVal});if(_cpaf){ecVal=_cpaf.endClient;_ecvId=_cpaf.endClientId||null}}
   var mtgVal=(gel('f-mtg')||{}).value||'';
   var projVal=(gel('f-project')||{}).value||'';
   var phaseVal=(gel('f-phase')||{}).value||'';
   var oppVal=(gel('f-opportunity')||{}).value||'';
   var data={item:item.trim(),due:gel('f-due').value,importance:gel('f-imp').value,category:gel('f-cat').value,
-    client:gel('f-cli').value||'',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
+    client:gel('f-cli').value||'',endClient:ecVal,endClientId:_ecvId,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal,
     project:projVal,phase:phaseVal,opportunity:oppVal,isInbox:isInbox};
   if(markDone){
     var mins=parseInt((gel('f-done-dur')||{}).value)||data.est||0;
     var doneData={item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,category:data.category,
-      client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity};
+      client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity};
     var result=await dbCompleteTask(doneData);
     if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:doneData.due,importance:data.importance,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity})}
+      category:data.category,client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity})}
     toast('Completed: '+data.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
   else{
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox});
+      category:data.category,client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox});
       var emailTid=gel('f-email-tid');if(emailTid&&emailTid.value)dbLinkEmailToTask(result.id,emailTid.value)}
     toast('Added: '+data.item,'ok')}
   closeModal();render()}
@@ -463,21 +466,22 @@ async function addAndStart(){var item=(gel('f-item')||{}).value;if(!item||!item.
   var flagged=gel('f-flag').checked;
   var isInbox2=gel('f-inbox')&&gel('f-inbox').value==='true';
   var cpVal=(gel('f-campaign')||{}).value||'';
-  var ecVal=(gel('f-ec')?gel('f-ec').value:'').trim();
-  if(cpVal&&!ecVal){var _cpas=S.campaigns.find(function(c){return c.id===cpVal});if(_cpas)ecVal=_cpas.endClient}
+  var _ecvRaw2=(gel('f-ec')?gel('f-ec').value:'').trim();
+  var _ecvId2=resolveEndClientId(_ecvRaw2)||null;var ecVal=_ecvId2?endClientNameById(_ecvId2):_ecvRaw2;
+  if(cpVal&&!ecVal){var _cpas=S.campaigns.find(function(c){return c.id===cpVal});if(_cpas){ecVal=_cpas.endClient;_ecvId2=_cpas.endClientId||null}}
   var mtgVal2=(gel('f-mtg')||{}).value||'';
   var projVal2=(gel('f-project')||{}).value||'';
   var phaseVal2=(gel('f-phase')||{}).value||'';
   var oppVal2=(gel('f-opportunity')||{}).value||'';
   var data={item:item.trim(),due:gel('f-due').value,importance:gel('f-imp').value,category:gel('f-cat').value,
-    client:gel('f-cli').value||'',endClient:ecVal,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
+    client:gel('f-cli').value||'',endClient:ecVal,endClientId:_ecvId2,type:gel('f-type').value,est:parseInt(gel('f-est').value)||0,
     notes:gel('f-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal,meetingKey:mtgVal2,
     project:projVal2,phase:phaseVal2,opportunity:oppVal2,isInbox:isInbox2};
   var result=await dbAddTask(data);
   if(!result){toast('Failed to add task','warn');return}
   var id=result.id;
   S.tasks.push({id:id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
-    category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox2});
+    category:data.category,client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox2});
   save();
   /* Start timer + enter Focus Mode */
   var t=tmrGet(id);t.started=Date.now();S.timers[id]=t;save();
@@ -489,7 +493,7 @@ function fillFromTemplate(idx){idx=parseInt(idx);if(isNaN(idx))return;var t=S.te
   var now=new Date();now.setHours(17,0,0,0);
   if(t.importance)gel('f-imp').value=t.importance;if(t.category)gel('f-cat').value=t.category;
   if(t.client){gel('f-cli').value=t.client;refreshAddEndClients()}
-  if(t.endClient&&gel('f-ec'))gel('f-ec').value=t.endClient;if(t.type)gel('f-type').value=t.type;
+  if(t.endClient&&gel('f-ec'))gel('f-ec').value=resolveEndClientId(t.endClient)||t.endClient;if(t.type)gel('f-type').value=t.type;
   if(t.est)gel('f-est').value=t.est;if(t.item)gel('f-item').value=t.item;
   if(t.campaign&&gel('f-campaign'))gel('f-campaign').value=t.campaign;
   if(t.notes)gel('f-notes').value=t.notes;toast('Template loaded: '+t.name,'ok')}
@@ -676,7 +680,7 @@ function openTplForm(idx){
 
 function saveTpl(){var name=(gel('tpl-name')||{}).value;if(!name||!name.trim()){toast('Enter a template name','warn');return}
   var tpl={name:name.trim(),item:(gel('tpl-item')||{}).value||'',importance:gel('tpl-imp').value,category:gel('tpl-cat').value,
-    client:gel('tpl-cli').value||'',endClient:(gel('tpl-ec')?gel('tpl-ec').value:'').trim(),type:gel('tpl-type').value,est:parseInt(gel('tpl-est').value)||0,
+    client:gel('tpl-cli').value||'',endClient:(function(){var _v=(gel('tpl-ec')?gel('tpl-ec').value:'').trim();var _i=resolveEndClientId(_v);return _i?endClientNameById(_i):_v})(),type:gel('tpl-type').value,est:parseInt(gel('tpl-est').value)||0,
     notes:(gel('tpl-notes')||{}).value||'',setName:(gel('tpl-set')||{}).value||'',recurrence:(gel('tpl-recur')||{}).value||''};
   var idx=parseInt(gel('tpl-idx').value);
   if(idx>=0&&S.templates[idx]){S.templates[idx]=tpl;toast(icon('save',12)+' Updated: '+tpl.name,'ok')}
@@ -767,12 +771,12 @@ async function saveDoneDetail(){
   d.item=gel('d-item').value.trim();if(!d.item){toast('Item name required','warn');return}
   d.completed=gel('d-completed').value?new Date(gel('d-completed').value):d.completed;
   d.importance=gel('d-imp').value;d.category=gel('d-cat').value;
-  d.client=gel('d-cli').value||'';d.endClient=(gel('d-ec')?gel('d-ec').value:'').trim();d.type=gel('d-type').value;
+  d.client=gel('d-cli').value||'';var _ecvD=(gel('d-ec')?gel('d-ec').value:'').trim();d.endClientId=resolveEndClientId(_ecvD)||null;d.endClient=d.endClientId?endClientNameById(d.endClientId):_ecvD;d.type=gel('d-type').value;
   d.campaign=gel('d-campaign')?gel('d-campaign').value:'';
   d.duration=parseInt(gel('d-dur').value)||0;d.est=parseInt(gel('d-est').value)||0;
   d.notes=gel('d-notes').value;
   await _sb.from('done').update({item:d.item,completed:d.completed?d.completed.toISOString():null,
-    importance:d.importance,category:d.category,client:d.client,end_client:d.endClient||'',type:d.type,
+    importance:d.importance,category:d.category,client:d.client,end_client:d.endClient||'',end_client_id:d.endClientId||null,type:d.type,
     duration:d.duration,est:d.est,notes:d.notes,campaign:d.campaign||'',opportunity:d.opportunity||''}).eq('id',id);
   toast(icon('save',12)+' Saved: '+d.item,'ok');closeModal();render()}
 
@@ -921,24 +925,25 @@ async function approveFromModal(){
   var oppVal3=(gel('d-opportunity')||{}).value||'';
   var rvCliToggle=gel('rv-cli');
   var rvClient=(rvCliToggle&&rvCliToggle.checked)?(gel('d-cli').value||''):'';
-  var rvEndClient=(rvCliToggle&&rvCliToggle.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
+  var _rvEcRaw=(rvCliToggle&&rvCliToggle.checked)?(gel('d-ec')?gel('d-ec').value:'').trim():'';
+  var _rvEcId=resolveEndClientId(_rvEcRaw)||null;var rvEndClient=_rvEcId?endClientNameById(_rvEcId):_rvEcRaw;
   var data={item:item,due:dueVal,importance:gel('d-imp').value,category:gel('d-cat').value,
-    client:rvClient,endClient:rvEndClient,type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
+    client:rvClient,endClient:rvEndClient,endClientId:_rvEcId,type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
     notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal2,meetingKey:mtgVal3,project:projVal3,phase:phaseVal3,opportunity:oppVal3};
   var success=false;
   if(markDone){
     var mins=parseInt((gel('d-done-dur')||{}).value)||data.est||0;
     var dueDate=dueVal?new Date(dueVal):null;
     var doneData={item:data.item,due:dueDate,importance:data.importance,category:data.category,
-      client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity};
+      client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity};
     var result=await dbCompleteTask(doneData);
-    if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:dueDate,importance:data.importance,category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity});
+    if(result){S.done.unshift({id:result.id,item:data.item,completed:new Date(),due:dueDate,importance:data.importance,category:data.category,client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:mins,est:data.est,notes:data.notes,campaign:data.campaign,project:data.project,phase:data.phase,opportunity:data.opportunity});
       success=true;toast('Completed: '+data.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
     else{toast('Failed to complete task','err')}}
   else{
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:data.item,due:dueVal?new Date(dueVal):null,importance:data.importance,est:data.est,
-      category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
+      category:data.category,client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
       success=true;toast('Added: '+data.item,'ok')}
     else{toast('Failed to add task','err')}}
   if(success){await dbDeleteReview(id);S.review=S.review.filter(function(rv){return rv.id!==id})}
@@ -958,14 +963,15 @@ async function approveAndStart(){
   var projVal4=(gel('d-project')||{}).value||'';
   var phaseVal4=(gel('d-phase')||{}).value||'';
   var oppVal4=(gel('d-opportunity')||{}).value||'';
+  var _asEcRaw=(gel('d-ec')?gel('d-ec').value:'').trim();var _asEcId=resolveEndClientId(_asEcRaw)||null;var _asEcName=_asEcId?endClientNameById(_asEcId):_asEcRaw;
   var data={item:item,due:dueVal,importance:gel('d-imp').value,category:gel('d-cat').value,
-    client:gel('d-cli').value||'',endClient:(gel('d-ec')?gel('d-ec').value:'').trim(),type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
+    client:gel('d-cli').value||'',endClient:_asEcName,endClientId:_asEcId,type:gel('d-type').value,est:parseInt(gel('d-est').value)||0,
     notes:gel('d-notes').value,status:flagged?'Need Client Input':'Planned',flag:flagged,campaign:cpVal3,meetingKey:mtgVal4,project:projVal4,phase:phaseVal4,opportunity:oppVal4};
   var result=await dbAddTask(data);
   if(!result)return;
   var taskId=result.id;
   S.tasks.push({id:taskId,item:data.item,due:dueVal?new Date(dueVal):null,importance:data.importance,est:data.est,
-    category:data.category,client:data.client,endClient:data.endClient,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
+    category:data.category,client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity});
   await dbDeleteReview(id);
   S.review=S.review.filter(function(rv){return rv.id!==id});
   toast('Added & started: '+data.item,'ok');
@@ -1130,30 +1136,36 @@ function showCalSetup(){
 /* Client filters which End Clients appear; End Client filters which Campaigns appear */
 
 function buildEndClientOptions(currentValue,filterClient){
-  var ecs=[];
+  var ecList=[];/* {id,name} */
+  var seen={};
+  function addEC(id,name){if(!id||seen[id])return;seen[id]=true;ecList.push({id:id,name:name})}
   /* Primary source: end_clients table */
   S.endClients.forEach(function(ec){
     if(filterClient){
-      /* Match by client name via clientId */
       var cr=ec.clientId?S.clientRecords.find(function(r){return r.id===ec.clientId}):null;
       if(cr&&cr.name!==filterClient)return;
-      if(!cr&&filterClient)return;/* no client assigned, skip if filtering */
+      if(!cr&&filterClient)return;
     }
-    if(ecs.indexOf(ec.name)===-1)ecs.push(ec.name)});
-  /* Merge orphaned strings from campaigns, tasks, opportunities */
+    addEC(ec.id,ec.name)});
+  /* Merge orphaned strings — look up UUID from S.endClients */
+  function mergeOrphan(name){
+    var ec=(S.endClients||[]).find(function(e){return e.name===name});
+    if(ec)addEC(ec.id,ec.name)}
   S.campaigns.forEach(function(c){
     if(filterClient&&c.partner!==filterClient)return;
-    if(c.endClient&&ecs.indexOf(c.endClient)===-1)ecs.push(c.endClient)});
+    if(c.endClient)mergeOrphan(c.endClient)});
   S.tasks.concat(S.done).forEach(function(t){
     if(filterClient&&t.client!==filterClient)return;
-    if(t.endClient&&ecs.indexOf(t.endClient)===-1)ecs.push(t.endClient)});
+    if(t.endClient)mergeOrphan(t.endClient)});
   S.opportunities.forEach(function(o){
     if(filterClient&&o.client!==filterClient)return;
-    if(o.endClient&&ecs.indexOf(o.endClient)===-1)ecs.push(o.endClient)});
-  ecs.sort();
-  var isNew=currentValue&&ecs.indexOf(currentValue)===-1;
+    if(o.endClient)mergeOrphan(o.endClient)});
+  ecList.sort(function(a,b){return a.name.localeCompare(b.name)});
+  /* Resolve currentValue: could be UUID or name */
+  var currentId=resolveEndClientId(currentValue);
+  var isNew=currentValue&&!currentId;
   var h='<option value="">None</option>';
-  ecs.forEach(function(ec){h+='<option value="'+esc(ec)+'"'+(currentValue===ec?' selected':'')+'>'+esc(ec)+'</option>'});
+  ecList.forEach(function(ec){h+='<option value="'+esc(ec.id)+'"'+(currentId===ec.id?' selected':'')+'>'+esc(ec.name)+'</option>'});
   if(isNew)h+='<option value="'+esc(currentValue)+'" selected>'+esc(currentValue)+'</option>';
   h+='<option value="__addnew__">'+icon('plus',12)+' Add New...</option>';
   return h}
@@ -1162,7 +1174,7 @@ function buildCampaignOptions(currentValue,filterClient,filterEC){
   var opts='<option value="">None</option>';
   S.campaigns.filter(function(c){
     if(filterClient&&c.partner!==filterClient)return false;
-    if(filterEC&&c.endClient!==filterEC)return false;
+    if(filterEC&&c.endClientId!==filterEC&&c.endClient!==filterEC)return false;
     return true}).forEach(function(c){
     opts+='<option value="'+esc(c.id)+'"'+(currentValue===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
   return opts}
@@ -1559,7 +1571,7 @@ function _openCampaignDetail_LEGACY(id){
 async function saveCampaign(){
   var id=gel('cp-id').value;var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
   cp.name=gel('cp-name').value.trim();if(!cp.name){toast('Campaign name required','warn');return}
-  cp.partner=gel('cp-partner').value;cp.endClient=(gel('cp-ec')?gel('cp-ec').value:'').trim();
+  cp.partner=gel('cp-partner').value;var _cpEcRaw=(gel('cp-ec')?gel('cp-ec').value:'').trim();cp.endClientId=resolveEndClientId(_cpEcRaw)||null;cp.endClient=cp.endClientId?endClientNameById(cp.endClientId):_cpEcRaw;
   cp.status=gel('cp-status').value;cp.platform=gel('cp-platform').value;
   cp.campaignTerm=gel('cp-term').value;
   cp.plannedLaunch=gel('cp-planned').value?new Date(gel('cp-planned').value):null;
@@ -1684,7 +1696,8 @@ function openAddCampaign(){
 
 async function addCampaign(){
   var name=(gel('ncp-name')||{}).value;if(!name||!name.trim()){toast('Enter a campaign name','warn');return}
-  var cp={name:name.trim(),partner:gel('ncp-partner').value||'',endClient:(gel('ncp-ec')?gel('ncp-ec').value:'').trim(),
+  var _ncpEcRaw=(gel('ncp-ec')?gel('ncp-ec').value:'').trim();var _ncpEcId=resolveEndClientId(_ncpEcRaw)||null;var _ncpEcName=_ncpEcId?endClientNameById(_ncpEcId):_ncpEcRaw;
+  var cp={name:name.trim(),partner:gel('ncp-partner').value||'',endClient:_ncpEcName,endClientId:_ncpEcId,
     status:gel('ncp-status').value||'Setup',platform:gel('ncp-platform').value||'',
     strategyFee:parseFloat(gel('ncp-strategyFee').value)||0,setupFee:parseFloat(gel('ncp-setupFee').value)||0,
     monthlyFee:parseFloat(gel('ncp-monthlyFee').value)||0,monthlyAdSpend:parseFloat(gel('ncp-monthlyAdSpend').value)||0,
@@ -1800,7 +1813,7 @@ async function saveOpportunity(){
   op.name=(gel('op-name').value||'').trim();if(!op.name){toast('Opportunity name required','warn');return}
   op.stage=gel('op-stage').value;
   op.client=gel('op-client').value||'';
-  op.endClient=gel('op-endclient')?(gel('op-endclient').value||'').trim():'';
+  var _opEcRaw=gel('op-endclient')?(gel('op-endclient').value||'').trim():'';op.endClientId=resolveEndClientId(_opEcRaw)||null;op.endClient=op.endClientId?endClientNameById(op.endClientId):_opEcRaw;
   op.contactName=(gel('op-contact').value||'').trim();
   op.contactEmail=(gel('op-email').value||'').trim();
   op.source=(gel('op-source').value||'').trim();
@@ -1924,7 +1937,7 @@ async function addOpportunity(){
   var type=gel('nop-type')?gel('nop-type').value||'fc_partnership':'fc_partnership';
   var isRL=type==='retain_live';
   var data={name:name,type:type,stage:gel('nop-stage').value||oppTypeConf(type).stages[0],
-    client:gel('nop-client').value||'',endClient:gel('nop-endclient')?(gel('nop-endclient').value||'').trim():'',
+    client:gel('nop-client').value||'',endClient:(function(){var _v=gel('nop-endclient')?(gel('nop-endclient').value||'').trim():'';var _i=resolveEndClientId(_v);return _i?endClientNameById(_i):_v})(),endClientId:(function(){var _v=gel('nop-endclient')?(gel('nop-endclient').value||'').trim():'';return resolveEndClientId(_v)||null})(),
     contactName:(gel('nop-contact').value||'').trim(),contactEmail:(gel('nop-email').value||'').trim(),
     source:(gel('nop-source').value||'').trim(),
     strategyFee:parseFloat(gel('nop-strategy').value)||0,
@@ -2653,10 +2666,12 @@ async function saveFinancePayment(){
 
   /* Resolve end client value (dropdown or typed-in text input) */
   var ecEl=gel('fp-endclient');
-  var endClient='';
+  var endClient='';var endClientId=null;
   if(isFc&&ecEl){
-    endClient=ecEl.value||'';
-    if(endClient==='__addnew__')endClient=''}
+    var _fpEcRaw=ecEl.value||'';
+    if(_fpEcRaw==='__addnew__')_fpEcRaw='';
+    endClientId=resolveEndClientId(_fpEcRaw)||null;
+    endClient=endClientId?endClientNameById(endClientId):_fpEcRaw}
 
   /* Resolve campaign — either selected or create new */
   var campaignId=(gel('fp-campaign')||{}).value||null;
@@ -2683,13 +2698,13 @@ async function saveFinancePayment(){
   var expDateEl=gel('fp-expected-date');
   var data={date:(gel('fp-date')||{}).value||null,category:cat,
     clientId:clientId,campaignId:campaignId,
-    endClient:endClient,notes:(gel('fp-notes')||{}).value||'',
+    endClient:endClient,endClientId:endClientId,notes:(gel('fp-notes')||{}).value||'',
     status:newStatus};
   if(expDateEl)data.expectedPaymentDate=expDateEl.value||null;
   var ok2=await dbEditFinancePayment(id,data);
   if(!ok2)return;
   p.date=data.date?new Date(data.date+'T00:00:00'):null;p.category=cat;
-  p.clientId=clientId;p.campaignId=campaignId;p.endClient=endClient;
+  p.clientId=clientId;p.campaignId=campaignId;p.endClient=endClient;p.endClientId=endClientId;
   p.notes=data.notes;p.status=newStatus;
   if('expectedPaymentDate' in data)p.expectedPaymentDate=data.expectedPaymentDate;
 
@@ -2701,11 +2716,11 @@ async function saveFinancePayment(){
     var bp=S.financePayments.find(function(fp){return fp.id===bId});
     if(!bp)continue;
     var bData={category:cat,clientId:clientId,campaignId:campaignId,
-      endClient:endClient,status:clientId?'matched':(cat==='Products'?'matched':'unmatched')};
+      endClient:endClient,endClientId:endClientId,status:clientId?'matched':(cat==='Products'?'matched':'unmatched')};
     var bok=await dbEditFinancePayment(bId,bData);
     if(bok){
       bp.category=cat;bp.clientId=clientId;bp.campaignId=campaignId;
-      bp.endClient=endClient;bp.status=bData.status;batchCount++}}
+      bp.endClient=endClient;bp.endClientId=endClientId;bp.status=bData.status;batchCount++}}
 
   var msg=batchCount>0?'Payment saved + '+batchCount+' more updated':'Payment saved';
   toast(msg,'ok');closeModal();render()}
@@ -3177,7 +3192,7 @@ function _readSplitForm(){
     var amtEl=gel('sp-amt-'+idx);if(amtEl)sp.amount=parseFloat(amtEl.value)||0;
     var catEl=gel('sp-cat-'+idx);if(catEl)sp.category=catEl.value||'';
     var ecEl=gel('sp-ec-'+idx);
-    if(ecEl){var ecVal=ecEl.value||'';sp.endClient=(ecVal==='__addnew__'?'':ecVal)}
+    if(ecEl){var ecVal=ecEl.value||'';if(ecVal==='__addnew__')ecVal='';var _spEcId=resolveEndClientId(ecVal)||null;sp.endClientId=_spEcId;sp.endClient=_spEcId?endClientNameById(_spEcId):ecVal}
     var cpEl=gel('sp-cp-'+idx);if(cpEl)sp.campaignId=cpEl.value||'';
     var ntEl=gel('sp-notes-'+idx);if(ntEl)sp.notes=ntEl.value||''})}
 
@@ -4520,9 +4535,10 @@ async function saveContact(){
   var email=(gel('fc-email')||{}).value||'';
   if(!firstName.trim()&&!lastName.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
   var ecVal=(gel('fc-end-client')||{}).value||'';if(ecVal==='__addnew__')ecVal='';
+  var _fcEcId=resolveEndClientId(ecVal)||null;var _fcEcName=_fcEcId?endClientNameById(_fcEcId):ecVal;
   await dbAddContact(clientId,{firstName:firstName.trim(),lastName:lastName.trim(),email:email.trim(),
     company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||'',
-    endClient:ecVal});
+    endClient:_fcEcName,endClientId:_fcEcId});
   closeModal();
   /* Invalidate CRM + domain caches so pills/smart inboxes update */
   _buildDomainMap();S._threadCrmCache={};
@@ -4537,11 +4553,12 @@ async function saveEditContact(){
   var lastName=(gel('fc-last-name')||{}).value||'';
   var email=(gel('fc-email')||{}).value||'';
   var ecVal=(gel('fc-end-client')||{}).value||'';if(ecVal==='__addnew__')ecVal='';
+  var _fcEcId2=resolveEndClientId(ecVal)||null;var _fcEcName2=_fcEcId2?endClientNameById(_fcEcId2):ecVal;
   if(!firstName.trim()&&!lastName.trim()&&!email.trim()){toast('Enter at least a name or email','warn');return}
   var clientId=(gel('fc-client-id')||{}).value||null;
   await dbEditContact(id,{firstName:firstName.trim(),lastName:lastName.trim(),email:email.trim(),
     company:(gel('fc-company')||{}).value||'',role:(gel('fc-role')||{}).value||'',phone:(gel('fc-phone')||{}).value||'',
-    endClient:ecVal,clientId:clientId});
+    endClient:_fcEcName2,endClientId:_fcEcId2,clientId:clientId});
   closeModal();
   if(S._lastEndClientDash)openEndClientDetailModal(S._lastEndClientDash);
   else if(S._lastClientDash)openClientDashboard(S._lastClientDash)}

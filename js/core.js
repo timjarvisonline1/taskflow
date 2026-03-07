@@ -624,7 +624,7 @@ async function loadTasks(){
   if(res.error){console.error('loadTasks:',res.error);return}
   S.tasks=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,due:r.due?new Date(r.due+'T00:00:00'):null,importance:r.importance||'When Time Allows',est:r.est||0,
-      category:r.category||'',client:r.client||'',endClient:r.end_client||'',type:r.type||'Business',
+      category:r.category||'',client:r.client||'',endClient:r.end_client||'',endClientId:r.end_client_id||null,type:r.type||'Business',
       duration:r.duration||0,notes:r.notes||'',status:r.status||'Planned',flag:!!r.flag,campaign:r.campaign||'',meetingKey:r.meeting_key||'',project:r.project||'',phase:r.phase||'',opportunity:r.opportunity||'',isInbox:!!r.is_inbox,emailThreadId:r.email_thread_id||''}})}
 
 async function loadDone(){
@@ -632,7 +632,7 @@ async function loadDone(){
   if(res.error){console.error('loadDone:',res.error);return}
   S.done=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,completed:r.completed?new Date(r.completed):new Date(),due:r.due?new Date(r.due+'T00:00:00'):null,
-      importance:r.importance||'',category:r.category||'',client:r.client||'',endClient:r.end_client||'',
+      importance:r.importance||'',category:r.category||'',client:r.client||'',endClient:r.end_client||'',endClientId:r.end_client_id||null,
       type:r.type||'Business',duration:r.duration||0,est:r.est||0,notes:r.notes||'',campaign:r.campaign||'',project:r.project||'',phase:r.phase||'',opportunity:r.opportunity||''}})}
 
 async function loadClients(){
@@ -647,7 +647,7 @@ async function loadReview(){
   if(res.error){console.error('loadReview:',res.error);return}
   S.review=(res.data||[]).map(function(r){
     return{id:r.id,item:r.item,notes:r.notes||'',importance:r.importance||'Important',
-      category:r.category||'',client:r.client||'',endClient:r.end_client||'',
+      category:r.category||'',client:r.client||'',endClient:r.end_client||'',endClientId:r.end_client_id||null,
       type:r.type||'Business',est:r.est||0,due:r.due?new Date(r.due+'T00:00:00'):null,
       source:r.source||'',created:r.created?new Date(r.created):new Date(),campaign:r.campaign||''}})}
 
@@ -655,7 +655,7 @@ async function loadCampaigns(){
   var res=await _sb.from('campaigns').select('*').order('created_at',{ascending:false});
   if(res.error){console.error('loadCampaigns:',res.error);return}
   S.campaigns=(res.data||[]).map(function(r){
-    return{id:r.id,name:r.name||'',partner:r.partner||'',endClient:r.end_client||'',
+    return{id:r.id,name:r.name||'',partner:r.partner||'',endClient:r.end_client||'',endClientId:r.end_client_id||null,
       status:r.status||'Setup',platform:r.platform||'',
       strategyFee:parseFloat(r.strategy_fee)||0,setupFee:parseFloat(r.setup_fee)||0,
       monthlyFee:parseFloat(r.monthly_fee)||0,monthlyAdSpend:parseFloat(r.monthly_ad_spend)||0,
@@ -723,7 +723,7 @@ async function loadOpportunities(){
   S.opportunities=(res.data||[]).map(function(r){
     return{id:r.id,name:r.name||'',description:r.description||'',stage:r.stage||'Lead',
       type:r.type||'fc_partnership',
-      client:r.client||'',endClient:r.end_client||'',contactName:r.contact_name||'',contactEmail:r.contact_email||'',
+      client:r.client||'',endClient:r.end_client||'',endClientId:r.end_client_id||null,contactName:r.contact_name||'',contactEmail:r.contact_email||'',
       strategyFee:parseFloat(r.strategy_fee)||0,setupFee:parseFloat(r.setup_fee)||0,
       monthlyFee:parseFloat(r.monthly_fee)||0,monthlyAdSpend:parseFloat(r.monthly_ad_spend)||0,
       probability:r.probability||50,
@@ -774,7 +774,7 @@ async function loadFinancePayments(){
       fee:parseFloat(r.fee)||0,net:parseFloat(r.net)||0,source:r.source||'',sourceId:r.source_id||'',
       payerEmail:r.payer_email||'',payerName:r.payer_name||'',description:r.description||'',
       category:r.category||'',clientId:r.client_id||'',campaignId:r.campaign_id||'',
-      endClient:r.end_client||'',notes:r.notes||'',status:r.status||'unmatched',
+      endClient:r.end_client||'',endClientId:r.end_client_id||null,notes:r.notes||'',status:r.status||'unmatched',
       direction:r.direction||'inflow',type:r.type||'payment',externalStatus:r.external_status||'',
       linkedTransactionId:r.linked_transaction_id||'',pendingAmount:parseFloat(r.pending_amount)||0,
       metadata:r.metadata||{},expectedPaymentDate:r.expected_payment_date||null,
@@ -802,7 +802,7 @@ async function loadContacts(){
   S.contacts=(res.data||[]).map(function(r){
     return{id:r.id,clientId:r.client_id||'',firstName:r.first_name||'',lastName:r.last_name||'',
       email:r.email||'',role:r.role||'',phone:r.phone||'',company:r.company||'',
-      website:r.website||'',status:r.status||'active',endClient:r.end_client||''}});
+      website:r.website||'',status:r.status||'active',endClient:r.end_client||'',endClientId:r.end_client_id||null}});
   _buildDomainMap()}
 
 /* Build domain → end-client/client map from contacts with endClient + email */
@@ -1078,21 +1078,29 @@ function getThreadCrmContext(t){
 
 async function dbAddContact(clientId,data){
   var uid=await getUserId();if(!uid)return null;
-  if(data.endClient){
+  var _ecId=resolveEndClientId(data.endClient)||data.endClientId||null;
+  var _ecName=_ecId?endClientNameById(_ecId):data.endClient||'';
+  if(data.endClient&&!_ecId){
     var _cr=clientId?(S.clientRecords||[]).find(function(r){return r.id===clientId}):null;
-    ensureEndClientExists(data.endClient,_cr?_cr.name:'')}/* fire-and-forget */
+    var _ecRec=await ensureEndClientExists(data.endClient,_cr?_cr.name:'');
+    if(_ecRec){_ecId=_ecRec.id;_ecName=_ecRec.name}}
   var row={user_id:uid,client_id:clientId||null,first_name:data.firstName||'',last_name:data.lastName||'',
     email:data.email||'',role:data.role||'',phone:data.phone||'',
     company:data.company||'',website:data.website||'',status:data.status||'active',
-    end_client:data.endClient||''};
+    end_client:_ecName,end_client_id:_ecId};
   var res=await _sb.from('contacts').insert(row).select().single();
   if(res.error){toast('Add contact failed: '+res.error.message,'warn');return null}
   await loadContacts();render();toast('Contact added','ok');return res.data}
 
 async function dbEditContact(id,data){
-  if(data.endClient){
-    var _ec=data.clientId?(S.clientRecords||[]).find(function(r){return r.id===data.clientId}):null;
-    ensureEndClientExists(data.endClient,_ec?_ec.name:'')}/* fire-and-forget */
+  if(data.endClient!==undefined||data.endClientId!==undefined){
+    var _ecId2=resolveEndClientId(data.endClient)||data.endClientId||null;
+    var _ecName2=_ecId2?endClientNameById(_ecId2):data.endClient||'';
+    if(data.endClient&&!_ecId2){
+      var _ec=data.clientId?(S.clientRecords||[]).find(function(r){return r.id===data.clientId}):null;
+      var _ecRec2=await ensureEndClientExists(data.endClient,_ec?_ec.name:'');
+      if(_ecRec2){_ecId2=_ecRec2.id;_ecName2=_ecRec2.name}}
+    data.endClient=_ecName2;data.endClientId=_ecId2}
   var upd={};
   if(data.firstName!==undefined)upd.first_name=data.firstName;
   if(data.lastName!==undefined)upd.last_name=data.lastName;
@@ -1103,6 +1111,7 @@ async function dbEditContact(id,data){
   if(data.website!==undefined)upd.website=data.website;
   if(data.status!==undefined)upd.status=data.status;
   if(data.endClient!==undefined)upd.end_client=data.endClient;
+  if(data.endClientId!==undefined)upd.end_client_id=data.endClientId||null;
   if(data.clientId!==undefined)upd.client_id=data.clientId||null;
   var res=await _sb.from('contacts').update(upd).eq('id',id);
   if(res.error){toast('Edit contact failed: '+res.error.message,'warn');return false}
@@ -1120,7 +1129,7 @@ async function loadMeetings(){
     /* Load only list-view fields (no transcript/summary — too large for 1000+ meetings).
        Full data is fetched on-demand when a meeting is opened.
        Paginate past Supabase 1000-row default limit. */
-    var cols='id,session_id,title,start_time,end_time,duration_minutes,participants,owner_name,owner_email,report_url,video_storage_path,video_size_bytes,client_id,end_client,campaign_id,opportunity_id,source,ai_tasks_generated,ai_suggestions,action_items,created_at';
+    var cols='id,session_id,title,start_time,end_time,duration_minutes,participants,owner_name,owner_email,report_url,video_storage_path,video_size_bytes,client_id,end_client,end_client_id,campaign_id,opportunity_id,source,ai_tasks_generated,ai_suggestions,action_items,created_at';
     var allRows=[],pageSize=1000,from=0;
     while(true){
       var res=await _sb.from('meetings').select(cols).order('start_time',{ascending:false}).range(from,from+pageSize-1);
@@ -1141,7 +1150,7 @@ async function loadMeetings(){
       topics:[],chapterSummaries:[],
       reportUrl:r.report_url||'',
       videoStoragePath:r.video_storage_path||'',videoSizeBytes:r.video_size_bytes||0,
-      clientId:r.client_id,endClient:r.end_client||'',
+      clientId:r.client_id,endClient:r.end_client||'',endClientId:r.end_client_id||null,
       campaignId:r.campaign_id,opportunityId:r.opportunity_id,
       source:r.source||'readai',aiTasksGenerated:!!r.ai_tasks_generated,aiSuggestions:r.ai_suggestions||[],createdAt:r.created_at}});
     S.meetingsPage=1;
@@ -1151,6 +1160,7 @@ async function dbEditMeeting(id,data){
   var upd={updated_at:new Date().toISOString()};
   if(data.clientId!==undefined)upd.client_id=data.clientId||null;
   if(data.endClient!==undefined)upd.end_client=data.endClient;
+  if(data.endClientId!==undefined)upd.end_client_id=data.endClientId||null;
   if(data.campaignId!==undefined)upd.campaign_id=data.campaignId||null;
   if(data.opportunityId!==undefined)upd.opportunity_id=data.opportunityId||null;
   if(data.actionItems!==undefined)upd.action_items=data.actionItems;
@@ -1194,7 +1204,7 @@ function setMeetingsPage(p){S.meetingsPage=p;render();window.scrollTo(0,0)}
 async function setMeetingCrm(meetingId,field,value){
   var data={};
   if(field==='client_id')data.clientId=value||null;
-  else if(field==='end_client')data.endClient=value||'';
+  else if(field==='end_client'){var _ecId=resolveEndClientId(value)||null;data.endClient=_ecId?endClientNameById(_ecId):value||'';data.endClientId=_ecId}
   else if(field==='campaign_id')data.campaignId=value||null;
   else if(field==='opportunity_id')data.opportunityId=value||null;
   var ok=await dbEditMeeting(meetingId,data);
@@ -1202,7 +1212,7 @@ async function setMeetingCrm(meetingId,field,value){
   var m=S.meetings.find(function(mt){return mt.id===meetingId});
   if(m){
     if(data.clientId!==undefined)m.clientId=data.clientId;
-    if(data.endClient!==undefined)m.endClient=data.endClient;
+    if(data.endClient!==undefined){m.endClient=data.endClient;m.endClientId=data.endClientId||null}
     if(data.campaignId!==undefined)m.campaignId=data.campaignId;
     if(data.opportunityId!==undefined)m.opportunityId=data.opportunityId;
     if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m}
@@ -1321,7 +1331,7 @@ async function dbAddFinancePayment(data){
     net:data.net||0,source:data.source||'manual',source_id:data.sourceId||'',
     payer_email:data.payerEmail||'',payer_name:data.payerName||'',description:data.description||'',
     category:data.category||'',client_id:data.clientId||null,campaign_id:data.campaignId||null,
-    end_client:data.endClient||'',notes:data.notes||'',status:data.status||'unmatched'};
+    end_client:data.endClient||'',end_client_id:resolveEndClientId(data.endClient)||data.endClientId||null,notes:data.notes||'',status:data.status||'unmatched'};
   var res=await _sb.from('finance_payments').insert(row).select().single();
   if(res.error){toast('Payment save failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -1333,6 +1343,7 @@ async function dbEditFinancePayment(id,data){
   if('clientId' in data)row.client_id=data.clientId||null;
   if('campaignId' in data)row.campaign_id=data.campaignId||null;
   if('endClient' in data)row.end_client=data.endClient||'';
+  if('endClient' in data||'endClientId' in data)row.end_client_id=resolveEndClientId(data.endClient)||data.endClientId||null;
   if('notes' in data)row.notes=data.notes||'';
   if('status' in data)row.status=data.status||'unmatched';
   if('expectedPaymentDate' in data)row.expected_payment_date=data.expectedPaymentDate||null;
@@ -1362,13 +1373,13 @@ async function loadFinancePaymentSplits(){
   if(res.error){console.error('loadFinancePaymentSplits:',res.error);return}
   S.financePaymentSplits=(res.data||[]).map(function(r){
     return{id:r.id,paymentId:r.payment_id,amount:parseFloat(r.amount)||0,
-      category:r.category||'',endClient:r.end_client||'',campaignId:r.campaign_id||'',
+      category:r.category||'',endClient:r.end_client||'',endClientId:r.end_client_id||null,campaignId:r.campaign_id||'',
       notes:r.notes||''}})}
 
 async function dbAddFinancePaymentSplit(data){
   var uid=await getUserId();if(!uid)return null;
   var row={user_id:uid,payment_id:data.paymentId,amount:data.amount||0,
-    category:data.category||'',end_client:data.endClient||'',
+    category:data.category||'',end_client:data.endClient||'',end_client_id:resolveEndClientId(data.endClient)||data.endClientId||null,
     campaign_id:data.campaignId||null,notes:data.notes||''};
   var res=await _sb.from('finance_payment_splits').insert(row).select().single();
   if(res.error){toast('Split save failed: '+res.error.message,'warn');return null}
@@ -1376,7 +1387,7 @@ async function dbAddFinancePaymentSplit(data){
 
 async function dbEditFinancePaymentSplit(id,data){
   var row={amount:data.amount||0,category:data.category||'',
-    end_client:data.endClient||'',campaign_id:data.campaignId||null,notes:data.notes||''};
+    end_client:data.endClient||'',end_client_id:resolveEndClientId(data.endClient)||data.endClientId||null,campaign_id:data.campaignId||null,notes:data.notes||''};
   var res=await _sb.from('finance_payment_splits').update(row).eq('id',id);
   if(res.error){toast('Split update failed: '+res.error.message,'warn');return false}
   return true}
@@ -2231,15 +2242,17 @@ async function threadCrmSave(){
   var oppId=(gel('thread-crm-opportunity')||{}).value||'';
   var none=gel('thread-crm-none');
   var isNone=none&&none.checked;
+  var _ecId=resolveEndClientId(ec)||null;
   var updates={
     client_id:isNone?null:(client||null),
     end_client:isNone?'':(ec||''),
+    end_client_id:isNone?null:_ecId,
     campaign_id:isNone?null:(campId||null),
     opportunity_id:isNone?null:(oppId||null)};
   await _sb.from('gmail_threads').update(updates).eq('user_id',uid).eq('thread_id',threadId);
   /* Update local cache */
   var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
-  if(cached){cached.client_id=updates.client_id;cached.end_client=updates.end_client;
+  if(cached){cached.client_id=updates.client_id;cached.end_client=updates.end_client;cached.end_client_id=updates.end_client_id;
     cached.campaign_id=updates.campaign_id;cached.opportunity_id=updates.opportunity_id}
   S._threadCrmCache={};
   /* Update email timer categorization */
@@ -3366,7 +3379,7 @@ async function _applyRuleActionsToThread(threadId,actions){
   var updates={};
   actions.forEach(function(act){
     if(act.type==='assign_client')updates.client_id=act.value||null;
-    else if(act.type==='assign_end_client')updates.end_client=act.value||'';
+    else if(act.type==='assign_end_client'){updates.end_client=act.value||'';updates.end_client_id=resolveEndClientId(act.value)||null}
     else if(act.type==='assign_campaign')updates.campaign_id=act.value||null;
     else if(act.type==='assign_opportunity')updates.opportunity_id=act.value||null});
   if(Object.keys(updates).length){
@@ -3882,7 +3895,7 @@ async function loadData(){toast('Loading data...','info');
     /* Trigger AI email analysis for unanalyzed threads (background, non-blocking) */
     setTimeout(function(){analyzeNewEmails()},500);
     /* Backfill end_clients table from string data across all entities */
-    setTimeout(function(){syncEndClientRecords()},200);
+    setTimeout(function(){syncEndClientRecords().then(backfillEndClientIds)},200);
     /* Start periodic knowledge base sync (embeds all entity data) */
     startKnowledgeSync();
   }catch(e){toast(''+e.message,'warn')}
@@ -3893,8 +3906,11 @@ async function loadData(){toast('Loading data...','info');
 
 async function dbAddTask(taskData){
   var uid=await getUserId();if(!uid)return null;
+  var _ecId=resolveEndClientId(taskData.endClient)||taskData.endClientId||null;
+  var _ecName=_ecId?endClientNameById(_ecId):taskData.endClient||'';
+  if(taskData.endClient&&!_ecId){var _ecRec=await ensureEndClientExists(taskData.endClient,taskData.client||'');if(_ecRec){_ecId=_ecRec.id;_ecName=_ecRec.name}}
   var row={user_id:uid,item:taskData.item,due:taskData.due||null,importance:taskData.importance||'When Time Allows',
-    est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:taskData.endClient||'',
+    est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:_ecName,end_client_id:_ecId,
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
     flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||'',
     project:taskData.project||'',phase:taskData.phase||'',opportunity:taskData.opportunity||'',is_inbox:!!taskData.isInbox};
@@ -3903,12 +3919,14 @@ async function dbAddTask(taskData){
   return res.data}
 
 async function dbEditTask(id,taskData){
+  var _ecId=resolveEndClientId(taskData.endClient)||taskData.endClientId||null;
+  var _ecName=_ecId?endClientNameById(_ecId):taskData.endClient||'';
+  if(taskData.endClient&&!_ecId){var _ecRec=await ensureEndClientExists(taskData.endClient,taskData.client||'');if(_ecRec){_ecId=_ecRec.id;_ecName=_ecRec.name}}
   var row={item:taskData.item,due:taskData.due||null,importance:taskData.importance||'When Time Allows',
-    est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:taskData.endClient||'',
+    est:taskData.est||0,category:taskData.category||'',client:taskData.client||'',end_client:_ecName,end_client_id:_ecId,
     type:taskData.type||'Business',notes:taskData.notes||'',status:taskData.status||'Planned',
     flag:!!taskData.flag,campaign:taskData.campaign||'',duration:taskData.duration||0,meeting_key:taskData.meetingKey||'',
     project:taskData.project||'',phase:taskData.phase||'',opportunity:taskData.opportunity||'',is_inbox:!!taskData.isInbox};
-  if(taskData.endClient)ensureEndClientExists(taskData.endClient,taskData.client);/* fire-and-forget */
   var res=await _sb.from('tasks').update(row).eq('id',id);
   if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
   return true}
@@ -3928,10 +3946,12 @@ async function dbDeleteTask(id){
 
 async function dbCompleteTask(taskData){
   var uid=await getUserId();if(!uid)return null;
+  var _ecId=resolveEndClientId(taskData.endClient)||taskData.endClientId||null;
+  var _ecName=_ecId?endClientNameById(_ecId):taskData.endClient||'';
   var row={user_id:uid,item:taskData.item,completed:new Date().toISOString(),
     due:taskData.due?taskData.due.toISOString().split('T')[0]:null,
     importance:taskData.importance||'',category:taskData.category||'',
-    client:taskData.client||'',end_client:taskData.endClient||'',type:taskData.type||'Business',
+    client:taskData.client||'',end_client:_ecName,end_client_id:_ecId,type:taskData.type||'Business',
     duration:taskData.duration||0,est:taskData.est||0,notes:taskData.notes||'',campaign:taskData.campaign||'',
     project:taskData.project||'',phase:taskData.phase||'',opportunity:taskData.opportunity||''};
   var res=await _sb.from('done').insert(row).select().single();
@@ -3953,8 +3973,10 @@ async function dbDeleteReview(id){
 
 async function dbAddCampaign(data){
   var uid=await getUserId();if(!uid)return null;
-  if(data.endClient)ensureEndClientExists(data.endClient,data.partner);/* fire-and-forget */
-  var row={user_id:uid,name:data.name,partner:data.partner||'',end_client:data.endClient||'',
+  var _ecId=resolveEndClientId(data.endClient)||data.endClientId||null;
+  var _ecName=_ecId?endClientNameById(_ecId):data.endClient||'';
+  if(data.endClient&&!_ecId){var _ecRec=await ensureEndClientExists(data.endClient,data.partner||'');if(_ecRec){_ecId=_ecRec.id;_ecName=_ecRec.name}}
+  var row={user_id:uid,name:data.name,partner:data.partner||'',end_client:_ecName,end_client_id:_ecId,
     status:data.status||'Setup',platform:data.platform||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,
     monthly_fee:data.monthlyFee||0,monthly_ad_spend:data.monthlyAdSpend||0,
@@ -3972,11 +3994,16 @@ async function dbAddCampaign(data){
   return res.data}
 
 async function dbEditCampaign(id,data){
-  if(data.endClient)ensureEndClientExists(data.endClient,data.partner);/* fire-and-forget */
+  if('endClient' in data||'endClientId' in data){
+    var _ecId=resolveEndClientId(data.endClient)||data.endClientId||null;
+    var _ecName=_ecId?endClientNameById(_ecId):data.endClient||'';
+    if(data.endClient&&!_ecId){var _ecRec=await ensureEndClientExists(data.endClient,data.partner||'');if(_ecRec){_ecId=_ecRec.id;_ecName=_ecRec.name}}
+    data.endClient=_ecName;data.endClientId=_ecId}
   var row={};
   if('name' in data)row.name=data.name;
   if('partner' in data)row.partner=data.partner||'';
   if('endClient' in data)row.end_client=data.endClient||'';
+  if('endClientId' in data)row.end_client_id=data.endClientId||null;
   if('status' in data)row.status=data.status||'Setup';
   if('platform' in data)row.platform=data.platform||'';
   if('strategyFee' in data)row.strategy_fee=data.strategyFee||0;
@@ -4092,10 +4119,12 @@ async function dbDeletePhase(id){
 /* ═══════════ OPPORTUNITY CRUD ═══════════ */
 async function dbAddOpportunity(data){
   var uid=await getUserId();if(!uid)return null;
-  if(data.endClient)ensureEndClientExists(data.endClient,data.client);/* fire-and-forget */
+  var _ecId=resolveEndClientId(data.endClient)||data.endClientId||null;
+  var _ecName=_ecId?endClientNameById(_ecId):data.endClient||'';
+  if(data.endClient&&!_ecId){var _ecRec=await ensureEndClientExists(data.endClient,data.client||'');if(_ecRec){_ecId=_ecRec.id;_ecName=_ecRec.name}}
   var row={user_id:uid,name:data.name,description:data.description||'',stage:data.stage||'Lead',
     type:data.type||'fc_partnership',
-    client:data.client||'',end_client:data.endClient||'',contact_name:data.contactName||'',contact_email:data.contactEmail||'',
+    client:data.client||'',end_client:_ecName,end_client_id:_ecId,contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
     monthly_ad_spend:data.monthlyAdSpend||0,
     probability:data.probability||50,expected_close:data.expectedClose||null,
@@ -4111,10 +4140,12 @@ async function dbAddOpportunity(data){
   return res.data}
 
 async function dbEditOpportunity(id,data){
-  if(data.endClient)ensureEndClientExists(data.endClient,data.client);/* fire-and-forget */
+  var _ecId=resolveEndClientId(data.endClient)||data.endClientId||null;
+  var _ecName=_ecId?endClientNameById(_ecId):data.endClient||'';
+  if(data.endClient&&!_ecId){var _ecRec=await ensureEndClientExists(data.endClient,data.client||'');if(_ecRec){_ecId=_ecRec.id;_ecName=_ecRec.name}}
   var row={name:data.name,description:data.description||'',stage:data.stage||'Lead',
     type:data.type||'fc_partnership',
-    client:data.client||'',end_client:data.endClient||'',contact_name:data.contactName||'',contact_email:data.contactEmail||'',
+    client:data.client||'',end_client:_ecName,end_client_id:_ecId,contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
     monthly_ad_spend:data.monthlyAdSpend||0,
     probability:data.probability||50,expected_close:data.expectedClose||null,
@@ -4202,6 +4233,19 @@ async function dbDeleteEndClient(id){
   if(res.error){toast('End client delete failed: '+res.error.message,'warn');return false}
   await loadEndClients();render();return true}
 
+/* Resolve an end-client value (UUID or name string) to a UUID. Returns null if not found. */
+function resolveEndClientId(val){
+  if(!val||val==='__addnew__')return null;
+  if(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val))return val;
+  var ec=(S.endClients||[]).find(function(e){return e.name===val});
+  return ec?ec.id:null}
+
+/* Look up end-client name by UUID. Returns '' if not found. */
+function endClientNameById(id){
+  if(!id)return '';
+  var ec=(S.endClients||[]).find(function(e){return e.id===id});
+  return ec?ec.name:''}
+
 /* Ensure an end_clients record exists for a given name. Lightweight — skips if already in S.endClients.
    Returns the end_clients record {id, name, clientId} or null. Does NOT render/reload — caller handles that. */
 async function ensureEndClientExists(ecName,clientName){
@@ -4251,6 +4295,14 @@ async function syncEndClientRecords(){
     return{user_id:uid,name:ecName,client_id:cr?cr.id:null,notes:'',status:'active'}});
   await _sb.from('end_clients').upsert(rows,{onConflict:'user_id,name',ignoreDuplicates:true});
   await loadEndClients()}
+
+/* Backfill: set end_client_id on any rows that have end_client text but null end_client_id */
+async function backfillEndClientIds(){
+  var tables=['tasks','done','review','campaigns','opportunities','contacts','finance_payments','finance_payment_splits','knowledge_chunks','meetings','gmail_threads'];
+  for(var i=0;i<(S.endClients||[]).length;i++){
+    var ec=S.endClients[i];
+    tables.forEach(function(t){
+      _sb.from(t).update({end_client_id:ec.id}).eq('end_client',ec.name).is('end_client_id',null)})}}
 
 function setEcSort(v){
   var cur=S.ecSort||'name';
@@ -4410,18 +4462,22 @@ async function _crSubmit(idx){
   if(isEC){
     /* End Client mode */
     var ecSel=gel('cr-ec');
-    var ecName=ecSel?ecSel.value:'';
+    var ecRaw=ecSel?ecSel.value:'';
     /* Handle text input (from ecAddNew) */
-    if(ecSel&&ecSel.tagName==='INPUT')ecName=ecSel.value.trim();
-    if(!ecName||ecName==='__addnew__'){toast('Select an end client','warn');return}
+    if(ecSel&&ecSel.tagName==='INPUT')ecRaw=ecSel.value.trim();
+    if(!ecRaw||ecRaw==='__addnew__'){toast('Select an end client','warn');return}
+    /* Resolve UUID vs name */
+    var ecId=resolveEndClientId(ecRaw)||null;
+    var ecName=ecId?endClientNameById(ecId):ecRaw;
     /* Ensure end-client record exists in end_clients table */
-    await ensureEndClientExists(ecName,selectedClientName)
+    var ecRec=await ensureEndClientExists(ecName,selectedClientName);
+    if(ecRec&&!ecId)ecId=ecRec.id;
     /* Update or create contact with endClient */
     if(c.existingContactId){
-      await dbEditContact(c.existingContactId,{endClient:ecName,clientId:selectedClientId})}
+      await dbEditContact(c.existingContactId,{endClient:ecName,endClientId:ecId,clientId:selectedClientId})}
     else{
       var parts=(c.name||'').split(' ');
-      await dbAddContact(selectedClientId,{firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',email:c.email,endClient:ecName})}
+      await dbAddContact(selectedClientId,{firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',email:c.email,endClient:ecName,endClientId:ecId})}
     toast('Contact linked to '+ecName,'ok')}
   else{
     /* Client mode — add/update as contact under selected client */

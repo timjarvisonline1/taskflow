@@ -166,6 +166,7 @@ async function batchProcess(client, userId, openaiKey, sourceType, entityChunks)
       content: e.chunk.content,
       client_id: meta.client_id || null,
       end_client: meta.end_client || '',
+      end_client_id: meta.end_client_id || null,
       campaign_id: meta.campaign_id || null,
       date: meta.date || null,
       people: meta.people || [],

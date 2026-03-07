@@ -40,7 +40,7 @@ function chunkTask(task) {
     content: parts.join('\n'),
     metadata: {
       client_id: null,
-      end_client: task.end_client || '',
+      end_client: task.end_client || '', end_client_id: task.end_client_id || null,
       campaign_id: null,
       date: task.due || task.created_at || null,
       people: []
@@ -74,7 +74,7 @@ function chunkCompletedTask(task) {
     content: parts.join('\n'),
     metadata: {
       client_id: null,
-      end_client: task.end_client || '',
+      end_client: task.end_client || '', end_client_id: task.end_client_id || null,
       campaign_id: null,
       date: task.completed || null,
       people: []
@@ -111,7 +111,7 @@ function chunkClient(client, notes) {
         title: 'Client: ' + client.name + (chunks.length > 1 ? ' (Part ' + (i + 1) + ')' : ''),
         content: tc,
         metadata: {
-          client_id: client.id, end_client: '', campaign_id: null,
+          client_id: client.id, end_client: '', end_client_id: null, campaign_id: null,
           date: client.created_at || null, people: client.email ? [client.email] : []
         }
       };
@@ -122,7 +122,7 @@ function chunkClient(client, notes) {
     title: 'Client: ' + client.name,
     content: content,
     metadata: {
-      client_id: client.id, end_client: '', campaign_id: null,
+      client_id: client.id, end_client: '', end_client_id: null, campaign_id: null,
       date: client.created_at || null, people: client.email ? [client.email] : []
     }
   }];
@@ -175,7 +175,7 @@ function chunkCampaign(campaign, notes) {
         title: 'Campaign: ' + campaign.name + (chunks.length > 1 ? ' (Part ' + (i + 1) + ')' : ''),
         content: tc,
         metadata: {
-          client_id: null, end_client: campaign.end_client || '',
+          client_id: null, end_client: campaign.end_client || '', end_client_id: campaign.end_client_id || null,
           campaign_id: campaign.id, date: campaign.created_at || null, people: []
         }
       };
@@ -186,7 +186,7 @@ function chunkCampaign(campaign, notes) {
     title: 'Campaign: ' + campaign.name,
     content: content,
     metadata: {
-      client_id: null, end_client: campaign.end_client || '',
+      client_id: null, end_client: campaign.end_client || '', end_client_id: campaign.end_client_id || null,
       campaign_id: campaign.id, date: campaign.created_at || null, people: []
     }
   }];
@@ -211,7 +211,7 @@ function chunkContact(contact) {
     title: 'Contact: ' + (fullName || contact.email || 'Unnamed'),
     content: parts.join('\n'),
     metadata: {
-      client_id: contact.client_id || null, end_client: contact.end_client || '',
+      client_id: contact.client_id || null, end_client: contact.end_client || '', end_client_id: contact.end_client_id || null,
       campaign_id: null, date: contact.created_at || null,
       people: [fullName || contact.email || ''].filter(Boolean)
     }
@@ -249,7 +249,7 @@ function chunkProject(project, phases) {
       return {
         title: 'Project: ' + project.name + (chunks.length > 1 ? ' (Part ' + (i + 1) + ')' : ''),
         content: tc,
-        metadata: { client_id: null, end_client: '', campaign_id: null, date: project.created_at || null, people: [] }
+        metadata: { client_id: null, end_client: '', end_client_id: null, campaign_id: null, date: project.created_at || null, people: [] }
       };
     });
   }
@@ -257,7 +257,7 @@ function chunkProject(project, phases) {
   return [{
     title: 'Project: ' + project.name,
     content: content,
-    metadata: { client_id: null, end_client: '', campaign_id: null, date: project.created_at || null, people: [] }
+    metadata: { client_id: null, end_client: '', end_client_id: null, campaign_id: null, date: project.created_at || null, people: [] }
   }];
 }
 
@@ -303,7 +303,7 @@ function chunkOpportunity(opp) {
         title: 'Opportunity: ' + opp.name + (chunks.length > 1 ? ' (Part ' + (i + 1) + ')' : ''),
         content: tc,
         metadata: {
-          client_id: null, end_client: opp.end_client || '', campaign_id: null,
+          client_id: null, end_client: opp.end_client || '', end_client_id: opp.end_client_id || null, campaign_id: null,
           date: opp.expected_close || opp.created_at || null,
           people: opp.contact_name ? [opp.contact_name] : []
         }
@@ -315,7 +315,7 @@ function chunkOpportunity(opp) {
     title: 'Opportunity: ' + opp.name,
     content: content,
     metadata: {
-      client_id: null, end_client: opp.end_client || '', campaign_id: null,
+      client_id: null, end_client: opp.end_client || '', end_client_id: opp.end_client_id || null, campaign_id: null,
       date: opp.expected_close || opp.created_at || null,
       people: opp.contact_name ? [opp.contact_name] : []
     }
@@ -344,7 +344,7 @@ function chunkActivityLogs(taskId, taskItem, logs) {
       return {
         title: 'Activity: ' + (taskItem || taskId).substring(0, 120) + (chunks.length > 1 ? ' (Part ' + (i + 1) + ')' : ''),
         content: tc,
-        metadata: { client_id: null, end_client: '', campaign_id: null, date: logs[0].ts || null, people: [] }
+        metadata: { client_id: null, end_client: '', end_client_id: null, campaign_id: null, date: logs[0].ts || null, people: [] }
       };
     });
   }
@@ -352,7 +352,7 @@ function chunkActivityLogs(taskId, taskItem, logs) {
   return [{
     title: 'Activity: ' + (taskItem || taskId).substring(0, 120),
     content: content,
-    metadata: { client_id: null, end_client: '', campaign_id: null, date: logs[0].ts || null, people: [] }
+    metadata: { client_id: null, end_client: '', end_client_id: null, campaign_id: null, date: logs[0].ts || null, people: [] }
   }];
 }
 
@@ -378,7 +378,7 @@ function chunkFinancePayment(payment) {
     title: dir + ': ' + (payment.description || payment.payer_name || 'Unnamed') + ' ($' + amt + ')',
     content: parts.join('\n'),
     metadata: {
-      client_id: payment.client_id || null, end_client: payment.end_client || '',
+      client_id: payment.client_id || null, end_client: payment.end_client || '', end_client_id: payment.end_client_id || null,
       campaign_id: payment.campaign_id || null, date: payment.date || null,
       people: payment.payer_name ? [payment.payer_name] : []
     }
@@ -407,7 +407,7 @@ function chunkScheduledItem(item) {
     title: 'Recurring: ' + item.name + ' ($' + amt + '/' + (item.frequency || 'mo') + ')',
     content: parts.join('\n'),
     metadata: {
-      client_id: item.client_id || null, end_client: '', campaign_id: null,
+      client_id: item.client_id || null, end_client: '', end_client_id: null, campaign_id: null,
       date: item.next_due || null, people: []
     }
   }];
@@ -434,7 +434,7 @@ function chunkTeamMember(member) {
     title: 'Team: ' + member.name + (member.role ? ' (' + member.role + ')' : ''),
     content: parts.join('\n'),
     metadata: {
-      client_id: null, end_client: '', campaign_id: null,
+      client_id: null, end_client: '', end_client_id: null, campaign_id: null,
       date: member.start_date || null, people: [member.name]
     }
   }];

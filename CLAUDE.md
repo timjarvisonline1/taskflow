@@ -20,20 +20,22 @@ Browser (client JS)                   Vercel Serverless Functions
 │ js/core.js          │──sync─────▶  │ api/sync/        (per-platform)│
 │ js/views.js         │──gmail────▶  │ api/gmail/       (email ops)  │
 │ js/modals.js        │──auth─────▶  │ api/auth/        (OAuth flows)│
-│ js/features.js      │              │ api/cron/        (periodic)   │
-│ js/app.js           │              └──────────┬───────────────────┘
-│ css/core.css        │                         │ service role key
-│ css/components.css  │                         ▼
-│ css/features.css    │  ◀──anon key + RLS──▶  Supabase
-└─────────────────────┘                         (PostgreSQL + Auth)
+│ js/features.js      │              │ api/knowledge/   (KB/RAG)     │
+│ js/app.js           │              │ api/cron/        (periodic)   │
+│ css/core.css        │              └──────────┬───────────────────┘
+│ css/components.css  │                         │ service role key
+│ css/features.css    │                         ▼
+└─────────────────────┘              Supabase (PostgreSQL + Auth + pgvector)
+                                     ◀──anon key + RLS──▶
 ```
 
 **Key stack:**
 - **Frontend**: Vanilla JS SPA, Chart.js for analytics, Inter font
-- **Backend**: Supabase (PostgreSQL with RLS, Auth, REST API via PostgREST)
+- **Backend**: Supabase (PostgreSQL with RLS, Auth, REST API via PostgREST, pgvector for KB embeddings)
 - **Hosting**: Vercel (Pro plan — 300s max function timeout, no cron support)
 - **CDN libs**: Supabase JS v2 (UMD), Chart.js 4.4
 - **Email**: Gmail API (OAuth 2.0) — scopes: `gmail.readonly`, `gmail.send`, `gmail.modify`
+- **AI/Embeddings**: Anthropic Claude (email analysis, EC Review, KB RAG), OpenAI text-embedding-3-small (KB vectors)
 
 ## Important URLs & IDs
 
@@ -51,6 +53,7 @@ Browser (client JS)                   Vercel Serverless Functions
 - `SUPABASE_SERVICE_KEY` — service role key (bypasses RLS)
 - `CRON_SECRET` — random string for cron job auth
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Gmail OAuth
+- `OPENAI_API_KEY` — stored in `integration_credentials` table (per-user), used by KB embedding scripts via `getOpenAIKey(userId)`
 
 ## File Structure
 
@@ -66,15 +69,15 @@ taskflow/
 │   ├── config.js           # Supabase client init, CONFIG object
 │   ├── core.js             # State (S), data loading, CRUD helpers, timers, filters, reconciliation,
 │   │                       #   email (polling, compose, drafts, schedule, rules), contact autocomplete
-│   ├── views.js            # All view rendering (rDashboard, rToday, rTasks, rFinance, rEmail, etc.)
-│   ├── modals.js           # All modal UIs (detail, add, compose email, rule builder, etc.)
+│   ├── views.js            # All view rendering (rDashboard, rToday, rTasks, rFinance, rEmail, entity dashboards, etc.)
+│   ├── modals.js           # All modal UIs (detail, add, compose email, rule builder, entity detail openers, etc.)
 │   ├── features.js         # Focus mode, command palette, drag & drop, scheduling, meeting tracking, calendar sync
 │   └── app.js              # TF function registry (window.TF = {...})
 │
 ├── css/
 │   ├── core.css            # CSS variables, layout, sidebar, typography, sub-nav badges
 │   ├── components.css      # Cards, badges, buttons, forms, tables (compact task rows)
-│   └── features.css        # Finance, campaigns, projects, opportunities, email, compose toolbar, modals
+│   └── features.css        # Finance, campaigns, projects, opportunities, email, compose toolbar, modals, entity tabs
 │
 ├── api/
 │   ├── _lib/
@@ -85,7 +88,9 @@ taskflow/
 │   │   ├── sync-brex.js    # Brex transaction sync
 │   │   ├── sync-mercury.js # Mercury transaction sync
 │   │   ├── sync-zoho-books.js    # Zoho Books sync
-│   │   └── sync-zoho-payments.js # Zoho Payments sync
+│   │   ├── sync-zoho-payments.js # Zoho Payments sync
+│   │   ├── embeddings.js         # KB: core embedding library (chunk, embed, store, search, dedup)
+│   │   └── entity-chunkers.js    # KB: 11 entity type chunkers (task, client, campaign, contact, etc.)
 │   ├── gmail/
 │   │   ├── threads.js      # GET — fetch thread list from Gmail API
 │   │   ├── thread.js       # GET — fetch single thread with messages
@@ -95,7 +100,19 @@ taskflow/
 │   │   ├── mark-read.js    # POST — mark thread as read
 │   │   ├── attachment.js   # GET — download attachment
 │   │   ├── analyze.js     # POST — batch AI email analysis (Claude Sonnet)
-│   │   └── summarize.js   # POST — on-demand thread summarization
+│   │   ├── summarize.js   # POST — on-demand thread summarization
+│   │   └── ec-suggest.js  # POST — AI end-client suggestions for EC Review
+│   ├── knowledge/
+│   │   ├── search.js          # POST — vector similarity search
+│   │   ├── ai-ask.js          # POST — RAG-powered AI Q&A (keyword + vector → Claude)
+│   │   ├── ai-draft.js        # POST — AI email/document drafting with KB context
+│   │   ├── stats.js           # GET — KB statistics (chunk counts, source counts)
+│   │   ├── ingest-emails.js   # POST — email thread embedding
+│   │   ├── ingest-meetings.js # POST — meeting embedding
+│   │   ├── ingest-document.js # POST — document text embedding
+│   │   ├── ingest-url.js      # POST — web page embedding
+│   │   ├── ingest-youtube.js  # POST — YouTube transcript embedding
+│   │   └── sync-entities.js   # POST — batch entity sync (11 types → KB)
 │   ├── auth/
 │   │   └── gmail-connect.js # GET — initiate Gmail OAuth flow
 │   ├── sync/
@@ -135,13 +152,21 @@ taskflow/
 │   ├── add-opportunity-types.sql   # opp_type on opportunities
 │   ├── add-scheduled-emails.sql    # scheduled_emails table (schedule send)
 │   ├── add-email-rules.sql         # email_rules table (rule engine)
-│   └── add-email-ai-analysis.sql   # AI analysis columns on gmail_threads
+│   ├── add-email-ai-analysis.sql   # AI analysis columns on gmail_threads
+│   ├── add-end-clients.sql         # end_clients table (managed end-client entities)
+│   └── add-knowledge-base.sql     # knowledge_chunks + knowledge_sources tables, pgvector, match_knowledge() fn
 │
 └── scripts/
-    ├── run-migration.py    # Helper to run SQL migrations
-    ├── fix-null-dates.py   # Utility for fixing null date issues
-    ├── import-finance.js   # Finance data import (JS)
-    └── import-finance.py   # Finance data import (Python)
+    ├── run-migration.py        # Helper to run SQL migrations
+    ├── fix-null-dates.py       # Utility for fixing null date issues
+    ├── import-finance.js       # Finance data import (JS)
+    ├── import-finance.py       # Finance data import (Python)
+    ├── embed-emails.py         # KB: bulk email embedding from Gmail API (53K+ emails)
+    ├── embed-meetings.py       # KB: meeting embedding from Read.ai data
+    ├── embed-meetings-lite.py  # KB: lightweight meeting embedding
+    ├── embed-batch.py          # KB: batch entity embedding
+    ├── create-vector-index.py  # KB: create HNSW vector index
+    └── run-embed.sh            # KB: shell wrapper for embedding scripts
 ```
 
 ## Client-Side Architecture
@@ -158,7 +183,7 @@ The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered 
 | 4 | `opportunities` | Sales | 4 | Analytics, Retain Live, F&C Partnerships, F&C Direct, Profitability |
 | 5 | `campaigns` | Campaigns | 5 | Pipeline, List, Performance |
 | 6 | `projects` | Projects | 6 | Board, List, Timeline |
-| 7 | `clients` | Clients | 7 | Active, Lapsed |
+| 7 | `clients` | Clients | 7 | Active, Lapsed, End Clients, EC Review |
 | 8 | `finance` | Finance | 8 | Overview, Transactions, Invoices, Upcoming, Recurring, Forecast, Team |
 | 9 | `email` | Email | 9 | Action Required (with badge), Inbox, Sent, All Mail, Drafts (with badge), Scheduled (with badge), then Smart Inboxes: Clients (Active), Clients (Lapsed), Prospects, By Campaign, By Opportunity, Other |
 
@@ -200,6 +225,24 @@ S = {
   scheduledItems: [],     // Recurring expenses, subscriptions, vendor payments
   teamMembers: [],        // Team payroll/commission data
   contacts: [],           // CRM contacts (name, email, clientId, endClient)
+  endClients: [],         // Managed end-client entities (from Supabase end_clients table)
+  meetings: [],           // Read.ai meeting records
+
+  // Entity dashboard tab state
+  clientTab: 'overview',       // Active tab in client detail modal
+  endClientTab: 'overview',    // Active tab in end-client detail modal
+  opportunityTab: 'overview',  // Active tab in opportunity detail modal
+  // (campaignTab already existed — 'overview' default)
+
+  // EC Review state
+  ecSort: 'name',              // End-client list sort field
+  _ecCandidates: [],           // AI-discovered EC candidates
+  _ecAnalyzing: false,         // EC Review analysis in progress
+
+  // Entity tracking (for tab re-renders)
+  _lastEndClientDash: '',      // Currently open end-client name
+  _lastCampaignId: '',         // Currently open campaign ID
+  _lastOpportunityId: '',      // Currently open opportunity ID
 
   // Email state
   gmailThreads: [],       // Cached gmail thread metadata (from Supabase, limit 500)
@@ -239,7 +282,7 @@ S = {
   projTaskOrder: {},      // Project task ordering
 
   // Client detail view
-  clientDetailName: '',   // When set, renders full-screen client dashboard instead of directory
+  clientDetailName: '',   // Currently open client name (used by client detail modal)
 
   // Bulk operations
   bulkMode: false,        // Bulk selection active
@@ -323,9 +366,43 @@ Projects sub-views:
   rProjectList()           — Table view
   rProjectTimeline()       — Gantt timeline
 
-Clients:
-  rClients()               — Active/Lapsed directory with 6 columns
-  rClientDashboard()       — Full-screen client dashboard (when S.clientDetailName is set)
+Clients sub-views:
+  rClientsBody()           — Active/Lapsed directory with 6 columns
+  rEndClientsBody()        — End-Clients directory with CRUD
+  rEcReviewBody()          — EC Review: AI-powered end-client candidate discovery
+
+Entity Detail Modals (full-screen tabbed dashboards, opened via detail-modal):
+  rClientDashboard(c)      — Client: Overview | Tasks | Emails | Contacts | Meetings | Details
+    rClTabOverview(c)      — KPIs, 4 charts, AI box, campaign/opportunity cards
+    rClTabTasks(c)         — Open tasks (with scoring), completed, add task
+    rClTabEmails(c)        — Contact email selector + email threads
+    rClTabContacts(c)      — Contact cards with batch email
+    rClTabMeetings(c)      — Campaign, opportunity, and Read.ai meetings
+    rClTabDetails(c)       — Notes timeline, payment history, summary stats
+
+  rEndClientDashboard(ec)  — End-Client: Overview | Tasks | Emails | Contacts | Meetings | Details
+    rEcTabOverview(ec)     — KPIs, 2 charts, AI box, campaign/opportunity cards
+    rEcTabTasks(ec)        — Open/completed tasks for EC's campaigns
+    rEcTabEmails(ec)       — Contact email selector + threads
+    rEcTabContacts(ec)     — Contact cards for EC's contacts
+    rEcTabMeetings(ec)     — Meetings from associated campaigns/opportunities
+    rEcTabDetails(ec)      — Editable fields, campaigns list, opportunities list
+
+  rCampaignDashboard(cp,st)— Campaign: Overview | Tasks | Billing | Emails | Contacts | Meetings | Details
+    rCpTabOverview(cp,st)  — KPIs, 3 charts, AI box
+    rCpTabTasks(cp,st)     — Task management (existing)
+    rCpTabBilling(cp,st)   — Billing records (existing)
+    rCpTabEmails(cp,st)    — Contact email selector + email threads
+    rCpTabContacts(cp,st)  — Client + EC contacts with email selector
+    rCpTabMeetings(cp,st)  — Campaign meetings with add/delete
+    rCpTabDetails(cp,st)   — Campaign info fields, links, notes
+
+  rOpportunityDashboard(op,st) — Opportunity: Overview | Tasks | Emails | Meetings | Details
+    rOpTabOverview(op,st)  — KPIs, 2 charts, AI box, stage indicator
+    rOpTabTasks(op,st)     — Open/completed tasks
+    rOpTabEmails(op,st)    — Contact email selector + threads
+    rOpTabMeetings(op,st)  — Opportunity meetings with add/delete
+    rOpTabDetails(op,st)   — All editable fields, save/convert/delete buttons
 
 Email sub-views (via rEmail() dispatcher):
   rEmailActionRequired()   — AI-powered triage: urgency-grouped cards with CRM context, dismiss, snooze
@@ -345,15 +422,22 @@ Mobile views:
 ### Key View Functions
 
 - **`buildClientMap()`** — Shared helper that aggregates client data (revenue, tasks, time, campaigns, opportunities, meetings, payments) while filtering out "Internal" and "N/A" entries. Used by both `rClients()` and `rDashboard()`.
+- **`buildEndClientMap()`** — Aggregates end-client data across campaigns, opportunities, contacts, tasks. Returns a map of `{name → {campaigns, opportunities, contacts, openTasks, ...}}`.
 - **`buildSubNav(subs)`** — Renders sub-navigation panel. Shows badge counts for review, inbox, drafts, scheduled emails, and smart inboxes.
 - **`filterBar()`** — Renders compact filter controls (client, category, importance, type, search, date range). Uses 11px font, 6px border-radius pills.
+- **`rEntityTabs(tabs, activeTab, setterFn)`** — Shared tab bar component for entity detail modals. Renders `.cp-tabs` with icons and optional badge counts.
+- **`rContactEmailSelector(contacts, entityType, entityName)`** — Reusable checkbox-based contact email compose component. Shows contact list with checkboxes, "Select All" toggle, subject line input, and "Compose Email" button. Used in entity Emails and Contacts tabs.
+- **`initEntityCharts(entityType)`** — Initializes Chart.js charts on entity Overview tabs. Checks for canvas elements by ID prefix, calls `killChart()` then appropriate `mk*` helpers with real data. Called via `setTimeout(fn, 50)` after tab render.
 
 ### Function Registry
 
 All functions callable from HTML `onclick` handlers are registered on `window.TF`:
 
 ```javascript
-window.TF = { nav, load, start, pause, openDetail, addTimeToTask, openClientDashboard, closeClientDashboard, ... }
+window.TF = { nav, load, start, pause, openDetail, addTimeToTask, openClientDashboard, closeClientDashboard,
+  setClientTab, setEndClientTab, setCampaignTab, setOpportunityTab,    // entity tab navigation
+  cesToggleAll, cesCompose,                                             // contact email selector
+  openClientDetailModal, openEndClientDetailModal, openCampaignDetail, openOpportunityDetail, ... }
 ```
 
 HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', this.value)"`, etc.
@@ -378,10 +462,14 @@ HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', th
 - `mkHBar(id, labels, data, color)` — Chart.js horizontal bar chart
 - `mkHBarUSD(id, labels, data, color)` — Horizontal bar chart with USD formatting
 - `mkLine(id, labels, data, color, label)` — Chart.js line chart
+- `mkLineUSD(id, labels, data, color, label)` — Line chart with USD-formatted Y axis
+- `mkDonutUSD(id, labels, data, colors)` — Donut chart with USD-formatted tooltip
+- `killChart(id)` — Destroys existing chart instance to prevent canvas reuse errors
 - `scheduleTasks()` — AI scheduling engine that slots tasks into free calendar gaps
 - `taskScore(task)` — Priority scoring for task ordering
 - `oppTypeMetrics(typeKey)` — Per-type opportunity statistics
 - `buildUpcomingPayments(horizon)` — Builds projected inflows/outflows for forecast
+- `aiBox(id, config)` — AI Assistant chat box component. Config: `{label, system, context, collapsed}`. Used on entity Overview tabs with entity-specific keywords and live data context.
 - `emailAvatarColor(email)` — Consistent color from email string for avatar circles
 - `getThreadCrmContext(thread)` — CRM context (client, campaigns, opportunities) for a thread. Works on both live threads (camelCase) and Supabase threads (snake_case)
 - `resolveThreadCrmContext(from, to, cc)` — Full CRM resolution with contact cascade
@@ -411,6 +499,7 @@ Gmail is connected via OAuth 2.0 with scopes `gmail.readonly`, `gmail.send`, `gm
 - `GET /api/gmail/attachment` — download attachment
 - `POST /api/gmail/analyze` — batch AI email analysis (Claude Sonnet, up to 30 threads per call, returns 12 fields: needs_reply, summary, urgency, category, sentiment, has_meeting, meeting_details, needs_followup, followup_details, suggested_client, suggested_task)
 - `POST /api/gmail/summarize` — on-demand thread summarization (fetches full message bodies, caches result)
+- `POST /api/gmail/ec-suggest` — AI-powered end-client suggestions. Accepts candidate contacts (email, name, clientName, emailCount, meetingCount), existing end-clients, and contacts. Returns end-client group suggestions with confidence scores, contact categorization, and reasoning. Used by EC Review feature.
 
 ### Compose Editor
 
@@ -695,6 +784,82 @@ Outflow payments (expenses) can be reconciled against scheduled/recurring items:
 - Code exchange gives refresh_token + access_token
 - Refresh token is long-lived; access token expires in 1 hour
 
+## Knowledge Base System (RAG)
+
+TaskFlow includes a vector-based knowledge base powered by pgvector (Supabase) and OpenAI embeddings. Content from emails, meetings, documents, web pages, YouTube transcripts, and all CRM entities is chunked, embedded, and stored for semantic search and AI-powered Q&A.
+
+### Architecture
+
+```
+Content Sources → Chunking → OpenAI Embedding → Supabase pgvector → Search/RAG
+                                (text-embedding-3-small, 1536 dims)
+```
+
+**Core library:** `api/_lib/embeddings.js` — shared functions for chunking, embedding, storing, searching, and deduplication.
+
+**Entity chunkers:** `api/_lib/entity-chunkers.js` — 11 entity-type chunkers that convert DB records into natural-language text for semantic search:
+- `chunkTask(task)`, `chunkCompletedTask(task)` — active/completed tasks
+- `chunkClient(client, notes)` — client with notes
+- `chunkCampaign(campaign, notes)` — campaign with notes
+- `chunkContact(contact)` — CRM contact
+- `chunkProject(project, phases)` — project with phases
+- `chunkOpportunity(opp)` — opportunity with fees/contact/stage
+- `chunkActivityLogs(taskId, taskItem, logs)` — activity log entries
+- `chunkFinancePayment(payment)` — finance payment/expense
+- `chunkScheduledItem(item)` — recurring expense/income
+- `chunkTeamMember(member)` — team member with salary/commission
+
+### Chunking Strategy
+
+- **Default chunk size:** 2,000 chars with 200 char overlap
+- **Email chunks:** 15,000 chars max (~5,000 tokens) per message, header prepended
+- **Meeting chunks:** Summary, chapter summaries, transcript windows, action items — each as separate chunks
+- **Web pages:** 1,500 chars with 150 char overlap
+- **Boundary-aware splitting:** breaks at paragraph → sentence → word boundaries (last 30% of chunk)
+- **Deduplication:** SHA-256 content hash, upsert on (user_id, source_type, source_id, chunk_index)
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/knowledge/search` | POST | Vector similarity search with optional source_type and client_id filters |
+| `/api/knowledge/ai-ask` | POST | RAG Q&A: keyword + vector search → ranked chunks → Claude answer |
+| `/api/knowledge/ai-draft` | POST | AI drafting with KB context |
+| `/api/knowledge/stats` | GET | KB statistics (chunk counts, source counts, tokens used) |
+| `/api/knowledge/ingest-emails` | POST | Embed email threads |
+| `/api/knowledge/ingest-meetings` | POST | Embed meeting records |
+| `/api/knowledge/ingest-document` | POST | Embed document text |
+| `/api/knowledge/ingest-url` | POST | Embed web page content |
+| `/api/knowledge/ingest-youtube` | POST | Embed YouTube transcript |
+| `/api/knowledge/sync-entities` | POST | Batch sync CRM entities (11 types) to KB |
+
+### Bulk Embedding Scripts
+
+Python CLI scripts for initial population of the knowledge base:
+
+- **`scripts/embed-emails.py`** — Bulk email embedding from Gmail API. Processes 53,000+ emails. Flags: `--offset N`, `--limit N`, `--client-only`, `--from-gmail`. Auto-resumes via `knowledge_sources` table tracking. Auto-refreshes Gmail OAuth tokens.
+- **`scripts/embed-meetings.py`** — Read.ai meeting embedding (summary + chapters + transcript + action items)
+- **`scripts/embed-batch.py`** — Batch entity embedding (tasks, clients, campaigns, etc.)
+- **`scripts/create-vector-index.py`** — Creates HNSW vector index on `knowledge_chunks.embedding`
+
+### Search & RAG
+
+**Vector search** (`searchKnowledge()`): Calls `match_knowledge()` SQL function with cosine distance, returns chunks above similarity threshold (default 0.3), ordered by relevance.
+
+**AI Q&A** (`/api/knowledge/ai-ask`): Combines keyword search (SQL `ilike`) with vector similarity search, deduplicates results, sends top chunks as context to Claude for answer generation.
+
+### Key Functions (embeddings.js)
+
+- `embedTexts(apiKey, texts)` — Batch embed via OpenAI (auto-batches at 2048)
+- `chunkText(text, maxChars, overlap)` — Boundary-aware text splitting
+- `chunkMeeting(meeting)` — Meeting → summary/chapter/transcript/action chunks
+- `chunkEmailThread(threadId, subject, messages, crmMetadata)` — Email → per-message chunks
+- `chunkWebPage(text, title, url)` — Web page → overlapping chunks
+- `storeChunks(client, userId, sourceType, sourceId, chunks)` — Upsert with dedup (returns {inserted, skipped, updated})
+- `upsertSource(client, userId, sourceType, sourceId, ...)` — Update ingestion tracking
+- `searchKnowledge(client, userId, queryEmbedding, opts)` — Vector similarity search
+- `cleanOrphans(client, userId, sourceType, validSourceIds)` — Remove embeddings for deleted records
+
 ## Database Tables
 
 ### Core Tables
@@ -713,6 +878,9 @@ Outflow payments (expenses) can be reconciled against scheduled/recurring items:
 - `campaign_notes` — notes on campaigns
 - `client_notes` — notes on clients
 
+### End-Client Table
+- `end_clients` — managed end-client entities (UUID PK, user_id, name, client_id FK → clients.id, notes, status: active/inactive, created_at, updated_at). RLS enabled.
+
 ### Finance Tables
 - `finance_payments` — all financial transactions from all sources
 - `finance_payment_splits` — split payment allocations
@@ -722,6 +890,11 @@ Outflow payments (expenses) can be reconciled against scheduled/recurring items:
 - `account_balances` — live snapshots of bank account balances
 - `scheduled_items` — recurring expenses/subscriptions
 - `team_members` — payroll data
+
+### Knowledge Base Tables
+- `knowledge_chunks` — vector-embedded content chunks (pgvector 1536-dim). Fields: source_type (meeting/email/webpage/youtube/document/task/client/campaign/contact/project/opportunity/activity/payment/scheduled/team), source_id, chunk_index, title, content, client_id FK, end_client, campaign_id FK, date, people[], tags[], embedding vector(1536), embedding_model, token_count, content_hash. HNSW index for cosine distance. Unique constraint on (user_id, source_type, source_id, chunk_index).
+- `knowledge_sources` — ingestion tracking per source. Fields: source_type, source_id, name, url, status (pending/processing/complete/error), chunks_count, tokens_used, error_message, last_ingested_at. Unique constraint on (user_id, source_type, source_id).
+- `match_knowledge()` — SQL function for cosine similarity search with optional source_type and client_id filters, returns ranked chunks above threshold.
 
 ### Email Tables
 - `gmail_threads` — thread metadata synced from Gmail (subject, from, to, cc, snippet, labels, is_unread, client_id, end_client, campaign_id, opportunity_id, last_message_from, last_message_at)
@@ -744,6 +917,7 @@ Each entity has standard CRUD helpers:
 - **Team Members**: `dbAddTeamMember()`, `dbEditTeamMember()`, `dbDeleteTeamMember()`
 - **Clients**: `dbAddClient()`, `dbEditClient()`, `dbAssociatePayerToClient()`
 - **Contacts**: `dbAddContact()`, `dbEditContact()`, `dbDeleteContact()`
+- **End Clients**: `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `loadEndClients()`
 - **Reconciliation**: `linkExpenseToScheduled()`, `unlinkExpenseFromScheduled()`, `saveExpenseAsOneOff()`
 - **Email Drafts** (localStorage): `_loadDrafts()`, `_saveDraft(id)`, `_deleteDraft(id)`, `openDraft(id)`, `deleteDraft(id)`, `getDraftCount()`
 - **Scheduled Emails**: `loadScheduledEmails()`, `scheduleEmail(scheduledAt)`, `cancelScheduledEmail(id)`, `_checkScheduledEmails()`
@@ -786,6 +960,9 @@ Each entity has standard CRUD helpers:
 12. **Modal pattern** — build HTML string → `gel('m-body').innerHTML = h` → `gel('modal').classList.add('on')`
 13. **Toggle pattern** — modal sections use `modalToggle(id)` with `dt-*` checkbox IDs to show/hide field groups
 14. **Glass morphism** — UI uses `var(--glass)` background with `backdrop-filter:blur()` for panels and dropdowns
+15. **Entity tabs** — `.cp-tabs` / `.cp-tab` / `.cp-tab.on` for tab bars; `.entity-tab-content` for tab body; `.cp-tab-badge` for badge counts
+16. **Contact email selector** — `.ces-wrap` for container, `.ces-cb` for checkboxes
+17. **Full-screen modals** — `detail-modal` container + `.full-detail` class (components.css:66-82)
 
 ## Common Tasks
 
@@ -855,8 +1032,17 @@ Each entity has standard CRUD helpers:
 - `gmail_threads.client_id` is set during sync via email matching — reliable for server-side filtering. `end_client`/`campaign_id`/`opportunity_id` are only set by email rules — less reliable for server-side queries
 - `loadFilteredEmailThreads()` applies client_id filter server-side but end-client/opportunity/campaign filters client-side via CRM context
 - Gmail sync (`sync-gmail.js`) paginates up to 5 pages × 100 threads, stopping when all threads on a page are already in Supabase
+- KB embedding scripts require `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and OpenAI API key (from `integration_credentials` table) — keys are in Vercel dashboard only, not local
+- `embed-emails.py` auto-resumes via `knowledge_sources` table — tracks last processed source_id, skips already-complete entries
+- `storeChunks()` does clean re-ingest: deletes extra chunks if source now has fewer chunks than before
+- Entity tab setters must re-render `detail-body` innerHTML directly — calling `render()` would close the modal
+- `initEntityCharts()` requires `setTimeout(fn, 50)` after rendering to ensure canvas elements exist in DOM
+- Campaign `openCampaignDetail()` always uses modal (desktop in-page branch removed) — old function renamed `_openCampaignDetail_LEGACY`
+- Opportunity Details tab preserves same DOM element IDs (`op-name`, `op-stage`, `op-client`, etc.) for `saveOpportunity()` compatibility
+- `closeCampaignDashboard()` now calls `closeModal()` since campaign always renders in modal
+- `rCampaigns()` no longer checks `S.campaignDetailId` for in-page rendering
 
-## Current Status (as of 2026-03-05)
+## Current Status (as of 2026-03-07)
 
 ### Integrations
 - **Brex**: Connected, syncing ~308 transactions
@@ -864,7 +1050,9 @@ Each entity has standard CRUD helpers:
 - **Zoho Books**: Connected, syncing (orgId 899890816 — Film&Content LLC)
 - **Zoho Payments**: Connected, syncing ~69 records
 - **Gmail**: Connected via OAuth (readonly + send + modify scopes)
-- **Anthropic (Claude AI)**: API key stored in integration_credentials, powers email analysis
+- **Anthropic (Claude AI)**: API key stored in integration_credentials, powers email analysis + EC Review + KB RAG
+- **OpenAI**: API key stored in integration_credentials, powers KB embeddings (text-embedding-3-small)
+- **Knowledge Base**: pgvector in Supabase — 53,000+ emails embedded, meetings embedded, entities synced
 
 ### What's Working
 - All four finance platforms sync via "Sync Now" buttons
@@ -877,7 +1065,15 @@ Each entity has standard CRUD helpers:
 - Meeting auto-tracking from Google Calendar
 - Dashboard with comprehensive overview
 - Schedule section with 7 sub-views
-- Clients with Active/Lapsed filtering, full-screen client dashboard
+- Clients section with Active, Lapsed, End Clients, and EC Review sub-views
+- **Full-screen tabbed entity dashboards** for all 4 entities (Client, End-Client, Campaign, Opportunity)
+- **Contact email selector** — checkbox-based batch email compose from any entity
+- **Entity-specific charts** — Chart.js analytics on every entity Overview tab
+- **End-Client management** — CRUD for end-client entities with Supabase table
+- **EC Review** — AI-powered end-client candidate discovery from email/meeting data
+- **Knowledge Base (RAG)** — pgvector-backed semantic search across emails, meetings, and CRM entities
+- **KB API endpoints** — search, AI Q&A, ingestion for emails/meetings/documents/URLs/YouTube
+- **Bulk email embedding** — 53,000+ emails embedded via `scripts/embed-emails.py`
 - Quick Add Queue with badge counts
 - Mobile bottom tabs: Add, Tasks, Review, Opps
 
@@ -910,12 +1106,98 @@ Each entity has standard CRUD helpers:
 - **All Mail shows all synced threads** — uses Supabase data (not limited to one Gmail API page)
 - **Gmail sync pagination** — syncs up to 500 threads, never misses emails after long gaps
 
-### Recent Changes (commit cf638f9)
-- **Email Filters**: CRM filter bar on Inbox/Sent/All Mail — filter by Client (active only), End-Client, Opportunity (open), Campaign (active/setup). Include/exclude toggle per filter. Server-side Supabase queries for dynamic result loading (`loadFilteredEmailThreads`)
-- **Bulk Archive**: Checkbox selection mode via "Bulk" button, Select All/Deselect, batch archive with progress toast, auto-reload filtered results after archive
-- **Gmail Sync Pagination**: `sync-gmail.js` rewritten to paginate through Gmail API (5 pages × 100 = 500 threads max), stops on reaching known threads — prevents missing emails after weekends/gaps
-- **Archive Sync**: `api/gmail/archive.js` now updates Supabase `gmail_threads.labels` alongside Gmail API call
-- **Email View Caching**: `S._gmailCache` per-filter cache saves/restores live threads on view switch; `subNav()` delegates to `setGmailFilter()` for email views
-- **Refresh Flow**: `refreshGmailInbox()` now syncs Gmail metadata to Supabase first (`/api/sync/gmail`), then fetches live threads, then reloads Supabase data
-- **All Mail**: Uses `S.gmailThreads` (Supabase, 500 threads) instead of Gmail API live fetch (was limited to 25)
-- **Fetch Limits**: Inbox live fetch 50, Gmail sync 200/page (5 pages), Supabase load limit 500
+### Entity Dashboard Architecture
+
+All four entity types (Client, End-Client, Campaign, Opportunity) use a consistent full-screen tabbed modal pattern:
+
+**Opening flow:**
+1. Opener function (e.g. `openClientDetailModal(name)`) sets entity tracking state and resets tab to `'overview'`
+2. Renders dashboard HTML into `gel('detail-body').innerHTML`
+3. Adds `on` + `full-detail` classes to `detail-modal`
+4. Calls `setTimeout(function(){initEntityCharts(type)}, 50)` for chart rendering
+
+**Tab switching (critical pattern):**
+- Tab setters (e.g. `setClientTab(tab)`) re-render `detail-body` innerHTML **directly** — they do NOT call `render()` which would close the modal
+- Each setter: updates `S.xxxTab` → rebuilds entity data → sets `innerHTML` → inits charts via setTimeout
+
+**Shared components:**
+- `rEntityTabs(tabs, activeTab, setterFn)` — tab bar with `.cp-tabs` / `.cp-tab` / `.cp-tab.on` CSS classes
+- `rContactEmailSelector(contacts, entityType, entityName)` — checkbox contact list → compose email
+- `initEntityCharts(entityType)` — checks for canvases by ID prefix, creates Chart.js charts with live data
+- `aiBox(id, config)` — AI assistant with entity-specific context and keywords
+
+**Chart canvas IDs per entity:**
+
+| Entity | Canvas ID | Chart Type | Data Source |
+|--------|-----------|------------|-------------|
+| Client | `ch-cl-revenue` | mkLineUSD | Monthly revenue from financePayments (12mo) |
+| Client | `ch-cl-time` | mkDonut | Time tracked by category from done tasks |
+| Client | `ch-cl-tasks` | mkLine | Daily task completions (30d) |
+| Client | `ch-cl-pipeline` | mkDonutUSD | Pipeline value by opportunity stage |
+| End-Client | `ch-ec-campaigns` | mkDonut | Campaigns by status |
+| End-Client | `ch-ec-tasks` | mkLine | Task completions over time (30d) |
+| Campaign | `ch-cp-revenue` | mkLineUSD | Monthly revenue collected vs expected |
+| Campaign | `ch-cp-tasks` | mkHBar | Tasks by category |
+| Campaign | `ch-cp-fees` | mkDonutUSD | Fee breakdown (strategy/setup/monthly/ad) |
+| Opportunity | `ch-op-value` | mkDonutUSD | Value breakdown (strategy/setup/monthly) |
+| Opportunity | `ch-op-prob` | mkDonut | Probability gauge (2-segment) |
+
+**Contact Email Selector flow:**
+1. Component renders with contact checkboxes (avatar, name, email, role)
+2. "Select All" calls `cesToggleAll(selectorId, checked)`
+3. "Compose Email" calls `cesCompose(selectorId, entityType, entityName)`
+4. `cesCompose` collects checked emails, opens `openComposeEmail()` with pre-filled To, Subject, and CRM categorization
+
+### End-Client Management
+
+**Supabase table:** `end_clients` (UUID PK, user_id, name, client_id FK, notes, status, created_at, updated_at)
+
+**Views:**
+- `rEndClientsBody()` — directory with search, sortable columns, inline add/edit
+- `rEcReviewBody()` — AI-powered candidate discovery
+
+**EC Review flow:**
+1. `discoverEcCandidates()` scans `S.contacts`, `S.gmailThreads`, `S.meetings` for addresses with ≥2 emails
+2. Builds candidate list with email, name, client, email count, meeting count
+3. Sends candidates + context to `POST /api/gmail/ec-suggest`
+4. Claude AI groups candidates into end-client suggestions with confidence scores
+5. Each suggestion can be accepted (creates end-client + updates contacts) or dismissed
+
+**Key functions:** `loadEndClients()`, `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `discoverEcCandidates()`, `applyEcSuggestion()`, `dismissEcSuggestion()`
+
+### Recent Changes
+
+**Knowledge Base System (2026-03-07):**
+- pgvector-powered RAG system with OpenAI text-embedding-3-small (1536 dims)
+- `knowledge_chunks` and `knowledge_sources` tables with HNSW index
+- Core library: `api/_lib/embeddings.js` (chunk, embed, store, search, dedup)
+- 11 entity-type chunkers in `api/_lib/entity-chunkers.js`
+- 10 API endpoints under `api/knowledge/` (search, AI Q&A, ingestion, stats, sync)
+- Bulk embedding scripts: 53,000+ emails embedded from Gmail API
+- Meeting embedding from Read.ai data
+- `match_knowledge()` SQL function for cosine similarity search
+
+**Full-Screen Tabbed Dashboard Overhaul (2026-03-07):**
+- All 4 entity types (Client, End-Client, Campaign, Opportunity) now open as full-screen tabbed modals
+- Each has an Overview tab with KPIs, charts, and AI assistant
+- Contact email selector enables batch emailing from any entity
+- Campaign unified to always use modal (removed desktop in-page branch)
+- Opportunity converted from split-pane layout to tabbed modal
+- Entity-specific Chart.js charts (11 charts across 4 entities)
+- Tab CSS reuses existing `.cp-tabs` / `.cp-tab` / `.cp-tab.on` infrastructure
+
+**End-Client & EC Review Feature (2026-03-06):**
+- `end_clients` Supabase table with full CRUD
+- End-Client directory view in Clients section
+- EC Review: AI-powered end-client discovery from email/meeting patterns
+- `POST /api/gmail/ec-suggest` endpoint using Claude Sonnet
+- Clients navigation expanded: Active | Lapsed | End Clients | EC Review
+
+**Email Enhancements (2026-03-05):**
+- CRM filter bar on Inbox/Sent/All Mail with include/exclude toggles
+- Bulk archive with checkbox selection mode
+- Gmail sync pagination (5 pages × 100 = 500 threads max)
+- Archive syncs to Supabase labels
+- Per-filter view caching
+- All Mail uses Supabase data (500 threads vs previous 25)
+- Fetch limits: Inbox live 50, Gmail sync 200/page (5 pages), Supabase load 500
