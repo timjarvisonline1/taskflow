@@ -831,7 +831,7 @@ function discoverEcCandidates(){
   (S.clientRecords||[]).forEach(function(c){if(c.email)clientEmails[c.email.toLowerCase().trim()]=true});
 
   /* ── Build domain→EC map from multiple signals ── */
-  var domainEC={};/* domain → {ecName,ecId,count} (highest count wins) */
+  var domainEC={};
   function addDomainSignal(domain,ecName,ecId){
     if(!domain||!ecName||_FREE_DOMAINS[domain])return;
     if(!domainEC[domain])domainEC[domain]={};
@@ -839,58 +839,56 @@ function discoverEcCandidates(){
     if(!domainEC[domain][k])domainEC[domain][k]={name:ecName,id:ecId||null,count:0};
     domainEC[domain][k].count++;
     if(ecId&&!domainEC[domain][k].id)domainEC[domain][k].id=ecId}
-  /* Signal 1: Existing contacts with endClient */
   (S.contacts||[]).forEach(function(c){
     if(!c.email||!c.endClient)return;
-    var d=c.email.toLowerCase().split('@')[1];
-    addDomainSignal(d,c.endClient,c.endClientId)});
-  /* Signal 2: Gmail threads with end_client set */
+    addDomainSignal(c.email.toLowerCase().split('@')[1],c.endClient,c.endClientId)});
   (S.gmailThreads||[]).forEach(function(t){
     if(!t.end_client)return;
     var ecId=t.end_client_id||null;
-    function trackDomain(email){
-      if(!email)return;var d=email.toLowerCase().trim().split('@')[1];
-      addDomainSignal(d,t.end_client,ecId)}
-    trackDomain(t.from_email);
-    _parseEmails(t.to_emails||'').forEach(trackDomain);
-    _parseEmails(t.cc_emails||'').forEach(trackDomain)});
-  /* Resolve best EC per domain */
-  var bestDomainEC={};/* domain → {name,id} */
+    function td(email){if(!email)return;addDomainSignal(email.toLowerCase().trim().split('@')[1],t.end_client,ecId)}
+    td(t.from_email);_parseEmails(t.to_emails||'').forEach(td);_parseEmails(t.cc_emails||'').forEach(td)});
+  var bestDomainEC={};
   Object.keys(domainEC).forEach(function(d){
     var best=null;
-    Object.keys(domainEC[d]).forEach(function(k){
-      var e=domainEC[d][k];if(!best||e.count>best.count)best=e});
+    Object.keys(domainEC[d]).forEach(function(k){var e=domainEC[d][k];if(!best||e.count>best.count)best=e});
     if(best)bestDomainEC[d]=best});
-  /* Also build per-email EC from threads (direct signal) */
-  var emailThreadEC={};/* email → {ecName: {name,id,count}} */
+  /* Per-email EC from threads */
+  var emailThreadEC={};
   (S.gmailThreads||[]).forEach(function(t){
     if(!t.end_client)return;
-    function trackEmail(email){
-      if(!email)return;var el=email.toLowerCase().trim();
+    function te(email){if(!email)return;var el=email.toLowerCase().trim();
       if(!emailThreadEC[el])emailThreadEC[el]={};
       var k=t.end_client.toLowerCase();
       if(!emailThreadEC[el][k])emailThreadEC[el][k]={name:t.end_client,id:t.end_client_id||null,count:0};
       emailThreadEC[el][k].count++}
-    trackEmail(t.from_email);
-    _parseEmails(t.to_emails||'').forEach(trackEmail);
-    _parseEmails(t.cc_emails||'').forEach(trackEmail)});
+    te(t.from_email);_parseEmails(t.to_emails||'').forEach(te);_parseEmails(t.cc_emails||'').forEach(te)});
+  /* Domain→client map from contacts (for client suggestion) */
+  var domainClient={};
+  (S.contacts||[]).forEach(function(c){
+    if(!c.email||!c.clientId)return;
+    var d=c.email.toLowerCase().split('@')[1];
+    if(!d||_FREE_DOMAINS[d])return;
+    if(!domainClient[d])domainClient[d]={};
+    if(!domainClient[d][c.clientId])domainClient[d][c.clientId]=0;
+    domainClient[d][c.clientId]++});
 
-  /* ── Build candidates ── */
+  /* ── Build candidates keyed by email ── */
   var cmap={};
   function addCandidate(email,name,clientId,source){
-    if(!email||!clientId)return;
+    if(!email)return;
     var el=email.toLowerCase().trim();
     if(ue.indexOf(el)!==-1)return;
     var domain=el.split('@')[1];
     if(!domain||_FREE_DOMAINS[domain])return;
     if(clientEmails[el])return;
     if(knownEmails[el])return;
-    var key=el+'|'+clientId;
-    if(dismissed[key])return;
-    if(!cmap[key])cmap[key]={email:el,name:name||'',clientId:clientId,emailCount:0,meetingCount:0,lastSeen:null};
-    if(source==='email')cmap[key].emailCount++;
-    if(source==='meeting')cmap[key].meetingCount++;
-    if(name&&name.length>(cmap[key].name||'').length)cmap[key].name=name}
+    if(dismissed[el])return;
+    if(!cmap[el])cmap[el]={email:el,name:name||'',clientIds:{},emailCount:0,meetingCount:0,lastSeen:null};
+    if(source==='email')cmap[el].emailCount++;
+    if(source==='meeting')cmap[el].meetingCount++;
+    if(name&&name.length>(cmap[el].name||'').length)cmap[el].name=name;
+    if(clientId){if(!cmap[el].clientIds[clientId])cmap[el].clientIds[clientId]=0;cmap[el].clientIds[clientId]++}}
+  /* Scan gmail threads with client_id */
   (S.gmailThreads||[]).forEach(function(t){
     if(!t.client_id)return;
     var cid=t.client_id;
@@ -899,43 +897,45 @@ function discoverEcCandidates(){
     _parseEmails(t.cc_emails||'').forEach(function(e){addCandidate(e,'',cid,'email')});
     if(t.last_message_at){
       var dt=new Date(t.last_message_at);
-      var key1=((t.from_email||'').toLowerCase().trim())+'|'+cid;
-      if(cmap[key1]&&(!cmap[key1].lastSeen||dt>cmap[key1].lastSeen))cmap[key1].lastSeen=dt;
-      _parseEmails(t.to_emails||'').forEach(function(e){
-        var k=e+'|'+cid;if(cmap[k]&&(!cmap[k].lastSeen||dt>cmap[k].lastSeen))cmap[k].lastSeen=dt});
-      _parseEmails(t.cc_emails||'').forEach(function(e){
-        var k=e+'|'+cid;if(cmap[k]&&(!cmap[k].lastSeen||dt>cmap[k].lastSeen))cmap[k].lastSeen=dt})}});
+      if(cmap[((t.from_email||'').toLowerCase().trim())]){var _c=cmap[(t.from_email||'').toLowerCase().trim()];if(!_c.lastSeen||dt>_c.lastSeen)_c.lastSeen=dt}
+      _parseEmails(t.to_emails||'').forEach(function(e){if(cmap[e]&&(!cmap[e].lastSeen||dt>cmap[e].lastSeen))cmap[e].lastSeen=dt});
+      _parseEmails(t.cc_emails||'').forEach(function(e){if(cmap[e]&&(!cmap[e].lastSeen||dt>cmap[e].lastSeen))cmap[e].lastSeen=dt})}});
+  /* Scan ALL meetings with participants */
   (S.meetings||[]).forEach(function(m){
-    if(!m.clientId)return;
-    var cid=m.clientId;
+    if(!m.participants||!m.participants.length)return;
+    var cid=m.clientId||null;
     var ownEmail=(m.ownerEmail||'').toLowerCase().trim();
     (m.participants||[]).forEach(function(p){
       if(!p.email)return;
       var pe=p.email.toLowerCase().trim();
       if(pe===ownEmail)return;
       addCandidate(pe,p.name||'',cid,'meeting');
-      if(m.startTime){
-        var k=pe+'|'+cid;
-        if(cmap[k]&&(!cmap[k].lastSeen||m.startTime>cmap[k].lastSeen))cmap[k].lastSeen=m.startTime}})});
+      if(m.startTime&&cmap[pe]&&(!cmap[pe].lastSeen||m.startTime>cmap[pe].lastSeen))cmap[pe].lastSeen=m.startTime})});
 
-  /* ── Resolve suggestions per candidate ── */
+  /* ── Resolve best client + EC suggestion per candidate ── */
   var arr=[];
   var clientMap={};
   (S.clientRecords||[]).forEach(function(c){clientMap[c.id]=c.name});
-  Object.keys(cmap).forEach(function(key){
-    var c=cmap[key];
-    c.clientName=clientMap[c.clientId]||'';
+  Object.keys(cmap).forEach(function(email){
+    var c=cmap[email];
+    /* Pick best clientId from interactions */
+    var bestCid=null,bestCnt=0;
+    Object.keys(c.clientIds).forEach(function(cid){if(c.clientIds[cid]>bestCnt){bestCid=cid;bestCnt=c.clientIds[cid]}});
+    /* Fallback: check domain→client map */
+    if(!bestCid){
+      var d=c.email.split('@')[1];
+      if(domainClient[d]){
+        Object.keys(domainClient[d]).forEach(function(cid){if(domainClient[d][cid]>bestCnt){bestCid=cid;bestCnt=domainClient[d][cid]}})}}
+    c.clientId=bestCid;c.clientName=clientMap[bestCid]||'';
+    delete c.clientIds;
+    /* Suggest EC */
     c.suggestedEC='';c.suggestedECId=null;
-    /* Priority 1: Direct email→EC from threads */
     if(emailThreadEC[c.email]){
       var best=null;
-      Object.keys(emailThreadEC[c.email]).forEach(function(k){
-        var e=emailThreadEC[c.email][k];if(!best||e.count>best.count)best=e});
+      Object.keys(emailThreadEC[c.email]).forEach(function(k){var e=emailThreadEC[c.email][k];if(!best||e.count>best.count)best=e});
       if(best){c.suggestedEC=best.name;c.suggestedECId=best.id||resolveEndClientId(best.name)}}
-    /* Priority 2: Domain→EC from contacts + threads */
     if(!c.suggestedEC){
-      var domain=c.email.split('@')[1];
-      var dm=bestDomainEC[domain];
+      var dm=bestDomainEC[c.email.split('@')[1]];
       if(dm){c.suggestedEC=dm.name;c.suggestedECId=dm.id||resolveEndClientId(dm.name)}}
     arr.push(c)});
   arr.sort(function(a,b){return(b.emailCount+b.meetingCount)-(a.emailCount+a.meetingCount)});
@@ -4347,10 +4347,9 @@ function refreshEcReview(){
 
 function dismissEcReview(idx){
   var c=S._ecCandidates[idx];if(!c)return;
-  var key=c.email+'|'+c.clientId;
   var dismissed={};
   try{dismissed=JSON.parse(localStorage.getItem('tf_ecr_dismissed')||'{}')}catch(e){}
-  dismissed[key]=1;
+  dismissed[c.email]=1;
   localStorage.setItem('tf_ecr_dismissed',JSON.stringify(dismissed));
   S._ecCandidates.splice(idx,1);
   var card=gel('cr-card-'+idx);

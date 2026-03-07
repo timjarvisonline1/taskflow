@@ -1310,58 +1310,46 @@ function rEcReview(){
     h+='</div>';
     return h}
 
-  /* Group candidates by clientName */
-  var groups={};
-  cands.forEach(function(c,idx){
-    c._idx=idx;
-    var gk=c.clientName||'(No Client)';
-    if(!groups[gk])groups[gk]=[];
-    groups[gk].push(c)});
-
-  Object.keys(groups).sort().forEach(function(clientName){
-    h+='<div style="margin-bottom:24px">';
-    h+='<div style="font-size:13px;font-weight:700;color:var(--t2);margin-bottom:10px;display:flex;align-items:center;gap:8px">'+icon('clients',13)+' '+esc(clientName)+' <span style="font-weight:400;color:var(--t4)">('+groups[clientName].length+')</span></div>';
-    groups[clientName].forEach(function(c){
-      var displayName=(c.name||'').trim();
-      var _hasSug=!!c.suggestedEC;
-      var _defEC=_hasSug;
-      var _i=c._idx;
-      var stats=[];
-      if(c.emailCount)stats.push(c.emailCount+'e');
-      if(c.meetingCount)stats.push(c.meetingCount+'m');
-      h+='<div id="cr-card-'+_i+'" style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px;margin-bottom:4px;backdrop-filter:blur(12px)">';
-      h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
-      /* Identity */
-      h+='<div style="min-width:0;flex-shrink:1">';
-      if(displayName){
-        h+='<span style="font-size:12px;font-weight:600;color:var(--t1)">'+esc(displayName)+'</span>';
-        h+=' <span style="font-size:10px;color:var(--t4)">'+esc(c.email)+'</span>'}
-      else{h+='<span style="font-size:12px;font-weight:600;color:var(--t1)">'+esc(c.email)+'</span>'}
-      if(stats.length)h+=' <span style="font-size:10px;color:var(--t4)">('+stats.join('/')+')</span>';
-      h+='</div>';
-      /* Suggestion badge */
-      if(_hasSug){h+='<span style="font-size:10px;color:var(--accent);white-space:nowrap">→ '+esc(c.suggestedEC)+'</span>'}
-      h+='<span style="flex:1"></span>';
-      /* Radio toggle */
-      h+='<label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:10px;color:var(--t3)">';
-      h+='<input type="radio" name="cr-mode-'+_i+'" value="client"'+(!_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'client\')"> Client</label>';
-      h+='<label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:10px;color:var(--t3)">';
-      h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> EC</label>';
-      /* EC dropdown (inline, shown if EC mode) */
-      h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:10px;padding:3px 5px;max-width:140px;'+(_defEC?'':'display:none;')+'" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
-      h+=buildEndClientOptions(c.suggestedECId||c.suggestedEC||'',c.clientName||'');
-      h+='</select>';
-      /* Hidden client select (only needed if user changes client) */
-      h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:10px;padding:3px 5px;max-width:120px;display:none">';
-      (S.clientRecords||[]).forEach(function(cr){
-        h+='<option value="'+cr.id+'"'+(cr.id===c.clientId?' selected':'')+'>'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
-      h+='</select>';
-      /* Action buttons */
-      h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:10px;padding:3px 10px;border-radius:6px">'+icon('check',9)+' Add</button>';
-      h+='<button class="btn" onclick="TF.dismissEcReview('+_i+')" style="font-size:10px;padding:3px 8px;border-radius:6px;color:var(--t4)">'+icon('x',9)+'</button>';
-      h+='</div>';
-      h+='</div>'});
+  cands.forEach(function(c,idx){c._idx=idx});
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px">';
+  cands.forEach(function(c){
+    var displayName=(c.name||'').trim();
+    var _hasSug=!!c.suggestedEC;
+    var _defEC=_hasSug;
+    var _i=c._idx;
+    h+='<div id="cr-card-'+_i+'" style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:10px 12px;backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:5px">';
+    /* Name + email */
+    if(displayName){
+      h+='<div style="font-size:11px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(displayName)+'">'+esc(displayName)+'</div>';
+      h+='<div style="font-size:9px;color:var(--t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.email)+'">'+esc(c.email)+'</div>'}
+    else{
+      h+='<div style="font-size:11px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.email)+'">'+esc(c.email)+'</div>'}
+    /* Suggestion badge */
+    if(_hasSug){h+='<div style="font-size:9px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.suggestedEC)+'">→ '+esc(c.suggestedEC)+'</div>'}
+    /* Client dropdown */
+    h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:10px;padding:2px 4px;width:100%">';
+    h+='<option value="">Client...</option>';
+    (S.clientRecords||[]).forEach(function(cr){
+      h+='<option value="'+cr.id+'"'+(cr.id===c.clientId?' selected':'')+'>'+esc(cr.name)+'</option>'});
+    h+='</select>';
+    /* Radio + EC dropdown row */
+    h+='<div style="display:flex;align-items:center;gap:4px">';
+    h+='<label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:9px;color:var(--t3);white-space:nowrap">';
+    h+='<input type="radio" name="cr-mode-'+_i+'" value="client"'+(!_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'client\')"> Client</label>';
+    h+='<label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:9px;color:var(--t3);white-space:nowrap">';
+    h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> EC</label>';
+    h+='</div>';
+    /* EC dropdown */
+    h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:10px;padding:2px 4px;width:100%;'+(_defEC?'':'display:none;')+'" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
+    h+=buildEndClientOptions(c.suggestedECId||c.suggestedEC||'',c.clientName||'');
+    h+='</select>';
+    /* Buttons */
+    h+='<div style="display:flex;gap:4px;margin-top:auto">';
+    h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:10px;padding:3px 0;border-radius:6px;flex:1">'+icon('check',9)+' Add</button>';
+    h+='<button class="btn" onclick="TF.dismissEcReview('+_i+')" style="font-size:10px;padding:3px 6px;border-radius:6px;color:var(--t4)">'+icon('x',9)+'</button>';
+    h+='</div>';
     h+='</div>'});
+  h+='</div>';
   return h}
 
 function initClientsCharts(){
