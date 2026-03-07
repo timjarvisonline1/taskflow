@@ -81,7 +81,9 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openEditEndClientModal:openEditEndClientModal,saveEditEndClient:saveEditEndClient,deleteEndClient:deleteEndClient,setEcSort:setEcSort,
   scanEcReview:scanEcReview,approveEcReview:approveEcReview,dismissEcReview:dismissEcReview,approveEcReviewAs:approveEcReviewAs,approveEcAsContact:approveEcAsContact,
   addCampaignNote:addCampaignNote,addClientNote:addClientNote,deleteCampaignNote:deleteCampaignNote,deleteClientNote:deleteClientNote,
-  setCampaignTab:setCampaignTab,saveCampaignBilling:saveCampaignBilling,
+  setCampaignTab:setCampaignTab,setClientTab:setClientTab,setEndClientTab:setEndClientTab,setOpportunityTab:setOpportunityTab,
+  cesToggleAll:cesToggleAll,cesCompose:cesCompose,
+  saveCampaignBilling:saveCampaignBilling,
   /* Email */
   openEmailThread:openEmailThread,closeEmailThread:closeEmailThread,searchGmail:searchGmail,setGmailFilter:setGmailFilter,loadMoreGmailThreads:loadMoreGmailThreads,refreshGmailInbox:refreshGmailInbox,
   ensureGmailThreads:ensureGmailThreads,archiveEmail:archiveEmail,toggleEmailMsg:toggleEmailMsg,

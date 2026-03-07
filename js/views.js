@@ -154,6 +154,151 @@ function aiBox(id,config){
   h+='</div></div></div>';
   return h}
 
+/* ═══════════ SHARED ENTITY HELPERS ═══════════ */
+function rEntityTabs(tabs,activeTab,setterFn){
+  var h='<div class="cp-tabs">';
+  tabs.forEach(function(t){
+    h+='<div class="cp-tab'+(activeTab===t[0]?' on':'')+'" onclick="TF.'+setterFn+'(\''+t[0]+'\')">';
+    if(t[2])h+='<span style="margin-right:5px;opacity:.7">'+icon(t[2],12)+'</span>';
+    h+=t[1];
+    if(t[3])h+='<span class="cp-tab-badge">'+t[3]+'</span>';
+    h+='</div>'});
+  h+='</div>';return h}
+
+function rContactEmailSelector(contacts,entityType,entityName){
+  if(!contacts||!contacts.length)return'';
+  var selectorId=entityType+'-ces';
+  var h='<div class="ces-wrap" id="'+selectorId+'">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div style="display:flex;align-items:center;gap:8px">';
+  h+=icon('mail',14)+'<span style="font-size:13px;font-weight:600;color:var(--t1)">Email Contacts</span>';
+  h+='<span style="font-size:11px;color:var(--t4)">('+contacts.length+')</span>';
+  h+='</div>';
+  h+='<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);cursor:pointer">';
+  h+='<input type="checkbox" class="ces-cb" onchange="TF.cesToggleAll(\''+selectorId+'\',this.checked)"> Select All';
+  h+='</label></div>';
+  contacts.forEach(function(c){
+    var fullName=((c.firstName||'')+(c.lastName?' '+c.lastName:'')).trim();
+    var initial=(c.firstName||c.lastName||c.email||'?').charAt(0).toUpperCase();
+    var avatarBg=emailAvatarColor(c.email);
+    if(!c.email)return;
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">';
+    h+='<input type="checkbox" class="ces-cb ces-item" data-email="'+escAttr(c.email)+'" data-name="'+escAttr(fullName)+'">';
+    h+='<div style="width:28px;height:28px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+    h+='<div style="flex:1;min-width:0">';
+    h+='<div style="font-size:12px;font-weight:600;color:var(--t1)">'+esc(fullName||'Unnamed')+'</div>';
+    h+='<div style="font-size:10px;color:var(--t4);display:flex;gap:8px;flex-wrap:wrap">';
+    h+='<span>'+esc(c.email)+'</span>';
+    if(c.role)h+='<span style="opacity:.6">· '+esc(c.role)+'</span>';
+    if(c.endClient)h+='<span class="bg" style="font-size:8px;padding:1px 6px;margin-left:2px">'+esc(c.endClient)+'</span>';
+    h+='</div></div></div>'});
+  h+='<div style="display:flex;align-items:center;gap:8px;margin-top:12px">';
+  h+='<input type="text" class="ed-in" id="'+selectorId+'-subject" placeholder="Email subject..." value="Re: '+escAttr(entityName)+'" style="flex:1;font-size:12px">';
+  h+='<button class="btn btn-p" onclick="TF.cesCompose(\''+selectorId+'\',\''+escAttr(entityType)+'\',\''+escAttr(entityName)+'\')" style="font-size:12px;padding:7px 16px;white-space:nowrap">'+icon('send',11)+' Compose</button>';
+  h+='</div></div>';return h}
+
+function initEntityCharts(entityType){
+  if(entityType==='client'){
+    var cName=S.clientDetailName||S._lastClientDash;if(!cName)return;
+    var cMap=buildClientMap();var c=cMap[cName];if(!c)return;
+    /* Revenue trend (12mo) */
+    if(gel('ch-cl-revenue')&&c.clientId){
+      var now=new Date();var revLabels=[],revVals=[];
+      for(var mi=11;mi>=0;mi--){
+        var d=new Date(now.getFullYear(),now.getMonth()-mi,1);
+        var mEnd=new Date(d.getFullYear(),d.getMonth()+1,0,23,59,59);
+        revLabels.push(d.toLocaleDateString('en-US',{month:'short'}));
+        var mRev=0;
+        S.financePayments.forEach(function(fp){if(fp.clientId===c.clientId&&fp.status!=='excluded'&&fp.date&&fp.date>=d&&fp.date<=mEnd)mRev+=fp.amount});
+        revVals.push(mRev)}
+      mkLineUSD('ch-cl-revenue',revLabels,revVals,'#3ddc84')}
+    /* Time by category */
+    if(gel('ch-cl-time')){
+      var catTime={};
+      S.done.filter(function(d){return d.client===cName&&d.duration}).forEach(function(d){
+        var cat=d.category||'Other';catTime[cat]=(catTime[cat]||0)+d.duration});
+      if(Object.keys(catTime).length)mkDonut('ch-cl-time',catTime)}
+    /* Task completions (30d) */
+    if(gel('ch-cl-tasks')){
+      var td_=today();var tLabels=[],tVals=[];
+      for(var di=29;di>=0;di--){
+        var dd=new Date(td_.getTime()-di*864e5);
+        var de=new Date(dd.getTime()+864e5);
+        tLabels.push(dd.getDate().toString());
+        var cnt=S.done.filter(function(d){return d.client===cName&&d.completed&&d.completed>=dd&&d.completed<de}).length;
+        tVals.push(cnt)}
+      mkLine('ch-cl-tasks',tLabels,tVals,'#ff0099')}
+    /* Pipeline by stage */
+    if(gel('ch-cl-pipeline')){
+      var stageVal={};
+      S.opportunities.filter(function(o){return o.client===cName&&o.stage!=='Closed Won'&&o.stage!=='Closed Lost'}).forEach(function(o){
+        var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
+        stageVal[o.stage]=(stageVal[o.stage]||0)+v});
+      if(Object.keys(stageVal).length)mkDonutUSD('ch-cl-pipeline',stageVal)}
+  }else if(entityType==='endClient'){
+    var ecName=S._lastEndClientDash;if(!ecName)return;
+    /* Campaigns by status */
+    if(gel('ch-ec-campaigns')){
+      var cpStatus={};
+      S.campaigns.filter(function(cp){return cp.endClient===ecName}).forEach(function(cp){
+        cpStatus[cp.status]=(cpStatus[cp.status]||0)+1});
+      if(Object.keys(cpStatus).length)mkDonut('ch-ec-campaigns',cpStatus)}
+    /* Task completions */
+    if(gel('ch-ec-tasks')){
+      var td2=today();var ecLabels=[],ecVals=[];
+      for(var di2=29;di2>=0;di2--){
+        var dd2=new Date(td2.getTime()-di2*864e5);
+        var de2=new Date(dd2.getTime()+864e5);
+        ecLabels.push(dd2.getDate().toString());
+        var cnt2=S.done.filter(function(d){return d.endClient===ecName&&d.completed&&d.completed>=dd2&&d.completed<de2}).length;
+        ecVals.push(cnt2)}
+      mkLine('ch-ec-tasks',ecLabels,ecVals,'#ff0099')}
+  }else if(entityType==='campaign'){
+    var cpId=S._lastCampaignId;if(!cpId)return;
+    var cp=S.campaigns.find(function(c){return c.id===cpId});if(!cp)return;
+    /* Revenue trend */
+    if(gel('ch-cp-revenue')){
+      var now2=new Date();var crLabels=[],crVals=[];
+      var cpPayments=S.financePayments.filter(function(fp){return fp.campaignId===cpId&&fp.status!=='excluded'});
+      for(var mi2=11;mi2>=0;mi2--){
+        var d2=new Date(now2.getFullYear(),now2.getMonth()-mi2,1);
+        var mEnd2=new Date(d2.getFullYear(),d2.getMonth()+1,0,23,59,59);
+        crLabels.push(d2.toLocaleDateString('en-US',{month:'short'}));
+        var mRev2=0;cpPayments.forEach(function(fp){if(fp.date&&fp.date>=d2&&fp.date<=mEnd2)mRev2+=fp.amount});
+        crVals.push(mRev2)}
+      mkLineUSD('ch-cp-revenue',crLabels,crVals,'#3ddc84')}
+    /* Tasks by category */
+    if(gel('ch-cp-tasks')){
+      var cpCatTime={};
+      S.done.filter(function(d){return d.campaign===cpId&&d.duration}).forEach(function(d){
+        var cat=d.category||'Other';cpCatTime[cat]=(cpCatTime[cat]||0)+d.duration});
+      S.tasks.filter(function(t){return t.campaign===cpId&&t.duration}).forEach(function(t){
+        var cat=t.category||'Other';cpCatTime[cat]=(cpCatTime[cat]||0)+t.duration});
+      if(Object.keys(cpCatTime).length)mkHBar('ch-cp-tasks',cpCatTime)}
+    /* Fee breakdown */
+    if(gel('ch-cp-fees')){
+      var feeData={};
+      if(cp.strategyFee)feeData['Strategy']=cp.strategyFee;
+      if(cp.setupFee)feeData['Setup']=cp.setupFee;
+      if(cp.monthlyFee)feeData['Monthly']=cp.monthlyFee*12;
+      if(cp.monthlyAdSpend)feeData['Ad Spend']=cp.monthlyAdSpend*12;
+      if(Object.keys(feeData).length)mkDonutUSD('ch-cp-fees',feeData)}
+  }else if(entityType==='opportunity'){
+    var opId=S._lastOpportunityId;if(!opId)return;
+    var op2=S.opportunities.find(function(o){return o.id===opId});if(!op2)return;
+    /* Value breakdown */
+    if(gel('ch-op-value')){
+      var valData={};
+      if(op2.strategyFee)valData['Strategy']=op2.strategyFee;
+      if(op2.setupFee)valData['Setup']=op2.setupFee;
+      if(op2.monthlyFee)valData['Monthly']=op2.monthlyFee*(op2.expectedMonthlyDuration||12);
+      if(Object.keys(valData).length)mkDonutUSD('ch-op-value',valData)}
+    /* Probability gauge */
+    if(gel('ch-op-prob')){
+      var prob=op2.probability||0;
+      mkDonut('ch-op-prob',{'Won Probability':prob,'Remaining':100-prob})}
+  }}
+
 /* ═══════════ DASHBOARD ═══════════ */
 function dashMet(label,value,color){return'<div class="dash-met"><div class="dash-met-v" style="color:'+color+'">'+value+'</div><div class="dash-met-l">'+label+'</div></div>'}
 
@@ -633,16 +778,24 @@ function openEndClientDetailModal(name){
   var ecMap=buildEndClientMap();
   var ec=ecMap[name];if(!ec)return;
   S._lastEndClientDash=name;
+  S.endClientTab='overview';
   var h=rEndClientDashboard(ec);
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-modal').classList.add('on','full-detail');
+  setTimeout(function(){initEntityCharts('endClient')},50)}
 
 function closeEndClientDashboard(){S._lastEndClientDash='';closeModal()}
 
 function rEndClientDashboard(ec){
   var td_=today();
+  var tab=S.endClientTab||'overview';
+  var ecContacts=S.contacts.filter(function(cc){return cc.endClient===ec.name});
+  var ecTasks=S.tasks.filter(function(t){return t.endClient===ec.name});
+  var ecEmails=S.gmailThreads.filter(function(t){return t.end_client===ec.name});
+
+  /* Header */
   var h='<div class="tf-modal-top" style="padding:20px 28px 16px">';
-  h+='<div style="display:flex;align-items:center;gap:12px;flex:1">';
+  h+='<div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">';
   h+='<span style="color:var(--accent)">'+icon('building',18)+'</span>';
   h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(ec.name)+'</h2>';
   if(ec.clientName)h+='<span class="bg" style="font-size:10px;padding:3px 10px;cursor:pointer" onclick="TF.openClientDetailModal(\''+escAttr(ec.clientName)+'\')">'+esc(ec.clientName)+'</span>';
@@ -650,71 +803,105 @@ function rEndClientDashboard(ec){
   h+='</div>';
   h+='<button class="tf-modal-close" onclick="TF.closeEndClientDashboard()">&times;</button>';
   h+='</div>';
-  h+='<div style="padding:0 28px 28px;overflow-y:auto;flex:1">';
 
+  /* Tab bar */
+  h+=rEntityTabs([
+    ['overview','Overview','dashboard'],
+    ['tasks','Tasks','tasks',ecTasks.length||''],
+    ['emails','Emails','mail',ecEmails.length||''],
+    ['contacts','Contacts','contact',ecContacts.length||''],
+    ['meetings','Meetings','calendar'],
+    ['details','Details','settings']
+  ],tab,'setEndClientTab');
+
+  /* Tab content */
+  h+='<div class="entity-tab-content">';
+  switch(tab){
+    case'tasks':h+=rEcTabTasks(ec,td_);break;
+    case'emails':h+=rEcTabEmails(ec,ecContacts,ecEmails);break;
+    case'contacts':h+=rEcTabContacts(ec,ecContacts);break;
+    case'meetings':h+=rEcTabMeetings(ec);break;
+    case'details':h+=rEcTabDetails(ec);break;
+    default:h+=rEcTabOverview(ec,td_,ecContacts)}
+  h+='</div>';
+  return h}
+
+/* ── End-Client Tab: Overview ── */
+function rEcTabOverview(ec,td_,ecContacts){
+  var h='';
   /* KPI strip */
   h+='<div class="dash-mets">';
   h+=dashMet('Monthly Revenue',fmtUSD(ec.monthlyRev),'var(--green)');
   h+=dashMet('Open Tasks',ec.openTasks,'var(--blue)');
   h+=dashMet('Overdue',ec.overdueTasks,ec.overdueTasks?'var(--red)':'var(--green)');
-  h+=dashMet('Contacts',ec.contacts,'var(--t1)');
+  h+=dashMet('Contacts',ecContacts.length,'var(--t1)');
   h+=dashMet('Campaigns',ec.activeCampaigns+'/'+ec.campaigns,'var(--amber)');
   h+=dashMet('Pipeline',fmtUSD(ec.pipelineValue),'var(--purple50)');
   h+='</div>';
 
-  /* Contacts section */
-  var ecContacts=S.contacts.filter(function(cc){return cc.endClient===ec.name});
-  h+='<div class="dash-section" style="display:flex;align-items:center;justify-content:space-between">'+icon('contact',13)+' Contacts ('+ecContacts.length+')';
-  h+=' <button class="btn" onclick="TF.openAddContactModal(\''+escAttr(ec.clientId||'')+'\',\''+escAttr(ec.name)+'\')" style="font-size:11px;padding:4px 10px">'+icon('plus',10)+' Add</button></div>';
-  if(ecContacts.length){
-    h+='<div class="contact-list" style="margin-bottom:16px;display:flex;flex-direction:column;gap:4px">';
-    ecContacts.forEach(function(cc){
-      h+='<div class="contact-card" onclick="TF.openEditContactModal(\''+escAttr(cc.id)+'\')" style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s">';
-      var fullName=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
-      var initial=(cc.firstName||cc.lastName||cc.email||'?').charAt(0).toUpperCase();
-      var avatarBg=emailAvatarColor(cc.email);
-      h+='<div style="width:32px;height:32px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
-      h+='<div style="flex:1;min-width:0">';
-      h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(fullName||'Unnamed')+'</div>';
-      h+='<div style="font-size:11px;color:var(--t4);display:flex;gap:12px;flex-wrap:wrap">';
-      if(cc.role)h+='<span>'+esc(cc.role)+'</span>';
-      if(cc.email)h+='<span>'+esc(cc.email)+'</span>';
-      if(cc.phone)h+='<span>'+esc(cc.phone)+'</span>';
-      h+='</div></div></div>'});
-    h+='</div>'}
-  else{
-    h+='<div style="padding:8px 0 16px;font-size:12px;color:var(--t4)">No contacts added yet.</div>'}
+  /* Charts (2 column) */
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Campaigns by Status</div>';
+  h+='<div style="height:160px"><canvas id="ch-ec-campaigns"></canvas></div></div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Task Completions</div>';
+  h+='<div style="height:160px"><canvas id="ch-ec-tasks"></canvas></div></div>';
+  h+='</div>';
+
+  /* AI Assistant */
+  var _ecLive='';
+  var _ecTasks=S.tasks.filter(function(t){return t.endClient===ec.name}).sort(function(a,b){
+    var aOd=a.due&&a.due<td_?0:1,bOd=b.due&&b.due<td_?0:1;
+    if(aOd!==bOd)return aOd-bOd;return 0});
+  if(_ecTasks.length){_ecLive+='\nOPEN TASKS ('+_ecTasks.length+'):\n';_ecTasks.forEach(function(t){
+    var isOd=t.due&&t.due<td_;_ecLive+='- '+(isOd?'[OVERDUE] ':'')+t.item+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+'\n'})}
+  if(ec.campaignList.length){_ecLive+='\nCAMPAIGNS ('+ec.campaignList.length+'):\n';ec.campaignList.forEach(function(cp){_ecLive+='- '+cp.name+' ['+cp.status+']\n'})}
+  if(ec.oppList.length){_ecLive+='\nOPPORTUNITIES ('+ec.oppList.length+'):\n';ec.oppList.forEach(function(op){_ecLive+='- '+op.name+' ['+op.stage+']\n'})}
+  if(ecContacts.length){_ecLive+='\nCONTACTS ('+ecContacts.length+'):\n';ecContacts.forEach(function(cc){var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();_ecLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(cc.email?' '+cc.email:'')+'\n'})}
+
+  h+=aiBox('ec-ai',{clientId:ec.clientId,clientName:ec.clientName||ec.name,sourceTypes:null,
+    entityContext:{type:'end-client',name:ec.name,data:{
+      monthlyRev:ec.monthlyRev,openTasks:ec.openTasks,campaigns:ec.campaigns,pipelineValue:ec.pipelineValue},
+      liveData:_ecLive},
+    suggestedPrompts:['Summarize activity for '+ec.name,'What tasks are overdue for '+ec.name+'?',
+      'Review campaign performance for '+ec.name],
+    placeholder:'Ask about '+ec.name+'...',collapsed:false});
 
   /* Campaigns */
   if(ec.campaignList.length){
     h+='<div class="dash-section">'+icon('target',13)+' Campaigns ('+ec.campaignList.length+')</div>';
-    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:16px">';
     ec.campaignList.forEach(function(cp){
-      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')">';
-      h+='<span style="font-size:12px;color:var(--t1);font-weight:600">'+esc(cp.name)+'</span>';
+      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')" onmouseenter="this.style.borderColor=\'var(--accent)\'" onmouseleave="this.style.borderColor=\'var(--gborder)\'">';
+      h+=icon('target',12)+'<span style="font-size:12px;color:var(--t1);font-weight:600;flex:1">'+esc(cp.name)+'</span>';
       h+='<span class="bg" style="font-size:9px;padding:2px 6px">'+esc(cp.status)+'</span></div>'});
     h+='</div>'}
-
   /* Opportunities */
   if(ec.oppList.length){
     h+='<div class="dash-section">'+icon('gem',13)+' Opportunities ('+ec.oppList.length+')</div>';
-    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:16px">';
     ec.oppList.forEach(function(op){
-      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')">';
-      h+='<span style="font-size:12px;color:var(--t1);font-weight:600">'+esc(op.name)+'</span>';
+      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')" onmouseenter="this.style.borderColor=\'var(--accent)\'" onmouseleave="this.style.borderColor=\'var(--gborder)\'">';
+      h+=icon('gem',12)+'<span style="font-size:12px;color:var(--t1);font-weight:600;flex:1">'+esc(op.name)+'</span>';
       h+='<span class="bg '+opStageClass(op.stage,op.type)+'" style="font-size:9px;padding:2px 6px">'+esc(op.stage)+'</span></div>'});
     h+='</div>'}
+  return h}
 
-  /* Open Tasks */
+/* ── End-Client Tab: Tasks ── */
+function rEcTabTasks(ec,td_){
+  var h='';
   var ecTasks=S.tasks.filter(function(t){return t.endClient===ec.name});
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div class="dash-section" style="margin:0">'+icon('tasks',13)+' Open Tasks ('+ecTasks.length+')</div>';
+  h+='<button class="btn btn-p" onclick="TF.openAddModal();setTimeout(function(){var s=gel(\'f-ec\');if(s){s.value=\''+escAttr(ec.name)+'\'}},100)" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Task</button>';
+  h+='</div>';
   if(ecTasks.length){
-    h+='<div class="dash-section">'+icon('tasks',13)+' Open Tasks ('+ecTasks.length+')</div>';
     h+='<div class="tk-list" style="margin-bottom:16px">';
     ecTasks.sort(function(a,b){return(b._score||taskScore(b))-(a._score||taskScore(a))}).forEach(function(t,idx){h+=taskCard(t,td_,idx)});
     h+='</div>'}
-
-  /* Recent Completed */
-  var ecDone=S.done.filter(function(d){return d.endClient===ec.name}).slice(0,10);
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No open tasks</div>'}
+  var ecDone=S.done.filter(function(d){return d.endClient===ec.name}).slice(0,15);
   if(ecDone.length){
     h+='<div class="dash-section">Recent Completed</div>';
     h+='<div class="dash-recent" style="margin-bottom:16px">';
@@ -727,14 +914,107 @@ function rEndClientDashboard(ec){
       if(d.completed)h+='<span>'+fmtDShort(d.completed)+'</span>';
       h+='</span></div>'});
     h+='</div>'}
+  return h}
 
-  /* Emails */
-  var ecEmails=S.gmailThreads.filter(function(t){return t.end_client===ec.name}).slice(0,10);
-  if(ecEmails.length){
-    h+='<div class="dash-section">'+icon('mail',13)+' Emails</div>';
-    h+=rEmailList(ecEmails)}
+/* ── End-Client Tab: Emails ── */
+function rEcTabEmails(ec,ecContacts,threads){
+  var h='';
+  var emailContacts=ecContacts.filter(function(cc){return cc.email});
+  if(emailContacts.length){h+=rContactEmailSelector(emailContacts,'ec',ec.name)}
+  if(threads.length){
+    h+='<div class="dash-section" style="margin-top:8px">'+icon('mail',13)+' Email Threads ('+threads.length+')</div>';
+    h+=rEmailList(threads.slice(0,15));
+    if(threads.length>15){
+      h+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'endClient\',\''+escAttr(ec.name)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all threads →</a></div>'}}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No email threads found</div>'}
+  return h}
 
-  h+='</div>';/* close scrollable content wrapper */
+/* ── End-Client Tab: Contacts ── */
+function rEcTabContacts(ec,ecContacts){
+  var h='';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div class="dash-section" style="margin:0">'+icon('contact',13)+' Contacts ('+ecContacts.length+')</div>';
+  h+='<button class="btn btn-p" onclick="TF.openAddContactModal(\''+escAttr(ec.clientId||'')+'\',\''+escAttr(ec.name)+'\')" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Contact</button>';
+  h+='</div>';
+  if(ecContacts.length){
+    h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">';
+    ecContacts.forEach(function(cc){
+      h+='<div class="contact-card" onclick="TF.openEditContactModal(\''+escAttr(cc.id)+'\')" style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s">';
+      var fullName=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
+      var initial=(cc.firstName||cc.lastName||cc.email||'?').charAt(0).toUpperCase();
+      var avatarBg=emailAvatarColor(cc.email);
+      h+='<div style="width:36px;height:36px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(fullName||'Unnamed')+'</div>';
+      h+='<div style="font-size:11px;color:var(--t4);display:flex;gap:12px;flex-wrap:wrap">';
+      if(cc.role)h+='<span>'+esc(cc.role)+'</span>';
+      if(cc.email)h+='<span>'+esc(cc.email)+'</span>';
+      if(cc.phone)h+='<span>'+esc(cc.phone)+'</span>';
+      h+='</div></div></div>'});
+    h+='</div>';
+    var emailContacts=ecContacts.filter(function(cc){return cc.email});
+    if(emailContacts.length){h+=rContactEmailSelector(emailContacts,'ec-contacts',ec.name)}}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No contacts added yet</div>'}
+  return h}
+
+/* ── End-Client Tab: Meetings ── */
+function rEcTabMeetings(ec){
+  var h='';
+  var allMeetings=[];
+  var cpMap={};S.campaigns.forEach(function(cp){cpMap[cp.id]=cp});
+  (S.campaignMeetings||[]).forEach(function(m){
+    var cp=cpMap[m.campaignId];if(!cp||cp.endClient!==ec.name)return;
+    allMeetings.push({date:m.date||m.created_at,title:m.title||'Campaign Meeting',source:'campaign',campaign:cp.name,duration:m.duration})});
+  (S.oppMeetings||[]).forEach(function(m){
+    var op=S.opportunities.find(function(o){return o.id===m.opportunityId});
+    if(!op||op.endClient!==ec.name)return;
+    allMeetings.push({date:m.date||m.created_at,title:m.title||'Opportunity Meeting',source:'opportunity',campaign:op.name,duration:m.duration})});
+  (S.meetings||[]).forEach(function(m){
+    var ecMatch=false;
+    (S.contacts||[]).forEach(function(cc){if(cc.endClient===ec.name&&cc.email){
+      var attendees=((m.attendees||'')+(m.external_participants||'')).toLowerCase();
+      if(attendees.indexOf(cc.email.toLowerCase())!==-1)ecMatch=true}});
+    if(!ecMatch)return;
+    allMeetings.push({date:m.date||m.startTime,title:m.title||'Meeting',source:'readai',duration:m.duration_minutes})});
+  allMeetings.sort(function(a,b){var da=a.date?new Date(a.date):new Date(0);var db=b.date?new Date(b.date):new Date(0);return db-da});
+  h+='<div class="dash-section" style="margin-bottom:12px">'+icon('calendar',13)+' Meetings ('+allMeetings.length+')</div>';
+  if(allMeetings.length){
+    allMeetings.forEach(function(m){
+      var srcColor=m.source==='campaign'?'var(--amber)':m.source==='opportunity'?'var(--purple50)':'var(--blue)';
+      var srcLabel=m.source==='campaign'?'Campaign':m.source==='opportunity'?'Opportunity':'Meeting';
+      h+='<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)">';
+      h+='<div style="min-width:70px;font-size:11px;color:var(--t3)">'+(m.date?fmtDShort(new Date(m.date)):'-')+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px;color:var(--t1);font-weight:500">'+esc(m.title)+'</div>';
+      if(m.campaign)h+='<div style="font-size:10px;color:var(--t4);margin-top:2px">'+esc(m.campaign)+'</div>';
+      h+='</div>';
+      h+='<span class="bg" style="font-size:9px;padding:2px 8px;background:'+srcColor+'20;color:'+srcColor+'">'+srcLabel+'</span>';
+      if(m.duration)h+='<span style="font-size:11px;color:var(--t3)">'+(typeof m.duration==='number'?fmtM(m.duration):esc(String(m.duration)))+'</span>';
+      h+='</div>'})}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No meetings found</div>'}
+  return h}
+
+/* ── End-Client Tab: Details ── */
+function rEcTabDetails(ec){
+  var h='';
+  /* Info */
+  h+='<div class="dash-section">'+icon('building',13)+' End-Client Details</div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:16px;margin-bottom:16px">';
+  h+='<div style="display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:12px">';
+  h+='<span style="color:var(--t4)">Name</span><span style="color:var(--t1);font-weight:600">'+esc(ec.name)+'</span>';
+  h+='<span style="color:var(--t4)">Parent Client</span><span style="color:var(--t1)">'+(ec.clientName?'<a href="#" onclick="event.preventDefault();TF.openClientDetailModal(\''+escAttr(ec.clientName)+'\')">'+esc(ec.clientName)+'</a>':'<em style="color:var(--t4)">Unassigned</em>')+'</span>';
+  h+='<span style="color:var(--t4)">Status</span><span style="color:var(--t1)">'+esc(ec.status||'active')+'</span>';
+  if(ec.notes)h+='<span style="color:var(--t4)">Notes</span><span style="color:var(--t2)">'+esc(ec.notes)+'</span>';
+  h+='</div></div>';
+  /* Summary */
+  h+='<div class="dash-section">Summary</div>';
+  h+='<div class="dash-mets">';
+  h+=dashMet('Campaigns',ec.campaigns,'var(--amber)');
+  h+=dashMet('Opportunities',ec.opportunities,'var(--purple50)');
+  h+=dashMet('Open Tasks',ec.openTasks,'var(--blue)');
+  h+=dashMet('Contacts',S.contacts.filter(function(cc){return cc.endClient===ec.name}).length,'var(--t1)');
+  h+=dashMet('Monthly Revenue',fmtUSD(ec.monthlyRev),'var(--green)');
+  h+='</div>';
   return h}
 
 function openClientDashboard(name){openClientDetailModal(name)}
@@ -744,23 +1024,56 @@ function openClientDetailModal(name){
   var c=clientMap[name];if(!c)return;
   S.clientDetailName=name;
   S._lastClientDash=name;
+  S.clientTab='overview';
   var h=rClientDashboard(c);
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-modal').classList.add('on','full-detail');
+  setTimeout(function(){initEntityCharts('client')},50)}
 
 function rClientDashboard(c){
   var td_=today();
   var st=c.clientStatus||'active';
+  var tab=S.clientTab||'overview';
+  var contacts=c.clientId?S.contacts.filter(function(cc){return cc.clientId===c.clientId}):[];
+  var clientTasks=S.tasks.filter(function(t){return t.client===c.name});
+
+  /* Header */
   var h='<div class="tf-modal-top" style="padding:20px 28px 16px">';
-  h+='<div style="display:flex;align-items:center;gap:12px;flex:1">';
+  h+='<div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">';
   h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(c.name)+'</h2>';
   h+='<span style="font-size:10px;padding:3px 10px;border-radius:10px;background:'+(st==='active'?'rgba(16,185,129,.15)':'rgba(156,163,175,.15)')+';color:'+(st==='active'?'var(--green)':'var(--t3)')+';text-transform:uppercase;letter-spacing:.5px;font-weight:600">'+esc(st)+'</span>';
   if(c.clientId)h+='<button class="btn" onclick="TF.openEditClient(\''+escAttr(c.clientId)+'\')" style="font-size:11px;padding:5px 12px;margin-left:auto">'+icon('edit',11)+' Edit</button>';
   h+='</div>';
   h+='<button class="tf-modal-close" onclick="TF.closeClientDashboard()">&times;</button>';
   h+='</div>';
-  h+='<div style="padding:0 28px 28px;overflow-y:auto;flex:1">';
 
+  /* Tab bar */
+  var clientEmailThreads=c.clientId?S.gmailThreads.filter(function(t){return t.client_id===c.clientId}):[];
+  h+=rEntityTabs([
+    ['overview','Overview','dashboard'],
+    ['tasks','Tasks','tasks',clientTasks.length||''],
+    ['emails','Emails','mail',clientEmailThreads.length||''],
+    ['contacts','Contacts','contact',contacts.length||''],
+    ['meetings','Meetings','calendar'],
+    ['details','Details','settings']
+  ],tab,'setClientTab');
+
+  /* Tab content */
+  h+='<div class="entity-tab-content">';
+  switch(tab){
+    case'tasks':h+=rClTabTasks(c,td_);break;
+    case'emails':h+=rClTabEmails(c,contacts,clientEmailThreads);break;
+    case'contacts':h+=rClTabContacts(c,contacts);break;
+    case'meetings':h+=rClTabMeetings(c);break;
+    case'details':h+=rClTabDetails(c,td_);break;
+    default:h+=rClTabOverview(c,td_,contacts)}
+  h+='</div>';
+  return h}
+
+/* ── Client Tab: Overview ── */
+function rClTabOverview(c,td_,contacts){
+  var st=c.clientStatus||'active';
+  var h='';
   /* KPI strip */
   h+='<div class="dash-mets">';
   h+=dashMet('Revenue',fmtUSD(c.totalRevenue),'var(--green)');
@@ -771,7 +1084,23 @@ function rClientDashboard(c){
   h+=dashMet('Pipeline',fmtUSD(c.pipelineValue),'var(--purple50)');
   h+='</div>';
 
-  /* AI Assistant — build client live data (ALL tasks) */
+  /* Charts (2x2 grid) */
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Revenue Trend (12mo)</div>';
+  h+='<div style="height:160px"><canvas id="ch-cl-revenue"></canvas></div></div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Time by Category</div>';
+  h+='<div style="height:160px"><canvas id="ch-cl-time"></canvas></div></div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Task Completions (30d)</div>';
+  h+='<div style="height:160px"><canvas id="ch-cl-tasks"></canvas></div></div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Pipeline by Stage</div>';
+  h+='<div style="height:160px"><canvas id="ch-cl-pipeline"></canvas></div></div>';
+  h+='</div>';
+
+  /* AI Assistant */
   var _cLive='';
   var _cTasks=S.tasks.filter(function(t){return t.client===c.name}).sort(function(a,b){
     var aOd=a.due&&a.due<td_?0:1,bOd=b.due&&b.due<td_?0:1;
@@ -782,8 +1111,7 @@ function rClientDashboard(c){
   if(_cOpps.length){_cLive+='\nACTIVE DEALS ('+_cOpps.length+'):\n';_cOpps.forEach(function(o){var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);_cLive+='- '+o.name+' Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'%)':'')+(o.notes?' — '+o.notes.substring(0,150):'')+'\n'})}
   var _cCamps=S.campaigns.filter(function(cp){return cp.client===c.name&&cp.status==='Active'});
   if(_cCamps.length){_cLive+='\nACTIVE CAMPAIGNS ('+_cCamps.length+'):\n';_cCamps.forEach(function(cp){_cLive+='- '+cp.name+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+(cp.endClient?' EC: '+cp.endClient:'')+'\n'})}
-  var _cContacts=c.clientId?S.contacts.filter(function(cc){return cc.clientId===c.clientId}):[];
-  if(_cContacts.length){_cLive+='\nCONTACTS ('+_cContacts.length+'):\n';_cContacts.forEach(function(cc){var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();_cLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(cc.email?' '+cc.email:'')+(cc.phone?' '+cc.phone:'')+'\n'})}
+  if(contacts.length){_cLive+='\nCONTACTS ('+contacts.length+'):\n';contacts.forEach(function(cc){var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();_cLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(cc.email?' '+cc.email:'')+(cc.phone?' '+cc.phone:'')+'\n'})}
   var _cDone=S.done.filter(function(d){return d.client===c.name}).slice(0,20);
   if(_cDone.length){_cLive+='\nRECENT COMPLETED ('+_cDone.length+'):\n';_cDone.forEach(function(d){_cLive+='- '+d.item+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'')+(d.duration?' '+fmtM(d.duration):'')+'\n'})}
 
@@ -794,71 +1122,48 @@ function rClientDashboard(c){
       liveData:_cLive},
     suggestedPrompts:['Summarize recent activity for '+c.name,'What are the open issues with '+c.name+'?',
       'Review meeting notes for '+c.name,'What is the revenue trend for '+c.name+'?'],
-    placeholder:'Ask about '+c.name+'...',collapsed:true});
-
-  /* Contacts */
-  if(c.clientId){
-    var contacts=S.contacts.filter(function(cc){return cc.clientId===c.clientId});
-    h+='<div class="dash-section" style="display:flex;align-items:center;justify-content:space-between">'+icon('contact',13)+' Contacts ('+contacts.length+')';
-    h+=' <button class="btn" onclick="TF.openAddContactModal(\''+escAttr(c.clientId)+'\')" style="font-size:11px;padding:4px 10px">'+icon('plus',10)+' Add</button></div>';
-    if(contacts.length){
-      h+='<div class="contact-list" style="margin-bottom:16px;display:flex;flex-direction:column;gap:4px">';
-      contacts.forEach(function(cc){
-        h+='<div class="contact-card" onclick="TF.openEditContactModal(\''+escAttr(cc.id)+'\')" style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s">';
-        var fullName=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
-        var initial=(cc.firstName||cc.lastName||cc.email||'?').charAt(0).toUpperCase();
-        var avatarBg=emailAvatarColor(cc.email);
-        h+='<div style="width:32px;height:32px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
-        h+='<div style="flex:1;min-width:0">';
-        h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(fullName||'Unnamed')+'</div>';
-        h+='<div style="font-size:11px;color:var(--t4);display:flex;gap:12px;flex-wrap:wrap">';
-        if(cc.role)h+='<span>'+esc(cc.role)+'</span>';
-        if(cc.email)h+='<span>'+esc(cc.email)+'</span>';
-        if(cc.phone)h+='<span>'+esc(cc.phone)+'</span>';
-        h+='</div></div></div>'});
-      h+='</div>'}
-    else{
-      h+='<div style="padding:8px 0 16px;font-size:12px;color:var(--t4)">No contacts added yet.</div>'}}
-
-  /* Notes Timeline */
-  if(c.clientId){
-    h+='<div class="dash-section">'+icon('edit',13)+' Notes</div>';
-    var cNotes=S.clientNotes[c.clientId]||[];
-    h+=renderNoteTimeline(cNotes,'cln-input','TF.addClientNote(\''+escAttr(c.clientId)+'\')')}
+    placeholder:'Ask about '+c.name+'...',collapsed:false});
 
   /* Campaigns */
   if(c.campaignList.length){
     h+='<div class="dash-section">'+icon('target',13)+' Campaigns ('+c.campaignList.length+')</div>';
-    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:16px">';
     c.campaignList.forEach(function(cp){
-      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')">';
-      h+='<span style="font-size:12px;color:var(--t1);font-weight:600">'+esc(cp.name)+'</span>';
+      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')" onmouseenter="this.style.borderColor=\'var(--accent)\'" onmouseleave="this.style.borderColor=\'var(--gborder)\'">';
+      h+=icon('target',12)+'<span style="font-size:12px;color:var(--t1);font-weight:600;flex:1">'+esc(cp.name)+'</span>';
       h+='<span class="bg" style="font-size:9px;padding:2px 6px">'+esc(cp.status)+'</span></div>'});
     h+='</div>'}
 
   /* Opportunities */
   if(c.oppList.length){
     h+='<div class="dash-section">'+icon('gem',13)+' Opportunities ('+c.oppList.length+')</div>';
-    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:16px">';
     c.oppList.forEach(function(op){
-      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')">';
-      h+='<span style="font-size:12px;color:var(--t1);font-weight:600">'+esc(op.name)+'</span>';
+      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')" onmouseenter="this.style.borderColor=\'var(--accent)\'" onmouseleave="this.style.borderColor=\'var(--gborder)\'">';
+      h+=icon('gem',12)+'<span style="font-size:12px;color:var(--t1);font-weight:600;flex:1">'+esc(op.name)+'</span>';
       h+='<span class="bg '+opStageClass(op.stage,op.type)+'" style="font-size:9px;padding:2px 6px">'+esc(op.stage)+'</span></div>'});
     h+='</div>'}
+  return h}
 
-  /* Open Tasks */
+/* ── Client Tab: Tasks ── */
+function rClTabTasks(c,td_){
+  var h='';
   var clientTasks=S.tasks.filter(function(t){return t.client===c.name});
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div class="dash-section" style="margin:0">'+icon('tasks',13)+' Open Tasks ('+clientTasks.length+')</div>';
+  h+='<button class="btn btn-p" onclick="TF.openAddModal();setTimeout(function(){var s=gel(\'f-client\');if(s){s.value=\''+escAttr(c.name)+'\'}},100)" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Task</button>';
+  h+='</div>';
   if(clientTasks.length){
-    h+='<div class="dash-section">'+icon('tasks',13)+' Open Tasks ('+clientTasks.length+')</div>';
     h+='<div class="tk-list" style="margin-bottom:16px">';
     clientTasks.sort(function(a,b){return(b._score||taskScore(b))-(a._score||taskScore(a))}).forEach(function(t,idx){h+=taskCard(t,td_,idx)});
     h+='</div>'}
-
-  /* Recent Completed */
-  if(c.recentDone.length){
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No open tasks for this client</div>'}
+  /* Recent completed */
+  var done=S.done.filter(function(d){return d.client===c.name}).slice(0,20);
+  if(done.length){
     h+='<div class="dash-section">Recent Completed ('+c.doneTasks+' total)</div>';
     h+='<div class="dash-recent" style="margin-bottom:16px">';
-    c.recentDone.forEach(function(d){
+    done.forEach(function(d){
       h+='<div class="dash-recent-item">';
       h+='<span class="dash-recent-check">'+CK_XS+'</span>';
       h+='<span class="dash-recent-name">'+esc(d.item)+'</span>';
@@ -867,47 +1172,128 @@ function rClientDashboard(c){
       if(d.completed)h+='<span>'+fmtDShort(d.completed)+'</span>';
       h+='</span></div>'});
     h+='</div>'}
+  return h}
 
+/* ── Client Tab: Emails ── */
+function rClTabEmails(c,contacts,threads){
+  var h='';
+  /* Contact email selector for quick compose */
+  var emailContacts=contacts.filter(function(cc){return cc.email});
+  if(emailContacts.length){
+    h+=rContactEmailSelector(emailContacts,'client',c.name)}
+  /* Email threads */
+  if(threads.length){
+    h+='<div class="dash-section" style="margin-top:8px">'+icon('mail',13)+' Recent Threads ('+threads.length+')</div>';
+    h+=rEmailList(threads.slice(0,15));
+    var allThreads=S.gmailThreads.filter(function(t){return t.client_id===c.clientId});
+    if(allThreads.length>15){
+      h+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'client\',\''+escAttr(c.name)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all '+allThreads.length+' threads →</a></div>'}}
+  else{
+    h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No email threads found</div>'}
+  return h}
+
+/* ── Client Tab: Contacts ── */
+function rClTabContacts(c,contacts){
+  var h='';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div class="dash-section" style="margin:0">'+icon('contact',13)+' Contacts ('+contacts.length+')</div>';
+  if(c.clientId)h+='<button class="btn btn-p" onclick="TF.openAddContactModal(\''+escAttr(c.clientId)+'\')" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Contact</button>';
+  h+='</div>';
+  if(contacts.length){
+    h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">';
+    contacts.forEach(function(cc){
+      h+='<div class="contact-card" onclick="TF.openEditContactModal(\''+escAttr(cc.id)+'\')" style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s">';
+      var fullName=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
+      var initial=(cc.firstName||cc.lastName||cc.email||'?').charAt(0).toUpperCase();
+      var avatarBg=emailAvatarColor(cc.email);
+      h+='<div style="width:36px;height:36px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(fullName||'Unnamed')+'</div>';
+      h+='<div style="font-size:11px;color:var(--t4);display:flex;gap:12px;flex-wrap:wrap">';
+      if(cc.role)h+='<span>'+esc(cc.role)+'</span>';
+      if(cc.email)h+='<span>'+esc(cc.email)+'</span>';
+      if(cc.phone)h+='<span>'+esc(cc.phone)+'</span>';
+      if(cc.endClient)h+='<span class="bg" style="font-size:9px;padding:2px 6px">'+esc(cc.endClient)+'</span>';
+      h+='</div></div></div>'});
+    h+='</div>';
+    /* Email selector at bottom */
+    var emailContacts=contacts.filter(function(cc){return cc.email});
+    if(emailContacts.length){h+=rContactEmailSelector(emailContacts,'client-contacts',c.name)}}
+  else{
+    h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No contacts added yet</div>'}
+  return h}
+
+/* ── Client Tab: Meetings ── */
+function rClTabMeetings(c){
+  var h='';
+  var allMeetings=[];
+  /* Campaign meetings */
+  var cpMap={};S.campaigns.forEach(function(cp){cpMap[cp.id]=cp});
+  (S.campaignMeetings||[]).forEach(function(m){
+    var cp=cpMap[m.campaignId];if(!cp||cp.partner!==c.name)return;
+    allMeetings.push({date:m.date||m.created_at,title:m.title||'Campaign Meeting',source:'campaign',campaign:cp.name,duration:m.duration,participants:m.participants})});
+  /* Opportunity meetings */
+  (S.oppMeetings||[]).forEach(function(m){
+    var op=S.opportunities.find(function(o){return o.id===m.opportunityId});
+    if(!op||op.client!==c.name)return;
+    allMeetings.push({date:m.date||m.created_at,title:m.title||'Opportunity Meeting',source:'opportunity',campaign:op.name,duration:m.duration,participants:m.participants})});
+  /* Read.ai meetings */
+  (S.meetings||[]).forEach(function(m){
+    if(m.clientId!==c.clientId)return;
+    allMeetings.push({date:m.date||m.startTime,title:m.title||'Meeting',source:'readai',duration:m.duration_minutes,participants:m.attendees_count||''})});
+  /* Sort reverse-chronologically */
+  allMeetings.sort(function(a,b){
+    var da=a.date?new Date(a.date):new Date(0);
+    var db=b.date?new Date(b.date):new Date(0);
+    return db-da});
+  h+='<div class="dash-section" style="margin-bottom:12px">'+icon('calendar',13)+' Meetings ('+allMeetings.length+')</div>';
+  if(allMeetings.length){
+    allMeetings.forEach(function(m){
+      var srcColor=m.source==='campaign'?'var(--amber)':m.source==='opportunity'?'var(--purple50)':'var(--blue)';
+      var srcLabel=m.source==='campaign'?'Campaign':m.source==='opportunity'?'Opportunity':'Meeting';
+      h+='<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04)">';
+      h+='<div style="min-width:70px;font-size:11px;color:var(--t3)">'+(m.date?fmtDShort(new Date(m.date)):'-')+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px;color:var(--t1);font-weight:500">'+esc(m.title)+'</div>';
+      if(m.campaign)h+='<div style="font-size:10px;color:var(--t4);margin-top:2px">'+esc(m.campaign)+'</div>';
+      h+='</div>';
+      h+='<span class="bg" style="font-size:9px;padding:2px 8px;background:'+srcColor+'20;color:'+srcColor+'">'+srcLabel+'</span>';
+      if(m.duration)h+='<span style="font-size:11px;color:var(--t3)">'+(typeof m.duration==='number'?fmtM(m.duration):esc(String(m.duration)))+'</span>';
+      h+='</div>'})}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No meetings found for this client</div>'}
+  return h}
+
+/* ── Client Tab: Details ── */
+function rClTabDetails(c,td_){
+  var h='';
+  /* Notes */
+  if(c.clientId){
+    h+='<div class="dash-section">'+icon('edit',13)+' Notes</div>';
+    var cNotes=S.clientNotes[c.clientId]||[];
+    h+=renderNoteTimeline(cNotes,'cln-input','TF.addClientNote(\''+escAttr(c.clientId)+'\')')}
   /* Payment history */
   var clientPayments=c.clientId?S.financePayments.filter(function(fp){return fp.clientId===c.clientId&&fp.status!=='excluded'})
-    .sort(function(a,b){return(b.date||0)-(a.date||0)}).slice(0,10):[];
+    .sort(function(a,b){return(b.date||0)-(a.date||0)}).slice(0,15):[];
   if(clientPayments.length){
-    h+='<div class="dash-section">'+icon('activity',13)+' Recent Payments ('+c.paymentCount+' total)</div>';
+    h+='<div class="dash-section">'+icon('activity',13)+' Payment History ('+c.paymentCount+' total)</div>';
     h+='<div style="margin-bottom:16px">';
     clientPayments.forEach(function(fp){
-      h+='<div class="cl-detail-item" style="cursor:pointer;padding:6px 0" onclick="TF.openFinancePaymentDetail(\''+escAttr(fp.id)+'\')">';
+      h+='<div class="cl-detail-item" style="cursor:pointer;padding:8px 0" onclick="TF.openFinancePaymentDetail(\''+escAttr(fp.id)+'\')">';
       h+='<span style="color:var(--t3);font-size:11px;min-width:75px">'+(fp.date?fmtDShort(fp.date):'-')+'</span>';
       h+='<span style="flex:1;color:var(--t1)">'+esc(fp.description||fp.payerName||fp.payerEmail||'Payment')+'</span>';
       h+='<span class="fin-src fin-src-'+esc(fp.source)+'">'+esc(fp.source)+'</span>';
       h+='<span style="font-weight:600;color:var(--green);min-width:80px;text-align:right">'+fmtUSD(fp.amount)+'</span>';
       h+='</div>'});
     h+='</div>'}
-
-  /* Emails */
-  var clientEmail=c.clientId?(S.clientRecords.find(function(cr){return cr.id===c.clientId})||{}).email:'';
-  var clientEmailThreads=c.clientId?S.gmailThreads.filter(function(t){return t.client_id===c.clientId}).slice(0,10):[];
-  if(clientEmailThreads.length||clientEmail){
-    h+='<div class="dash-section" style="display:flex;align-items:center;justify-content:space-between">'+icon('mail',13)+' Emails';
-    if(clientEmail)h+=' <button class="btn" onclick="TF.openComposeEmail({to:\''+escAttr(clientEmail)+'\'})" style="font-size:11px;padding:4px 10px;margin-left:auto">'+icon('edit',11)+' Email</button>';
-    h+='</div>';
-    if(clientEmailThreads.length){
-      h+=rEmailList(clientEmailThreads);
-      if(S.gmailThreads.filter(function(t){return t.client_id===c.clientId}).length>10){
-        h+='<div style="margin-top:6px"><a href="#" onclick="event.preventDefault();TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all emails →</a></div>';
-      }
-    }else{
-      h+='<div style="padding:12px;font-size:12px;color:var(--t4)">No email threads found. Try syncing Gmail.</div>';
-    }
-  }
-
-  /* Summary */
+  /* Summary stats */
   h+='<div class="dash-section">Summary</div>';
   h+='<div class="dash-mets">';
   h+=dashMet('Total Done',c.doneTasks,'var(--t1)');
+  h+=dashMet('Total Revenue',fmtUSD(c.totalRevenue),'var(--green)');
   if(c.monthlyRev)h+=dashMet('Monthly Revenue',fmtUSD(c.monthlyRev),'var(--green)');
   h+=dashMet('Meetings',c.meetings,'var(--amber)');
+  h+=dashMet('Time Tracked',fmtM(c.timeTracked),'var(--pink)');
   h+='</div>';
-  h+='</div>';/* close scrollable content wrapper */
   return h}
 
 /* ═══════════ EC REVIEW ═══════════ */
@@ -2492,6 +2878,273 @@ function renderHeatmap(){
   h+='<span style="color:var(--t4);font-size:10px">More</span></div>';
   el.innerHTML=h}
 
+/* ═══════════ OPPORTUNITY DASHBOARD ═══════════ */
+function rOpportunityDashboard(op,st){
+  var td_=today();
+  var tab=S.opportunityTab||'overview';
+  var conf=oppTypeConf(op.type);
+  var eid=escAttr(op.id);
+  var isClosed=oppIsClosedStage(op.stage);
+
+  /* Header */
+  var h='<div class="tf-modal-top" style="padding:20px 28px 16px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">';
+  h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(op.name)+'</h2>';
+  h+='<span class="bg '+opTypeBadgeCls(op.type)+'">'+conf.label+'</span>';
+  h+='<span class="bg '+opStageClass(op.stage,op.type)+'">'+esc(op.stage)+'</span>';
+  h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span>';
+  if(st.totalValue)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+fmtUSD(st.totalValue)+'</span>';
+  if(op.client)h+='<span class="bg bg-cl" style="cursor:pointer" onclick="TF.openClientDetailModal(\''+escAttr(op.client)+'\')">'+esc(op.client)+'</span>';
+  if(op.endClient)h+='<span class="bg bg-ec" style="cursor:pointer" onclick="TF.openEndClientDetailModal(\''+escAttr(op.endClient)+'\')">'+esc(op.endClient)+'</span>';
+  h+='</div>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button>';
+  h+='</div>';
+
+  /* Tab bar */
+  var oppThreads=S.gmailThreads.filter(function(t){return t.opportunity_id===op.id});
+  h+=rEntityTabs([
+    ['overview','Overview','dashboard'],
+    ['tasks','Tasks','tasks',st.openCount||''],
+    ['emails','Emails','mail',oppThreads.length||''],
+    ['meetings','Meetings','calendar',st.meetingCount||''],
+    ['details','Details','settings']
+  ],tab,'setOpportunityTab');
+
+  h+='<div class="entity-tab-content">';
+  switch(tab){
+    case'tasks':h+=rOpTabTasks(op,st);break;
+    case'emails':h+=rOpTabEmails(op,st,oppThreads);break;
+    case'meetings':h+=rOpTabMeetings(op,st);break;
+    case'details':h+=rOpTabDetails(op,st);break;
+    default:h+=rOpTabOverview(op,st)}
+  h+='</div>';
+  return h}
+
+/* ── Opportunity Tab: Overview ── */
+function rOpTabOverview(op,st){
+  var h='';
+  var conf=oppTypeConf(op.type);
+  /* KPI strip */
+  h+='<div class="dash-mets">';
+  h+=dashMet('Total Value',fmtUSD(st.totalValue),'var(--green)');
+  h+=dashMet('Weighted',fmtUSD(st.weightedValue),'var(--amber)');
+  h+=dashMet('Probability',op.probability+'%',probClass(op.probability)==='prob-high'?'var(--green)':probClass(op.probability)==='prob-mid'?'var(--amber)':'var(--red)');
+  h+=dashMet('Open Tasks',st.openCount,'var(--blue)');
+  h+=dashMet('Meetings',st.meetingCount,'var(--purple50)');
+  if(st.totalTime)h+=dashMet('Time Tracked',fmtM(st.totalTime),'var(--pink)');
+  h+='</div>';
+
+  /* Charts */
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Value Breakdown</div>';
+  h+='<div style="height:160px"><canvas id="ch-op-value"></canvas></div></div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Win Probability</div>';
+  h+='<div style="height:160px"><canvas id="ch-op-prob"></canvas></div></div>';
+  h+='</div>';
+
+  /* Revenue realized progress */
+  if(op.convertedCampaignId&&st.revenueRealized>0){
+    var pctR=st.totalValue>0?Math.min(100,Math.round((st.revenueRealized/st.totalValue)*100)):0;
+    var rColor=pctR>=100?'var(--green)':pctR>=50?'var(--amber)':'var(--t4)';
+    h+='<div style="margin-bottom:16px;padding:14px;background:rgba(61,220,132,.04);border:1px solid rgba(61,220,132,.12);border-radius:10px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+    h+='<span style="font-size:12px;font-weight:600;color:var(--t1)">'+icon('activity',12)+' Revenue Realized</span>';
+    h+='<span style="font-weight:700;color:var(--green)">'+fmtUSD(st.revenueRealized)+'</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t4);margin-bottom:3px"><span>'+pctR+'% of deal value</span><span>Deal: '+fmtUSD(st.totalValue)+'</span></div>';
+    h+='<div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden"><div style="background:'+rColor+';height:100%;width:'+pctR+'%;border-radius:4px"></div></div>';
+    h+='</div>'}
+
+  /* AI Assistant */
+  var opClientRec=S.clientRecords?S.clientRecords.find(function(cr){return cr.name===op.client}):null;
+  var _opLive='\nOPPORTUNITY DETAILS:\n';
+  _opLive+='- Name: '+op.name+'\n- Client: '+(op.client||'N/A')+'\n- End Client: '+(op.endClient||'N/A')+'\n';
+  _opLive+='- Stage: '+op.stage+'\n- Type: '+conf.label+'\n- Probability: '+(op.probability||0)+'%\n';
+  _opLive+='- Strategy Fee: '+fmtUSD(op.strategyFee||0)+'\n- Setup Fee: '+fmtUSD(op.setupFee||0)+'\n- Monthly Fee: '+fmtUSD(op.monthlyFee||0)+'/mo\n';
+  _opLive+='- Total Value: '+fmtUSD(st.totalValue)+'\n';
+  if(op.notes)_opLive+='- Notes: '+op.notes+'\n';
+  if(st.openTasks.length){_opLive+='\nOPEN TASKS ('+st.openTasks.length+'):\n';st.openTasks.forEach(function(t){_opLive+='- '+t.item+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
+  if(st.doneTasks.length){_opLive+='\nCOMPLETED ('+Math.min(st.doneTasks.length,10)+'):\n';st.doneTasks.slice(0,10).forEach(function(d){_opLive+='- '+d.item+'\n'})}
+
+  h+=aiBox('opp-ai',{clientId:opClientRec?opClientRec.id:null,clientName:op.client,
+    sourceTypes:['opportunity','meeting','email','task','contact'],
+    entityContext:{type:'opportunity',name:op.name,data:{
+      stage:op.stage,client:op.client,endClient:op.endClient,
+      probability:op.probability+'%',totalValue:fmtUSD(st.totalValue),type:conf.label},
+      liveData:_opLive},
+    suggestedPrompts:['Summarize all interactions for this deal',
+      'What are the next steps for '+op.name+'?',
+      'Review meeting notes for '+(op.client||op.endClient||'this prospect'),
+      'What is the risk assessment for this opportunity?'],
+    placeholder:'Ask about this opportunity...',collapsed:false});
+
+  /* Converted campaign link */
+  if(op.convertedCampaignId){var cpLink=S.campaigns.find(function(c){return c.id===op.convertedCampaignId});
+    if(cpLink)h+='<div style="margin-top:12px"><div class="dash-section">Converted Campaign</div><div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="TF.openCampaignDetail(\''+escAttr(cpLink.id)+'\')">'+icon('target',12)+'<span style="font-size:12px;color:var(--t1);font-weight:600">'+esc(cpLink.name)+'</span><span class="bg" style="font-size:9px;padding:2px 6px">'+esc(cpLink.status)+'</span></div></div>'}
+  return h}
+
+/* ── Opportunity Tab: Tasks ── */
+function rOpTabTasks(op,st){
+  var h='';
+  var eid=escAttr(op.id);
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div class="dash-section" style="margin:0">'+icon('tasks',13)+' Open Tasks ('+st.openCount+')</div>';
+  h+='<button class="btn btn-p" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\',client:\''+escAttr(op.client||'')+'\',endClient:\''+escAttr(op.endClient||'')+'\'});" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Task</button>';
+  h+='</div>';
+  if(st.openTasks.length){
+    st.openTasks.forEach(function(t){
+      var eid2=escAttr(t.id);
+      h+='<div class="proj-phase-task">';
+      h+='<span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:2px 6px;flex-shrink:0">'+esc(t.importance.charAt(0))+'</span>';
+      h+='<span class="proj-phase-task-name" onclick="TF.closeModal();setTimeout(function(){TF.openDetail(\''+eid2+'\')},100)">'+esc(t.item)+'</span>';
+      if(t.due)h+='<span style="font-size:10px;color:var(--t4)">'+fmtDShort(t.due)+'</span>';
+      h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid2+'\')" title="Complete">'+CK_XS+'</button>';
+      h+='</div>'})}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No open tasks</div>'}
+  if(st.doneTasks.length){
+    h+='<div class="dash-section" style="margin-top:16px">Completed ('+st.doneCount+')</div>';
+    st.doneTasks.slice(0,20).forEach(function(d){
+      h+='<div class="proj-phase-task" style="opacity:.6">';
+      h+='<span style="color:var(--green);flex-shrink:0">'+CK_XS+'</span>';
+      h+='<span style="flex:1;font-size:12px;color:var(--t3)">'+esc(d.item)+'</span>';
+      if(d.duration)h+='<span style="font-size:10px;color:var(--t4)">'+fmtM(d.duration)+'</span>';
+      h+='</div>'})}
+  return h}
+
+/* ── Opportunity Tab: Emails ── */
+function rOpTabEmails(op,st,threads){
+  var h='';
+  /* Contact email selector */
+  var opContacts=[];
+  if(op.contactEmail){opContacts.push({firstName:op.contactName||'',lastName:'',email:op.contactEmail,role:'Primary Contact'})}
+  if(op.client){var cr=S.clientRecords.find(function(r){return r.name===op.client});
+    if(cr){S.contacts.filter(function(c){return c.clientId===cr.id&&c.email!==op.contactEmail}).forEach(function(c){opContacts.push(c)})}}
+  if(opContacts.length){h+=rContactEmailSelector(opContacts,'op',op.name)}
+  if(threads.length){
+    h+='<div class="dash-section" style="margin-top:8px">'+icon('mail',13)+' Email Threads ('+threads.length+')</div>';
+    h+=rEmailList(threads.slice(0,15))}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No email threads found</div>'}
+  return h}
+
+/* ── Opportunity Tab: Meetings ── */
+function rOpTabMeetings(op,st){
+  var h='';
+  var eid=escAttr(op.id);
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div class="dash-section" style="margin:0">'+icon('calendar',13)+' Meetings ('+st.meetingCount+')</div>';
+  h+='<button class="btn btn-p" onclick="TF.openAddOpportunityMeeting(\''+eid+'\')" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Meeting</button>';
+  h+='</div>';
+  if(st.meetings.length){
+    st.meetings.forEach(function(m){
+      h+='<div class="op-meeting-row">';
+      h+='<span style="font-size:11px;color:var(--t3);min-width:80px">'+fmtDShort(m.date)+'</span>';
+      h+='<span style="flex:1;font-size:12px;font-weight:600;color:var(--t1)">'+esc(m.title)+'</span>';
+      if(m.recordingLink)h+='<a href="'+esc(m.recordingLink)+'" target="_blank" style="font-size:10px;color:var(--blue)">'+icon('link',10)+' Recording</a>';
+      h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.5">'+icon('x',10)+'</button>';
+      h+='</div>'})}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No meetings yet</div>'}
+  return h}
+
+/* ── Opportunity Tab: Details ── */
+function rOpTabDetails(op,st){
+  var eid=escAttr(op.id);
+  var conf=oppTypeConf(op.type);
+  var stages=oppAllStages(op.type);
+  var cliOpts=S.clients.map(function(c){return'<option'+(c===op.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var isClosed=oppIsClosedStage(op.stage);
+  var isRL=op.type==='retain_live';
+  var h='';
+  h+='<input type="hidden" id="op-id" value="'+esc(op.id)+'">';
+  h+='<input type="hidden" id="op-type" value="'+esc(op.type)+'">';
+
+  /* Core fields */
+  h+='<div class="dash-section">'+icon('gem',13)+' Opportunity Details</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+'></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Prospect':'Client / Partner')+'</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Company':'End Client')+'</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="op-source" value="'+esc(op.source)+'" placeholder="e.g. Referral, Inbound..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Job Title</span><input type="text" class="edf" id="op-jobtitle" value="'+esc(op.contactJobTitle)+'" placeholder="Contact job title..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Website</span><input type="url" class="edf" id="op-website" value="'+esc(op.prospectWebsite)+'" placeholder="https://..."></div>';
+  h+='</div>';
+
+  /* Fees */
+  h+='<div class="dash-section" style="margin-top:12px">'+icon('activity',13)+' Fees & Value</div>';
+  if(isRL){
+    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Program Fee</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Payment Plan</span><select class="edf" id="op-payplan">';
+    [['one_time','One-time'],['3_monthly','3x Monthly'],['custom','Custom']].forEach(function(pp){
+      h+='<option value="'+pp[0]+'"'+((op.paymentPlan||'one_time')===pp[0]?' selected':'')+'>'+pp[1]+'</option>'});
+    h+='</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||50)+'" min="0" max="100"></div>';
+    h+='</div>';
+  }else{
+    h+='<div class="ed-grid ed-grid-4">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Ad Spend</span><input type="number" class="edf" id="op-adspend" value="'+(op.monthlyAdSpend||'')+'" min="0" step="0.01"></div>';
+    h+='</div>';
+    h+='<div class="ed-grid ed-grid-3">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||50)+'" min="0" max="100"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
+    h+='</div>'}
+  if(isRL){
+    h+='<div class="ed-grid ed-grid-2">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
+    h+='</div>'}
+
+  /* Payment & Processing */
+  h+='<div class="ed-grid ed-grid-'+(isRL?'2':'4')+'" style="margin-top:4px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Payment Method</span><select class="edf" id="op-paymethod">';
+  [['bank_transfer','Bank Transfer'],['card','Card'],['direct_debit','Direct Debit']].forEach(function(pm){h+='<option value="'+pm[0]+'"'+((op.paymentMethod||'bank_transfer')===pm[0]?' selected':'')+'>'+pm[1]+'</option>'});
+  h+='</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Receiving Account</span><select class="edf" id="op-recvacct"><option value=""'+(!(op.receivingAccount)?' selected':'')+'>Auto</option><option value="brex"'+((op.receivingAccount||'')==='brex'?' selected':'')+'>Brex</option><option value="mercury"'+((op.receivingAccount||'')==='mercury'?' selected':'')+'>Mercury</option></select></div>';
+  if(!isRL){
+    h+='<div class="ed-fld"><span class="ed-lbl">Processing Fee %</span><input type="number" class="edf" id="op-procfee" value="'+(op.processingFeePct||0)+'" min="0" max="100" step="0.1"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Duration</span><input type="number" class="edf" id="op-monthdur" value="'+(op.expectedMonthlyDuration||12)+'" min="1" placeholder="12"></div>'}
+  h+='</div>';
+
+  /* Brief Fields (F&C Partnership) */
+  if(op.type==='fc_partnership'){
+    var hasBrief=op.previousRelationship||op.companyDescription||op.prospectDescription||op.videoStrategyBenefits;
+    h+='<div class="dash-section" style="margin-top:12px">Brief Details</div>';
+    h+='<div id="op-brief-section">';
+    h+='<div class="ed-grid ed-grid-2">';
+    h+='<div class="ed-fld"><span class="ed-lbl">Previous Relationship</span><textarea class="edf edf-notes" id="op-prevrel" rows="2">'+esc(op.previousRelationship)+'</textarea></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Company Description</span><textarea class="edf edf-notes" id="op-compdesc" rows="2">'+esc(op.companyDescription)+'</textarea></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Prospect Description</span><textarea class="edf edf-notes" id="op-prospdesc" rows="2">'+esc(op.prospectDescription)+'</textarea></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Video Strategy Benefits</span><textarea class="edf edf-notes" id="op-vidbene" rows="2">'+esc(op.videoStrategyBenefits)+'</textarea></div>';
+    h+='</div></div>'}
+
+  /* Notes */
+  h+='<div style="margin-top:12px"><span class="ed-lbl">Notes</span>';
+  h+='<textarea class="edf edf-notes" id="op-notes" rows="3" placeholder="Notes about this opportunity...">'+esc(op.notes)+'</textarea></div>';
+
+  /* Actions */
+  h+='<div class="ed-actions" style="margin-top:16px">';
+  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">'+icon('save',12)+' Save</button>';
+  if(!isClosed){
+    if(conf.conversion==='client'){
+      h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertToClient(\''+eid+'\')">'+icon('check',12)+' Convert to Client</button>';
+    }else{
+      h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertOpportunity(\''+eid+'\')">'+icon('target',12)+' Convert to Campaign</button>'}
+    h+='<button class="btn" style="background:rgba(255,51,88,0.1);color:var(--red);border-color:rgba(255,51,88,0.3)" onclick="TF.closeAsLost(\''+eid+'\')">'+icon('x',12)+' Close as Lost</button>'}
+  h+='<button class="btn ab-del" style="margin-left:auto" onclick="TF.confirmDeleteOpportunity()">'+icon('trash',12)+' Delete</button>';
+  h+='</div>';
+  return h}
+
 /* ═══════════ OPPORTUNITIES ═══════════ */
 function getOpportunityStats(op){
   var openTasks=S.tasks.filter(function(t){return t.opportunity===op.id});
@@ -3052,45 +3705,58 @@ function getCampaignStats(cp){
     estOneOff:estOneOff,estMonthly:estMonthly,estTotal:estTotal,
     billingAmt:billingAmt,cycleMonths:cycleMonths,daysUntilBilling:daysUntilBilling}}
 
-function openCampaignDashboard(id){S.campaignDetailId=id;S.campaignTab='overview';render()}
-function closeCampaignDashboard(){S.campaignDetailId='';render()}
+function openCampaignDashboard(id){openCampaignDetail(id)}
+function closeCampaignDashboard(){S._lastCampaignId='';closeModal()}
 
 function rCampaigns(){
-  if(S.campaignDetailId){
-    var cp=S.campaigns.find(function(c){return c.id===S.campaignDetailId});
-    if(cp){return rCampaignDashboard(cp,getCampaignStats(cp))}
-    else{S.campaignDetailId=''}
-  }
   return '<div class="pg-head"><h1>'+icon('target',18)+' Campaigns</h1><button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:12px;padding:8px 18px">+ Add Campaign</button></div>'+rCampaignsBody()}
 
 function rCampaignDashboard(cp,st){
   var td_=today();
   var statusCls=cp.status==='Active'?'im':cp.status==='Setup'?'mt':cp.status==='Paused'?'wt':'cr';
   var tab=S.campaignTab||'overview';
+  var cpContacts=[];
+  /* Collect contacts for campaign client + end-client */
+  if(cp.partner){var cr=S.clientRecords.find(function(r){return r.name===cp.partner});
+    if(cr)cpContacts=cpContacts.concat(S.contacts.filter(function(c){return c.clientId===cr.id}))}
+  if(cp.endClient){var ecOnly=S.contacts.filter(function(c){return c.endClient===cp.endClient&&cpContacts.indexOf(c)===-1});
+    cpContacts=cpContacts.concat(ecOnly)}
 
   /* Header */
-  var h='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
-  h+='<button class="btn" onclick="TF.closeCampaignDashboard()" style="font-size:11px;padding:5px 12px">'+icon('arrow_left',12)+' Back</button>';
+  var h='<div class="tf-modal-top" style="padding:20px 28px 16px">';
+  h+='<div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">';
   h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(cp.name)+'</h2>';
   h+='<span class="bg bg-'+statusCls+'">'+esc(cp.status)+'</span>';
   if(cp.platform)h+='<span class="bg bg-ca">'+esc(cp.platform)+'</span>';
-  if(cp.partner)h+='<span class="bg bg-cl">'+esc(cp.partner)+'</span>';
-  if(cp.endClient)h+='<span class="bg bg-ec">'+esc(cp.endClient)+'</span>';
+  if(cp.partner)h+='<span class="bg bg-cl" style="cursor:pointer" onclick="TF.openClientDetailModal(\''+escAttr(cp.partner)+'\')">'+esc(cp.partner)+'</span>';
+  if(cp.endClient)h+='<span class="bg bg-ec" style="cursor:pointer" onclick="TF.openEndClientDetailModal(\''+escAttr(cp.endClient)+'\')">'+esc(cp.endClient)+'</span>';
+  h+='<button class="btn" onclick="TF.openEditCampaignModal(\''+escAttr(cp.id)+'\')" style="font-size:11px;padding:5px 12px;margin-left:auto">'+icon('edit',11)+' Edit</button>';
+  h+='</div>';
+  h+='<button class="tf-modal-close" onclick="TF.closeCampaignDashboard()">&times;</button>';
   h+='</div>';
 
   /* Tab bar */
-  h+='<div class="cp-tabs">';
-  var tabs=[['overview','Overview'],['tasks','Tasks'],['billing','Billing'],['emails','Emails'],['details','Details']];
-  tabs.forEach(function(t){h+='<div class="cp-tab'+(tab===t[0]?' on':'')+'" onclick="TF.setCampaignTab(\''+t[0]+'\')">'+t[1]+'</div>'});
-  h+='</div>';
+  h+=rEntityTabs([
+    ['overview','Overview','dashboard'],
+    ['tasks','Tasks','tasks',st.openCount||''],
+    ['billing','Billing','activity'],
+    ['emails','Emails','mail'],
+    ['contacts','Contacts','contact',cpContacts.length||''],
+    ['meetings','Meetings','calendar',st.meetings.length||''],
+    ['details','Details','settings']
+  ],tab,'setCampaignTab');
 
   /* Tab content */
+  h+='<div class="entity-tab-content">';
   switch(tab){
     case'tasks':h+=rCpTabTasks(cp,st,td_);break;
     case'billing':h+=rCpTabBilling(cp,st);break;
     case'emails':h+=rCpTabEmails(cp,st);break;
+    case'contacts':h+=rCpTabContacts(cp,cpContacts);break;
+    case'meetings':h+=rCpTabMeetings(cp,st);break;
     case'details':h+=rCpTabDetails(cp,st);break;
     default:h+=rCpTabOverview(cp,st)}
+  h+='</div>';
   return h}
 
 /* ── Campaign Tab: Overview ── */
@@ -3133,6 +3799,19 @@ function rCpTabOverview(cp,st){
     h+='</div>'}
   h+='</div>';
 
+  /* Charts */
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Revenue Trend</div>';
+  h+='<div style="height:140px"><canvas id="ch-cp-revenue"></canvas></div></div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Tasks by Category</div>';
+  h+='<div style="height:140px"><canvas id="ch-cp-tasks"></canvas></div></div>';
+  h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Fee Breakdown</div>';
+  h+='<div style="height:140px"><canvas id="ch-cp-fees"></canvas></div></div>';
+  h+='</div>';
+
   /* AI Assistant — build campaign live data */
   var cpClientRec=S.clientRecords?S.clientRecords.find(function(cr){return cr.name===cp.partner}):null;
   var _cpLive='';
@@ -3148,7 +3827,7 @@ function rCpTabOverview(cp,st){
       liveData:_cpLive},
     suggestedPrompts:['Summarize recent work on '+cp.name,'What are the outstanding tasks?',
       'Review meetings related to '+cp.name,'How is billing tracking for this campaign?'],
-    placeholder:'Ask about '+cp.name+'...',collapsed:true});
+    placeholder:'Ask about '+cp.name+'...',collapsed:false});
 
   /* Notes timeline */
   var cpNotes=S.campaignNotes[cp.id]||[];
@@ -3338,17 +4017,54 @@ function rCpTabDetails(cp,st){
     popLinks.forEach(function(l){h+='<a href="'+esc(l[1])+'" target="_blank" class="btn" style="font-size:11px;padding:6px 14px;text-decoration:none">'+esc(l[0])+' &#8599;</a>'});
     h+='</div>'}
 
-  /* Meetings */
-  h+='<div class="dash-section">'+icon('mic',13)+' Meetings ('+st.meetings.length+') <button class="btn" onclick="TF.openAddCampaignMeeting(\''+escAttr(cp.id)+'\')" style="font-size:11px;padding:4px 10px;margin-left:auto">+ Add Meeting</button></div>';
+  return h}
+
+/* ── Campaign Tab: Contacts ── */
+function rCpTabContacts(cp,cpContacts){
+  var h='';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div class="dash-section" style="margin:0">'+icon('contact',13)+' Contacts ('+cpContacts.length+')</div>';
+  var crId='';
+  if(cp.partner){var cr=S.clientRecords.find(function(r){return r.name===cp.partner});if(cr)crId=cr.id}
+  if(crId)h+='<button class="btn btn-p" onclick="TF.openAddContactModal(\''+escAttr(crId)+'\',\''+escAttr(cp.endClient||'')+'\')" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Contact</button>';
+  h+='</div>';
+  if(cpContacts.length){
+    h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">';
+    cpContacts.forEach(function(cc){
+      h+='<div class="contact-card" onclick="TF.openEditContactModal(\''+escAttr(cc.id)+'\')" style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s">';
+      var fullName=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
+      var initial=(cc.firstName||cc.lastName||cc.email||'?').charAt(0).toUpperCase();
+      var avatarBg=emailAvatarColor(cc.email);
+      h+='<div style="width:36px;height:36px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(fullName||'Unnamed')+'</div>';
+      h+='<div style="font-size:11px;color:var(--t4);display:flex;gap:12px;flex-wrap:wrap">';
+      if(cc.role)h+='<span>'+esc(cc.role)+'</span>';
+      if(cc.email)h+='<span>'+esc(cc.email)+'</span>';
+      if(cc.endClient)h+='<span class="bg" style="font-size:9px;padding:2px 6px">'+esc(cc.endClient)+'</span>';
+      h+='</div></div></div>'});
+    h+='</div>';
+    var emailContacts=cpContacts.filter(function(cc){return cc.email});
+    if(emailContacts.length){h+=rContactEmailSelector(emailContacts,'cp-contacts',cp.name)}}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No contacts linked to this campaign</div>'}
+  return h}
+
+/* ── Campaign Tab: Meetings ── */
+function rCpTabMeetings(cp,st){
+  var h='';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  h+='<div class="dash-section" style="margin:0">'+icon('calendar',13)+' Meetings ('+st.meetings.length+')</div>';
+  h+='<button class="btn btn-p" onclick="TF.openAddCampaignMeeting(\''+escAttr(cp.id)+'\')" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Meeting</button>';
+  h+='</div>';
   if(st.meetings.length){
     var sortedMtgs=st.meetings.slice().sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)});
     h+='<div class="tb-wrap" style="margin-bottom:16px"><table class="tb"><thead><tr><th>Date</th><th>Title</th><th>Recording</th><th>Notes</th></tr></thead><tbody>';
     sortedMtgs.forEach(function(m){
       h+='<tr><td>'+(m.date?fmtDShort(m.date):'')+'</td><td>'+esc(m.title||'')+'</td><td>'+(m.recordingLink?'<a href="'+esc(m.recordingLink)+'" target="_blank" style="color:var(--pink)">Watch &#8599;</a>':'')+'</td><td style="color:var(--t3);font-size:11px">'+esc(m.notes||'')+'</td></tr>'});
-    h+='</tbody></table></div>';
-  }else{
-    h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px;margin-bottom:16px">No meetings recorded yet</div>'}
+    h+='</tbody></table></div>'}
+  else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No meetings recorded yet</div>'}
   return h}
+
 function rCampaignsBody(){
   var td_=today();
   var sub=S.subView||'pipeline';

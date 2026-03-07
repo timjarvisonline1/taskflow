@@ -132,7 +132,8 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   contacts:[],scheduledEmails:[],emailRules:[],
   meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,
   endClients:[],ecSort:'name',
-  _ecCandidates:[],_ecAnalyzing:false};
+  _ecCandidates:[],_ecAnalyzing:false,
+  clientTab:'overview',endClientTab:'overview',opportunityTab:'overview'};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1786,7 +1787,48 @@ function getForecastMetrics(fc){
 function setForecastHorizon(days){S.forecastHorizon=days;render()}
 function setForecastScenario(s){S.forecastScenario=s;render()}
 function setWeeklyRange(v){S.weeklyRange=v;render()}
-function setCampaignTab(tab){S.campaignTab=tab;render()}
+function setCampaignTab(tab){
+  S.campaignTab=tab;
+  var el=gel('detail-body');
+  if(el&&gel('detail-modal')&&gel('detail-modal').classList.contains('on')){
+    var cp=S.campaigns.find(function(c){return c.id===(S._lastCampaignId||S.campaignDetailId)});
+    if(cp){el.innerHTML=rCampaignDashboard(cp,getCampaignStats(cp));setTimeout(function(){initEntityCharts('campaign')},50);return}
+  }
+  render()}
+function setClientTab(tab){
+  S.clientTab=tab;
+  var el=gel('detail-body');if(!el)return;
+  var clientMap=buildClientMap();
+  var c=clientMap[S.clientDetailName||S._lastClientDash];if(!c)return;
+  el.innerHTML=rClientDashboard(c);
+  setTimeout(function(){initEntityCharts('client')},50)}
+function setEndClientTab(tab){
+  S.endClientTab=tab;
+  var el=gel('detail-body');if(!el)return;
+  var ecMap=buildEndClientMap();
+  var ec=ecMap[S._lastEndClientDash];if(!ec)return;
+  el.innerHTML=rEndClientDashboard(ec);
+  setTimeout(function(){initEntityCharts('endClient')},50)}
+function setOpportunityTab(tab){
+  S.opportunityTab=tab;
+  var el=gel('detail-body');if(!el)return;
+  var op=S.opportunities.find(function(o){return o.id===S._lastOpportunityId});if(!op)return;
+  el.innerHTML=rOpportunityDashboard(op,getOpportunityStats(op));
+  setTimeout(function(){initEntityCharts('opportunity')},50)}
+
+/* ═══════════ CONTACT EMAIL SELECTOR HANDLERS ═══════════ */
+function cesToggleAll(selectorId,checked){
+  var wrap=gel(selectorId);if(!wrap)return;
+  wrap.querySelectorAll('.ces-item').forEach(function(cb){cb.checked=checked})}
+function cesCompose(selectorId,entityType,entityName){
+  var wrap=gel(selectorId);if(!wrap)return;
+  var emails=[];
+  wrap.querySelectorAll('.ces-item:checked').forEach(function(cb){
+    var email=cb.getAttribute('data-email');if(email)emails.push(email)});
+  if(!emails.length){toast('Select at least one contact','warn');return}
+  var subjectEl=gel(selectorId+'-subject');
+  var subject=subjectEl?subjectEl.value:'Re: '+entityName;
+  openComposeEmail({to:emails.join(','),subject:subject})}
 
 function setClientSort(v){
   var cur=S.clientSort||'name';

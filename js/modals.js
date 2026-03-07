@@ -1244,7 +1244,15 @@ function fillFromCampaign(){
 
 /* ═══════════ CAMPAIGN DETAIL MODAL ═══════════ */
 function openCampaignDetail(id){
-  if(!isMobile()){S.view='campaigns';S.campaignDetailId=id;render();return}
+  var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
+  S._lastCampaignId=id;
+  S.campaignTab='overview';
+  var st=getCampaignStats(cp);
+  gel('detail-body').innerHTML=rCampaignDashboard(cp,st);
+  gel('detail-modal').classList.add('on','full-detail');
+  setTimeout(function(){initEntityCharts('campaign')},50)}
+function _openCampaignDetail_LEGACY(id){
+  /* Legacy campaign detail - kept for reference, no longer called */
   var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
   var st=getCampaignStats(cp);var td_=today();
   var statusCls=cp.status.toLowerCase().replace(/ /g,'-');
@@ -1780,224 +1788,12 @@ function buildOpportunityOptions(currentValue,filterClient){
 /* ═══════════ OPPORTUNITY DETAIL MODAL ═══════════ */
 function openOpportunityDetail(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
+  S._lastOpportunityId=id;
+  S.opportunityTab='overview';
   var st=getOpportunityStats(op);
-  var eid=escAttr(id);
-  var conf=oppTypeConf(op.type);
-  var stages=oppAllStages(op.type);
-  var cliOpts=S.clients.map(function(c){return'<option'+(c===op.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
-  var isClosed=oppIsClosedStage(op.stage);
-  var isRL=op.type==='retain_live';
-
-  var h='<div class="detail-full-header">';
-  h+='<div class="tf-modal-top">';
-  h+='<input type="text" class="edf edf-name" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+' style="font-size:18px">';
-  h+='<input type="hidden" id="op-id" value="'+esc(op.id)+'">';
-  h+='<input type="hidden" id="op-type" value="'+esc(op.type)+'">';
-  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  h+='<div class="tf-modal-badges">';
-  h+='<span class="bg '+opTypeBadgeCls(op.type)+'">'+conf.label+'</span>';
-  h+='<span class="bg '+opStageClass(op.stage,op.type)+'">'+esc(op.stage)+'</span>';
-  h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'% prob</span>';
-  if(st.totalValue)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+fmtUSD(st.totalValue)+'</span>';
-  if(st.weightedValue)h+='<span class="bg" style="background:rgba(255,176,48,0.08);color:var(--amber)">'+fmtUSD(st.weightedValue)+' weighted</span>';
-  if(st.openCount)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">'+st.openCount+' tasks</span>';
-  if(st.meetingCount)h+='<span class="bg" style="background:rgba(168,85,247,0.08);color:var(--purple50)">'+st.meetingCount+' meetings</span>';
-  if(op.client)h+='<span class="bg bg-cl">'+esc(op.client)+'</span>';
-  if(op.endClient)h+='<span class="bg bg-ec">'+esc(op.endClient)+'</span>';
-  if(st.totalTime)h+='<span class="bg" style="background:rgba(77,166,255,0.08);color:var(--blue)">'+icon('clock',12)+' '+fmtM(st.totalTime)+'</span>';
-  if(st.revenueRealized>0)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+icon('activity',12)+' '+fmtUSD(st.revenueRealized)+' received</span>';
-  if(op.stage==='Closed Lost'&&op.closeReason)h+='<span class="bg" style="background:rgba(255,51,88,0.08);color:var(--red)">'+esc(op.closeReason)+'</span>';
-  if(op.convertedCampaignId){var cpLink=S.campaigns.find(function(c){return c.id===op.convertedCampaignId});
-    if(cpLink)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openCampaignDetail(\''+escAttr(cpLink.id)+'\')},100)">'+icon('target',12)+' '+esc(cpLink.name)+'</span>'}
-  h+='</div></div>';
-
-  h+='<div class="detail-split">';
-  /* LEFT PANE */
-  h+='<div class="detail-split-left">';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Prospect':'Client / Partner')+'</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
-  if(!isRL){h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'"></div>'}
-  else{h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'" placeholder="Company name..."></div>'}
-  h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="op-source" value="'+esc(op.source)+'" placeholder="e.g. Referral, Inbound..."></div>';
-  h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Job Title</span><input type="text" class="edf" id="op-jobtitle" value="'+esc(op.contactJobTitle)+'" placeholder="Contact job title..."></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Website</span><input type="url" class="edf" id="op-website" value="'+esc(op.prospectWebsite)+'" placeholder="https://..."></div>';
-  h+='<div></div>';
-  h+='</div>';
-
-  /* Fee fields — type-specific */
-  if(isRL){
-    h+='<div class="ed-grid ed-grid-3">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Program Fee</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Payment Plan</span><select class="edf" id="op-payplan">';
-    [['one_time','One-time ($5,000)'],['3_monthly','3x Monthly ($2,000)'],['custom','Custom']].forEach(function(pp){
-      h+='<option value="'+pp[0]+'"'+((op.paymentPlan||'one_time')===pp[0]?' selected':'')+'>'+pp[1]+'</option>'});
-    h+='</select></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||50)+'" min="0" max="100"></div>';
-    h+='</div>';
-  }else{
-    h+='<div class="ed-grid ed-grid-4">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Ad Spend</span><input type="number" class="edf" id="op-adspend" value="'+(op.monthlyAdSpend||'')+'" min="0" step="0.01"></div>';
-    h+='</div>';
-    h+='<div class="ed-grid ed-grid-3">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||50)+'" min="0" max="100"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
-    h+='</div>'}
-
-  /* Common extra fields */
-  if(isRL){
-    h+='<div class="ed-grid ed-grid-2">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-close" value="'+(op.expectedClose?op.expectedClose.toISOString().split('T')[0]:'')+'"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="op-desc" value="'+esc(op.description)+'" placeholder="Brief description..."></div>';
-    h+='</div>'}
-
-  /* Payment & Processing */
-  h+='<div class="ed-grid ed-grid-'+(isRL?'2':'4')+'" style="margin-top:4px">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Payment Method</span><select class="edf" id="op-paymethod">';
-  [['bank_transfer','Bank Transfer'],['card','Card'],['direct_debit','Direct Debit']].forEach(function(pm){h+='<option value="'+pm[0]+'"'+((op.paymentMethod||'bank_transfer')===pm[0]?' selected':'')+'>'+pm[1]+'</option>'});
-  h+='</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Receiving Account</span><select class="edf" id="op-recvacct"><option value=""'+(!(op.receivingAccount)?' selected':'')+'>Auto</option><option value="brex"'+((op.receivingAccount||'')==='brex'?' selected':'')+'>Brex</option><option value="mercury"'+((op.receivingAccount||'')==='mercury'?' selected':'')+'>Mercury</option></select></div>';
-  if(!isRL){
-    h+='<div class="ed-fld"><span class="ed-lbl">Processing Fee %</span><input type="number" class="edf" id="op-procfee" value="'+(op.processingFeePct||0)+'" min="0" max="100" step="0.1"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Duration</span><input type="number" class="edf" id="op-monthdur" value="'+(op.expectedMonthlyDuration||12)+'" min="1" placeholder="12"></div>'}
-  h+='</div>';
-
-  /* Actions */
-  h+='<div class="ed-actions" style="margin-top:12px">';
-  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">'+icon('save',12)+' Save</button>';
-  if(!isClosed){
-    if(conf.conversion==='client'){
-      h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertToClient(\''+eid+'\')">'+icon('check',12)+' Convert to Client</button>';
-    }else{
-      h+='<button class="btn" style="background:rgba(61,220,132,0.1);color:var(--green);border-color:rgba(61,220,132,0.3)" onclick="TF.convertOpportunity(\''+eid+'\')">'+icon('target',12)+' Convert to Campaign</button>'}
-    h+='<button class="btn" style="background:rgba(255,51,88,0.1);color:var(--red);border-color:rgba(255,51,88,0.3)" onclick="TF.closeAsLost(\''+eid+'\')">'+icon('x',12)+' Close as Lost</button>'}
-  h+='<button class="btn ab-del" style="margin-left:auto" onclick="TF.confirmDeleteOpportunity()">'+icon('trash',12)+' Delete</button>';
-  h+='</div>';
-  h+='</div>';
-
-  /* RIGHT PANE */
-  h+='<div class="detail-split-right">';
-  /* AI Assistant — build opportunity live data */
-  var opClientRec=S.clientRecords?S.clientRecords.find(function(cr){return cr.name===op.client}):null;
-  var _opLive='\nOPPORTUNITY DETAILS:\n';
-  _opLive+='- Name: '+op.name+'\n- Client: '+(op.client||'N/A')+'\n- End Client: '+(op.endClient||'N/A')+'\n';
-  _opLive+='- Stage: '+op.stage+'\n- Type: '+conf.label+'\n- Probability: '+(op.probability||0)+'%\n';
-  _opLive+='- Strategy Fee: '+fmtUSD(op.strategyFee||0)+'\n- Setup Fee: '+fmtUSD(op.setupFee||0)+'\n- Monthly Fee: '+fmtUSD(op.monthlyFee||0)+'/mo\n';
-  _opLive+='- Total Value: '+fmtUSD(st.totalValue)+'\n';
-  if(op.notes)_opLive+='- Notes: '+op.notes+'\n';
-  if(st.openTasks.length){_opLive+='\nOPEN TASKS ('+st.openTasks.length+'):\n';st.openTasks.forEach(function(t){_opLive+='- '+t.item+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+'\n'})}
-  if(st.doneTasks.length){_opLive+='\nCOMPLETED TASKS ('+Math.min(st.doneTasks.length,10)+'):\n';st.doneTasks.slice(0,10).forEach(function(d){_opLive+='- '+d.item+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'')+'\n'})}
-  if(st.meetings.length){_opLive+='\nRELATED MEETINGS ('+st.meetings.length+'):\n';st.meetings.slice(0,10).forEach(function(m){_opLive+='- '+m.title+(m.start?' ('+m.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')'  :'')+'\n'})}
-  if(st.nextDue)_opLive+='\nNEXT DUE: '+st.nextDue.item+' on '+st.nextDue.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'\n';
-
-  h+=aiBox('opp-ai',{clientId:opClientRec?opClientRec.id:null,clientName:op.client,
-    sourceTypes:['opportunity','meeting','email','task','contact'],
-    entityContext:{type:'opportunity',name:op.name,data:{
-      stage:op.stage,client:op.client,endClient:op.endClient,
-      probability:op.probability+'%',totalValue:fmtUSD(st.totalValue),type:conf.label},
-      liveData:_opLive},
-    suggestedPrompts:['Summarize all interactions for this deal',
-      'What are the next steps for '+op.name+'?',
-      'Review meeting notes for '+(op.client||op.endClient||'this prospect'),
-      'What is the risk assessment for this opportunity?'],
-    placeholder:'Ask about this opportunity...',collapsed:true});
-  /* Brief Fields (F&C Partnership) */
-  if(op.type==='fc_partnership'){
-    var hasBrief=op.previousRelationship||op.companyDescription||op.prospectDescription||op.videoStrategyBenefits;
-    h+='<div style="margin-bottom:16px">';
-    h+='<span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="var s=this.nextElementSibling;s.style.display=s.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span\').textContent=s.style.display===\'none\'?\'\u25B6\':\'\u25BC\'">Brief Details <span>'+(hasBrief?'\u25BC':'\u25B6')+'</span></span>';
-    h+='<div id="op-brief-section" style="display:'+(hasBrief?'block':'none')+'">';
-    h+='<div style="margin-bottom:8px"><span class="ed-lbl" style="font-size:9px;margin-bottom:2px">Previous Relationship</span><textarea class="edf edf-notes" id="op-prevrel" rows="2" placeholder="Previous working relationship...">'+esc(op.previousRelationship)+'</textarea></div>';
-    h+='<div style="margin-bottom:8px"><span class="ed-lbl" style="font-size:9px;margin-bottom:2px">Company Description</span><textarea class="edf edf-notes" id="op-compdesc" rows="2" placeholder="Brief company description...">'+esc(op.companyDescription)+'</textarea></div>';
-    h+='<div style="margin-bottom:8px"><span class="ed-lbl" style="font-size:9px;margin-bottom:2px">Prospect Description</span><textarea class="edf edf-notes" id="op-prospdesc" rows="2" placeholder="Brief prospect description...">'+esc(op.prospectDescription)+'</textarea></div>';
-    h+='<div style="margin-bottom:8px"><span class="ed-lbl" style="font-size:9px;margin-bottom:2px">Video Strategy Benefits</span><textarea class="edf edf-notes" id="op-vidbene" rows="2" placeholder="Benefits of a video strategy...">'+esc(op.videoStrategyBenefits)+'</textarea></div>';
-    h+='</div></div>'}
-
-  /* Notes */
-  h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
-  h+='<textarea class="edf edf-notes" id="op-notes" rows="3" placeholder="Notes about this opportunity...">'+esc(op.notes)+'</textarea></div>';
-
-  /* Revenue Realized (for converted opportunities) */
-  if(op.convertedCampaignId&&st.revenueRealized>0){
-    var pctR=st.totalValue>0?Math.min(100,Math.round((st.revenueRealized/st.totalValue)*100)):0;
-    var rColor=pctR>=100?'var(--green)':pctR>=50?'var(--amber)':'var(--t4)';
-    h+='<div style="margin-bottom:16px;padding:14px;background:rgba(61,220,132,.04);border:1px solid rgba(61,220,132,.12);border-radius:10px">';
-    h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-    h+='<span class="ed-lbl" style="margin:0">'+icon('activity',12)+' Revenue Realized</span>';
-    h+='<span style="font-weight:700;color:var(--green)">'+fmtUSD(st.revenueRealized)+'</span></div>';
-    h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t4);margin-bottom:3px"><span>'+pctR+'% of deal value</span><span>Deal: '+fmtUSD(st.totalValue)+'</span></div>';
-    h+='<div style="background:var(--bg3);border-radius:4px;height:6px;overflow:hidden"><div style="background:'+rColor+';height:100%;width:'+pctR+'%;border-radius:4px"></div></div>';
-    h+='</div>'}
-
-  /* Meetings */
-  h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Meetings ('+st.meetingCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.openAddOpportunityMeeting(\''+eid+'\')">+ Add</button></span>';
-  if(st.meetings.length){
-    st.meetings.forEach(function(m){
-      h+='<div class="op-meeting-row">';
-      h+='<span style="font-size:11px;color:var(--t3);min-width:80px">'+fmtDShort(m.date)+'</span>';
-      h+='<span style="flex:1;font-size:12px;font-weight:600;color:var(--t1)">'+esc(m.title)+'</span>';
-      if(m.recordingLink)h+='<a href="'+esc(m.recordingLink)+'" target="_blank" style="font-size:10px;color:var(--blue)">'+icon('link',10)+' Recording</a>';
-      h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.5">'+icon('x',10)+'</button>';
-      h+='</div>'})}
-  else{h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px">No meetings yet</div>'}
-  h+='</div>';
-
-  /* Open Tasks */
-  h+='<div style="margin-bottom:16px"><span class="ed-lbl" style="display:flex;justify-content:space-between;align-items:center">Open Tasks ('+st.openCount+')<button class="btn" style="font-size:10px;padding:3px 10px" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\',client:\''+escAttr(op.client||'')+'\',endClient:\''+escAttr(op.endClient||'')+'\'})">+ Add</button></span>';
-  if(st.openTasks.length){st.openTasks.forEach(function(t){
-    var eid2=escAttr(t.id);
-    h+='<div class="proj-phase-task">';
-    h+='<span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:2px 6px;flex-shrink:0">'+esc(t.importance.charAt(0))+'</span>';
-    h+='<span class="proj-phase-task-name" onclick="TF.closeModal();setTimeout(function(){TF.openDetail(\''+eid2+'\')},100)">'+esc(t.item)+'</span>';
-    if(t.due)h+='<span style="font-size:10px;color:var(--t4)">'+fmtDShort(t.due)+'</span>';
-    h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid2+'\')" title="Complete">'+CK_XS+'</button>';
-    h+='</div>'})}
-  else{h+='<div style="padding:12px;text-align:center;color:var(--t4);font-size:12px">No open tasks</div>'}
-  h+='</div>';
-
-  /* Completed Tasks */
-  if(st.doneTasks.length){
-    h+='<div style="margin-bottom:16px"><span class="ed-lbl">Completed ('+st.doneCount+')</span>';
-    st.doneTasks.slice(0,20).forEach(function(d){
-      h+='<div class="proj-phase-task" style="opacity:.6">';
-      h+='<span style="color:var(--green);flex-shrink:0">'+CK_XS+'</span>';
-      h+='<span style="flex:1;font-size:12px;color:var(--t3)">'+esc(d.item)+'</span>';
-      if(d.duration)h+='<span style="font-size:10px;color:var(--t4)">'+fmtM(d.duration)+'</span>';
-      h+='</div>'});
-    h+='</div>'}
-
-  /* Email Threads */
-  var oppThreads=S.gmailThreads.filter(function(t){return t.opportunity_id===id});
-  if(oppThreads.length){
-    h+='<div style="margin-bottom:16px;border-top:1px solid var(--gborder);padding-top:14px">';
-    h+='<span class="ed-lbl" style="display:block;margin-bottom:8px">'+icon('mail',12)+' Email Threads ('+oppThreads.length+')</span>';
-    oppThreads.slice(0,10).forEach(function(t){
-      var subject=t.subject||'(no subject)';
-      if(subject.length>50)subject=subject.substring(0,48)+'…';
-      var dateStr=t.last_message_at||t.date||'';
-      var dateLabel=dateStr?fmtDShort(new Date(dateStr)):'';
-      var fromName=t.from_name||t.from_email||'';
-      h+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03);cursor:pointer" onclick="TF.closeModal();TF.openEmailThread(\''+escAttr(t.thread_id)+'\')">';
-      h+='<span style="font-size:12px;color:var(--t2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(fromName)+' — '+esc(subject)+'</span>';
-      h+='<span style="font-size:10px;color:var(--t4);flex-shrink:0">'+dateLabel+'</span>';
-      h+='</div>'});
-    if(oppThreads.length>10)h+='<div style="font-size:11px;color:var(--accent);margin-top:6px;cursor:pointer" onclick="TF.closeModal();TF.nav(\'email\')">View all emails →</div>';
-    h+='</div>'}
-
-  h+='</div></div>';
-
-  gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-body').innerHTML=rOpportunityDashboard(op,st);
+  gel('detail-modal').classList.add('on','full-detail');
+  setTimeout(function(){initEntityCharts('opportunity')},50)}
 
 async function saveOpportunity(){
   var id=gel('op-id').value;var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;

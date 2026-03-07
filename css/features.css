@@ -688,6 +688,12 @@
 .cp-tab{padding:10px 18px;font-size:12px;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s var(--ease);font-weight:500;white-space:nowrap;flex-shrink:0}
 .cp-tab:hover{color:var(--t1)}
 .cp-tab.on{color:var(--pink);border-bottom-color:var(--pink);font-weight:600}
+.cp-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;border-radius:8px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:0 4px;margin-left:6px}
+/* Entity tab content */
+.entity-tab-content{padding:20px 28px;overflow-y:auto;flex:1;min-height:0}
+/* Contact email selector */
+.ces-wrap{background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:16px;margin-bottom:16px}
+.ces-cb{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
 
 .tb th[onclick]{cursor:pointer;user-select:none;transition:color .15s var(--ease)}
 .tb th[onclick]:hover{color:var(--t1)}
