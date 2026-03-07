@@ -1434,7 +1434,7 @@ function rEcReview(){
     var _i=c._idx;
     var avatarBg=emailAvatarColor(c.email);
     var initial=(displayName||c.email||'?').charAt(0).toUpperCase();
-    h+='<div id="cr-card-'+_i+'" style="background:var(--glass);border:1px solid var(--gborder);border-radius:12px;padding:16px;backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:10px">';
+    h+='<div id="cr-card-'+_i+'" data-email="'+esc(c.email)+'" style="background:var(--glass);border:1px solid var(--gborder);border-radius:12px;padding:16px;backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:10px">';
     /* Header: avatar + name/email */
     h+='<div style="display:flex;align-items:center;gap:10px">';
     h+='<div style="width:34px;height:34px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';

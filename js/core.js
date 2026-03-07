@@ -4511,17 +4511,20 @@ function refreshEcReview(){
   toast((S._ecCandidates||[]).length+' contacts to review','ok')}
 
 function dismissEcReview(idx){
-  var c=S._ecCandidates[idx];if(!c)return;
+  /* Find candidate by email from card data-attr (immune to index shifting after splices) */
+  var card=gel('cr-card-'+idx);if(!card)return;
+  var email=card.getAttribute('data-email');
+  var c=email?(S._ecCandidates||[]).find(function(x){return x.email===email}):S._ecCandidates[idx];
+  if(!c)return;
   var dismissed={};
   try{dismissed=JSON.parse(localStorage.getItem('tf_ecr_dismissed')||'{}')}catch(e){}
   dismissed[c.email]=1;
   localStorage.setItem('tf_ecr_dismissed',JSON.stringify(dismissed));
-  S._ecCandidates.splice(idx,1);
-  var card=gel('cr-card-'+idx);
-  if(card){card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
-    card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
-    setTimeout(function(){card.remove();_crUpdateCount()},300)}
-  else{buildNav();render()}
+  var realIdx=S._ecCandidates.indexOf(c);
+  if(realIdx>=0)S._ecCandidates.splice(realIdx,1);
+  card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
+  card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
+  setTimeout(function(){card.remove();_crUpdateCount()},300);
   toast('Dismissed','ok')}
 
 
@@ -4551,10 +4554,13 @@ function _crClientChange(idx){
   if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',clientName)}
 
 async function _crSubmit(idx){
-  var c=S._ecCandidates[idx];if(!c)return;
-  /* Disable button immediately to prevent double-clicks */
+  /* Find candidate by email from card data-attr (immune to index shifting after splices) */
   var card=gel('cr-card-'+idx);
   if(!card)return;
+  var email=card.getAttribute('data-email');
+  var c=email?(S._ecCandidates||[]).find(function(x){return x.email===email}):S._ecCandidates[idx];
+  if(!c)return;
+  /* Disable button immediately to prevent double-clicks */
   var btns=card.querySelectorAll('button');
   btns.forEach(function(b){b.disabled=true});
   var mode=document.querySelector('input[name="cr-mode-'+idx+'"]:checked');
@@ -4579,7 +4585,7 @@ async function _crSubmit(idx){
     S.prospects.push({id:pRes.data.id,prospectCompanyId:pcId,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
       email:c.email||'',phone:'',role:'',linkedinUrl:'',source:'contact_review',notes:'',status:'active',lastContactedAt:null,createdAt:''});
     /* Animate removal */
-    S._ecCandidates.splice(idx,1);
+    var _ri=S._ecCandidates.indexOf(c);if(_ri>=0)S._ecCandidates.splice(_ri,1);
     card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
     card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
     setTimeout(function(){card.remove();_crUpdateCount()},300);
@@ -4613,7 +4619,7 @@ async function _crSubmit(idx){
   S.contacts.push({id:res.data.id,clientId:selectedClientId,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
     email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',endClient:ecName,endClientId:ecId});
   /* Remove card from DOM with animation */
-  S._ecCandidates.splice(idx,1);
+  var _ri=S._ecCandidates.indexOf(c);if(_ri>=0)S._ecCandidates.splice(_ri,1);
   card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
   card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
   setTimeout(function(){card.remove();_crUpdateCount()},300);
