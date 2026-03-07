@@ -1150,7 +1150,7 @@ function rClientDashboard(c){
   var td_=today();
   var st=c.clientStatus||'active';
   var tab=S.clientTab||'overview';
-  var contacts=c.clientId?S.contacts.filter(function(cc){return cc.clientId===c.clientId}):[];
+  var contacts=c.clientId?S.contacts.filter(function(cc){return cc.clientId===c.clientId&&!cc.endClientId}):[];
   var clientTasks=S.tasks.filter(function(t){return t.client===c.name});
 
   /* Header */

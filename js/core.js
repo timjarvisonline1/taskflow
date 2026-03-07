@@ -4750,7 +4750,6 @@ async function _crSubmit(idx){
   toast(isEC?'Linked to '+ecName:'Added for '+selectedClientName,'ok');
   /* Batch-add same-domain candidates — pass values directly, no closure delay */
   var _batchMode=modeVal,_batchCli=selectedClientId,_batchCliName=selectedClientName,_batchEcId=ecId,_batchEcName=ecName;
-  console.log('[CR Batch] mode='+_batchMode+' client='+_batchCliName+' ecId='+_batchEcId+' ecName='+_batchEcName);
   setTimeout(function(){_crBatchDomain(c.email,_batchMode,_batchCli,_batchCliName,_batchEcId,_batchEcName,null,uid)},350);
   /* Rebuild domain map in background */
   setTimeout(function(){_buildDomainMap()},500)}
@@ -4761,7 +4760,6 @@ async function _crBatchDomain(triggerEmail,mode,clientId,clientName,ecId,ecName,
   /* Find remaining candidates with the same domain */
   var same=(S._ecCandidates||[]).filter(function(c){return c.email.split('@')[1]===domain});
   if(!same.length)return;
-  console.log('[CR Batch] Processing '+same.length+' candidates for @'+domain+' | mode='+mode+' clientId='+clientId+' ecId='+ecId+' ecName='+ecName+' pcId='+pcId);
   var count=0;
   for(var i=0;i<same.length;i++){
     var c=same[i];
@@ -4777,9 +4775,8 @@ async function _crBatchDomain(triggerEmail,mode,clientId,clientName,ecId,ecName,
       var row={user_id:uid,client_id:clientId||null,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
         email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',
         end_client:ecName||'',end_client_id:ecId||null};
-      console.log('[CR Batch] Inserting '+c.email+' → client_id='+clientId+' end_client='+ecName+' end_client_id='+ecId);
       var res=await _sb.from('contacts').insert(row).select().single();
-      if(res.error){console.log('[CR Batch] Insert error:',res.error);continue}
+      if(res.error)continue;
       S.contacts.push({id:res.data.id,clientId:clientId,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
         email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',endClient:ecName||'',endClientId:ecId||null});
     }
