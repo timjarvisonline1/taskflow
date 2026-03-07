@@ -3337,6 +3337,8 @@ function rOppAnalytics(){
   h+='</div>';
 
   /* AI Assistant — build pipeline live data */
+  var awaitingStages={};Object.keys(OPP_TYPES).forEach(function(k){if(OPP_TYPES[k].awaitingStage)awaitingStages[OPP_TYPES[k].awaitingStage]=true});
+  var awaiting=active.filter(function(o){return awaitingStages[o.stage]});
   var _sLive='\nALL ACTIVE DEALS ('+active.length+', pipeline '+fmtUSD(totalPipeline)+'):\n';
   active.sort(function(a,b){var va=(a.strategyFee||0)+(a.setupFee||0)+((a.monthlyFee||0)*12);var vb=(b.strategyFee||0)+(b.setupFee||0)+((b.monthlyFee||0)*12);return vb-va}).forEach(function(o){
     var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
