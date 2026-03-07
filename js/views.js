@@ -571,6 +571,8 @@ function buildClientMap(){
 function rClients(){
   var sub=S.subView||'active';
   if(sub==='end_clients')return rEndClients();
+  if(sub==='prospect_companies')return rProspectCompanies();
+  if(sub==='prospects')return rProspectsList();
   if(sub==='ec_review'){if(!(S._ecCandidates||[]).length)discoverEcCandidates();return rEcReview()}
   return rClientsDirectory()}
 
@@ -769,6 +771,119 @@ function rEndClients(){
     h+='</td>';
     h+='</tr>'});
 
+  h+='</tbody></table></div>';
+  return h}
+
+/* ═══════════ PROSPECT COMPANIES VIEW ═══════════ */
+function rProspectCompanies(){
+  var pcs=(S.prospectCompanies||[]).slice();
+  var h='<div class="pg-head"><h1>'+icon('target',18)+' Prospect Companies</h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddProspectCompanyModal()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Company</button></div>';
+  if(!pcs.length){
+    h+='<div style="padding:30px;text-align:center;color:var(--t4);font-size:13px">No prospect companies yet. Add one to start tracking companies in your sales pipeline.</div>';
+    return h}
+  /* Sort */
+  var srt=S.pcSort||'name';
+  var desc=srt.charAt(0)==='-';
+  var col=desc?srt.slice(1):srt;
+  function sortArrow(c){if(col!==c)return '';return ' <span style="font-size:8px;opacity:.7">'+(desc?'▼':'▲')+'</span>'}
+  pcs.sort(function(a,b){
+    var v=0;
+    if(col==='name')v=(a.name||'').localeCompare(b.name||'');
+    else if(col==='website')v=(a.website||'').localeCompare(b.website||'');
+    else if(col==='prospects'){
+      var ca=(S.prospects||[]).filter(function(p){return p.prospectCompanyId===a.id}).length;
+      var cb=(S.prospects||[]).filter(function(p){return p.prospectCompanyId===b.id}).length;
+      v=ca-cb}
+    else if(col==='opps'){
+      var oa=S.opportunities.filter(function(o){return o.prospectCompanyId===a.id&&!oppIsClosedStage(o.stage)}).length;
+      var ob=S.opportunities.filter(function(o){return o.prospectCompanyId===b.id&&!oppIsClosedStage(o.stage)}).length;
+      v=oa-ob}
+    else if(col==='source')v=(a.source||'').localeCompare(b.source||'');
+    else if(col==='status')v=(a.status||'').localeCompare(b.status||'');
+    return desc?-v:v});
+  var thStyle='cursor:pointer;user-select:none;transition:color .15s';
+  h+='<div class="tb-wrap"><table class="tb"><thead><tr>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPcSort(\'name\')">Company'+sortArrow('name')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPcSort(\'website\')">Website'+sortArrow('website')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setPcSort(\'prospects\')">Prospects'+sortArrow('prospects')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setPcSort(\'opps\')">Open Opps'+sortArrow('opps')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPcSort(\'source\')">Source'+sortArrow('source')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPcSort(\'status\')">Status'+sortArrow('status')+'</th>';
+  h+='</tr></thead><tbody>';
+  pcs.forEach(function(pc){
+    var prospectCount=(S.prospects||[]).filter(function(p){return p.prospectCompanyId===pc.id}).length;
+    var openOpps=S.opportunities.filter(function(o){return o.prospectCompanyId===pc.id&&!oppIsClosedStage(o.stage)}).length;
+    h+='<tr style="cursor:pointer" onclick="TF.openEditProspectCompanyModal(\''+escAttr(pc.id)+'\')">';
+    h+='<td style="font-weight:600;color:var(--t1)" data-label="Company">'+icon('target',12)+' '+esc(pc.name)+'</td>';
+    h+='<td data-label="Website">';
+    if(pc.website)h+='<span style="color:var(--accent);font-size:12px">'+esc(pc.website)+'</span>';
+    else h+='<span style="color:var(--t4)">-</span>';
+    h+='</td>';
+    h+='<td class="nm" data-label="Prospects">'+prospectCount+'</td>';
+    h+='<td class="nm" data-label="Open Opps">';
+    if(openOpps)h+='<span style="color:var(--green)">'+openOpps+'</span>';
+    else h+='<span style="color:var(--t4)">-</span>';
+    h+='</td>';
+    h+='<td data-label="Source">';
+    if(pc.source)h+='<span style="color:var(--t3);font-size:12px">'+esc(pc.source)+'</span>';
+    else h+='<span style="color:var(--t4)">-</span>';
+    h+='</td>';
+    h+='<td data-label="Status"><span class="bg" style="font-size:10px;padding:2px 8px;background:'+(pc.status==='active'?'var(--green20)':'var(--t5)')+';color:'+(pc.status==='active'?'var(--green)':'var(--t3)')+'">'+esc(pc.status)+'</span></td>';
+    h+='</tr>'});
+  h+='</tbody></table></div>';
+  return h}
+
+/* ═══════════ PROSPECTS LIST VIEW ═══════════ */
+function rProspectsList(){
+  var prospects=(S.prospects||[]).slice();
+  var h='<div class="pg-head"><h1>'+icon('gem',18)+' Prospects</h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddProspectModal()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Prospect</button></div>';
+  if(!prospects.length){
+    h+='<div style="padding:30px;text-align:center;color:var(--t4);font-size:13px">No prospects yet. Add one or use Contact Review to categorize email contacts as prospects.</div>';
+    return h}
+  /* Sort */
+  var srt=S.pSort||'name';
+  var desc=srt.charAt(0)==='-';
+  var col=desc?srt.slice(1):srt;
+  function sortArrow(c){if(col!==c)return '';return ' <span style="font-size:8px;opacity:.7">'+(desc?'▼':'▲')+'</span>'}
+  prospects.sort(function(a,b){
+    var v=0;
+    var aName=(a.firstName+' '+a.lastName).trim();
+    var bName=(b.firstName+' '+b.lastName).trim();
+    if(col==='name')v=aName.localeCompare(bName);
+    else if(col==='email')v=(a.email||'').localeCompare(b.email||'');
+    else if(col==='company'){
+      var aPc=prospectCompanyNameById(a.prospectCompanyId);
+      var bPc=prospectCompanyNameById(b.prospectCompanyId);
+      v=aPc.localeCompare(bPc)}
+    else if(col==='role')v=(a.role||'').localeCompare(b.role||'');
+    else if(col==='source')v=(a.source||'').localeCompare(b.source||'');
+    else if(col==='status')v=(a.status||'').localeCompare(b.status||'');
+    return desc?-v:v});
+  var thStyle='cursor:pointer;user-select:none;transition:color .15s';
+  h+='<div class="tb-wrap"><table class="tb"><thead><tr>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPSort(\'name\')">Name'+sortArrow('name')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPSort(\'email\')">Email'+sortArrow('email')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPSort(\'company\')">Company'+sortArrow('company')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPSort(\'role\')">Role'+sortArrow('role')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPSort(\'source\')">Source'+sortArrow('source')+'</th>';
+  h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setPSort(\'status\')">Status'+sortArrow('status')+'</th>';
+  h+='</tr></thead><tbody>';
+  prospects.forEach(function(p){
+    var name=(p.firstName+' '+p.lastName).trim()||p.email;
+    var pcName=prospectCompanyNameById(p.prospectCompanyId);
+    h+='<tr style="cursor:pointer" onclick="TF.openEditProspectModal(\''+escAttr(p.id)+'\')">';
+    h+='<td style="font-weight:600;color:var(--t1)" data-label="Name">'+icon('gem',12)+' '+esc(name)+'</td>';
+    h+='<td data-label="Email"><span style="color:var(--accent);font-size:12px">'+esc(p.email||'-')+'</span></td>';
+    h+='<td data-label="Company">';
+    if(pcName)h+='<span class="bg" style="font-size:10px;padding:2px 8px">'+esc(pcName)+'</span>';
+    else h+='<span style="color:var(--t4)">-</span>';
+    h+='</td>';
+    h+='<td data-label="Role"><span style="color:var(--t3);font-size:12px">'+esc(p.role||'-')+'</span></td>';
+    h+='<td data-label="Source"><span style="color:var(--t3);font-size:12px">'+esc(p.source||'-')+'</span></td>';
+    h+='<td data-label="Status"><span class="bg" style="font-size:10px;padding:2px 8px;background:'+(p.status==='active'?'var(--green20)':'var(--t5)')+';color:'+(p.status==='active'?'var(--green)':'var(--t3)')+'">'+esc(p.status)+'</span></td>';
+    h+='</tr>'});
   h+='</tbody></table></div>';
   return h}
 
@@ -1342,17 +1457,25 @@ function rEcReview(){
       h+='<option value="'+cr.id+'"'+(cr.id===c.clientId?' selected':'')+'>'+esc(cr.name)+'</option>'});
     h+='</select></div>';
     /* Type toggle */
-    h+='<div style="display:flex;align-items:center;gap:12px">';
+    h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
     h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';
     h+='<input type="radio" name="cr-mode-'+_i+'" value="client"'+(!_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'client\')"> Client contact</label>';
     h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';
     h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> End-client</label>';
+    h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--purple50)">';
+    h+='<input type="radio" name="cr-mode-'+_i+'" value="prospect" onchange="TF._crModeChange('+_i+',\'prospect\')"> Prospect</label>';
     h+='</div>';
     /* EC dropdown */
     h+='<div id="cr-ec-wrap-'+_i+'" style="'+(_defEC?'':'display:none;')+'">';
     h+='<div style="font-size:10px;color:var(--t4);margin-bottom:3px">End Client</div>';
     h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
     h+=buildEndClientOptions(c.suggestedECId||c.suggestedEC||'',c.clientName||'');
+    h+='</select></div>';
+    /* Prospect company dropdown (hidden by default) */
+    h+='<div id="cr-pc-wrap-'+_i+'" style="display:none">';
+    h+='<div style="font-size:10px;color:var(--t4);margin-bottom:3px">Prospect Company</div>';
+    h+='<select class="edf" id="cr-pc-'+_i+'" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px" onchange="TF.pcAddNew(\'cr-pc-'+_i+'\')">';
+    h+=buildProspectCompanyOptions('');
     h+='</select></div>';
     /* Add button */
     h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:12px;padding:7px 0;border-radius:8px;width:100%;margin-top:auto">'+icon('check',11)+' Add Contact</button>';
@@ -3037,16 +3160,37 @@ function rOpTabDetails(op,st){
   var h='';
   h+='<input type="hidden" id="op-id" value="'+esc(op.id)+'">';
   h+='<input type="hidden" id="op-type" value="'+esc(op.type)+'">';
+  if(isRL){
+    /* Hidden fields for saveOpportunity compat — RL uses prospect dropdowns instead */
+    h+='<input type="hidden" id="op-client" value="'+esc(op.client)+'">';
+    h+='<input type="hidden" id="op-endclient" value="'+esc(op.endClient)+'">';
+  }
 
   /* Core fields */
   h+='<div class="dash-section">'+icon('gem',13)+' Opportunity Details</div>';
   h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+'></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Prospect':'Client / Partner')+'</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  if(isRL){
+    h+='<div class="ed-fld"><span class="ed-lbl">Prospect Company</span><select class="edf" id="op-pc" onchange="TF.nopPcChange()"><option value="">Select company...</option>';
+    (S.prospectCompanies||[]).filter(function(pc){return pc.status==='active'||pc.id===op.prospectCompanyId}).forEach(function(pc){
+      h+='<option value="'+escAttr(pc.id)+'"'+(op.prospectCompanyId===pc.id?' selected':'')+'>'+esc(pc.name)+'</option>'});
+    h+='<option value="__manual__">Enter manually...</option></select></div>';
+  }else{
+    h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  }
   h+='</div>';
   h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Company':'End Client')+'</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'"></div>';
+  if(isRL){
+    h+='<div class="ed-fld"><span class="ed-lbl">Prospect</span><select class="edf" id="op-prospect" onchange="TF.nopProspectChange()"><option value="">Select prospect...</option>';
+    var _opPcFilter=op.prospectCompanyId||'';
+    (S.prospects||[]).filter(function(p){return p.status==='active'&&(!_opPcFilter||p.prospectCompanyId===_opPcFilter)||p.id===op.prospectId}).forEach(function(p){
+      var pN=(p.firstName+' '+p.lastName).trim()||p.email;
+      h+='<option value="'+escAttr(p.id)+'"'+(op.prospectId===p.id?' selected':'')+'>'+esc(pN)+(p.email?' ('+esc(p.email)+')':'')+'</option>'});
+    h+='<option value="__manual__">Enter manually...</option></select></div>';
+  }else{
+    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'"></div>';
+  }
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
   h+='</div>';

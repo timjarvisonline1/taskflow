@@ -1836,6 +1836,17 @@ async function saveOpportunity(){
   op.companyDescription=gel('op-compdesc')?(gel('op-compdesc').value||'').trim():'';
   op.prospectDescription=gel('op-prospdesc')?(gel('op-prospdesc').value||'').trim():'';
   op.videoStrategyBenefits=gel('op-vidbene')?(gel('op-vidbene').value||'').trim():'';
+  /* Prospect company/prospect FKs (from edit form if present) */
+  var _opPcEl=gel('op-pc');
+  if(_opPcEl){
+    if(_opPcEl.tagName==='INPUT'){op.prospectCompanyId=null}
+    else if(_opPcEl.value&&_opPcEl.value!=='__manual__'){op.prospectCompanyId=_opPcEl.value}
+    else{op.prospectCompanyId=null}}
+  var _opPrEl=gel('op-prospect');
+  if(_opPrEl){
+    if(_opPrEl.tagName==='INPUT'){op.prospectId=null}
+    else if(_opPrEl.value&&_opPrEl.value!=='__manual__'){op.prospectId=_opPrEl.value}
+    else{op.prospectId=null}}
   await dbEditOpportunity(id,op);
   toast('Saved: '+op.name,'ok');closeModal();render()}
 
@@ -1874,9 +1885,21 @@ function selectOpType(type){
   h+='<div class="ed-grid ed-grid-3">';
   var allStages=conf.stages.slice();if(conf.awaitingStage)allStages.push(conf.awaitingStage);
   h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="nop-stage">'+allStages.map(function(s){return'<option>'+s+'</option>'}).join('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">'+(isRL?'Prospect':'Client / Partner')+'</span><select class="edf" id="nop-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
-  if(!isRL){h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="nop-endclient" placeholder="End client..."></div>'}
-  else{h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="nop-endclient" placeholder="Company name..."></div>'}
+  if(isRL){
+    /* Retain Live: Prospect Company and Prospect dropdowns */
+    h+='<div class="ed-fld"><span class="ed-lbl">Prospect Company</span><select class="edf" id="nop-pc" onchange="TF.nopPcChange()"><option value="">Select company...</option>';
+    (S.prospectCompanies||[]).filter(function(pc){return pc.status==='active'}).forEach(function(pc){
+      h+='<option value="'+escAttr(pc.id)+'">'+esc(pc.name)+'</option>'});
+    h+='<option value="__manual__">Enter manually...</option></select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Prospect</span><select class="edf" id="nop-prospect" onchange="TF.nopProspectChange()"><option value="">Select prospect...</option>';
+    (S.prospects||[]).filter(function(p){return p.status==='active'}).forEach(function(p){
+      var pName=(p.firstName+' '+p.lastName).trim()||p.email;
+      h+='<option value="'+escAttr(p.id)+'">'+esc(pName)+(p.email?' ('+esc(p.email)+')':'')+'</option>'});
+    h+='<option value="__manual__">Enter manually...</option></select></div>';
+  }else{
+    h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="nop-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="nop-endclient" placeholder="End client..."></div>';
+  }
   h+='</div>';
 
   h+='<div class="ed-grid ed-grid-3">';
@@ -1936,8 +1959,22 @@ async function addOpportunity(){
   var name=(gel('nop-name').value||'').trim();if(!name){toast('Enter opportunity name','warn');return}
   var type=gel('nop-type')?gel('nop-type').value||'fc_partnership':'fc_partnership';
   var isRL=type==='retain_live';
+  /* Resolve prospect/company for RL */
+  var _pcId=null,_prId=null;
+  if(isRL){
+    var pcEl=gel('nop-pc');
+    if(pcEl){
+      if(pcEl.tagName==='INPUT'){var pcN=pcEl.value.trim();if(pcN){var pcR=resolveProspectCompanyId(pcN);_pcId=pcR||null}}
+      else if(pcEl.value&&pcEl.value!=='__manual__'){_pcId=pcEl.value}}
+    var prEl=gel('nop-prospect');
+    if(prEl){
+      if(prEl.tagName==='INPUT'){}/* manual — no prospect_id */
+      else if(prEl.value&&prEl.value!=='__manual__'){_prId=prEl.value}}}
   var data={name:name,type:type,stage:gel('nop-stage').value||oppTypeConf(type).stages[0],
-    client:gel('nop-client').value||'',endClient:(function(){var _v=gel('nop-endclient')?(gel('nop-endclient').value||'').trim():'';var _i=resolveEndClientId(_v);return _i?endClientNameById(_i):_v})(),endClientId:(function(){var _v=gel('nop-endclient')?(gel('nop-endclient').value||'').trim():'';return resolveEndClientId(_v)||null})(),
+    client:gel('nop-client')?(gel('nop-client').value||''):(isRL?'':''),
+    endClient:(function(){var _el=gel('nop-endclient');if(!_el)return '';var _v=(_el.value||'').trim();var _i=resolveEndClientId(_v);return _i?endClientNameById(_i):_v})(),
+    endClientId:(function(){var _el=gel('nop-endclient');if(!_el)return null;var _v=(_el.value||'').trim();return resolveEndClientId(_v)||null})(),
+    prospectCompanyId:_pcId,prospectId:_prId,
     contactName:(gel('nop-contact').value||'').trim(),contactEmail:(gel('nop-email').value||'').trim(),
     source:(gel('nop-source').value||'').trim(),
     strategyFee:parseFloat(gel('nop-strategy').value)||0,
@@ -1970,6 +2007,7 @@ async function addOpportunity(){
     contactJobTitle:data.contactJobTitle,prospectWebsite:data.prospectWebsite,
     previousRelationship:data.previousRelationship,companyDescription:data.companyDescription,
     prospectDescription:data.prospectDescription,videoStrategyBenefits:data.videoStrategyBenefits,
+    prospectCompanyId:data.prospectCompanyId||null,prospectId:data.prospectId||null,
     closeReason:''});
   toast('Created: '+data.name,'ok');closeModal();
   // If created from a meeting AI suggestion, link opportunity to meeting
@@ -4625,3 +4663,192 @@ async function saveEditEndClient(){
 function deleteEndClient(id){
   if(!confirm('Delete this end client? This only removes the record — campaigns, tasks, and contacts will keep their end-client text.'))return;
   dbDeleteEndClient(id);closeModal();S._lastEndClientDash=''}
+
+/* ═══════════ PROSPECT COMPANY MODALS ═══════════ */
+function openAddProspectCompanyModal(){
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('target',12)+' Add Prospect Company</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Company Name</span><input type="text" class="edf" id="fpc-name" placeholder="Company name" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Website</span><input type="text" class="edf" id="fpc-website" placeholder="www.example.com"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Description</span><textarea class="edf" id="fpc-description" rows="2" placeholder="What does this company do?"></textarea></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="fpc-source" placeholder="e.g. LinkedIn, Referral, Cold outreach"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fpc-notes" rows="2" placeholder="Optional notes"></textarea></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveProspectCompany()">Add Company</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('fpc-name');if(n)n.focus()},100)}
+
+async function saveProspectCompany(){
+  var name=(gel('fpc-name')||{}).value||'';
+  if(!name.trim()){toast('Enter a company name','warn');return}
+  var data={name:name.trim(),website:(gel('fpc-website')||{}).value||'',
+    description:(gel('fpc-description')||{}).value||'',
+    source:(gel('fpc-source')||{}).value||'',notes:(gel('fpc-notes')||{}).value||''};
+  var ok=await dbAddProspectCompany(data);
+  if(ok){closeModal();toast('Prospect company added','ok')}}
+
+function openEditProspectCompanyModal(id){
+  var pc=S.prospectCompanies.find(function(p){return p.id===id});if(!pc)return;
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('target',12)+' Edit Prospect Company</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="fpc-id" value="'+escAttr(id)+'">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Company Name</span><input type="text" class="edf" id="fpc-name" value="'+escAttr(pc.name)+'" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Website</span><input type="text" class="edf" id="fpc-website" value="'+escAttr(pc.website)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Description</span><textarea class="edf" id="fpc-description" rows="2">'+esc(pc.description||'')+'</textarea></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="fpc-source" value="'+escAttr(pc.source)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fpc-notes" rows="2">'+esc(pc.notes||'')+'</textarea></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="fpc-status">';
+  h+='<option value="active"'+(pc.status==='active'?' selected':'')+'>Active</option>';
+  h+='<option value="inactive"'+(pc.status==='inactive'?' selected':'')+'>Inactive</option>';
+  h+='<option value="converted"'+(pc.status==='converted'?' selected':'')+'>Converted</option>';
+  h+='</select></div>';
+  /* Prospects linked to this company */
+  var linked=(S.prospects||[]).filter(function(p){return p.prospectCompanyId===id});
+  if(linked.length){
+    h+='<div style="margin:12px 0 8px;font-size:12px;color:var(--t3);font-weight:600">Prospects ('+linked.length+')</div>';
+    linked.forEach(function(p){
+      var pName=(p.firstName+' '+p.lastName).trim()||p.email;
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;color:var(--t2);cursor:pointer" onclick="TF.openEditProspectModal(\''+escAttr(p.id)+'\')">';
+      h+=icon('gem',11)+' '+esc(pName);
+      if(p.email)h+=' <span style="color:var(--t4)">'+esc(p.email)+'</span>';
+      h+='</div>'})}
+  /* Open opportunities linked */
+  var opps=S.opportunities.filter(function(o){return o.prospectCompanyId===id&&!oppIsClosedStage(o.stage)});
+  if(opps.length){
+    h+='<div style="margin:12px 0 8px;font-size:12px;color:var(--t3);font-weight:600">Open Opportunities ('+opps.length+')</div>';
+    opps.forEach(function(o){
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;color:var(--t2);cursor:pointer" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
+      h+=icon('gem',11)+' '+esc(o.name)+' <span style="color:var(--t4)">['+esc(o.stage)+']</span></div>'})}
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditProspectCompany()">Save</button>';
+  h+='<button class="btn" onclick="TF.deleteProspectCompany(\''+escAttr(id)+'\')" style="color:var(--red)">Delete</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('fpc-name');if(n)n.focus()},100)}
+
+async function saveEditProspectCompany(){
+  var id=(gel('fpc-id')||{}).value;if(!id)return;
+  var name=(gel('fpc-name')||{}).value||'';
+  if(!name.trim()){toast('Enter a company name','warn');return}
+  var data={name:name.trim(),website:(gel('fpc-website')||{}).value||'',
+    description:(gel('fpc-description')||{}).value||'',
+    source:(gel('fpc-source')||{}).value||'',notes:(gel('fpc-notes')||{}).value||'',
+    status:(gel('fpc-status')||{}).value||'active'};
+  var ok=await dbEditProspectCompany(id,data);
+  if(ok){closeModal();toast('Prospect company updated','ok')}}
+
+function deleteProspectCompany(id){
+  if(!confirm('Delete this prospect company? Linked prospects will lose their company association.'))return;
+  dbDeleteProspectCompany(id);closeModal()}
+
+/* ═══════════ PROSPECT MODALS ═══════════ */
+function buildProspectCompanyOptions(currentValue){
+  var pcs=(S.prospectCompanies||[]).filter(function(pc){return pc.status==='active'||pc.id===currentValue});
+  pcs.sort(function(a,b){return(a.name||'').localeCompare(b.name||'')});
+  var h='<option value="">— No company —</option>';
+  pcs.forEach(function(pc){
+    h+='<option value="'+escAttr(pc.id)+'"'+(currentValue===pc.id?' selected':'')+'>'+esc(pc.name)+'</option>'});
+  h+='<option value="__addnew__">+ Add New...</option>';
+  return h}
+
+function pcAddNew(selId){
+  var sel=gel(selId);if(!sel)return;
+  var wrap=sel.parentNode;
+  var inp=document.createElement('input');
+  inp.type='text';inp.className='edf';inp.id=selId;
+  inp.placeholder='New company name';inp.style.flex='1';
+  wrap.replaceChild(inp,sel);inp.focus()}
+
+function openAddProspectModal(prefilledCompanyId){
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('gem',12)+' Add Prospect</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">First Name</span><input type="text" class="edf" id="fp-first" placeholder="First name" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Last Name</span><input type="text" class="edf" id="fp-last" placeholder="Last name"></div>';
+  h+='</div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="email" class="edf" id="fp-email" placeholder="email@example.com"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Prospect Company</span><select class="edf" id="fp-company" onchange="if(this.value===\'__addnew__\')TF.pcAddNew(\'fp-company\')">';
+  h+=buildProspectCompanyOptions(prefilledCompanyId||'');
+  h+='</select></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fp-role" placeholder="e.g. Marketing Director"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="text" class="edf" id="fp-phone" placeholder="Phone number"></div>';
+  h+='</div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">LinkedIn URL</span><input type="text" class="edf" id="fp-linkedin" placeholder="https://linkedin.com/in/..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="fp-source" placeholder="e.g. LinkedIn, Referral, Event"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fp-notes" rows="2" placeholder="Optional notes"></textarea></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveProspect()">Add Prospect</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('fp-first');if(n)n.focus()},100)}
+
+async function saveProspect(){
+  var firstName=(gel('fp-first')||{}).value||'';
+  var lastName=(gel('fp-last')||{}).value||'';
+  if(!firstName.trim()&&!lastName.trim()){toast('Enter a name','warn');return}
+  var companyEl=gel('fp-company');
+  var companyVal=companyEl?companyEl.value:'';
+  var pcId=null;
+  /* Handle "Add New" text input */
+  if(companyEl&&companyEl.tagName==='INPUT'){
+    var newName=companyEl.value.trim();
+    if(newName){var pcRec=await ensureProspectCompanyExists(newName);if(pcRec)pcId=pcRec.id}}
+  else if(companyVal&&companyVal!=='__addnew__'){pcId=resolveProspectCompanyId(companyVal)}
+  var data={firstName:firstName.trim(),lastName:lastName.trim(),
+    email:(gel('fp-email')||{}).value||'',phone:(gel('fp-phone')||{}).value||'',
+    role:(gel('fp-role')||{}).value||'',linkedinUrl:(gel('fp-linkedin')||{}).value||'',
+    source:(gel('fp-source')||{}).value||'',notes:(gel('fp-notes')||{}).value||'',
+    prospectCompanyId:pcId};
+  var ok=await dbAddProspect(data);
+  if(ok){closeModal();toast('Prospect added','ok')}}
+
+function openEditProspectModal(id){
+  var p=S.prospects.find(function(pr){return pr.id===id});if(!p)return;
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('gem',12)+' Edit Prospect</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="fp-id" value="'+escAttr(id)+'">';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">First Name</span><input type="text" class="edf" id="fp-first" value="'+escAttr(p.firstName)+'" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Last Name</span><input type="text" class="edf" id="fp-last" value="'+escAttr(p.lastName)+'"></div>';
+  h+='</div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="email" class="edf" id="fp-email" value="'+escAttr(p.email)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Prospect Company</span><select class="edf" id="fp-company" onchange="if(this.value===\'__addnew__\')TF.pcAddNew(\'fp-company\')">';
+  h+=buildProspectCompanyOptions(p.prospectCompanyId||'');
+  h+='</select></div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fp-role" value="'+escAttr(p.role)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="text" class="edf" id="fp-phone" value="'+escAttr(p.phone)+'"></div>';
+  h+='</div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">LinkedIn URL</span><input type="text" class="edf" id="fp-linkedin" value="'+escAttr(p.linkedinUrl)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="fp-source" value="'+escAttr(p.source)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fp-notes" rows="2">'+esc(p.notes||'')+'</textarea></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="fp-status">';
+  h+='<option value="active"'+(p.status==='active'?' selected':'')+'>Active</option>';
+  h+='<option value="inactive"'+(p.status==='inactive'?' selected':'')+'>Inactive</option>';
+  h+='<option value="converted"'+(p.status==='converted'?' selected':'')+'>Converted</option>';
+  h+='</select></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditProspect()">Save</button>';
+  h+='<button class="btn" onclick="TF.deleteProspect(\''+escAttr(id)+'\')" style="color:var(--red)">Delete</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('fp-first');if(n)n.focus()},100)}
+
+async function saveEditProspect(){
+  var id=(gel('fp-id')||{}).value;if(!id)return;
+  var firstName=(gel('fp-first')||{}).value||'';
+  var lastName=(gel('fp-last')||{}).value||'';
+  if(!firstName.trim()&&!lastName.trim()){toast('Enter a name','warn');return}
+  var companyEl=gel('fp-company');
+  var companyVal=companyEl?companyEl.value:'';
+  var pcId=null;
+  if(companyEl&&companyEl.tagName==='INPUT'){
+    var newName=companyEl.value.trim();
+    if(newName){var pcRec=await ensureProspectCompanyExists(newName);if(pcRec)pcId=pcRec.id}}
+  else if(companyVal&&companyVal!=='__addnew__'){pcId=resolveProspectCompanyId(companyVal)}
+  var data={firstName:firstName.trim(),lastName:lastName.trim(),
+    email:(gel('fp-email')||{}).value||'',phone:(gel('fp-phone')||{}).value||'',
+    role:(gel('fp-role')||{}).value||'',linkedinUrl:(gel('fp-linkedin')||{}).value||'',
+    source:(gel('fp-source')||{}).value||'',notes:(gel('fp-notes')||{}).value||'',
+    status:(gel('fp-status')||{}).value||'active',
+    prospectCompanyId:pcId};
+  var ok=await dbEditProspect(id,data);
+  if(ok){closeModal();toast('Prospect updated','ok')}}
+
+function deleteProspect(id){
+  if(!confirm('Delete this prospect?'))return;
+  dbDeleteProspect(id);closeModal()}

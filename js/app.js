@@ -79,6 +79,15 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openEndClientDetailModal:openEndClientDetailModal,closeEndClientDashboard:closeEndClientDashboard,
   openAddEndClientModal:openAddEndClientModal,saveEndClient:saveEndClient,
   openEditEndClientModal:openEditEndClientModal,saveEditEndClient:saveEditEndClient,deleteEndClient:deleteEndClient,setEcSort:setEcSort,
+  /* Prospect Companies */
+  openAddProspectCompanyModal:openAddProspectCompanyModal,saveProspectCompany:saveProspectCompany,
+  openEditProspectCompanyModal:openEditProspectCompanyModal,saveEditProspectCompany:saveEditProspectCompany,deleteProspectCompany:deleteProspectCompany,setPcSort:setPcSort,
+  /* Prospects */
+  openAddProspectModal:openAddProspectModal,saveProspect:saveProspect,
+  openEditProspectModal:openEditProspectModal,saveEditProspect:saveEditProspect,deleteProspect:deleteProspect,setPSort:setPSort,
+  pcAddNew:pcAddNew,
+  /* Opportunity prospect helpers */
+  nopPcChange:nopPcChange,nopProspectChange:nopProspectChange,
   refreshEcReview:refreshEcReview,dismissEcReview:dismissEcReview,_crModeChange:_crModeChange,_crClientChange:_crClientChange,_crSubmit:_crSubmit,
   addCampaignNote:addCampaignNote,addClientNote:addClientNote,deleteCampaignNote:deleteCampaignNote,deleteClientNote:deleteClientNote,
   setCampaignTab:setCampaignTab,setClientTab:setClientTab,setEndClientTab:setEndClientTab,setOpportunityTab:setOpportunityTab,

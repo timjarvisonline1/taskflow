@@ -132,6 +132,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   contacts:[],scheduledEmails:[],emailRules:[],
   meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,
   endClients:[],ecSort:'name',
+  prospectCompanies:[],prospects:[],pcSort:'name',pSort:'name',
   _ecCandidates:[],
   clientTab:'overview',endClientTab:'overview',opportunityTab:'overview'};
 
@@ -173,6 +174,8 @@ var SECTIONS=[
     {id:'active',label:'Active',icon:'clients'},
     {id:'lapsed',label:'Lapsed',icon:'clock'},
     {id:'end_clients',label:'End Clients',icon:'building'},
+    {id:'prospect_companies',label:'Prospect Companies',icon:'target'},
+    {id:'prospects',label:'Prospects',icon:'gem'},
     {id:'ec_review',label:'Contact Review',icon:'sparkle'}
   ]},
   {id:'finance',icon:'activity',label:'Finance',kbd:'8',subs:[
@@ -737,6 +740,7 @@ async function loadOpportunities(){
       previousRelationship:r.previous_relationship||'',companyDescription:r.company_description||'',
       prospectDescription:r.prospect_description||'',videoStrategyBenefits:r.video_strategy_benefits||'',
       closeReason:r.close_reason||'',
+      prospectCompanyId:r.prospect_company_id||null,prospectId:r.prospect_id||null,
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
 async function loadOpportunityMeetings(){
@@ -805,6 +809,22 @@ async function loadContacts(){
       website:r.website||'',status:r.status||'active',endClient:r.end_client||'',endClientId:r.end_client_id||null}});
   _buildDomainMap()}
 
+async function loadProspectCompanies(){
+  var res=await _sb.from('prospect_companies').select('*').order('name');
+  if(res.error){console.error('loadProspectCompanies:',res.error);return}
+  S.prospectCompanies=(res.data||[]).map(function(r){
+    return{id:r.id,name:r.name||'',website:r.website||'',description:r.description||'',
+      status:r.status||'active',notes:r.notes||'',source:r.source||'',createdAt:r.created_at||''}})}
+
+async function loadProspects(){
+  var res=await _sb.from('prospects').select('*').order('last_name');
+  if(res.error){console.error('loadProspects:',res.error);return}
+  S.prospects=(res.data||[]).map(function(r){
+    return{id:r.id,prospectCompanyId:r.prospect_company_id||'',firstName:r.first_name||'',lastName:r.last_name||'',
+      email:r.email||'',phone:r.phone||'',role:r.role||'',linkedinUrl:r.linkedin_url||'',
+      source:r.source||'',notes:r.notes||'',status:r.status||'active',
+      lastContactedAt:r.last_contacted_at?new Date(r.last_contacted_at):null,createdAt:r.created_at||''}})}
+
 /* Build domain → end-client/client map from contacts with endClient + email */
 var _FREE_DOMAINS={'gmail.com':1,'yahoo.com':1,'hotmail.com':1,'outlook.com':1,'icloud.com':1,'aol.com':1,'live.com':1,'me.com':1,'msn.com':1,'protonmail.com':1,'mail.com':1,'zoho.com':1};
 function _buildDomainMap(){
@@ -827,6 +847,7 @@ function discoverEcCandidates(){
   try{dismissed=JSON.parse(localStorage.getItem('tf_ecr_dismissed')||'{}')}catch(e){}
   var knownEmails={};
   (S.contacts||[]).forEach(function(c){if(c.email)knownEmails[c.email.toLowerCase()]=true});
+  (S.prospects||[]).forEach(function(p){if(p.email)knownEmails[p.email.toLowerCase()]=true});
   var clientEmails={};
   (S.clientRecords||[]).forEach(function(c){if(c.email)clientEmails[c.email.toLowerCase().trim()]=true});
 
@@ -3902,9 +3923,9 @@ function fmtUSD(n){return'$'+Number(n||0).toLocaleString('en-US',{minimumFractio
 async function loadData(){toast('Loading data...','info');
   try{
     /* Load campaigns first (payments/meetings reference them) */
-    await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities(),loadEndClients()]);
+    await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities(),loadEndClients(),loadProspectCompanies()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings(),loadProspects()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -4162,7 +4183,8 @@ async function dbAddOpportunity(data){
     contact_job_title:data.contactJobTitle||'',prospect_website:data.prospectWebsite||'',
     previous_relationship:data.previousRelationship||'',company_description:data.companyDescription||'',
     prospect_description:data.prospectDescription||'',video_strategy_benefits:data.videoStrategyBenefits||'',
-    close_reason:data.closeReason||''};
+    close_reason:data.closeReason||'',
+    prospect_company_id:data.prospectCompanyId||null,prospect_id:data.prospectId||null};
   var res=await _sb.from('opportunities').insert(row).select().single();
   if(res.error){toast('Opportunity save failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -4184,7 +4206,8 @@ async function dbEditOpportunity(id,data){
     contact_job_title:data.contactJobTitle||'',prospect_website:data.prospectWebsite||'',
     previous_relationship:data.previousRelationship||'',company_description:data.companyDescription||'',
     prospect_description:data.prospectDescription||'',video_strategy_benefits:data.videoStrategyBenefits||'',
-    close_reason:data.closeReason||''};
+    close_reason:data.closeReason||'',
+    prospect_company_id:data.prospectCompanyId||null,prospect_id:data.prospectId||null};
   var res=await _sb.from('opportunities').update(row).eq('id',id);
   if(res.error){toast('Opportunity update failed: '+res.error.message,'warn');return false}
   return true}
@@ -4220,7 +4243,19 @@ async function convertToClient(id){
   var newCl=S.clientRecords.find(function(c){return c.name===op.client});
   if(newCl&&(op.contactEmail||op.client)){
     await dbEditClient(newCl.id,{name:newCl.name,status:'active',email:op.contactEmail||'',company:op.client,notes:op.notes||''})}
-  /* 3. Close opportunity */
+  /* 3. Convert prospect_company → end_client if linked */
+  if(op.prospectCompanyId){
+    var pc=(S.prospectCompanies||[]).find(function(p){return p.id===op.prospectCompanyId});
+    if(pc){
+      await ensureEndClientExists(pc.name,op.client);
+      await dbEditProspectCompany(pc.id,{status:'converted'})}}
+  /* 4. Convert prospect → contact if linked */
+  if(op.prospectId){
+    var pr=(S.prospects||[]).find(function(p){return p.id===op.prospectId});
+    if(pr&&newCl){
+      await dbAddContact(newCl.id,{firstName:pr.firstName,lastName:pr.lastName,email:pr.email,phone:pr.phone,role:pr.role});
+      await dbEditProspect(pr.id,{status:'converted'})}}
+  /* 5. Close opportunity */
   op.stage='Closed Won';op.closedAt=new Date();
   await dbEditOpportunity(id,op);
   await loadClientRecords();
@@ -4339,6 +4374,136 @@ function setEcSort(v){
   else{S.ecSort=(v==='name')?v:'-'+v}
   render()}
 
+/* ═══════════ PROSPECT COMPANIES CRUD ═══════════ */
+async function dbAddProspectCompany(data){
+  var uid=await getUserId();if(!uid)return false;
+  var rec={user_id:uid,name:data.name,website:data.website||'',description:data.description||'',
+    notes:data.notes||'',source:data.source||'',status:data.status||'active'};
+  var res=await _sb.from('prospect_companies').insert(rec).select().single();
+  if(res.error){
+    if(res.error.code==='23505'){toast('Prospect company "'+data.name+'" already exists','warn');return false}
+    toast('Prospect company save failed: '+res.error.message,'warn');return false}
+  await loadProspectCompanies();render();return res.data}
+
+async function dbEditProspectCompany(id,data){
+  var row={};
+  if(data.name!==undefined)row.name=data.name;
+  if(data.website!==undefined)row.website=data.website;
+  if(data.description!==undefined)row.description=data.description;
+  if(data.notes!==undefined)row.notes=data.notes;
+  if(data.source!==undefined)row.source=data.source;
+  if(data.status!==undefined)row.status=data.status;
+  var res=await _sb.from('prospect_companies').update(row).eq('id',id);
+  if(res.error){toast('Prospect company update failed: '+res.error.message,'warn');return false}
+  await loadProspectCompanies();render();return true}
+
+async function dbDeleteProspectCompany(id){
+  var res=await _sb.from('prospect_companies').delete().eq('id',id);
+  if(res.error){toast('Prospect company delete failed: '+res.error.message,'warn');return false}
+  await loadProspectCompanies();render();return true}
+
+/* ═══════════ PROSPECTS CRUD ═══════════ */
+async function dbAddProspect(data){
+  var uid=await getUserId();if(!uid)return null;
+  var rec={user_id:uid,prospect_company_id:data.prospectCompanyId||null,
+    first_name:data.firstName||'',last_name:data.lastName||'',
+    email:data.email||'',phone:data.phone||'',role:data.role||'',
+    linkedin_url:data.linkedinUrl||'',source:data.source||'',notes:data.notes||'',
+    status:data.status||'active'};
+  var res=await _sb.from('prospects').insert(rec).select().single();
+  if(res.error){toast('Prospect save failed: '+res.error.message,'warn');return null}
+  await loadProspects();render();return res.data}
+
+async function dbEditProspect(id,data){
+  var row={};
+  if(data.prospectCompanyId!==undefined)row.prospect_company_id=data.prospectCompanyId||null;
+  if(data.firstName!==undefined)row.first_name=data.firstName;
+  if(data.lastName!==undefined)row.last_name=data.lastName;
+  if(data.email!==undefined)row.email=data.email;
+  if(data.phone!==undefined)row.phone=data.phone;
+  if(data.role!==undefined)row.role=data.role;
+  if(data.linkedinUrl!==undefined)row.linkedin_url=data.linkedinUrl;
+  if(data.source!==undefined)row.source=data.source;
+  if(data.notes!==undefined)row.notes=data.notes;
+  if(data.status!==undefined)row.status=data.status;
+  if(data.lastContactedAt!==undefined)row.last_contacted_at=data.lastContactedAt;
+  var res=await _sb.from('prospects').update(row).eq('id',id);
+  if(res.error){toast('Prospect update failed: '+res.error.message,'warn');return false}
+  await loadProspects();render();return true}
+
+async function dbDeleteProspect(id){
+  var res=await _sb.from('prospects').delete().eq('id',id);
+  if(res.error){toast('Prospect delete failed: '+res.error.message,'warn');return false}
+  await loadProspects();render();return true}
+
+/* Helpers */
+function resolveProspectCompanyId(val){
+  if(!val||val==='__addnew__')return null;
+  if(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val))return val;
+  var pc=(S.prospectCompanies||[]).find(function(p){return p.name===val});
+  return pc?pc.id:null}
+
+function prospectCompanyNameById(id){
+  if(!id)return '';
+  var pc=(S.prospectCompanies||[]).find(function(p){return p.id===id});
+  return pc?pc.name:''}
+
+async function ensureProspectCompanyExists(name){
+  if(!name||name==='__addnew__')return null;
+  var existing=(S.prospectCompanies||[]).find(function(pc){return pc.name.toLowerCase()===name.toLowerCase()});
+  if(existing)return existing;
+  var uid=await getUserId();if(!uid)return null;
+  var rec={user_id:uid,name:name,website:'',description:'',notes:'',source:'',status:'active'};
+  var res=await _sb.from('prospect_companies').upsert(rec,{onConflict:'user_id,name',ignoreDuplicates:true}).select().single();
+  if(res.error&&res.error.code!=='23505')return null;
+  await loadProspectCompanies();
+  return(S.prospectCompanies||[]).find(function(pc){return pc.name.toLowerCase()===name.toLowerCase()})||null}
+
+function setPcSort(v){
+  var cur=S.pcSort||'name';
+  var col=cur.replace(/^-/,'');
+  if(col===v){S.pcSort=cur.charAt(0)==='-'?v:'-'+v}
+  else{S.pcSort=(v==='name')?v:'-'+v}
+  render()}
+
+function setPSort(v){
+  var cur=S.pSort||'name';
+  var col=cur.replace(/^-/,'');
+  if(col===v){S.pSort=cur.charAt(0)==='-'?v:'-'+v}
+  else{S.pSort=(v==='name')?v:'-'+v}
+  render()}
+
+/* ── Opportunity form helpers for prospect dropdowns ── */
+function nopPcChange(){
+  var sel=gel('nop-pc');if(!sel)return;
+  if(sel.value==='__manual__'){
+    var inp=document.createElement('input');inp.type='text';inp.className='edf';inp.id='nop-pc';
+    inp.placeholder='Company name...';sel.parentNode.replaceChild(inp,sel);inp.focus();return}
+  /* Filter prospect dropdown to match selected company */
+  var prSel=gel('nop-prospect');if(!prSel||prSel.tagName!=='SELECT')return;
+  var pcId=sel.value;
+  var h='<option value="">Select prospect...</option>';
+  (S.prospects||[]).filter(function(p){return p.status==='active'&&(!pcId||p.prospectCompanyId===pcId)}).forEach(function(p){
+    var pName=(p.firstName+' '+p.lastName).trim()||p.email;
+    h+='<option value="'+escAttr(p.id)+'">'+esc(pName)+(p.email?' ('+esc(p.email)+')':'')+'</option>'});
+  h+='<option value="__manual__">Enter manually...</option>';
+  prSel.innerHTML=h}
+
+function nopProspectChange(){
+  var sel=gel('nop-prospect');if(!sel)return;
+  if(sel.value==='__manual__'){
+    var inp=document.createElement('input');inp.type='text';inp.className='edf';inp.id='nop-prospect';
+    inp.placeholder='Prospect name...';sel.parentNode.replaceChild(inp,sel);inp.focus();return}
+  /* Auto-fill contact name/email from selected prospect */
+  var pr=(S.prospects||[]).find(function(p){return p.id===sel.value});
+  if(!pr)return;
+  var cn=gel('nop-contact');if(cn&&!cn.value)cn.value=(pr.firstName+' '+pr.lastName).trim();
+  var ce=gel('nop-email');if(ce&&!ce.value)ce.value=pr.email||'';
+  /* Auto-select prospect company if not set */
+  if(pr.prospectCompanyId){
+    var pcSel=gel('nop-pc');
+    if(pcSel&&pcSel.tagName==='SELECT'&&!pcSel.value){pcSel.value=pr.prospectCompanyId}}}
+
 /* ═══════════ CONTACT REVIEW ═══════════ */
 function refreshEcReview(){
   discoverEcCandidates();
@@ -4362,10 +4527,20 @@ function dismissEcReview(idx){
 
 function _crModeChange(idx,mode){
   var ecWrap=gel('cr-ec-wrap-'+idx);
+  var pcWrap=gel('cr-pc-wrap-'+idx);
+  var cliWrap=gel('cr-client-'+idx);
   if(mode==='ec'){
-    if(ecWrap)ecWrap.style.display=''}
+    if(ecWrap)ecWrap.style.display='';
+    if(pcWrap)pcWrap.style.display='none';
+    if(cliWrap)cliWrap.parentNode.style.display=''}
+  else if(mode==='prospect'){
+    if(ecWrap)ecWrap.style.display='none';
+    if(pcWrap)pcWrap.style.display='';
+    if(cliWrap)cliWrap.parentNode.style.display='none'}
   else{
-    if(ecWrap)ecWrap.style.display='none'}}
+    if(ecWrap)ecWrap.style.display='none';
+    if(pcWrap)pcWrap.style.display='none';
+    if(cliWrap)cliWrap.parentNode.style.display=''}}
 
 function _crClientChange(idx){
   var cliSel=gel('cr-client-'+idx);if(!cliSel)return;
@@ -4383,7 +4558,37 @@ async function _crSubmit(idx){
   var btns=card.querySelectorAll('button');
   btns.forEach(function(b){b.disabled=true});
   var mode=document.querySelector('input[name="cr-mode-'+idx+'"]:checked');
-  var isEC=mode&&mode.value==='ec';
+  var modeVal=mode?mode.value:'client';
+  var uid=await getUserId();if(!uid)return;
+  var parts=(c.name||'').split(' ');
+
+  if(modeVal==='prospect'){
+    /* ── PROSPECT MODE ── */
+    var pcSel=gel('cr-pc-'+idx);
+    var pcRaw=pcSel?pcSel.value:'';
+    var pcId=null;
+    if(pcSel&&pcSel.tagName==='INPUT'){
+      var pcName=pcSel.value.trim();
+      if(pcName){var pcRec=await ensureProspectCompanyExists(pcName);if(pcRec)pcId=pcRec.id}}
+    else if(pcRaw&&pcRaw!=='__addnew__'){pcId=resolveProspectCompanyId(pcRaw)}
+    /* Insert into prospects table */
+    var pRow={user_id:uid,prospect_company_id:pcId,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
+      email:c.email||'',phone:'',role:'',linkedin_url:'',source:'contact_review',notes:'',status:'active'};
+    var pRes=await _sb.from('prospects').insert(pRow).select().single();
+    if(pRes.error){toast('Failed: '+pRes.error.message,'warn');btns.forEach(function(b){b.disabled=false});return}
+    S.prospects.push({id:pRes.data.id,prospectCompanyId:pcId,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
+      email:c.email||'',phone:'',role:'',linkedinUrl:'',source:'contact_review',notes:'',status:'active',lastContactedAt:null,createdAt:''});
+    /* Animate removal */
+    S._ecCandidates.splice(idx,1);
+    card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
+    card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
+    setTimeout(function(){card.remove();_crUpdateCount()},300);
+    var pcLabel=pcId?prospectCompanyNameById(pcId):'';
+    toast('Added as prospect'+(pcLabel?' for '+pcLabel:''),'ok');
+    return}
+
+  /* ── CLIENT / END-CLIENT MODE ── */
+  var isEC=modeVal==='ec';
   var cliSel=gel('cr-client-'+idx);
   var selectedClientId=cliSel?cliSel.value:c.clientId;
   var cr=S.clientRecords.find(function(r){return r.id===selectedClientId});
@@ -4399,8 +4604,6 @@ async function _crSubmit(idx){
     /* If new EC name, ensure record exists (fast — checks S.endClients first) */
     if(!ecId){var ecRec=await ensureEndClientExists(ecName,selectedClientName);if(ecRec)ecId=ecRec.id}}
   /* Build contact row and insert directly — skip loadContacts/render */
-  var uid=await getUserId();if(!uid)return;
-  var parts=(c.name||'').split(' ');
   var row={user_id:uid,client_id:selectedClientId||null,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
     email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',
     end_client:ecName,end_client_id:ecId};
