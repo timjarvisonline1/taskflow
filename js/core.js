@@ -131,7 +131,8 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   emailBulkMode:false,emailBulkSelected:{},
   contacts:[],scheduledEmails:[],emailRules:[],
   meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,
-  endClients:[],ecSort:'name'};
+  endClients:[],ecSort:'name',
+  _ecCandidates:[],_ecAnalyzing:false};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -170,7 +171,8 @@ var SECTIONS=[
   {id:'clients',icon:'clients',label:'Clients',kbd:'7',subs:[
     {id:'active',label:'Active',icon:'clients'},
     {id:'lapsed',label:'Lapsed',icon:'clock'},
-    {id:'end_clients',label:'End Clients',icon:'building'}
+    {id:'end_clients',label:'End Clients',icon:'building'},
+    {id:'ec_review',label:'EC Review',icon:'sparkle'}
   ]},
   {id:'finance',icon:'activity',label:'Finance',kbd:'8',subs:[
     {id:'overview',label:'Overview',icon:'dashboard'},
@@ -815,6 +817,90 @@ function _buildDomainMap(){
     S._domainMap[domain]={clientId:c.clientId,clientName:cr?cr.name:'',endClient:c.endClient,clientStatus:cr?cr.status:'active'}});
   /* Invalidate CRM context cache — contact/domain data changed */
   S._threadCrmCache={}}
+
+/* Discover external contacts with a client but no end-client assigned */
+function discoverEcCandidates(){
+  var ue=S._userEmails||[];
+  if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
+  /* Load dismissed keys from localStorage */
+  var dismissed={};
+  try{dismissed=JSON.parse(localStorage.getItem('tf_ecr_dismissed')||'{}')}catch(e){}
+  /* Build set of contacts that already have an endClient */
+  var contactHasEC={};
+  (S.contacts||[]).forEach(function(c){if(c.email&&c.endClient)contactHasEC[c.email.toLowerCase()]=true});
+  /* Build contact lookup by email for existing contact detection */
+  var contactByEmail={};
+  (S.contacts||[]).forEach(function(c){if(c.email)contactByEmail[c.email.toLowerCase()]=c});
+  /* Candidate map keyed by email|clientId */
+  var cmap={};
+  function addCandidate(email,name,clientId,source){
+    if(!email||!clientId)return;
+    var el=email.toLowerCase().trim();
+    /* Skip user's own emails */
+    if(ue.indexOf(el)!==-1)return;
+    /* Skip free domains */
+    var domain=el.split('@')[1];
+    if(!domain||_FREE_DOMAINS[domain])return;
+    /* Skip contacts that already have an endClient */
+    if(contactHasEC[el])return;
+    /* Skip dismissed */
+    var key=el+'|'+clientId;
+    if(dismissed[key])return;
+    if(!cmap[key])cmap[key]={email:el,name:name||'',clientId:clientId,emailCount:0,meetingCount:0,lastSeen:null};
+    if(source==='email')cmap[key].emailCount++;
+    if(source==='meeting')cmap[key].meetingCount++;
+    /* Keep the best name (longest non-empty) */
+    if(name&&name.length>(cmap[key].name||'').length)cmap[key].name=name}
+  /* Scan gmail threads with a client_id set */
+  (S.gmailThreads||[]).forEach(function(t){
+    if(!t.client_id)return;
+    var cid=t.client_id;
+    /* Parse from */
+    if(t.from_email){
+      addCandidate(t.from_email,t.from_name||'',cid,'email')}
+    /* Parse to */
+    _parseEmails(t.to_emails||'').forEach(function(e){addCandidate(e,'',cid,'email')});
+    /* Parse cc */
+    _parseEmails(t.cc_emails||'').forEach(function(e){addCandidate(e,'',cid,'email')});
+    /* Track last seen */
+    if(t.last_message_at){
+      var dt=new Date(t.last_message_at);
+      var key1=((t.from_email||'').toLowerCase().trim())+'|'+cid;
+      if(cmap[key1]&&(!cmap[key1].lastSeen||dt>cmap[key1].lastSeen))cmap[key1].lastSeen=dt;
+      _parseEmails(t.to_emails||'').forEach(function(e){
+        var k=e+'|'+cid;if(cmap[k]&&(!cmap[k].lastSeen||dt>cmap[k].lastSeen))cmap[k].lastSeen=dt});
+      _parseEmails(t.cc_emails||'').forEach(function(e){
+        var k=e+'|'+cid;if(cmap[k]&&(!cmap[k].lastSeen||dt>cmap[k].lastSeen))cmap[k].lastSeen=dt})}});
+  /* Scan meetings with a clientId set */
+  (S.meetings||[]).forEach(function(m){
+    if(!m.clientId)return;
+    var cid=m.clientId;
+    var ownEmail=(m.ownerEmail||'').toLowerCase().trim();
+    (m.participants||[]).forEach(function(p){
+      if(!p.email)return;
+      var pe=p.email.toLowerCase().trim();
+      if(pe===ownEmail)return;
+      addCandidate(pe,p.name||'',cid,'meeting');
+      /* Track last seen from meeting start time */
+      if(m.startTime){
+        var k=pe+'|'+cid;
+        if(cmap[k]&&(!cmap[k].lastSeen||m.startTime>cmap[k].lastSeen))cmap[k].lastSeen=m.startTime}})});
+  /* Convert map to array, resolve client names, check existing contacts */
+  var arr=[];
+  var clientMap={};
+  (S.clientRecords||[]).forEach(function(c){clientMap[c.id]=c.name});
+  Object.keys(cmap).forEach(function(key){
+    var c=cmap[key];
+    c.clientName=clientMap[c.clientId]||'';
+    /* Check if contact already exists (but without endClient) */
+    var existing=contactByEmail[c.email];
+    c.existingContactId=existing?existing.id:'';
+    /* AI fields — filled later by scanEcReview */
+    c.aiSuggestion='';c.aiIsNew=false;c.aiReason='';c.aiConfidence='';
+    arr.push(c)});
+  /* Sort by total interaction count desc */
+  arr.sort(function(a,b){return(b.emailCount+b.meetingCount)-(a.emailCount+a.meetingCount)});
+  S._ecCandidates=arr}
 
 function matchEmailToClient(email){
   if(!email)return null;
@@ -4058,6 +4144,90 @@ function setEcSort(v){
   else{S.ecSort=(v==='name')?v:'-'+v}
   render()}
 
+/* ═══════════ EC REVIEW — scan, approve, dismiss ═══════════ */
+async function scanEcReview(){
+  discoverEcCandidates();
+  var cands=S._ecCandidates;
+  if(!cands.length){toast('All contacts are linked to end clients','ok');render();buildNav();return}
+  S._ecAnalyzing=true;render();
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session){S._ecAnalyzing=false;render();return}
+    var token=sess.data.session.access_token;
+    /* Build end-client context with client names */
+    var ecList=(S.endClients||[]).map(function(ec){
+      var cr=S.clientRecords.find(function(r){return r.id===ec.clientId});
+      return{name:ec.name,clientName:cr?cr.name:''}});
+    /* Build contacts context (email+endClient for domain hints) */
+    var ctxContacts=(S.contacts||[]).filter(function(c){return c.email&&c.endClient})
+      .map(function(c){return{email:c.email,endClient:c.endClient}});
+    /* Build clients context */
+    var ctxClients=(S.clientRecords||[]).map(function(c){return{name:c.name,email:c.email||'',status:c.status||'active'}});
+    var payload={
+      candidates:cands.slice(0,50).map(function(c){return{email:c.email,name:c.name,clientName:c.clientName,emailCount:c.emailCount,meetingCount:c.meetingCount,existingContactId:c.existingContactId}}),
+      endClients:ecList,contacts:ctxContacts,clients:ctxClients};
+    var resp=await fetch('/api/gmail/ec-suggest',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(payload)});
+    if(resp.ok){
+      var data=await resp.json();
+      (data.results||[]).forEach(function(r){
+        var match=S._ecCandidates.find(function(c){return c.email===r.email});
+        if(match){
+          match.aiSuggestion=r.suggested_end_client||'';
+          match.aiIsNew=!!r.is_new;
+          match.aiConfidence=r.confidence||'medium';
+          match.aiReason=r.reason||''}})}
+    else{var err=await resp.json().catch(function(){return{}});toast('AI analysis failed: '+(err.error||'Unknown error'),'warn')}
+  }catch(e){toast('EC scan failed: '+e.message,'warn')}
+  S._ecAnalyzing=false;render();buildNav()}
+
+async function approveEcReview(idx){
+  var c=S._ecCandidates[idx];if(!c)return;
+  var ecName=c.aiSuggestion;
+  if(!ecName){toast('No end-client suggestion to approve','warn');return}
+  /* If end-client doesn't exist yet, create it */
+  var exists=(S.endClients||[]).find(function(ec){return ec.name.toLowerCase()===ecName.toLowerCase()});
+  if(!exists){
+    var ok=await dbAddEndClient({name:ecName,clientId:c.clientId});
+    if(!ok)return}
+  /* If contact exists, update it with endClient */
+  if(c.existingContactId){
+    await dbEditContact(c.existingContactId,{endClient:ecName})}
+  else{
+    /* Create new contact */
+    var parts=(c.name||'').split(' ');
+    var firstName=parts[0]||'';
+    var lastName=parts.slice(1).join(' ')||'';
+    await dbAddContact(c.clientId,{firstName:firstName,lastName:lastName,email:c.email,endClient:ecName})}
+  /* Remove from candidates */
+  S._ecCandidates.splice(idx,1);
+  _buildDomainMap();buildNav();render();toast('Contact linked to '+ecName,'ok')}
+
+function dismissEcReview(idx){
+  var c=S._ecCandidates[idx];if(!c)return;
+  var key=c.email+'|'+c.clientId;
+  var dismissed={};
+  try{dismissed=JSON.parse(localStorage.getItem('tf_ecr_dismissed')||'{}')}catch(e){}
+  dismissed[key]=1;
+  localStorage.setItem('tf_ecr_dismissed',JSON.stringify(dismissed));
+  S._ecCandidates.splice(idx,1);
+  buildNav();render();toast('Dismissed','ok')}
+
+function approveEcReviewAs(idx){
+  var c=S._ecCandidates[idx];if(!c)return;
+  /* Build options from existing end-clients filtered to same parent client + type-new option */
+  var ecOptions=(S.endClients||[]).filter(function(ec){return ec.clientId===c.clientId})
+    .map(function(ec){return ec.name});
+  /* Show a simple prompt with instructions */
+  var msg='Choose end-client for '+c.email+'\\n\\nExisting: '+
+    (ecOptions.length?ecOptions.join(', '):'(none)')+
+    '\\n\\nType a name (existing or new):';
+  var chosen=prompt(msg,c.aiSuggestion||'');
+  if(!chosen||!chosen.trim())return;
+  /* Override the AI suggestion and approve */
+  c.aiSuggestion=chosen.trim();
+  c.aiIsNew=!(S.endClients||[]).find(function(ec){return ec.name.toLowerCase()===chosen.trim().toLowerCase()});
+  approveEcReview(idx)}
+
 /* ═══════════ CALENDAR (cached, non-blocking) ═══════════ */
 var calLoading=false;
 var CAL_CACHE_VER='v4';
@@ -4402,6 +4572,7 @@ function buildSubNav(sec){
     if(sub.id==='e-action'){var _ac=getActionRequiredCount();if(_ac>0)h+='<span class="sub-badge" style="background:#EA4335;color:#fff">'+_ac+'</span>'}
     if(sub.id==='e-drafts'){var _dc=getDraftCount();if(_dc>0)h+='<span class="sub-badge">'+_dc+'</span>'}
     if(sub.id==='e-scheduled'){var _sc2=(S.scheduledEmails||[]).filter(function(e){return e.status==='pending'}).length;if(_sc2>0)h+='<span class="sub-badge">'+_sc2+'</span>'}
+    if(sub.id==='ec_review'){var _ecrc=(S._ecCandidates||[]).length;if(_ecrc>0)h+='<span class="sub-badge">'+_ecrc+'</span>'}
     /* Smart inbox badges */
     if(sub.smart&&sec.id==='email'){
       var _sc=_countSmartInbox(sub.id);

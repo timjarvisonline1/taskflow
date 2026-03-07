@@ -426,6 +426,7 @@ function buildClientMap(){
 function rClients(){
   var sub=S.subView||'active';
   if(sub==='end_clients')return rEndClients();
+  if(sub==='ec_review')return rEcReview();
   return rClientsDirectory()}
 
 function rClientsDirectory(){
@@ -907,6 +908,86 @@ function rClientDashboard(c){
   h+=dashMet('Meetings',c.meetings,'var(--amber)');
   h+='</div>';
   h+='</div>';/* close scrollable content wrapper */
+  return h}
+
+/* ═══════════ EC REVIEW ═══════════ */
+function rEcReview(){
+  var cands=S._ecCandidates||[];
+  var analyzing=S._ecAnalyzing;
+  var h='<div class="pg-head"><h1>'+icon('sparkle',18)+' EC Review'+(cands.length?' <span style="font-weight:400;color:var(--t4);font-size:14px">('+cands.length+')</span>':'')+'</h1>';
+  h+='<button class="btn btn-p" onclick="TF.scanEcReview()" style="font-size:13px;padding:8px 16px;border-radius:10px"'+(analyzing?' disabled':'')+'>'+icon('sparkle',12)+' Scan</button></div>';
+
+  /* Loading state */
+  if(analyzing){
+    h+='<div style="padding:60px 0;text-align:center">';
+    h+='<div class="spinner" style="margin:0 auto 16px"></div>';
+    h+='<div style="color:var(--t3);font-size:14px">Analyzing contacts with AI...</div>';
+    h+='<div style="color:var(--t4);font-size:12px;margin-top:4px">This may take a moment</div>';
+    h+='</div>';
+    return h}
+
+  /* Empty state — never scanned */
+  if(!cands.length&&!analyzing){
+    h+='<div style="padding:60px 0;text-align:center">';
+    h+='<div style="font-size:28px;margin-bottom:12px;opacity:.5">'+icon('sparkle',28)+'</div>';
+    h+='<div style="color:var(--t3);font-size:14px;margin-bottom:6px">Discover unlinked contacts</div>';
+    h+='<div style="color:var(--t4);font-size:12px;max-width:420px;margin:0 auto">Click <strong>Scan</strong> to find external email addresses from your emails and meetings that aren\'t linked to an end client yet. AI will suggest matches.</div>';
+    h+='</div>';
+    return h}
+
+  /* Group candidates by clientName */
+  var groups={};
+  cands.forEach(function(c,idx){
+    c._idx=idx;
+    var gk=c.clientName||'(No Client)';
+    if(!groups[gk])groups[gk]=[];
+    groups[gk].push(c)});
+
+  Object.keys(groups).sort().forEach(function(clientName){
+    h+='<div style="margin-bottom:24px">';
+    h+='<div style="font-size:13px;font-weight:700;color:var(--t2);margin-bottom:10px;display:flex;align-items:center;gap:8px">'+icon('clients',13)+' '+esc(clientName)+' <span style="font-weight:400;color:var(--t4)">('+groups[clientName].length+')</span></div>';
+    groups[clientName].forEach(function(c){
+      var avatarBg=emailAvatarColor(c.email);
+      var initial=(c.name||c.email||'?').charAt(0).toUpperCase();
+      var totalCount=c.emailCount+c.meetingCount;
+      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:12px;padding:14px 18px;margin-bottom:8px;backdrop-filter:blur(12px);transition:all .2s">';
+      /* Row 1: Avatar + email + counts */
+      h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">';
+      h+='<div style="width:36px;height:36px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(c.email)+'</div>';
+      if(c.name)h+='<div style="font-size:11px;color:var(--t3)">'+esc(c.name)+'</div>';
+      h+='</div>';
+      h+='<div style="text-align:right;font-size:11px;color:var(--t4);flex-shrink:0">';
+      if(c.emailCount)h+='<div>'+c.emailCount+' email'+(c.emailCount>1?'s':'')+'</div>';
+      if(c.meetingCount)h+='<div>'+c.meetingCount+' meeting'+(c.meetingCount>1?'s':'')+'</div>';
+      if(c.lastSeen)h+='<div style="margin-top:2px">Last: '+fmtDShort(c.lastSeen)+'</div>';
+      h+='</div></div>';
+      /* Row 2: AI suggestion */
+      if(c.aiSuggestion){
+        var confColor=c.aiConfidence==='high'?'var(--green)':c.aiConfidence==='medium'?'var(--amber)':'var(--t4)';
+        h+='<div style="margin-bottom:10px;padding:8px 12px;background:rgba(var(--accent-rgb,99,102,241),.06);border-radius:8px;border:1px solid rgba(var(--accent-rgb,99,102,241),.12)">';
+        h+='<div style="font-size:12px;display:flex;align-items:center;gap:6px">';
+        h+='<span style="color:var(--accent)">'+icon('sparkle',11)+'</span>';
+        h+='<span style="color:var(--t2)">→ <strong>'+esc(c.aiSuggestion)+'</strong></span>';
+        if(c.aiIsNew)h+=' <span style="font-size:9px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:4px">NEW</span>';
+        h+=' <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:'+confColor+';color:#fff">'+esc(c.aiConfidence)+'</span>';
+        h+='</div>';
+        if(c.aiReason)h+='<div style="font-size:11px;color:var(--t3);margin-top:4px">'+esc(c.aiReason)+'</div>';
+        h+='</div>'}
+      else if(!analyzing){
+        h+='<div style="margin-bottom:10px;padding:6px 12px;font-size:11px;color:var(--t4)">No AI suggestion yet — click Scan to analyze</div>'}
+      /* Row 3: Action buttons */
+      h+='<div style="display:flex;gap:8px;align-items:center">';
+      if(c.aiSuggestion){
+        h+='<button class="btn btn-p" onclick="TF.approveEcReview('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+' Approve</button>'}
+      h+='<button class="btn" onclick="TF.approveEcReviewAs('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">Choose EC</button>';
+      h+='<button class="btn" onclick="TF.dismissEcReview('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px;color:var(--t4)">'+icon('x',10)+' Dismiss</button>';
+      if(c.existingContactId)h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">Existing contact</span>';
+      else h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">New contact</span>';
+      h+='</div>';
+      h+='</div>'});
+    h+='</div>'});
   return h}
 
 function initClientsCharts(){
