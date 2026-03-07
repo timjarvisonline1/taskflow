@@ -3036,6 +3036,7 @@ function openEditClient(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="ecl-status"><option'+(cl.status==='active'?' selected':'')+'>active</option><option'+(cl.status==='lapsed'?' selected':'')+'>lapsed</option></select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="text" class="edf" id="ecl-email" value="'+esc(cl.email)+'" placeholder="email@example.com"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="ecl-company" value="'+esc(cl.company)+'" placeholder="Company name..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Website</span><input type="text" class="edf" id="ecl-website" value="'+esc(cl.website)+'" placeholder="example.com"></div>';
   h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="ecl-notes" rows="3" placeholder="Notes...">'+esc(cl.notes)+'</textarea></div>';
   h+='</div>';
   h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveClient()">'+icon('save',14)+' Save</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
@@ -3046,7 +3047,7 @@ async function saveClient(){
   var id=(gel('ecl-id')||{}).value;if(!id)return;
   var data={name:(gel('ecl-name')||{}).value||'',status:(gel('ecl-status')||{}).value||'active',
     email:(gel('ecl-email')||{}).value||'',company:(gel('ecl-company')||{}).value||'',
-    notes:(gel('ecl-notes')||{}).value||''};
+    website:(gel('ecl-website')||{}).value||'',notes:(gel('ecl-notes')||{}).value||''};
   if(!data.name.trim()){toast('Client name required','warn');return}
   var ok=await dbEditClient(id,data);
   if(ok){await loadClientRecords();toast('Client updated','ok');closeModal();render();
@@ -3060,6 +3061,7 @@ function openAddClientModal(){
   h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="ncl-status"><option value="active" selected>Active</option><option value="lapsed">Lapsed</option></select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Email</span><input type="text" class="edf" id="ncl-email" placeholder="email@example.com"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Company</span><input type="text" class="edf" id="ncl-company" placeholder="Company name..."></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Website</span><input type="text" class="edf" id="ncl-website" placeholder="example.com"></div>';
   h+='<div class="ed-fld ed-fld-full"><span class="ed-lbl">Notes</span><textarea class="edf" id="ncl-notes" rows="3" placeholder="Notes..."></textarea></div>';
   h+='</div>';
   h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.addNewClient()">'+icon('check',14)+' Create Client</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
@@ -3078,9 +3080,10 @@ async function addNewClient(){
   if(newCl){
     var email=(gel('ncl-email')||{}).value||'';
     var company=(gel('ncl-company')||{}).value||'';
+    var website=(gel('ncl-website')||{}).value||'';
     var notes=(gel('ncl-notes')||{}).value||'';
-    if(email||company||notes){
-      await dbEditClient(newCl.id,{name:newCl.name,status:status,email:email,company:company,notes:notes});
+    if(email||company||website||notes){
+      await dbEditClient(newCl.id,{name:newCl.name,status:status,email:email,company:company,website:website,notes:notes});
       await loadClientRecords()}}
   toast('Client created','ok');closeModal();render()}
 

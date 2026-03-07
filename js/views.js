@@ -1448,14 +1448,15 @@ function rEcReview(){
     /* Dismiss X in top-right */
     h+='<button onclick="TF.dismissEcReview('+_i+')" style="background:none;border:none;cursor:pointer;color:var(--t4);padding:2px;flex-shrink:0;opacity:.5" title="Dismiss">'+icon('x',12)+'</button>';
     h+='</div>';
-    /* Client dropdown */
-    h+='<div>';
+    /* Client typeahead */
+    var _preClient=c.clientName||'';
+    var _preClientId=c.clientId||'';
+    h+='<div id="cr-cli-wrap-'+_i+'" style="position:relative">';
     h+='<div style="font-size:10px;color:var(--t4);margin-bottom:3px">Client</div>';
-    h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px">';
-    h+='<option value="">Select client...</option>';
-    (S.clientRecords||[]).forEach(function(cr){
-      h+='<option value="'+cr.id+'"'+(cr.id===c.clientId?' selected':'')+'>'+esc(cr.name)+'</option>'});
-    h+='</select></div>';
+    h+='<input type="hidden" id="cr-client-id-'+_i+'" value="'+escAttr(_preClientId)+'">';
+    h+='<input type="text" class="edf" id="cr-client-'+_i+'" value="'+escAttr(_preClient)+'" placeholder="Type client name..." autocomplete="off" oninput="TF._crClientAc('+_i+')" onfocus="TF._crClientAc('+_i+')" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px">';
+    h+='<div id="cr-client-ac-'+_i+'" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;max-height:180px;overflow-y:auto;background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--gborder);border-radius:8px;margin-top:2px"></div>';
+    h+='</div>';
     /* Type toggle */
     h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
     h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';

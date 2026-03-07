@@ -788,7 +788,7 @@ async function loadClientRecords(){
   var res=await _sb.from('clients').select('*').order('name');
   if(res.error){console.error('loadClientRecords:',res.error);return}
   S.clientRecords=(res.data||[]).map(function(r){
-    return{id:r.id,name:r.name||'',status:r.status||'active',email:r.email||'',company:r.company||'',notes:r.notes||''}});
+    return{id:r.id,name:r.name||'',status:r.status||'active',email:r.email||'',company:r.company||'',website:r.website||'',notes:r.notes||''}});
   /* Also update S.clients string array for backward compat — active clients only */
   var cls=S.clientRecords.filter(function(r){return r.status==='active'}).map(function(r){return r.name});
   cls.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
@@ -892,6 +892,13 @@ function discoverEcCandidates(){
     if(!domainClient[d])domainClient[d]={};
     if(!domainClient[d][c.clientId])domainClient[d][c.clientId]=0;
     domainClient[d][c.clientId]++});
+  /* Also build domain→client from client website fields */
+  (S.clientRecords||[]).forEach(function(cr){
+    if(!cr.website)return;
+    var d=cr.website.toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0].trim();
+    if(!d||_FREE_DOMAINS[d])return;
+    if(!domainClient[d])domainClient[d]={};
+    domainClient[d][cr.id]=(domainClient[d][cr.id]||0)+100});
 
   /* ── Build candidates keyed by email ── */
   var cmap={};
@@ -3897,7 +3904,7 @@ function setFinDirection(v){S.finDirection=v;render()}
 
 async function dbEditClient(id,data){
   var row={name:data.name,status:data.status||'active',email:data.email||'',
-    company:data.company||'',notes:data.notes||''};
+    company:data.company||'',website:data.website||'',notes:data.notes||''};
   var res=await _sb.from('clients').update(row).eq('id',id);
   if(res.error){toast('Client update failed: '+res.error.message,'warn');return false}
   return true}
@@ -4531,27 +4538,50 @@ function dismissEcReview(idx){
 function _crModeChange(idx,mode){
   var ecWrap=gel('cr-ec-wrap-'+idx);
   var pcWrap=gel('cr-pc-wrap-'+idx);
-  var cliWrap=gel('cr-client-'+idx);
+  var cliWrap=gel('cr-cli-wrap-'+idx);
   if(mode==='ec'){
     if(ecWrap)ecWrap.style.display='';
     if(pcWrap)pcWrap.style.display='none';
-    if(cliWrap)cliWrap.parentNode.style.display=''}
+    if(cliWrap)cliWrap.style.display=''}
   else if(mode==='prospect'){
     if(ecWrap)ecWrap.style.display='none';
     if(pcWrap)pcWrap.style.display='';
-    if(cliWrap)cliWrap.parentNode.style.display='none'}
+    if(cliWrap)cliWrap.style.display='none'}
   else{
     if(ecWrap)ecWrap.style.display='none';
     if(pcWrap)pcWrap.style.display='none';
-    if(cliWrap)cliWrap.parentNode.style.display=''}}
+    if(cliWrap)cliWrap.style.display=''}}
 
-function _crClientChange(idx){
-  var cliSel=gel('cr-client-'+idx);if(!cliSel)return;
-  var cid=cliSel.value;
-  var cr=S.clientRecords.find(function(r){return r.id===cid});
-  var clientName=cr?cr.name:'';
+function _crClientAc(idx){
+  var input=gel('cr-client-'+idx);
+  var dd=gel('cr-client-ac-'+idx);
+  if(!input||!dd)return;
+  var q=(input.value||'').toLowerCase().trim();
+  /* Clear hidden ID if typed text no longer matches selected client */
+  var hidden=gel('cr-client-id-'+idx);
+  if(hidden&&hidden.value){
+    var selCr=(S.clientRecords||[]).find(function(r){return r.id===hidden.value});
+    if(!selCr||selCr.name!==input.value)hidden.value=''}
+  var matches=(S.clientRecords||[]).filter(function(cr){
+    return cr.status==='active'&&(!q||cr.name.toLowerCase().indexOf(q)!==-1)}).slice(0,8);
+  if(!matches.length){dd.style.display='none';return}
+  var h='';
+  matches.forEach(function(cr){
+    h+='<div onmousedown="TF._crClientSelect('+idx+',\''+escAttr(cr.id)+'\',\''+escAttr(cr.name)+'\')" style="padding:6px 10px;font-size:12px;cursor:pointer;color:var(--t1);border-bottom:1px solid var(--gborder)" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'none\'">'+esc(cr.name)+'</div>'});
+  dd.innerHTML=h;dd.style.display='';
+  /* Close on blur after short delay (let mousedown fire first) */
+  input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
+
+function _crClientSelect(idx,id,name){
+  var input=gel('cr-client-'+idx);
+  var hidden=gel('cr-client-id-'+idx);
+  var dd=gel('cr-client-ac-'+idx);
+  if(input)input.value=name;
+  if(hidden)hidden.value=id;
+  if(dd)dd.style.display='none';
+  /* Update EC dropdown filtered by selected client */
   var ecSel=gel('cr-ec-'+idx);
-  if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',clientName)}
+  if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',name)}
 
 async function _crSubmit(idx){
   /* Find candidate by email from card data-attr (immune to index shifting after splices) */
@@ -4595,8 +4625,8 @@ async function _crSubmit(idx){
 
   /* ── CLIENT / END-CLIENT MODE ── */
   var isEC=modeVal==='ec';
-  var cliSel=gel('cr-client-'+idx);
-  var selectedClientId=cliSel?cliSel.value:c.clientId;
+  var cliHidden=gel('cr-client-id-'+idx);
+  var selectedClientId=cliHidden?cliHidden.value:c.clientId;
   var cr=S.clientRecords.find(function(r){return r.id===selectedClientId});
   var selectedClientName=cr?cr.name:'';
   var ecName='',ecId=null;

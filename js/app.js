@@ -88,7 +88,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   pcAddNew:pcAddNew,
   /* Opportunity prospect helpers */
   nopPcChange:nopPcChange,nopProspectChange:nopProspectChange,
-  refreshEcReview:refreshEcReview,dismissEcReview:dismissEcReview,_crModeChange:_crModeChange,_crClientChange:_crClientChange,_crSubmit:_crSubmit,
+  refreshEcReview:refreshEcReview,dismissEcReview:dismissEcReview,_crModeChange:_crModeChange,_crClientAc:_crClientAc,_crClientSelect:_crClientSelect,_crSubmit:_crSubmit,
   addCampaignNote:addCampaignNote,addClientNote:addClientNote,deleteCampaignNote:deleteCampaignNote,deleteClientNote:deleteClientNote,
   setCampaignTab:setCampaignTab,setClientTab:setClientTab,setEndClientTab:setEndClientTab,setOpportunityTab:setOpportunityTab,
   cesToggleAll:cesToggleAll,cesCompose:cesCompose,
