@@ -1367,12 +1367,32 @@ function rEcReview(){
         h+='</div>'}
       else if(!analyzing){
         h+='<div style="margin-bottom:10px;padding:6px 12px;font-size:11px;color:var(--t4)">No AI suggestion yet — click Scan to analyze</div>'}
-      /* Row 3: Action buttons — Review or Dismiss */
-      h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
-      h+='<button class="btn btn-p" onclick="TF.openContactReviewModal('+c._idx+',event)" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+' Review</button>';
-      h+='<button class="btn" onclick="TF.dismissEcReview('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px;color:var(--t4)">'+icon('x',10)+' Dismiss</button>';
-      if(c.existingContactId)h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">Existing contact</span>';
-      else h+='<span style="font-size:10px;color:var(--blue);margin-left:auto">New contact</span>';
+      /* Row 3: Inline form controls */
+      var _hasAi=!!c.aiSuggestion;
+      var _defEC=_hasAi;
+      var _i=c._idx;
+      /* Radio toggle + client dropdown row */
+      h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
+      h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';
+      h+='<input type="radio" name="cr-mode-'+_i+'" value="client"'+(!_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'client\')"> Client</label>';
+      h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';
+      h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> End Client</label>';
+      h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:11px;padding:4px 6px;max-width:160px;flex:1">';
+      (S.clientRecords||[]).forEach(function(cr){
+        h+='<option value="'+cr.id+'"'+(cr.id===c.clientId?' selected':'')+'>'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
+      h+='</select>';
+      if(c.existingContactId)h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">Existing</span>';
+      else h+='<span style="font-size:10px;color:var(--blue);margin-left:auto">New</span>';
+      h+='</div>';
+      /* EC dropdown (shown if AI suggested or EC mode) */
+      h+='<div id="cr-ec-wrap-'+_i+'" style="'+(_defEC?'':'display:none;')+'margin-bottom:8px">';
+      h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:11px;padding:4px 6px;width:100%" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
+      h+=buildEndClientOptions(c.aiSuggestion||'',c.clientName||'');
+      h+='</select></div>';
+      /* Action buttons */
+      h+='<div style="display:flex;gap:8px;align-items:center">';
+      h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+(_defEC?' Add End-Client':' Add Contact')+'</button>';
+      h+='<button class="btn" onclick="TF.dismissEcReview('+_i+')" style="font-size:11px;padding:5px 14px;border-radius:8px;color:var(--t4)">'+icon('x',10)+' Dismiss</button>';
       h+='</div>';
       h+='</div>'});
     h+='</div>'});

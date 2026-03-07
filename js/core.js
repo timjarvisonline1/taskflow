@@ -4379,100 +4379,39 @@ function dismissEcReview(idx){
   S._ecCandidates.splice(idx,1);
   buildNav();render();toast('Dismissed','ok')}
 
-function openContactReviewModal(idx,evt){
-  evt.stopPropagation();
-  /* Close any existing review popup */
-  var existing=document.querySelector('.cr-review-popup');
-  if(existing)existing.remove();
-  var c=S._ecCandidates[idx];if(!c)return;
-  var clientName=c.clientName||'';
-  var clientId=c.clientId||'';
-  /* Build client dropdown options */
-  var cliOpts='';
-  (S.clientRecords||[]).forEach(function(cr){
-    cliOpts+='<option value="'+cr.id+'"'+(cr.id===clientId?' selected':'')+'>'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
-  /* Build end-client dropdown filtered by candidate's client */
-  var ecOpts=buildEndClientOptions(c.aiSuggestion||'',clientName);
-  /* Position near button */
-  var btn=evt.currentTarget;
-  var rect=btn.getBoundingClientRect();
-  var popup=document.createElement('div');
-  popup.className='cr-review-popup';
-  popup.style.cssText='position:fixed;top:'+(rect.bottom+6)+'px;left:'+Math.max(10,rect.left-120)+'px;z-index:9999';
-  var h='<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:12px">Review: '+esc(c.name||c.email)+'</div>';
-  /* Radio: Client vs End Client */
-  h+='<div style="display:flex;gap:16px;margin-bottom:12px">';
-  h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--t2)">';
-  h+='<input type="radio" name="cr-mode" value="client" checked onchange="TF._crModeChange(\'client\')"> Client</label>';
-  h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--t2)">';
-  h+='<input type="radio" name="cr-mode" value="ec" onchange="TF._crModeChange(\'ec\')"> End Client</label>';
-  h+='</div>';
-  /* Client dropdown */
-  h+='<div class="ed-fld" style="margin-bottom:8px">';
-  h+='<span class="ed-lbl" style="font-size:11px">Client</span>';
-  h+='<select class="edf" id="cr-client" onchange="TF._crClientChange()" style="font-size:12px;padding:6px 8px">'+cliOpts+'</select></div>';
-  /* End Client dropdown (hidden by default) */
-  h+='<div id="cr-ec-wrap" style="display:none;margin-bottom:8px">';
-  h+='<div class="ed-fld">';
-  h+='<span class="ed-lbl" style="font-size:11px">End Client</span>';
-  h+='<select class="edf" id="cr-ec" style="font-size:12px;padding:6px 8px" onchange="TF.ecAddNew(\'cr-ec\')">'+ecOpts+'</select></div></div>';
-  /* Action buttons */
-  h+='<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">';
-  h+='<button class="btn" onclick="var p=document.querySelector(\'.cr-review-popup\');if(p)p.remove()" style="font-size:11px;padding:5px 14px;border-radius:8px">Cancel</button>';
-  h+='<button class="btn btn-p" id="cr-submit" onclick="TF._crSubmit('+idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+' Add Contact</button>';
-  h+='</div>';
-  popup.innerHTML=h;
-  document.body.appendChild(popup);
-  /* Ensure popup stays in viewport */
-  requestAnimationFrame(function(){
-    var pr=popup.getBoundingClientRect();
-    if(pr.right>window.innerWidth-10)popup.style.left=(window.innerWidth-pr.width-10)+'px';
-    if(pr.bottom>window.innerHeight-10)popup.style.top=(rect.top-pr.height-6)+'px'});
-  /* Close on outside click */
-  setTimeout(function(){
-    document.addEventListener('click',function _cls(e){
-      if(!popup.contains(e.target)&&e.target!==btn){popup.remove();document.removeEventListener('click',_cls)}},true)},10)}
 
-function _crModeChange(mode){
-  var ecWrap=gel('cr-ec-wrap');
-  var submitBtn=gel('cr-submit');
+function _crModeChange(idx,mode){
+  var ecWrap=gel('cr-ec-wrap-'+idx);
   if(mode==='ec'){
-    if(ecWrap)ecWrap.style.display='';
-    if(submitBtn)submitBtn.innerHTML=icon('check',10)+' Add End-Client'}
+    if(ecWrap)ecWrap.style.display=''}
   else{
-    if(ecWrap)ecWrap.style.display='none';
-    if(submitBtn)submitBtn.innerHTML=icon('check',10)+' Add Contact'}}
+    if(ecWrap)ecWrap.style.display='none'}}
 
-function _crClientChange(){
-  var cliSel=gel('cr-client');if(!cliSel)return;
+function _crClientChange(idx){
+  var cliSel=gel('cr-client-'+idx);if(!cliSel)return;
   var cid=cliSel.value;
   var cr=S.clientRecords.find(function(r){return r.id===cid});
   var clientName=cr?cr.name:'';
-  var ecSel=gel('cr-ec');
+  var ecSel=gel('cr-ec-'+idx);
   if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',clientName)}
 
 async function _crSubmit(idx){
   var c=S._ecCandidates[idx];if(!c)return;
-  var mode=document.querySelector('input[name="cr-mode"]:checked');
+  var mode=document.querySelector('input[name="cr-mode-'+idx+'"]:checked');
   var isEC=mode&&mode.value==='ec';
-  var cliSel=gel('cr-client');
+  var cliSel=gel('cr-client-'+idx);
   var selectedClientId=cliSel?cliSel.value:c.clientId;
   var cr=S.clientRecords.find(function(r){return r.id===selectedClientId});
   var selectedClientName=cr?cr.name:'';
   if(isEC){
-    /* End Client mode */
-    var ecSel=gel('cr-ec');
+    var ecSel=gel('cr-ec-'+idx);
     var ecRaw=ecSel?ecSel.value:'';
-    /* Handle text input (from ecAddNew) */
     if(ecSel&&ecSel.tagName==='INPUT')ecRaw=ecSel.value.trim();
     if(!ecRaw||ecRaw==='__addnew__'){toast('Select an end client','warn');return}
-    /* Resolve UUID vs name */
     var ecId=resolveEndClientId(ecRaw)||null;
     var ecName=ecId?endClientNameById(ecId):ecRaw;
-    /* Ensure end-client record exists in end_clients table */
     var ecRec=await ensureEndClientExists(ecName,selectedClientName);
     if(ecRec&&!ecId)ecId=ecRec.id;
-    /* Update or create contact with endClient */
     if(c.existingContactId){
       await dbEditContact(c.existingContactId,{endClient:ecName,endClientId:ecId,clientId:selectedClientId})}
     else{
@@ -4480,16 +4419,12 @@ async function _crSubmit(idx){
       await dbAddContact(selectedClientId,{firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',email:c.email,endClient:ecName,endClientId:ecId})}
     toast('Contact linked to '+ecName,'ok')}
   else{
-    /* Client mode — add/update as contact under selected client */
     if(c.existingContactId){
       await dbEditContact(c.existingContactId,{clientId:selectedClientId})}
     else{
       var parts=(c.name||'').split(' ');
       await dbAddContact(selectedClientId,{firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',email:c.email})}
     toast('Added as contact for '+selectedClientName,'ok')}
-  /* Cleanup */
-  var popup=document.querySelector('.cr-review-popup');
-  if(popup)popup.remove();
   S._ecCandidates.splice(idx,1);
   _buildDomainMap();buildNav();render()}
 
