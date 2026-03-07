@@ -828,6 +828,9 @@ function discoverEcCandidates(){
   /* Build set of contacts that already have an endClient */
   var contactHasEC={};
   (S.contacts||[]).forEach(function(c){if(c.email&&c.endClient)contactHasEC[c.email.toLowerCase()]=true});
+  /* Build set of client record emails — these ARE the client, not candidates */
+  var clientEmails={};
+  (S.clientRecords||[]).forEach(function(c){if(c.email)clientEmails[c.email.toLowerCase().trim()]=true});
   /* Build contact lookup by email for existing contact detection */
   var contactByEmail={};
   (S.contacts||[]).forEach(function(c){if(c.email)contactByEmail[c.email.toLowerCase()]=c});
@@ -841,6 +844,8 @@ function discoverEcCandidates(){
     /* Skip free domains */
     var domain=el.split('@')[1];
     if(!domain||_FREE_DOMAINS[domain])return;
+    /* Skip client record emails (the client's own email) */
+    if(clientEmails[el])return;
     /* Skip contacts that already have an endClient */
     if(contactHasEC[el])return;
     /* Skip dismissed */
@@ -4218,15 +4223,29 @@ function approveEcReviewAs(idx){
   var ecOptions=(S.endClients||[]).filter(function(ec){return ec.clientId===c.clientId})
     .map(function(ec){return ec.name});
   /* Show a simple prompt with instructions */
-  var msg='Choose end-client for '+c.email+'\\n\\nExisting: '+
+  var msg='Choose end-client for '+(c.name||c.email)+':\n\nExisting: '+
     (ecOptions.length?ecOptions.join(', '):'(none)')+
-    '\\n\\nType a name (existing or new):';
+    '\n\nType a name (existing or new):';
   var chosen=prompt(msg,c.aiSuggestion||'');
   if(!chosen||!chosen.trim())return;
   /* Override the AI suggestion and approve */
   c.aiSuggestion=chosen.trim();
   c.aiIsNew=!(S.endClients||[]).find(function(ec){return ec.name.toLowerCase()===chosen.trim().toLowerCase()});
   approveEcReview(idx)}
+
+async function approveEcAsContact(idx){
+  var c=S._ecCandidates[idx];if(!c)return;
+  /* Just add as a contact linked to the client — no end-client */
+  if(c.existingContactId){
+    /* Contact already exists and is linked to client — just remove from review */
+    S._ecCandidates.splice(idx,1);
+    buildNav();render();toast('Already a contact','ok');return}
+  var parts=(c.name||'').split(' ');
+  var firstName=parts[0]||'';
+  var lastName=parts.slice(1).join(' ')||'';
+  await dbAddContact(c.clientId,{firstName:firstName,lastName:lastName,email:c.email});
+  S._ecCandidates.splice(idx,1);
+  buildNav();render();toast('Added as contact for '+c.clientName,'ok')}
 
 /* ═══════════ CALENDAR (cached, non-blocking) ═══════════ */
 var calLoading=false;

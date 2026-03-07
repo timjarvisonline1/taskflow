@@ -948,15 +948,18 @@ function rEcReview(){
     h+='<div style="font-size:13px;font-weight:700;color:var(--t2);margin-bottom:10px;display:flex;align-items:center;gap:8px">'+icon('clients',13)+' '+esc(clientName)+' <span style="font-weight:400;color:var(--t4)">('+groups[clientName].length+')</span></div>';
     groups[clientName].forEach(function(c){
       var avatarBg=emailAvatarColor(c.email);
-      var initial=(c.name||c.email||'?').charAt(0).toUpperCase();
-      var totalCount=c.emailCount+c.meetingCount;
+      var displayName=(c.name||'').trim();
+      var initial=(displayName||c.email||'?').charAt(0).toUpperCase();
       h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:12px;padding:14px 18px;margin-bottom:8px;backdrop-filter:blur(12px);transition:all .2s">';
-      /* Row 1: Avatar + email + counts */
+      /* Row 1: Avatar + name (lead) + email (secondary) + counts */
       h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">';
       h+='<div style="width:36px;height:36px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
       h+='<div style="flex:1;min-width:0">';
-      h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(c.email)+'</div>';
-      if(c.name)h+='<div style="font-size:11px;color:var(--t3)">'+esc(c.name)+'</div>';
+      if(displayName){
+        h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(displayName)+'</div>';
+        h+='<div style="font-size:11px;color:var(--t3)">'+esc(c.email)+'</div>'}
+      else{
+        h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(c.email)+'</div>'}
       h+='</div>';
       h+='<div style="text-align:right;font-size:11px;color:var(--t4);flex-shrink:0">';
       if(c.emailCount)h+='<div>'+c.emailCount+' email'+(c.emailCount>1?'s':'')+'</div>';
@@ -977,14 +980,15 @@ function rEcReview(){
         h+='</div>'}
       else if(!analyzing){
         h+='<div style="margin-bottom:10px;padding:6px 12px;font-size:11px;color:var(--t4)">No AI suggestion yet — click Scan to analyze</div>'}
-      /* Row 3: Action buttons */
-      h+='<div style="display:flex;gap:8px;align-items:center">';
+      /* Row 3: Action buttons — associate to end-client OR just client */
+      h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
       if(c.aiSuggestion){
-        h+='<button class="btn btn-p" onclick="TF.approveEcReview('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+' Approve</button>'}
-      h+='<button class="btn" onclick="TF.approveEcReviewAs('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">Choose EC</button>';
+        h+='<button class="btn btn-p" onclick="TF.approveEcReview('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+' Approve EC</button>'}
+      h+='<button class="btn" onclick="TF.approveEcReviewAs('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('building',10)+' Choose EC</button>';
+      h+='<button class="btn" onclick="TF.approveEcAsContact('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('contact',10)+' Add as Contact</button>';
       h+='<button class="btn" onclick="TF.dismissEcReview('+c._idx+')" style="font-size:11px;padding:5px 14px;border-radius:8px;color:var(--t4)">'+icon('x',10)+' Dismiss</button>';
       if(c.existingContactId)h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">Existing contact</span>';
-      else h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">New contact</span>';
+      else h+='<span style="font-size:10px;color:var(--blue);margin-left:auto">New contact</span>';
       h+='</div>';
       h+='</div>'});
     h+='</div>'});
