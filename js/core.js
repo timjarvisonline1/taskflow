@@ -826,18 +826,12 @@ function discoverEcCandidates(){
   /* Load dismissed keys from localStorage */
   var dismissed={};
   try{dismissed=JSON.parse(localStorage.getItem('tf_ecr_dismissed')||'{}')}catch(e){}
-  /* Build set of contacts that already have an endClient */
-  var contactHasEC={};
-  (S.contacts||[]).forEach(function(c){if(c.email&&c.endClient)contactHasEC[c.email.toLowerCase()]=true});
+  /* Build set of ALL known contact emails — skip any email already in the database */
+  var knownEmails={};
+  (S.contacts||[]).forEach(function(c){if(c.email)knownEmails[c.email.toLowerCase()]=true});
   /* Build set of client record emails — these ARE the client, not candidates */
   var clientEmails={};
   (S.clientRecords||[]).forEach(function(c){if(c.email)clientEmails[c.email.toLowerCase().trim()]=true});
-  /* Build contact lookup by email for existing contact detection */
-  var contactByEmail={};
-  (S.contacts||[]).forEach(function(c){if(c.email)contactByEmail[c.email.toLowerCase()]=c});
-  /* Build set of existing contact email|clientId pairs — already linked, not candidates */
-  var existingContactKeys={};
-  (S.contacts||[]).forEach(function(c){if(c.email&&c.clientId)existingContactKeys[c.email.toLowerCase()+'|'+c.clientId]=true});
   /* Candidate map keyed by email|clientId */
   var cmap={};
   function addCandidate(email,name,clientId,source){
@@ -850,10 +844,8 @@ function discoverEcCandidates(){
     if(!domain||_FREE_DOMAINS[domain])return;
     /* Skip client record emails (the client's own email) */
     if(clientEmails[el])return;
-    /* Skip contacts that already have an endClient */
-    if(contactHasEC[el])return;
-    /* Skip contacts already linked to this client */
-    if(existingContactKeys[el+'|'+clientId])return;
+    /* Skip emails already in contacts table */
+    if(knownEmails[el])return;
     /* Skip dismissed */
     var key=el+'|'+clientId;
     if(dismissed[key])return;
@@ -903,9 +895,6 @@ function discoverEcCandidates(){
   Object.keys(cmap).forEach(function(key){
     var c=cmap[key];
     c.clientName=clientMap[c.clientId]||'';
-    /* Check if contact already exists (but without endClient) */
-    var existing=contactByEmail[c.email];
-    c.existingContactId=existing?existing.id:'';
     /* AI fields — filled later by scanEcReview */
     c.aiSuggestion='';c.aiIsNew=false;c.aiReason='';c.aiConfidence='';
     arr.push(c)});
@@ -4331,7 +4320,7 @@ async function scanEcReview(){
     /* Build clients context */
     var ctxClients=(S.clientRecords||[]).map(function(c){return{name:c.name,email:c.email||'',status:c.status||'active'}});
     var payload={
-      candidates:cands.slice(0,50).map(function(c){return{email:c.email,name:c.name,clientName:c.clientName,emailCount:c.emailCount,meetingCount:c.meetingCount,existingContactId:c.existingContactId}}),
+      candidates:cands.slice(0,50).map(function(c){return{email:c.email,name:c.name,clientName:c.clientName,emailCount:c.emailCount,meetingCount:c.meetingCount}}),
       endClients:ecList,contacts:ctxContacts,clients:ctxClients};
     var resp=await fetch('/api/gmail/ec-suggest',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(payload)});
     if(resp.ok){
@@ -4351,23 +4340,25 @@ async function approveEcReview(idx){
   var c=S._ecCandidates[idx];if(!c)return;
   var ecName=c.aiSuggestion;
   if(!ecName){toast('No end-client suggestion to approve','warn');return}
-  /* If end-client doesn't exist yet, create it */
-  var exists=(S.endClients||[]).find(function(ec){return ec.name.toLowerCase()===ecName.toLowerCase()});
-  if(!exists){
-    var ok=await dbAddEndClient({name:ecName,clientId:c.clientId});
-    if(!ok)return}
-  /* If contact exists, update it with endClient */
-  if(c.existingContactId){
-    await dbEditContact(c.existingContactId,{endClient:ecName})}
-  else{
-    /* Create new contact */
-    var parts=(c.name||'').split(' ');
-    var firstName=parts[0]||'';
-    var lastName=parts.slice(1).join(' ')||'';
-    await dbAddContact(c.clientId,{firstName:firstName,lastName:lastName,email:c.email,endClient:ecName})}
-  /* Remove from candidates */
+  var ecId=resolveEndClientId(ecName)||null;
+  if(!ecId){var ecRec=await ensureEndClientExists(ecName,'');if(ecRec)ecId=ecRec.id}
+  var uid=await getUserId();if(!uid)return;
+  var parts=(c.name||'').split(' ');
+  var row={user_id:uid,client_id:c.clientId||null,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
+    email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',
+    end_client:ecName,end_client_id:ecId};
+  var res=await _sb.from('contacts').insert(row).select().single();
+  if(res.error){toast('Failed: '+res.error.message,'warn');return}
+  S.contacts.push({id:res.data.id,clientId:c.clientId,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
+    email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',endClient:ecName,endClientId:ecId});
   S._ecCandidates.splice(idx,1);
-  _buildDomainMap();buildNav();render();toast('Contact linked to '+ecName,'ok')}
+  var card=gel('cr-card-'+idx);
+  if(card){card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
+    card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
+    setTimeout(function(){card.remove();_crUpdateCount()},300)}
+  else{buildNav();render()}
+  toast('Contact linked to '+ecName,'ok');
+  setTimeout(function(){_buildDomainMap()},100)}
 
 function dismissEcReview(idx){
   var c=S._ecCandidates[idx];if(!c)return;
@@ -4377,15 +4368,20 @@ function dismissEcReview(idx){
   dismissed[key]=1;
   localStorage.setItem('tf_ecr_dismissed',JSON.stringify(dismissed));
   S._ecCandidates.splice(idx,1);
-  buildNav();render();toast('Dismissed','ok')}
+  var card=gel('cr-card-'+idx);
+  if(card){card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
+    card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
+    setTimeout(function(){card.remove();_crUpdateCount()},300)}
+  else{buildNav();render()}
+  toast('Dismissed','ok')}
 
 
 function _crModeChange(idx,mode){
-  var ecWrap=gel('cr-ec-wrap-'+idx);
+  var ecSel=gel('cr-ec-'+idx);
   if(mode==='ec'){
-    if(ecWrap)ecWrap.style.display=''}
+    if(ecSel)ecSel.style.display=''}
   else{
-    if(ecWrap)ecWrap.style.display='none'}}
+    if(ecSel)ecSel.style.display='none'}}
 
 function _crClientChange(idx){
   var cliSel=gel('cr-client-'+idx);if(!cliSel)return;
@@ -4397,36 +4393,51 @@ function _crClientChange(idx){
 
 async function _crSubmit(idx){
   var c=S._ecCandidates[idx];if(!c)return;
+  /* Disable button immediately to prevent double-clicks */
+  var card=gel('cr-card-'+idx);
+  if(!card)return;
+  var btns=card.querySelectorAll('button');
+  btns.forEach(function(b){b.disabled=true});
   var mode=document.querySelector('input[name="cr-mode-'+idx+'"]:checked');
   var isEC=mode&&mode.value==='ec';
   var cliSel=gel('cr-client-'+idx);
   var selectedClientId=cliSel?cliSel.value:c.clientId;
   var cr=S.clientRecords.find(function(r){return r.id===selectedClientId});
   var selectedClientName=cr?cr.name:'';
+  var ecName='',ecId=null;
   if(isEC){
     var ecSel=gel('cr-ec-'+idx);
     var ecRaw=ecSel?ecSel.value:'';
     if(ecSel&&ecSel.tagName==='INPUT')ecRaw=ecSel.value.trim();
-    if(!ecRaw||ecRaw==='__addnew__'){toast('Select an end client','warn');return}
-    var ecId=resolveEndClientId(ecRaw)||null;
-    var ecName=ecId?endClientNameById(ecId):ecRaw;
-    var ecRec=await ensureEndClientExists(ecName,selectedClientName);
-    if(ecRec&&!ecId)ecId=ecRec.id;
-    if(c.existingContactId){
-      await dbEditContact(c.existingContactId,{endClient:ecName,endClientId:ecId,clientId:selectedClientId})}
-    else{
-      var parts=(c.name||'').split(' ');
-      await dbAddContact(selectedClientId,{firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',email:c.email,endClient:ecName,endClientId:ecId})}
-    toast('Contact linked to '+ecName,'ok')}
-  else{
-    if(c.existingContactId){
-      await dbEditContact(c.existingContactId,{clientId:selectedClientId})}
-    else{
-      var parts=(c.name||'').split(' ');
-      await dbAddContact(selectedClientId,{firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',email:c.email})}
-    toast('Added as contact for '+selectedClientName,'ok')}
+    if(!ecRaw||ecRaw==='__addnew__'){toast('Select an end client','warn');btns.forEach(function(b){b.disabled=false});return}
+    ecId=resolveEndClientId(ecRaw)||null;
+    ecName=ecId?endClientNameById(ecId):ecRaw;
+    /* If new EC name, ensure record exists (fast — checks S.endClients first) */
+    if(!ecId){var ecRec=await ensureEndClientExists(ecName,selectedClientName);if(ecRec)ecId=ecRec.id}}
+  /* Build contact row and insert directly — skip loadContacts/render */
+  var uid=await getUserId();if(!uid)return;
+  var parts=(c.name||'').split(' ');
+  var row={user_id:uid,client_id:selectedClientId||null,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
+    email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',
+    end_client:ecName,end_client_id:ecId};
+  var res=await _sb.from('contacts').insert(row).select().single();
+  if(res.error){toast('Failed: '+res.error.message,'warn');btns.forEach(function(b){b.disabled=false});return}
+  /* Update local state without full reload */
+  S.contacts.push({id:res.data.id,clientId:selectedClientId,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
+    email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',endClient:ecName,endClientId:ecId});
+  /* Remove card from DOM with animation */
   S._ecCandidates.splice(idx,1);
-  _buildDomainMap();buildNav();render()}
+  card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
+  card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
+  setTimeout(function(){card.remove();_crUpdateCount()},300);
+  toast(isEC?'Linked to '+ecName:'Added for '+selectedClientName,'ok');
+  /* Rebuild domain map in background */
+  setTimeout(function(){_buildDomainMap()},100)}
+
+function _crUpdateCount(){
+  var cnt=(S._ecCandidates||[]).length;
+  var el=gel('cr-count');if(el)el.textContent='('+cnt+')';
+  buildNav()}
 
 /* ═══════════ CALENDAR (cached, non-blocking) ═══════════ */
 var calLoading=false;

@@ -1301,7 +1301,7 @@ function rClTabDetails(c,td_){
 function rEcReview(){
   var cands=S._ecCandidates||[];
   var analyzing=S._ecAnalyzing;
-  var h='<div class="pg-head"><h1>'+icon('sparkle',18)+' Contact Review'+(cands.length?' <span style="font-weight:400;color:var(--t4);font-size:14px">('+cands.length+')</span>':'')+'</h1>';
+  var h='<div class="pg-head"><h1>'+icon('sparkle',18)+' Contact Review'+(cands.length?' <span id="cr-count" style="font-weight:400;color:var(--t4);font-size:14px">('+cands.length+')</span>':'')+'</h1>';
   h+='<button class="btn btn-p" onclick="TF.scanEcReview()" style="font-size:13px;padding:8px 16px;border-radius:10px"'+(analyzing?' disabled':'')+'>'+icon('sparkle',12)+' Scan</button></div>';
 
   /* Loading state */
@@ -1334,65 +1334,48 @@ function rEcReview(){
     h+='<div style="margin-bottom:24px">';
     h+='<div style="font-size:13px;font-weight:700;color:var(--t2);margin-bottom:10px;display:flex;align-items:center;gap:8px">'+icon('clients',13)+' '+esc(clientName)+' <span style="font-weight:400;color:var(--t4)">('+groups[clientName].length+')</span></div>';
     groups[clientName].forEach(function(c){
-      var avatarBg=emailAvatarColor(c.email);
       var displayName=(c.name||'').trim();
-      var initial=(displayName||c.email||'?').charAt(0).toUpperCase();
-      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:12px;padding:14px 18px;margin-bottom:8px;backdrop-filter:blur(12px);transition:all .2s">';
-      /* Row 1: Avatar + name (lead) + email (secondary) + counts */
-      h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">';
-      h+='<div style="width:36px;height:36px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
-      h+='<div style="flex:1;min-width:0">';
-      if(displayName){
-        h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(displayName)+'</div>';
-        h+='<div style="font-size:11px;color:var(--t3)">'+esc(c.email)+'</div>'}
-      else{
-        h+='<div style="font-size:13px;font-weight:600;color:var(--t1)">'+esc(c.email)+'</div>'}
-      h+='</div>';
-      h+='<div style="text-align:right;font-size:11px;color:var(--t4);flex-shrink:0">';
-      if(c.emailCount)h+='<div>'+c.emailCount+' email'+(c.emailCount>1?'s':'')+'</div>';
-      if(c.meetingCount)h+='<div>'+c.meetingCount+' meeting'+(c.meetingCount>1?'s':'')+'</div>';
-      if(c.lastSeen)h+='<div style="margin-top:2px">Last: '+fmtDShort(c.lastSeen)+'</div>';
-      h+='</div></div>';
-      /* Row 2: AI suggestion */
-      if(c.aiSuggestion){
-        var confColor=c.aiConfidence==='high'?'var(--green)':c.aiConfidence==='medium'?'var(--amber)':'var(--t4)';
-        h+='<div style="margin-bottom:10px;padding:8px 12px;background:rgba(var(--accent-rgb,99,102,241),.06);border-radius:8px;border:1px solid rgba(var(--accent-rgb,99,102,241),.12)">';
-        h+='<div style="font-size:12px;display:flex;align-items:center;gap:6px">';
-        h+='<span style="color:var(--accent)">'+icon('sparkle',11)+'</span>';
-        h+='<span style="color:var(--t2)">→ <strong>'+esc(c.aiSuggestion)+'</strong></span>';
-        if(c.aiIsNew)h+=' <span style="font-size:9px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:4px">NEW</span>';
-        h+=' <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:'+confColor+';color:#fff">'+esc(c.aiConfidence)+'</span>';
-        h+='</div>';
-        if(c.aiReason)h+='<div style="font-size:11px;color:var(--t3);margin-top:4px">'+esc(c.aiReason)+'</div>';
-        h+='</div>'}
-      else if(!analyzing){
-        h+='<div style="margin-bottom:10px;padding:6px 12px;font-size:11px;color:var(--t4)">No AI suggestion yet — click Scan to analyze</div>'}
-      /* Row 3: Inline form controls */
       var _hasAi=!!c.aiSuggestion;
       var _defEC=_hasAi;
       var _i=c._idx;
-      /* Radio toggle + client dropdown row */
-      h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
-      h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';
+      var stats=[];
+      if(c.emailCount)stats.push(c.emailCount+'e');
+      if(c.meetingCount)stats.push(c.meetingCount+'m');
+      h+='<div id="cr-card-'+_i+'" style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px;margin-bottom:4px;backdrop-filter:blur(12px)">';
+      /* Row 1: Name/email + stats + radio + dropdowns + buttons — all one row */
+      h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+      /* Identity */
+      h+='<div style="min-width:0;flex-shrink:1">';
+      if(displayName){
+        h+='<span style="font-size:12px;font-weight:600;color:var(--t1)">'+esc(displayName)+'</span>';
+        h+=' <span style="font-size:10px;color:var(--t4)">'+esc(c.email)+'</span>'}
+      else{h+='<span style="font-size:12px;font-weight:600;color:var(--t1)">'+esc(c.email)+'</span>'}
+      if(stats.length)h+=' <span style="font-size:10px;color:var(--t4)">('+stats.join('/')+')</span>';
+      h+='</div>';
+      /* AI suggestion inline */
+      if(_hasAi){
+        var confColor=c.aiConfidence==='high'?'var(--green)':c.aiConfidence==='medium'?'var(--amber)':'var(--t4)';
+        h+='<span style="font-size:10px;color:var(--accent);white-space:nowrap">'+icon('sparkle',9)+' '+esc(c.aiSuggestion)+'</span>';
+        h+='<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:'+confColor+';color:#fff">'+esc(c.aiConfidence)+'</span>'}
+      /* Spacer */
+      h+='<span style="flex:1"></span>';
+      /* Radio toggle */
+      h+='<label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:10px;color:var(--t3)">';
       h+='<input type="radio" name="cr-mode-'+_i+'" value="client"'+(!_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'client\')"> Client</label>';
-      h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';
-      h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> End Client</label>';
-      h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:11px;padding:4px 6px;max-width:160px;flex:1">';
+      h+='<label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:10px;color:var(--t3)">';
+      h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> EC</label>';
+      /* EC dropdown (inline, shown if EC mode) */
+      h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:10px;padding:3px 5px;max-width:140px;'+(_defEC?'':'display:none;')+'" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
+      h+=buildEndClientOptions(c.aiSuggestion||'',c.clientName||'');
+      h+='</select>';
+      /* Hidden client select (only needed if user changes client) */
+      h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:10px;padding:3px 5px;max-width:120px;display:none">';
       (S.clientRecords||[]).forEach(function(cr){
         h+='<option value="'+cr.id+'"'+(cr.id===c.clientId?' selected':'')+'>'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
       h+='</select>';
-      if(c.existingContactId)h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">Existing</span>';
-      else h+='<span style="font-size:10px;color:var(--blue);margin-left:auto">New</span>';
-      h+='</div>';
-      /* EC dropdown (shown if AI suggested or EC mode) */
-      h+='<div id="cr-ec-wrap-'+_i+'" style="'+(_defEC?'':'display:none;')+'margin-bottom:8px">';
-      h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:11px;padding:4px 6px;width:100%" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
-      h+=buildEndClientOptions(c.aiSuggestion||'',c.clientName||'');
-      h+='</select></div>';
       /* Action buttons */
-      h+='<div style="display:flex;gap:8px;align-items:center">';
-      h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:11px;padding:5px 14px;border-radius:8px">'+icon('check',10)+(_defEC?' Add End-Client':' Add Contact')+'</button>';
-      h+='<button class="btn" onclick="TF.dismissEcReview('+_i+')" style="font-size:11px;padding:5px 14px;border-radius:8px;color:var(--t4)">'+icon('x',10)+' Dismiss</button>';
+      h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:10px;padding:3px 10px;border-radius:6px">'+icon('check',9)+' Add</button>';
+      h+='<button class="btn" onclick="TF.dismissEcReview('+_i+')" style="font-size:10px;padding:3px 8px;border-radius:6px;color:var(--t4)">'+icon('x',9)+'</button>';
       h+='</div>';
       h+='</div>'});
     h+='</div>'});
