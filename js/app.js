@@ -82,16 +82,20 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   /* Prospect Companies */
   openAddProspectCompanyModal:openAddProspectCompanyModal,saveProspectCompany:saveProspectCompany,
   openEditProspectCompanyModal:openEditProspectCompanyModal,saveEditProspectCompany:saveEditProspectCompany,deleteProspectCompany:deleteProspectCompany,setPcSort:setPcSort,
+  openProspectCompanyDetailModal:openProspectCompanyDetailModal,closeProspectCompanyDashboard:closeProspectCompanyDashboard,setProspectCompanyTab:setProspectCompanyTab,
+  saveEditProspectCompanyFromDash:saveEditProspectCompanyFromDash,deleteProspectCompanyFromDash:deleteProspectCompanyFromDash,
   /* Prospects */
   openAddProspectModal:openAddProspectModal,saveProspect:saveProspect,
   openEditProspectModal:openEditProspectModal,saveEditProspect:saveEditProspect,deleteProspect:deleteProspect,setPSort:setPSort,
   pcAddNew:pcAddNew,
+  /* People */
+  setPeopleFilter:setPeopleFilter,setPeopleSort:setPeopleSort,
   /* Opportunity prospect helpers */
   nopPcChange:nopPcChange,nopProspectChange:nopProspectChange,
   refreshEcReview:refreshEcReview,dismissEcReview:dismissEcReview,_crModeChange:_crModeChange,_crClientAc:_crClientAc,_crClientKey:_crClientKey,_crClientSelect:_crClientSelect,_crPcAc:_crPcAc,_crPcKey:_crPcKey,_crPcSelect:_crPcSelect,_crPcCreate:_crPcCreate,_crSubmit:_crSubmit,
   addCampaignNote:addCampaignNote,addClientNote:addClientNote,deleteCampaignNote:deleteCampaignNote,deleteClientNote:deleteClientNote,
   setCampaignTab:setCampaignTab,setClientTab:setClientTab,setEndClientTab:setEndClientTab,setOpportunityTab:setOpportunityTab,
-  cesToggleAll:cesToggleAll,cesCompose:cesCompose,
+  cesToggleAll:cesToggleAll,cesCompose:cesCompose,cesToggleGroup:cesToggleGroup,
   saveCampaignBilling:saveCampaignBilling,
   /* Email */
   openEmailThread:openEmailThread,closeEmailThread:closeEmailThread,searchGmail:searchGmail,setGmailFilter:setGmailFilter,loadMoreGmailThreads:loadMoreGmailThreads,refreshGmailInbox:refreshGmailInbox,

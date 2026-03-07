@@ -174,8 +174,8 @@ var SECTIONS=[
     {id:'active',label:'Active',icon:'clients'},
     {id:'lapsed',label:'Lapsed',icon:'clock'},
     {id:'end_clients',label:'End Clients',icon:'building'},
-    {id:'prospect_companies',label:'Prospect Companies',icon:'target'},
-    {id:'prospects',label:'Prospects',icon:'gem'},
+    {id:'prospects',label:'Prospects',icon:'target'},
+    {id:'people',label:'People',icon:'users'},
     {id:'ec_review',label:'Contact Review',icon:'sparkle'}
   ]},
   {id:'finance',icon:'activity',label:'Finance',kbd:'8',subs:[
@@ -1894,7 +1894,34 @@ function setOpportunityTab(tab){
   el.innerHTML=rOpportunityDashboard(op,getOpportunityStats(op));
   setTimeout(function(){initEntityCharts('opportunity')},50)}
 
+function setProspectCompanyTab(tab){
+  S.prospectCompanyTab=tab;
+  var el=gel('detail-body');if(!el)return;
+  var pc=(S.prospectCompanies||[]).find(function(p){return p.id===S._lastProspectCompanyId});if(!pc)return;
+  el.innerHTML=rProspectCompanyDashboard(pc);
+  setTimeout(function(){initEntityCharts('prospectCompany')},50)}
+
+async function saveEditProspectCompanyFromDash(){
+  var id=S._lastProspectCompanyId;if(!id)return;
+  var name=(gel('pc-name')||{}).value||'';
+  if(!name.trim()){toast('Enter a company name','warn');return}
+  var data={name:name.trim(),website:(gel('pc-website')||{}).value||'',
+    description:(gel('pc-description')||{}).value||'',
+    source:(gel('pc-source')||{}).value||'',notes:(gel('pc-notes')||{}).value||'',
+    status:(gel('pc-status')||{}).value||'active'};
+  var ok=await dbEditProspectCompany(id,data);
+  if(ok){toast('Prospect company updated','ok');setProspectCompanyTab('details')}}
+
+function deleteProspectCompanyFromDash(id){
+  if(!confirm('Delete this prospect company? Linked prospects will lose their company association.'))return;
+  dbDeleteProspectCompany(id);closeModal()}
+
 /* ═══════════ CONTACT EMAIL SELECTOR HANDLERS ═══════════ */
+function cesToggleGroup(selectorId,group,checked){
+  var wrap=gel(selectorId);if(!wrap)return;
+  wrap.querySelectorAll('.ces-item').forEach(function(cb){
+    if(cb.getAttribute('data-group')===group)cb.checked=checked})}
+
 function cesToggleAll(selectorId,checked){
   var wrap=gel(selectorId);if(!wrap)return;
   wrap.querySelectorAll('.ces-item').forEach(function(cb){cb.checked=checked})}
@@ -4510,6 +4537,14 @@ function setPSort(v){
   var col=cur.replace(/^-/,'');
   if(col===v){S.pSort=cur.charAt(0)==='-'?v:'-'+v}
   else{S.pSort=(v==='name')?v:'-'+v}
+  render()}
+
+function setPeopleFilter(v){S.peopleFilter=v;render()}
+function setPeopleSort(v){
+  var cur=S.peopleSort||'name';
+  var col=cur.replace(/^-/,'');
+  if(col===v){S.peopleSort=cur.charAt(0)==='-'?v:'-'+v}
+  else{S.peopleSort=(v==='name')?v:'-'+v}
   render()}
 
 /* ── Opportunity form helpers for prospect dropdowns ── */
