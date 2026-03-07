@@ -1311,43 +1311,51 @@ function rEcReview(){
     return h}
 
   cands.forEach(function(c,idx){c._idx=idx});
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px">';
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
   cands.forEach(function(c){
     var displayName=(c.name||'').trim();
     var _hasSug=!!c.suggestedEC;
     var _defEC=_hasSug;
     var _i=c._idx;
-    h+='<div id="cr-card-'+_i+'" style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:10px 12px;backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:5px">';
-    /* Name + email */
+    var avatarBg=emailAvatarColor(c.email);
+    var initial=(displayName||c.email||'?').charAt(0).toUpperCase();
+    h+='<div id="cr-card-'+_i+'" style="background:var(--glass);border:1px solid var(--gborder);border-radius:12px;padding:16px;backdrop-filter:blur(12px);display:flex;flex-direction:column;gap:10px">';
+    /* Header: avatar + name/email */
+    h+='<div style="display:flex;align-items:center;gap:10px">';
+    h+='<div style="width:34px;height:34px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initial+'</div>';
+    h+='<div style="flex:1;min-width:0">';
     if(displayName){
-      h+='<div style="font-size:11px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(displayName)+'">'+esc(displayName)+'</div>';
-      h+='<div style="font-size:9px;color:var(--t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.email)+'">'+esc(c.email)+'</div>'}
+      h+='<div style="font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(displayName)+'">'+esc(displayName)+'</div>';
+      h+='<div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.email)+'">'+esc(c.email)+'</div>'}
     else{
-      h+='<div style="font-size:11px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.email)+'">'+esc(c.email)+'</div>'}
-    /* Suggestion badge */
-    if(_hasSug){h+='<div style="font-size:9px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.suggestedEC)+'">→ '+esc(c.suggestedEC)+'</div>'}
+      h+='<div style="font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.email)+'">'+esc(c.email)+'</div>'}
+    h+='</div>';
+    /* Dismiss X in top-right */
+    h+='<button onclick="TF.dismissEcReview('+_i+')" style="background:none;border:none;cursor:pointer;color:var(--t4);padding:2px;flex-shrink:0;opacity:.5" title="Dismiss">'+icon('x',12)+'</button>';
+    h+='</div>';
     /* Client dropdown */
-    h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:10px;padding:2px 4px;width:100%">';
-    h+='<option value="">Client...</option>';
+    h+='<div>';
+    h+='<div style="font-size:10px;color:var(--t4);margin-bottom:3px">Client</div>';
+    h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px">';
+    h+='<option value="">Select client...</option>';
     (S.clientRecords||[]).forEach(function(cr){
       h+='<option value="'+cr.id+'"'+(cr.id===c.clientId?' selected':'')+'>'+esc(cr.name)+'</option>'});
-    h+='</select>';
-    /* Radio + EC dropdown row */
-    h+='<div style="display:flex;align-items:center;gap:4px">';
-    h+='<label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:9px;color:var(--t3);white-space:nowrap">';
-    h+='<input type="radio" name="cr-mode-'+_i+'" value="client"'+(!_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'client\')"> Client</label>';
-    h+='<label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:9px;color:var(--t3);white-space:nowrap">';
-    h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> EC</label>';
+    h+='</select></div>';
+    /* Type toggle */
+    h+='<div style="display:flex;align-items:center;gap:12px">';
+    h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';
+    h+='<input type="radio" name="cr-mode-'+_i+'" value="client"'+(!_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'client\')"> Client contact</label>';
+    h+='<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t2)">';
+    h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> End-client</label>';
     h+='</div>';
     /* EC dropdown */
-    h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:10px;padding:2px 4px;width:100%;'+(_defEC?'':'display:none;')+'" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
+    h+='<div id="cr-ec-wrap-'+_i+'" style="'+(_defEC?'':'display:none;')+'">';
+    h+='<div style="font-size:10px;color:var(--t4);margin-bottom:3px">End Client</div>';
+    h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:12px;padding:5px 8px;width:100%;border-radius:8px" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
     h+=buildEndClientOptions(c.suggestedECId||c.suggestedEC||'',c.clientName||'');
-    h+='</select>';
-    /* Buttons */
-    h+='<div style="display:flex;gap:4px;margin-top:auto">';
-    h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:10px;padding:3px 0;border-radius:6px;flex:1">'+icon('check',9)+' Add</button>';
-    h+='<button class="btn" onclick="TF.dismissEcReview('+_i+')" style="font-size:10px;padding:3px 6px;border-radius:6px;color:var(--t4)">'+icon('x',9)+'</button>';
-    h+='</div>';
+    h+='</select></div>';
+    /* Add button */
+    h+='<button class="btn btn-p" onclick="TF._crSubmit('+_i+')" style="font-size:12px;padding:7px 0;border-radius:8px;width:100%;margin-top:auto">'+icon('check',11)+' Add Contact</button>';
     h+='</div>'});
   h+='</div>';
   return h}

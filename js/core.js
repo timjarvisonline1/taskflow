@@ -4361,11 +4361,11 @@ function dismissEcReview(idx){
 
 
 function _crModeChange(idx,mode){
-  var ecSel=gel('cr-ec-'+idx);
+  var ecWrap=gel('cr-ec-wrap-'+idx);
   if(mode==='ec'){
-    if(ecSel)ecSel.style.display=''}
+    if(ecWrap)ecWrap.style.display=''}
   else{
-    if(ecSel)ecSel.style.display='none'}}
+    if(ecWrap)ecWrap.style.display='none'}}
 
 function _crClientChange(idx){
   var cliSel=gel('cr-client-'+idx);if(!cliSel)return;
