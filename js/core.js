@@ -4595,7 +4595,7 @@ function _crClientAc(idx){
     var selCr=(S.clientRecords||[]).find(function(r){return r.id===hidden.value});
     if(!selCr||selCr.name!==input.value)hidden.value=''}
   var matches=(S.clientRecords||[]).filter(function(cr){
-    return cr.status==='active'&&(!q||cr.name.toLowerCase().indexOf(q)!==-1)}).slice(0,8);
+    return !q||cr.name.toLowerCase().indexOf(q)!==-1}).slice(0,8);
   if(!matches.length){dd.style.display='none';return}
   var h='';
   matches.forEach(function(cr){
@@ -4610,7 +4610,7 @@ function _crClientKey(idx,e){
   var input=gel('cr-client-'+idx);if(!input)return;
   var q=(input.value||'').toLowerCase().trim();
   var matches=(S.clientRecords||[]).filter(function(cr){
-    return cr.status==='active'&&(!q||cr.name.toLowerCase().indexOf(q)!==-1)});
+    return !q||cr.name.toLowerCase().indexOf(q)!==-1});
   if(matches.length===1){
     _crClientSelect(idx,matches[0].id,matches[0].name);
     _crSubmit(idx)}}
@@ -4637,7 +4637,7 @@ function _crPcAc(idx){
     var selPc=(S.prospectCompanies||[]).find(function(pc){return pc.id===hidden.value});
     if(!selPc||selPc.name!==input.value)hidden.value=''}
   var matches=(S.prospectCompanies||[]).filter(function(pc){
-    return pc.status==='active'&&(!q||pc.name.toLowerCase().indexOf(q)!==-1)}).slice(0,8);
+    return !q||pc.name.toLowerCase().indexOf(q)!==-1}).slice(0,8);
   if(!matches.length&&q){
     /* Show "+ Create" option for new company */
     dd.innerHTML='<div onmousedown="TF._crPcCreate('+idx+')" style="padding:6px 10px;font-size:12px;cursor:pointer;color:var(--accent);border-bottom:1px solid var(--gborder)" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'none\'">'+icon('plus',11)+' Create &ldquo;'+esc(q)+'&rdquo;</div>';
@@ -4656,7 +4656,7 @@ function _crPcKey(idx,e){
   var input=gel('cr-pc-'+idx);if(!input)return;
   var q=(input.value||'').toLowerCase().trim();
   var matches=(S.prospectCompanies||[]).filter(function(pc){
-    return pc.status==='active'&&(!q||pc.name.toLowerCase().indexOf(q)!==-1)});
+    return !q||pc.name.toLowerCase().indexOf(q)!==-1});
   if(matches.length===1){
     _crPcSelect(idx,matches[0].id,matches[0].name);
     _crSubmit(idx)}}
@@ -4713,6 +4713,8 @@ async function _crSubmit(idx){
     setTimeout(function(){card.remove();_crUpdateCount()},300);
     var pcLabel=pcId?prospectCompanyNameById(pcId):'';
     toast('Added as prospect'+(pcLabel?' for '+pcLabel:''),'ok');
+    /* Batch-add same-domain candidates */
+    setTimeout(function(){_crBatchDomain(c.email,'prospect',null,null,null,null,pcId,uid)},350);
     return}
 
   /* ── CLIENT / END-CLIENT MODE ── */
@@ -4746,8 +4748,47 @@ async function _crSubmit(idx){
   card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
   setTimeout(function(){card.remove();_crUpdateCount()},300);
   toast(isEC?'Linked to '+ecName:'Added for '+selectedClientName,'ok');
+  /* Batch-add same-domain candidates */
+  setTimeout(function(){_crBatchDomain(c.email,modeVal,selectedClientId,selectedClientName,ecId,ecName,null,uid)},350);
   /* Rebuild domain map in background */
-  setTimeout(function(){_buildDomainMap()},100)}
+  setTimeout(function(){_buildDomainMap()},500)}
+
+async function _crBatchDomain(triggerEmail,mode,clientId,clientName,ecId,ecName,pcId,uid){
+  var domain=triggerEmail.split('@')[1];
+  if(!domain||_FREE_DOMAINS[domain])return;
+  /* Find remaining candidates with the same domain */
+  var same=(S._ecCandidates||[]).filter(function(c){return c.email.split('@')[1]===domain});
+  if(!same.length)return;
+  var count=0;
+  for(var i=0;i<same.length;i++){
+    var c=same[i];
+    var parts=(c.name||'').split(' ');
+    if(mode==='prospect'){
+      var pRow={user_id:uid,prospect_company_id:pcId||null,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
+        email:c.email||'',phone:'',role:'',linkedin_url:'',source:'contact_review',notes:'',status:'active'};
+      var pRes=await _sb.from('prospects').insert(pRow).select().single();
+      if(pRes.error)continue;
+      S.prospects.push({id:pRes.data.id,prospectCompanyId:pcId||null,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
+        email:c.email||'',phone:'',role:'',linkedinUrl:'',source:'contact_review',notes:'',status:'active',lastContactedAt:null,createdAt:''});
+    }else{
+      var row={user_id:uid,client_id:clientId||null,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
+        email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',
+        end_client:ecName||'',end_client_id:ecId||null};
+      var res=await _sb.from('contacts').insert(row).select().single();
+      if(res.error)continue;
+      S.contacts.push({id:res.data.id,clientId:clientId,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
+        email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',endClient:ecName||'',endClientId:ecId||null});
+    }
+    /* Remove from candidates and animate card */
+    var ri=S._ecCandidates.indexOf(c);if(ri>=0)S._ecCandidates.splice(ri,1);
+    var card=document.querySelector('[data-email="'+c.email+'"]');
+    if(card){card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
+      card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
+      (function(el){setTimeout(function(){el.remove()},300)})(card)}
+    count++}
+  if(count){_crUpdateCount();
+    var label=mode==='prospect'?(prospectCompanyNameById(pcId)||domain):(clientName||domain);
+    toast('+'+count+' more from @'+domain+' added to '+label,'ok')}}
 
 function _crUpdateCount(){
   var cnt=(S._ecCandidates||[]).length;
