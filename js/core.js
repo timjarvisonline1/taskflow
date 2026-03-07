@@ -132,7 +132,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   contacts:[],scheduledEmails:[],emailRules:[],
   meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,
   endClients:[],ecSort:'name',
-  _ecCandidates:[],_ecAnalyzing:false,
+  _ecCandidates:[],
   clientTab:'overview',endClientTab:'overview',opportunityTab:'overview'};
 
 var SECTIONS=[
@@ -823,49 +823,80 @@ function _buildDomainMap(){
 function discoverEcCandidates(){
   var ue=S._userEmails||[];
   if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
-  /* Load dismissed keys from localStorage */
   var dismissed={};
   try{dismissed=JSON.parse(localStorage.getItem('tf_ecr_dismissed')||'{}')}catch(e){}
-  /* Build set of ALL known contact emails — skip any email already in the database */
   var knownEmails={};
   (S.contacts||[]).forEach(function(c){if(c.email)knownEmails[c.email.toLowerCase()]=true});
-  /* Build set of client record emails — these ARE the client, not candidates */
   var clientEmails={};
   (S.clientRecords||[]).forEach(function(c){if(c.email)clientEmails[c.email.toLowerCase().trim()]=true});
-  /* Candidate map keyed by email|clientId */
+
+  /* ── Build domain→EC map from multiple signals ── */
+  var domainEC={};/* domain → {ecName,ecId,count} (highest count wins) */
+  function addDomainSignal(domain,ecName,ecId){
+    if(!domain||!ecName||_FREE_DOMAINS[domain])return;
+    if(!domainEC[domain])domainEC[domain]={};
+    var k=ecName.toLowerCase();
+    if(!domainEC[domain][k])domainEC[domain][k]={name:ecName,id:ecId||null,count:0};
+    domainEC[domain][k].count++;
+    if(ecId&&!domainEC[domain][k].id)domainEC[domain][k].id=ecId}
+  /* Signal 1: Existing contacts with endClient */
+  (S.contacts||[]).forEach(function(c){
+    if(!c.email||!c.endClient)return;
+    var d=c.email.toLowerCase().split('@')[1];
+    addDomainSignal(d,c.endClient,c.endClientId)});
+  /* Signal 2: Gmail threads with end_client set */
+  (S.gmailThreads||[]).forEach(function(t){
+    if(!t.end_client)return;
+    var ecId=t.end_client_id||null;
+    function trackDomain(email){
+      if(!email)return;var d=email.toLowerCase().trim().split('@')[1];
+      addDomainSignal(d,t.end_client,ecId)}
+    trackDomain(t.from_email);
+    _parseEmails(t.to_emails||'').forEach(trackDomain);
+    _parseEmails(t.cc_emails||'').forEach(trackDomain)});
+  /* Resolve best EC per domain */
+  var bestDomainEC={};/* domain → {name,id} */
+  Object.keys(domainEC).forEach(function(d){
+    var best=null;
+    Object.keys(domainEC[d]).forEach(function(k){
+      var e=domainEC[d][k];if(!best||e.count>best.count)best=e});
+    if(best)bestDomainEC[d]=best});
+  /* Also build per-email EC from threads (direct signal) */
+  var emailThreadEC={};/* email → {ecName: {name,id,count}} */
+  (S.gmailThreads||[]).forEach(function(t){
+    if(!t.end_client)return;
+    function trackEmail(email){
+      if(!email)return;var el=email.toLowerCase().trim();
+      if(!emailThreadEC[el])emailThreadEC[el]={};
+      var k=t.end_client.toLowerCase();
+      if(!emailThreadEC[el][k])emailThreadEC[el][k]={name:t.end_client,id:t.end_client_id||null,count:0};
+      emailThreadEC[el][k].count++}
+    trackEmail(t.from_email);
+    _parseEmails(t.to_emails||'').forEach(trackEmail);
+    _parseEmails(t.cc_emails||'').forEach(trackEmail)});
+
+  /* ── Build candidates ── */
   var cmap={};
   function addCandidate(email,name,clientId,source){
     if(!email||!clientId)return;
     var el=email.toLowerCase().trim();
-    /* Skip user's own emails */
     if(ue.indexOf(el)!==-1)return;
-    /* Skip free domains */
     var domain=el.split('@')[1];
     if(!domain||_FREE_DOMAINS[domain])return;
-    /* Skip client record emails (the client's own email) */
     if(clientEmails[el])return;
-    /* Skip emails already in contacts table */
     if(knownEmails[el])return;
-    /* Skip dismissed */
     var key=el+'|'+clientId;
     if(dismissed[key])return;
     if(!cmap[key])cmap[key]={email:el,name:name||'',clientId:clientId,emailCount:0,meetingCount:0,lastSeen:null};
     if(source==='email')cmap[key].emailCount++;
     if(source==='meeting')cmap[key].meetingCount++;
-    /* Keep the best name (longest non-empty) */
     if(name&&name.length>(cmap[key].name||'').length)cmap[key].name=name}
-  /* Scan gmail threads with a client_id set */
   (S.gmailThreads||[]).forEach(function(t){
     if(!t.client_id)return;
     var cid=t.client_id;
-    /* Parse from */
-    if(t.from_email){
-      addCandidate(t.from_email,t.from_name||'',cid,'email')}
-    /* Parse to */
+    if(t.from_email)addCandidate(t.from_email,t.from_name||'',cid,'email');
     _parseEmails(t.to_emails||'').forEach(function(e){addCandidate(e,'',cid,'email')});
-    /* Parse cc */
     _parseEmails(t.cc_emails||'').forEach(function(e){addCandidate(e,'',cid,'email')});
-    /* Track last seen */
     if(t.last_message_at){
       var dt=new Date(t.last_message_at);
       var key1=((t.from_email||'').toLowerCase().trim())+'|'+cid;
@@ -874,7 +905,6 @@ function discoverEcCandidates(){
         var k=e+'|'+cid;if(cmap[k]&&(!cmap[k].lastSeen||dt>cmap[k].lastSeen))cmap[k].lastSeen=dt});
       _parseEmails(t.cc_emails||'').forEach(function(e){
         var k=e+'|'+cid;if(cmap[k]&&(!cmap[k].lastSeen||dt>cmap[k].lastSeen))cmap[k].lastSeen=dt})}});
-  /* Scan meetings with a clientId set */
   (S.meetings||[]).forEach(function(m){
     if(!m.clientId)return;
     var cid=m.clientId;
@@ -884,21 +914,30 @@ function discoverEcCandidates(){
       var pe=p.email.toLowerCase().trim();
       if(pe===ownEmail)return;
       addCandidate(pe,p.name||'',cid,'meeting');
-      /* Track last seen from meeting start time */
       if(m.startTime){
         var k=pe+'|'+cid;
         if(cmap[k]&&(!cmap[k].lastSeen||m.startTime>cmap[k].lastSeen))cmap[k].lastSeen=m.startTime}})});
-  /* Convert map to array, resolve client names, check existing contacts */
+
+  /* ── Resolve suggestions per candidate ── */
   var arr=[];
   var clientMap={};
   (S.clientRecords||[]).forEach(function(c){clientMap[c.id]=c.name});
   Object.keys(cmap).forEach(function(key){
     var c=cmap[key];
     c.clientName=clientMap[c.clientId]||'';
-    /* AI fields — filled later by scanEcReview */
-    c.aiSuggestion='';c.aiIsNew=false;c.aiReason='';c.aiConfidence='';
+    c.suggestedEC='';c.suggestedECId=null;
+    /* Priority 1: Direct email→EC from threads */
+    if(emailThreadEC[c.email]){
+      var best=null;
+      Object.keys(emailThreadEC[c.email]).forEach(function(k){
+        var e=emailThreadEC[c.email][k];if(!best||e.count>best.count)best=e});
+      if(best){c.suggestedEC=best.name;c.suggestedECId=best.id||resolveEndClientId(best.name)}}
+    /* Priority 2: Domain→EC from contacts + threads */
+    if(!c.suggestedEC){
+      var domain=c.email.split('@')[1];
+      var dm=bestDomainEC[domain];
+      if(dm){c.suggestedEC=dm.name;c.suggestedECId=dm.id||resolveEndClientId(dm.name)}}
     arr.push(c)});
-  /* Sort by total interaction count desc */
   arr.sort(function(a,b){return(b.emailCount+b.meetingCount)-(a.emailCount+a.meetingCount)});
   S._ecCandidates=arr}
 
@@ -4300,65 +4339,11 @@ function setEcSort(v){
   else{S.ecSort=(v==='name')?v:'-'+v}
   render()}
 
-/* ═══════════ EC REVIEW — scan, approve, dismiss ═══════════ */
-async function scanEcReview(){
+/* ═══════════ CONTACT REVIEW ═══════════ */
+function refreshEcReview(){
   discoverEcCandidates();
-  var cands=S._ecCandidates;
-  if(!cands.length){toast('No contacts to review','ok');render();buildNav();return}
-  S._ecAnalyzing=true;render();
-  try{
-    var sess=await _sb.auth.getSession();
-    if(!sess.data.session){S._ecAnalyzing=false;render();return}
-    var token=sess.data.session.access_token;
-    /* Build end-client context with client names */
-    var ecList=(S.endClients||[]).map(function(ec){
-      var cr=S.clientRecords.find(function(r){return r.id===ec.clientId});
-      return{name:ec.name,clientName:cr?cr.name:''}});
-    /* Build contacts context (email+endClient for domain hints) */
-    var ctxContacts=(S.contacts||[]).filter(function(c){return c.email&&c.endClient})
-      .map(function(c){return{email:c.email,endClient:c.endClient}});
-    /* Build clients context */
-    var ctxClients=(S.clientRecords||[]).map(function(c){return{name:c.name,email:c.email||'',status:c.status||'active'}});
-    var payload={
-      candidates:cands.slice(0,50).map(function(c){return{email:c.email,name:c.name,clientName:c.clientName,emailCount:c.emailCount,meetingCount:c.meetingCount}}),
-      endClients:ecList,contacts:ctxContacts,clients:ctxClients};
-    var resp=await fetch('/api/gmail/ec-suggest',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(payload)});
-    if(resp.ok){
-      var data=await resp.json();
-      (data.results||[]).forEach(function(r){
-        var match=S._ecCandidates.find(function(c){return c.email===r.email});
-        if(match){
-          match.aiSuggestion=r.suggested_end_client||'';
-          match.aiIsNew=!!r.is_new;
-          match.aiConfidence=r.confidence||'medium';
-          match.aiReason=r.reason||''}})}
-    else{var err=await resp.json().catch(function(){return{}});toast('AI analysis failed: '+(err.error||'Unknown error'),'warn')}
-  }catch(e){toast('EC scan failed: '+e.message,'warn')}
-  S._ecAnalyzing=false;render();buildNav()}
-
-async function approveEcReview(idx){
-  var c=S._ecCandidates[idx];if(!c)return;
-  var ecName=c.aiSuggestion;
-  if(!ecName){toast('No end-client suggestion to approve','warn');return}
-  var ecId=resolveEndClientId(ecName)||null;
-  if(!ecId){var ecRec=await ensureEndClientExists(ecName,'');if(ecRec)ecId=ecRec.id}
-  var uid=await getUserId();if(!uid)return;
-  var parts=(c.name||'').split(' ');
-  var row={user_id:uid,client_id:c.clientId||null,first_name:parts[0]||'',last_name:parts.slice(1).join(' ')||'',
-    email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',
-    end_client:ecName,end_client_id:ecId};
-  var res=await _sb.from('contacts').insert(row).select().single();
-  if(res.error){toast('Failed: '+res.error.message,'warn');return}
-  S.contacts.push({id:res.data.id,clientId:c.clientId,firstName:parts[0]||'',lastName:parts.slice(1).join(' ')||'',
-    email:c.email||'',role:'',phone:'',company:'',website:'',status:'active',endClient:ecName,endClientId:ecId});
-  S._ecCandidates.splice(idx,1);
-  var card=gel('cr-card-'+idx);
-  if(card){card.style.transition='opacity .2s,max-height .3s,margin .3s,padding .3s';
-    card.style.opacity='0';card.style.maxHeight='0';card.style.marginBottom='0';card.style.padding='0';card.style.overflow='hidden';
-    setTimeout(function(){card.remove();_crUpdateCount()},300)}
-  else{buildNav();render()}
-  toast('Contact linked to '+ecName,'ok');
-  setTimeout(function(){_buildDomainMap()},100)}
+  buildNav();render();
+  toast((S._ecCandidates||[]).length+' contacts to review','ok')}
 
 function dismissEcReview(idx){
   var c=S._ecCandidates[idx];if(!c)return;

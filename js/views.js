@@ -571,7 +571,7 @@ function buildClientMap(){
 function rClients(){
   var sub=S.subView||'active';
   if(sub==='end_clients')return rEndClients();
-  if(sub==='ec_review')return rEcReview();
+  if(sub==='ec_review'){if(!(S._ecCandidates||[]).length)discoverEcCandidates();return rEcReview()}
   return rClientsDirectory()}
 
 function rClientsDirectory(){
@@ -1300,25 +1300,13 @@ function rClTabDetails(c,td_){
 /* ═══════════ EC REVIEW ═══════════ */
 function rEcReview(){
   var cands=S._ecCandidates||[];
-  var analyzing=S._ecAnalyzing;
-  var h='<div class="pg-head"><h1>'+icon('sparkle',18)+' Contact Review'+(cands.length?' <span id="cr-count" style="font-weight:400;color:var(--t4);font-size:14px">('+cands.length+')</span>':'')+'</h1>';
-  h+='<button class="btn btn-p" onclick="TF.scanEcReview()" style="font-size:13px;padding:8px 16px;border-radius:10px"'+(analyzing?' disabled':'')+'>'+icon('sparkle',12)+' Scan</button></div>';
+  var h='<div class="pg-head"><h1>'+icon('users',18)+' Contact Review'+(cands.length?' <span id="cr-count" style="font-weight:400;color:var(--t4);font-size:14px">('+cands.length+')</span>':'')+'</h1>';
+  h+='<button class="btn" onclick="TF.refreshEcReview()" style="font-size:12px;padding:6px 14px;border-radius:8px">'+icon('refresh',11)+' Refresh</button></div>';
 
-  /* Loading state */
-  if(analyzing){
+  if(!cands.length){
     h+='<div style="padding:60px 0;text-align:center">';
-    h+='<div class="spinner" style="margin:0 auto 16px"></div>';
-    h+='<div style="color:var(--t3);font-size:14px">Analyzing contacts with AI...</div>';
-    h+='<div style="color:var(--t4);font-size:12px;margin-top:4px">This may take a moment</div>';
-    h+='</div>';
-    return h}
-
-  /* Empty state — never scanned */
-  if(!cands.length&&!analyzing){
-    h+='<div style="padding:60px 0;text-align:center">';
-    h+='<div style="font-size:28px;margin-bottom:12px;opacity:.5">'+icon('sparkle',28)+'</div>';
-    h+='<div style="color:var(--t3);font-size:14px;margin-bottom:6px">Review unlinked contacts</div>';
-    h+='<div style="color:var(--t4);font-size:12px;max-width:420px;margin:0 auto">Click <strong>Scan</strong> to find external email addresses from your emails and meetings that haven\'t been reviewed yet. AI will suggest end-client matches.</div>';
+    h+='<div style="color:var(--t3);font-size:14px;margin-bottom:6px">No contacts to review</div>';
+    h+='<div style="color:var(--t4);font-size:12px;max-width:420px;margin:0 auto">All email and meeting participants are already in your contacts.</div>';
     h+='</div>';
     return h}
 
@@ -1335,14 +1323,13 @@ function rEcReview(){
     h+='<div style="font-size:13px;font-weight:700;color:var(--t2);margin-bottom:10px;display:flex;align-items:center;gap:8px">'+icon('clients',13)+' '+esc(clientName)+' <span style="font-weight:400;color:var(--t4)">('+groups[clientName].length+')</span></div>';
     groups[clientName].forEach(function(c){
       var displayName=(c.name||'').trim();
-      var _hasAi=!!c.aiSuggestion;
-      var _defEC=_hasAi;
+      var _hasSug=!!c.suggestedEC;
+      var _defEC=_hasSug;
       var _i=c._idx;
       var stats=[];
       if(c.emailCount)stats.push(c.emailCount+'e');
       if(c.meetingCount)stats.push(c.meetingCount+'m');
       h+='<div id="cr-card-'+_i+'" style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px;margin-bottom:4px;backdrop-filter:blur(12px)">';
-      /* Row 1: Name/email + stats + radio + dropdowns + buttons — all one row */
       h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
       /* Identity */
       h+='<div style="min-width:0;flex-shrink:1">';
@@ -1352,12 +1339,8 @@ function rEcReview(){
       else{h+='<span style="font-size:12px;font-weight:600;color:var(--t1)">'+esc(c.email)+'</span>'}
       if(stats.length)h+=' <span style="font-size:10px;color:var(--t4)">('+stats.join('/')+')</span>';
       h+='</div>';
-      /* AI suggestion inline */
-      if(_hasAi){
-        var confColor=c.aiConfidence==='high'?'var(--green)':c.aiConfidence==='medium'?'var(--amber)':'var(--t4)';
-        h+='<span style="font-size:10px;color:var(--accent);white-space:nowrap">'+icon('sparkle',9)+' '+esc(c.aiSuggestion)+'</span>';
-        h+='<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:'+confColor+';color:#fff">'+esc(c.aiConfidence)+'</span>'}
-      /* Spacer */
+      /* Suggestion badge */
+      if(_hasSug){h+='<span style="font-size:10px;color:var(--accent);white-space:nowrap">→ '+esc(c.suggestedEC)+'</span>'}
       h+='<span style="flex:1"></span>';
       /* Radio toggle */
       h+='<label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:10px;color:var(--t3)">';
@@ -1366,7 +1349,7 @@ function rEcReview(){
       h+='<input type="radio" name="cr-mode-'+_i+'" value="ec"'+(_defEC?' checked':'')+' onchange="TF._crModeChange('+_i+',\'ec\')"> EC</label>';
       /* EC dropdown (inline, shown if EC mode) */
       h+='<select class="edf" id="cr-ec-'+_i+'" style="font-size:10px;padding:3px 5px;max-width:140px;'+(_defEC?'':'display:none;')+'" onchange="TF.ecAddNew(\'cr-ec-'+_i+'\')">';
-      h+=buildEndClientOptions(c.aiSuggestion||'',c.clientName||'');
+      h+=buildEndClientOptions(c.suggestedECId||c.suggestedEC||'',c.clientName||'');
       h+='</select>';
       /* Hidden client select (only needed if user changes client) */
       h+='<select class="edf" id="cr-client-'+_i+'" onchange="TF._crClientChange('+_i+')" style="font-size:10px;padding:3px 5px;max-width:120px;display:none">';
