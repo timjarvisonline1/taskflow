@@ -788,7 +788,7 @@ async function loadClientRecords(){
   var res=await _sb.from('clients').select('*').order('name');
   if(res.error){console.error('loadClientRecords:',res.error);return}
   S.clientRecords=(res.data||[]).map(function(r){
-    return{id:r.id,name:r.name||'',status:r.status||'active',email:r.email||'',company:r.company||'',website:r.website||'',notes:r.notes||''}});
+    return{id:r.id,name:r.name||'',status:r.status||'active',email:r.email||'',company:r.company||'',notes:r.notes||''}});
   /* Also update S.clients string array for backward compat — active clients only */
   var cls=S.clientRecords.filter(function(r){return r.status==='active'}).map(function(r){return r.name});
   cls.sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
@@ -892,13 +892,13 @@ function discoverEcCandidates(){
     if(!domainClient[d])domainClient[d]={};
     if(!domainClient[d][c.clientId])domainClient[d][c.clientId]=0;
     domainClient[d][c.clientId]++});
-  /* Also build domain→client from client website fields */
-  (S.clientRecords||[]).forEach(function(cr){
-    if(!cr.website)return;
-    var d=cr.website.toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0].trim();
+  /* Also build domain→client from contact website fields */
+  (S.contacts||[]).forEach(function(ct){
+    if(!ct.website||!ct.clientId)return;
+    var d=ct.website.toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0].trim();
     if(!d||_FREE_DOMAINS[d])return;
     if(!domainClient[d])domainClient[d]={};
-    domainClient[d][cr.id]=(domainClient[d][cr.id]||0)+100});
+    domainClient[d][ct.clientId]=(domainClient[d][ct.clientId]||0)+10});
 
   /* ── Build candidates keyed by email ── */
   var cmap={};
@@ -3904,7 +3904,7 @@ function setFinDirection(v){S.finDirection=v;render()}
 
 async function dbEditClient(id,data){
   var row={name:data.name,status:data.status||'active',email:data.email||'',
-    company:data.company||'',website:data.website||'',notes:data.notes||''};
+    company:data.company||'',notes:data.notes||''};
   var res=await _sb.from('clients').update(row).eq('id',id);
   if(res.error){toast('Client update failed: '+res.error.message,'warn');return false}
   return true}
