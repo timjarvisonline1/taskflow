@@ -154,7 +154,8 @@ taskflow/
 │   ├── add-email-rules.sql         # email_rules table (rule engine)
 │   ├── add-email-ai-analysis.sql   # AI analysis columns on gmail_threads
 │   ├── add-end-clients.sql         # end_clients table (managed end-client entities)
-│   └── add-knowledge-base.sql     # knowledge_chunks + knowledge_sources tables, pgvector, match_knowledge() fn
+│   ├── add-knowledge-base.sql     # knowledge_chunks + knowledge_sources tables, pgvector, match_knowledge() fn
+│   └── add-prospects.sql          # prospect_companies + prospects tables
 │
 └── scripts/
     ├── run-migration.py        # Helper to run SQL migrations
@@ -183,7 +184,7 @@ The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered 
 | 4 | `opportunities` | Sales | 4 | Analytics, Retain Live, F&C Partnerships, F&C Direct, Profitability |
 | 5 | `campaigns` | Campaigns | 5 | Pipeline, List, Performance |
 | 6 | `projects` | Projects | 6 | Board, List, Timeline |
-| 7 | `clients` | Clients | 7 | Active, Lapsed, End Clients, EC Review |
+| 7 | `clients` | Clients | 7 | Active, Lapsed, End Clients, Prospects, People, Contact Review |
 | 8 | `finance` | Finance | 8 | Overview, Transactions, Invoices, Upcoming, Recurring, Forecast, Team |
 | 9 | `email` | Email | 9 | Action Required (with badge), Inbox, Sent, All Mail, Drafts (with badge), Scheduled (with badge), then Smart Inboxes: Clients (Active), Clients (Lapsed), Prospects, By Campaign, By Opportunity, Other |
 
@@ -229,9 +230,10 @@ S = {
   meetings: [],           // Read.ai meeting records
 
   // Entity dashboard tab state
-  clientTab: 'overview',       // Active tab in client detail modal
-  endClientTab: 'overview',    // Active tab in end-client detail modal
-  opportunityTab: 'overview',  // Active tab in opportunity detail modal
+  clientTab: 'overview',           // Active tab in client detail modal
+  endClientTab: 'overview',        // Active tab in end-client detail modal
+  opportunityTab: 'overview',      // Active tab in opportunity detail modal
+  prospectCompanyTab: 'overview',  // Active tab in prospect company detail modal
   // (campaignTab already existed — 'overview' default)
 
   // EC Review state
@@ -240,9 +242,19 @@ S = {
   _ecAnalyzing: false,         // EC Review analysis in progress
 
   // Entity tracking (for tab re-renders)
-  _lastEndClientDash: '',      // Currently open end-client name
+  _lastEndClientDash: '',      // Currently open end-client UUID
+  _lastEndClientName: '',      // Currently open end-client name (for chart name-based filtering)
   _lastCampaignId: '',         // Currently open campaign ID
   _lastOpportunityId: '',      // Currently open opportunity ID
+  _lastProspectCompanyId: '',  // Currently open prospect company ID
+
+  // People view state
+  peopleFilter: 'all',         // People view filter: 'all' | 'client' | 'endclient' | 'prospect'
+  peopleSort: 'name',          // People view sort field
+
+  // Prospect data
+  prospectCompanies: [],       // Prospect company objects
+  prospects: [],               // Individual prospect people
 
   // Email state
   gmailThreads: [],       // Cached gmail thread metadata (from Supabase, limit 500)
@@ -367,16 +379,18 @@ Projects sub-views:
   rProjectTimeline()       — Gantt timeline
 
 Clients sub-views:
-  rClientsBody()           — Active/Lapsed directory with 6 columns
-  rEndClientsBody()        — End-Clients directory with CRUD
-  rEcReviewBody()          — EC Review: AI-powered end-client candidate discovery
+  rClientsDirectory()      — Active/Lapsed directory with 6 columns
+  rEndClients()            — End-Clients directory with CRUD
+  rProspectsView()         — Prospect companies table (click opens tabbed dashboard)
+  rPeople()                — Unified people view (contacts + prospects), filterable by type
+  rEcReview()              — Contact Review: AI-powered candidate discovery with typeahead
 
 Entity Detail Modals (full-screen tabbed dashboards, opened via detail-modal):
   rClientDashboard(c)      — Client: Overview | Tasks | Emails | Contacts | Meetings | Details
     rClTabOverview(c)      — KPIs, 4 charts, AI box, campaign/opportunity cards
     rClTabTasks(c)         — Open tasks (with scoring), completed, add task
     rClTabEmails(c)        — Contact email selector + email threads
-    rClTabContacts(c)      — Contact cards with batch email
+    rClTabContacts(c)      — Contact cards with batch email (excludes end-client contacts)
     rClTabMeetings(c)      — Campaign, opportunity, and Read.ai meetings
     rClTabDetails(c)       — Notes timeline, payment history, summary stats
 
@@ -388,6 +402,12 @@ Entity Detail Modals (full-screen tabbed dashboards, opened via detail-modal):
     rEcTabMeetings(ec)     — Meetings from associated campaigns/opportunities
     rEcTabDetails(ec)      — Editable fields, campaigns list, opportunities list
 
+  rProspectCompanyDashboard(pc) — Prospect Company: Overview | Contacts | Opportunities | Details
+    rPcTabOverview(pc)     — KPIs (contacts, open opps, pipeline, won), 2 charts, AI box, opp cards
+    rPcTabContacts(pc)     — Prospect people cards with email selector, add prospect button
+    rPcTabOpportunities(pc)— Open + closed opportunities with stage/type badges
+    rPcTabDetails(pc)      — Editable form fields with save/delete
+
   rCampaignDashboard(cp,st)— Campaign: Overview | Tasks | Billing | Emails | Contacts | Meetings | Details
     rCpTabOverview(cp,st)  — KPIs, 3 charts, AI box
     rCpTabTasks(cp,st)     — Task management (existing)
@@ -397,10 +417,11 @@ Entity Detail Modals (full-screen tabbed dashboards, opened via detail-modal):
     rCpTabMeetings(cp,st)  — Campaign meetings with add/delete
     rCpTabDetails(cp,st)   — Campaign info fields, links, notes
 
-  rOpportunityDashboard(op,st) — Opportunity: Overview | Tasks | Emails | Meetings | Details
+  rOpportunityDashboard(op,st) — Opportunity: Overview | Tasks | Emails | Contacts | Meetings | Details
     rOpTabOverview(op,st)  — KPIs, 2 charts, AI box, stage indicator
     rOpTabTasks(op,st)     — Open/completed tasks
-    rOpTabEmails(op,st)    — Contact email selector + threads
+    rOpTabEmails(op,st)    — Contact email selector + group-select checkboxes + threads
+    rOpTabContacts(op)     — Grouped contacts: Primary, Client, End-Client with avatar cards
     rOpTabMeetings(op,st)  — Opportunity meetings with add/delete
     rOpTabDetails(op,st)   — All editable fields, save/convert/delete buttons
 
@@ -426,8 +447,9 @@ Mobile views:
 - **`buildSubNav(subs)`** — Renders sub-navigation panel. Shows badge counts for review, inbox, drafts, scheduled emails, and smart inboxes.
 - **`filterBar()`** — Renders compact filter controls (client, category, importance, type, search, date range). Uses 11px font, 6px border-radius pills.
 - **`rEntityTabs(tabs, activeTab, setterFn)`** — Shared tab bar component for entity detail modals. Renders `.cp-tabs` with icons and optional badge counts.
-- **`rContactEmailSelector(contacts, entityType, entityName)`** — Reusable checkbox-based contact email compose component. Shows contact list with checkboxes, "Select All" toggle, subject line input, and "Compose Email" button. Used in entity Emails and Contacts tabs.
-- **`initEntityCharts(entityType)`** — Initializes Chart.js charts on entity Overview tabs. Checks for canvas elements by ID prefix, calls `killChart()` then appropriate `mk*` helpers with real data. Called via `setTimeout(fn, 50)` after tab render.
+- **`rContactEmailSelector(contacts, entityType, entityName)`** — Reusable checkbox-based contact email compose component. Shows contact list with checkboxes, "Select All" toggle, subject line input, and "Compose Email" button. Supports `data-group` attribute on checkboxes for group toggling via `cesToggleGroup()`. Used in entity Emails and Contacts tabs.
+- **`gatherOpContacts(op)`** — Helper that gathers and groups contacts for an opportunity. Returns `{primary:[], client:[], endClient:[], all:[]}`. Client contacts exclude those with `endClientId` (end-client contacts). Used by both `rOpTabContacts` and `rOpTabEmails`.
+- **`initEntityCharts(entityType)`** — Initializes Chart.js charts on entity Overview tabs. Checks for canvas elements by ID prefix, calls `killChart()` then appropriate `mk*` helpers with real data. Supports 5 entity types: client, endClient, campaign, opportunity, prospectCompany. Called via `setTimeout(fn, 50)` after tab render.
 
 ### Function Registry
 
@@ -435,9 +457,15 @@ All functions callable from HTML `onclick` handlers are registered on `window.TF
 
 ```javascript
 window.TF = { nav, load, start, pause, openDetail, addTimeToTask, openClientDashboard, closeClientDashboard,
-  setClientTab, setEndClientTab, setCampaignTab, setOpportunityTab,    // entity tab navigation
-  cesToggleAll, cesCompose,                                             // contact email selector
-  openClientDetailModal, openEndClientDetailModal, openCampaignDetail, openOpportunityDetail, ... }
+  setClientTab, setEndClientTab, setCampaignTab, setOpportunityTab,        // entity tab navigation
+  setProspectCompanyTab,                                                    // prospect company tab nav
+  cesToggleAll, cesCompose, cesToggleGroup,                                 // contact email selector
+  openClientDetailModal, openEndClientDetailModal, openCampaignDetail,
+  openOpportunityDetail, openProspectCompanyDetailModal,                    // entity detail openers
+  closeProspectCompanyDashboard, saveEditProspectCompanyFromDash,           // prospect company dashboard
+  setPeopleFilter, setPeopleSort,                                           // People view
+  _crClientAc, _crClientKey, _crClientSelect, _crPcAc, _crPcKey,          // Contact Review typeahead
+  _crPcSelect, _crPcCreate, _crSubmit, _crModeChange, ... }
 ```
 
 HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', this.value)"`, etc.
@@ -881,6 +909,10 @@ Python CLI scripts for initial population of the knowledge base:
 ### End-Client Table
 - `end_clients` — managed end-client entities (UUID PK, user_id, name, client_id FK → clients.id, notes, status: active/inactive, created_at, updated_at). RLS enabled.
 
+### Prospect Tables
+- `prospect_companies` — prospect companies (UUID PK, user_id, name, website, description, source, notes, status: active/inactive/converted, created_at). RLS enabled.
+- `prospects` — individual prospect people (UUID PK, user_id, prospect_company_id FK → prospect_companies.id, first_name, last_name, email, phone, role, linkedin_url, source, notes, status: active/inactive/converted, last_contacted_at, created_at). RLS enabled.
+
 ### Finance Tables
 - `finance_payments` — all financial transactions from all sources
 - `finance_payment_splits` — split payment allocations
@@ -918,6 +950,8 @@ Each entity has standard CRUD helpers:
 - **Clients**: `dbAddClient()`, `dbEditClient()`, `dbAssociatePayerToClient()`
 - **Contacts**: `dbAddContact()`, `dbEditContact()`, `dbDeleteContact()`
 - **End Clients**: `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `loadEndClients()`
+- **Prospect Companies**: `dbAddProspectCompany()`, `dbEditProspectCompany()`, `dbDeleteProspectCompany()`, `loadProspectCompanies()`, `ensureProspectCompanyExists()`, `syncRlProspectCompanies()`
+- **Prospects**: `dbAddProspect()`, `dbEditProspect()`, `dbDeleteProspect()`, `loadProspects()`
 - **Reconciliation**: `linkExpenseToScheduled()`, `unlinkExpenseFromScheduled()`, `saveExpenseAsOneOff()`
 - **Email Drafts** (localStorage): `_loadDrafts()`, `_saveDraft(id)`, `_deleteDraft(id)`, `openDraft(id)`, `deleteDraft(id)`, `getDraftCount()`
 - **Scheduled Emails**: `loadScheduledEmails()`, `scheduleEmail(scheduledAt)`, `cancelScheduledEmail(id)`, `_checkScheduledEmails()`
@@ -1036,13 +1070,16 @@ Each entity has standard CRUD helpers:
 - `embed-emails.py` auto-resumes via `knowledge_sources` table — tracks last processed source_id, skips already-complete entries
 - `storeChunks()` does clean re-ingest: deletes extra chunks if source now has fewer chunks than before
 - Entity tab setters must re-render `detail-body` innerHTML directly — calling `render()` would close the modal
+- End-client detail stores UUID in `S._lastEndClientDash` and name in `S._lastEndClientName` — charts filter by name, tab lookup uses UUID
+- Client detail contacts filter excludes contacts with `endClientId` — end-client contacts only appear under their end-client, not the parent client
+- Prospect company row click opens `openProspectCompanyDetailModal()` (tabbed dashboard), not `openEditProspectCompanyModal()` (modal form)
 - `initEntityCharts()` requires `setTimeout(fn, 50)` after rendering to ensure canvas elements exist in DOM
 - Campaign `openCampaignDetail()` always uses modal (desktop in-page branch removed) — old function renamed `_openCampaignDetail_LEGACY`
 - Opportunity Details tab preserves same DOM element IDs (`op-name`, `op-stage`, `op-client`, etc.) for `saveOpportunity()` compatibility
 - `closeCampaignDashboard()` now calls `closeModal()` since campaign always renders in modal
 - `rCampaigns()` no longer checks `S.campaignDetailId` for in-page rendering
 
-## Current Status (as of 2026-03-07)
+## Current Status (as of 2026-03-08)
 
 ### Integrations
 - **Brex**: Connected, syncing ~308 transactions
@@ -1065,8 +1102,8 @@ Each entity has standard CRUD helpers:
 - Meeting auto-tracking from Google Calendar
 - Dashboard with comprehensive overview
 - Schedule section with 7 sub-views
-- Clients section with Active, Lapsed, End Clients, and EC Review sub-views
-- **Full-screen tabbed entity dashboards** for all 4 entities (Client, End-Client, Campaign, Opportunity)
+- Clients section with Active, Lapsed, End Clients, Prospects, People, and Contact Review sub-views
+- **Full-screen tabbed entity dashboards** for all 5 entities (Client, End-Client, Prospect Company, Campaign, Opportunity)
 - **Contact email selector** — checkbox-based batch email compose from any entity
 - **Entity-specific charts** — Chart.js analytics on every entity Overview tab
 - **End-Client management** — CRUD for end-client entities with Supabase table
@@ -1108,7 +1145,7 @@ Each entity has standard CRUD helpers:
 
 ### Entity Dashboard Architecture
 
-All four entity types (Client, End-Client, Campaign, Opportunity) use a consistent full-screen tabbed modal pattern:
+All five entity types (Client, End-Client, Prospect Company, Campaign, Opportunity) use a consistent full-screen tabbed modal pattern:
 
 **Opening flow:**
 1. Opener function (e.g. `openClientDetailModal(name)`) sets entity tracking state and resets tab to `'overview'`
@@ -1141,31 +1178,60 @@ All four entity types (Client, End-Client, Campaign, Opportunity) use a consiste
 | Campaign | `ch-cp-fees` | mkDonutUSD | Fee breakdown (strategy/setup/monthly/ad) |
 | Opportunity | `ch-op-value` | mkDonutUSD | Value breakdown (strategy/setup/monthly) |
 | Opportunity | `ch-op-prob` | mkDonut | Probability gauge (2-segment) |
+| Prospect Co | `ch-pc-pipeline` | mkDonutUSD | Pipeline value by opportunity stage |
+| Prospect Co | `ch-pc-types` | mkDonut | Opportunities by type |
 
 **Contact Email Selector flow:**
-1. Component renders with contact checkboxes (avatar, name, email, role)
+1. Component renders with contact checkboxes (avatar, name, email, role). Contacts with `_group` property get `data-group` attribute on their checkbox.
 2. "Select All" calls `cesToggleAll(selectorId, checked)`
-3. "Compose Email" calls `cesCompose(selectorId, entityType, entityName)`
-4. `cesCompose` collects checked emails, opens `openComposeEmail()` with pre-filled To, Subject, and CRM categorization
+3. Group toggles (e.g., "Include All Client Contacts") call `cesToggleGroup(selectorId, group, checked)` to check/uncheck all contacts in a group
+4. "Compose Email" calls `cesCompose(selectorId, entityType, entityName)`
+5. `cesCompose` collects checked emails, opens `openComposeEmail()` with pre-filled To, Subject, and CRM categorization
 
 ### End-Client Management
 
 **Supabase table:** `end_clients` (UUID PK, user_id, name, client_id FK, notes, status, created_at, updated_at)
 
 **Views:**
-- `rEndClientsBody()` — directory with search, sortable columns, inline add/edit
-- `rEcReviewBody()` — AI-powered candidate discovery
+- `rEndClients()` — directory with search, sortable columns, inline add/edit
+- `rEcReview()` — Contact Review: AI candidate discovery with typeahead client/prospect selection
 
-**EC Review flow:**
+**Contact Review (formerly EC Review):**
 1. `discoverEcCandidates()` scans `S.contacts`, `S.gmailThreads`, `S.meetings` for addresses with ≥2 emails
-2. Builds candidate list with email, name, client, email count, meeting count
-3. Sends candidates + context to `POST /api/gmail/ec-suggest`
-4. Claude AI groups candidates into end-client suggestions with confidence scores
-5. Each suggestion can be accepted (creates end-client + updates contacts) or dismissed
+2. Domain matching: contact website fields build `domainClient` map (weight 10) for auto-association
+3. Cards show candidate info with mode selector (End-Client / Client / Prospect)
+4. **Typeahead client selection**: text input + hidden UUID input + autocomplete dropdown, replaces old `<select>`. Shows all clients (active + lapsed). Functions: `_crClientAc()`, `_crClientKey()`, `_crClientSelect()`
+5. **Typeahead prospect company selection**: same pattern with `_crPcAc()`, `_crPcKey()`, `_crPcSelect()`, `_crPcCreate()` (creates new company inline)
+6. **Card highlight**: `:focus-within` CSS animation highlights the active card
+7. **Enter-to-submit**: when single match in typeahead, Enter key triggers submission
+8. **Batch domain add**: after submitting one contact, `_crBatchDomain()` auto-adds all remaining same-domain candidates with the same settings. Excludes free email domains (`_FREE_DOMAINS`: gmail, yahoo, hotmail, outlook, icloud, aol, live, me, msn, protonmail, mail, zoho)
+9. **RL opportunity sync**: `syncRlProspectCompanies()` runs after `loadData()` to auto-populate prospect_companies from Retain Live opportunity company names
 
-**Key functions:** `loadEndClients()`, `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `discoverEcCandidates()`, `applyEcSuggestion()`, `dismissEcSuggestion()`
+**Key functions:** `loadEndClients()`, `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `discoverEcCandidates()`, `_crSubmit()`, `_crBatchDomain()`, `_crClientAc()`, `_crClientSelect()`, `_crPcAc()`, `_crPcSelect()`, `_crPcCreate()`, `syncRlProspectCompanies()`
 
 ### Recent Changes
+
+**Client Views Overhaul (2026-03-08):**
+- Fixed End-Client detail tabs not working (UUID/name key mismatch in `setEndClientTab` lookup)
+- Fixed client detail view showing end-client contacts as direct client contacts (added `!endClientId` filter)
+- Added full tabbed Prospect Company dashboard (Overview, Contacts, Opportunities, Details tabs) with charts
+- Added Contacts tab to Opportunity dashboard with grouped sections (Primary, Client, End-Client)
+- Added group-select checkboxes to Opportunity Emails tab ("Include All Client Contacts", "Include All End-Client Contacts")
+- `rContactEmailSelector` now supports `data-group` attribute for group toggling via `cesToggleGroup()`
+- Merged Prospect Companies + Prospects into single "Prospects" sub-view (shows companies, click opens dashboard)
+- Added new "People" sub-view — unified table of all contacts + prospects with type filter (Client/End-Client/Prospect), sortable columns, color-coded type badges
+- Updated nav: Clients → Active | Lapsed | End Clients | Prospects | People | Contact Review
+
+**Contact Review Enhancements (2026-03-08):**
+- Replaced `<select>` dropdown with typeahead text input for client selection (shows all clients including lapsed)
+- Added typeahead for prospect company selection with inline "Create" option
+- Card highlight animation on `:focus-within` with accent border
+- Enter key submits when single match in typeahead
+- Batch domain add (`_crBatchDomain`) — after adding one contact, auto-adds all same-domain candidates
+- Domain matching from contact website fields (weight 10 in `discoverEcCandidates`)
+- Free email domain exclusion (`_FREE_DOMAINS`) for batch add and domain matching
+- `syncRlProspectCompanies()` auto-populates prospect_companies from Retain Live opportunity company names
+- Prospect database tables: `prospect_companies` and `prospects` with full CRUD
 
 **Knowledge Base System (2026-03-07):**
 - pgvector-powered RAG system with OpenAI text-embedding-3-small (1536 dims)
@@ -1178,12 +1244,12 @@ All four entity types (Client, End-Client, Campaign, Opportunity) use a consiste
 - `match_knowledge()` SQL function for cosine similarity search
 
 **Full-Screen Tabbed Dashboard Overhaul (2026-03-07):**
-- All 4 entity types (Client, End-Client, Campaign, Opportunity) now open as full-screen tabbed modals
+- All 5 entity types (Client, End-Client, Prospect Company, Campaign, Opportunity) now open as full-screen tabbed modals
 - Each has an Overview tab with KPIs, charts, and AI assistant
 - Contact email selector enables batch emailing from any entity
 - Campaign unified to always use modal (removed desktop in-page branch)
 - Opportunity converted from split-pane layout to tabbed modal
-- Entity-specific Chart.js charts (11 charts across 4 entities)
+- Entity-specific Chart.js charts (13 charts across 5 entities)
 - Tab CSS reuses existing `.cp-tabs` / `.cp-tab` / `.cp-tab.on` infrastructure
 
 **End-Client & EC Review Feature (2026-03-06):**
@@ -1191,7 +1257,7 @@ All four entity types (Client, End-Client, Campaign, Opportunity) use a consiste
 - End-Client directory view in Clients section
 - EC Review: AI-powered end-client discovery from email/meeting patterns
 - `POST /api/gmail/ec-suggest` endpoint using Claude Sonnet
-- Clients navigation expanded: Active | Lapsed | End Clients | EC Review
+- Clients navigation expanded (later updated to: Active | Lapsed | End Clients | Prospects | People | Contact Review)
 
 **Email Enhancements (2026-03-05):**
 - CRM filter bar on Inbox/Sent/All Mail with include/exclude toggles
