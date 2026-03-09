@@ -1613,6 +1613,7 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 
 /* Kajabi report panel */
 .mtg-report-panel{padding:16px;margin:16px 0;background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r)}
+.mtg-report-editor{width:100%;min-height:200px;max-height:400px;padding:12px;font-family:'SF Mono',SFMono-Regular,Menlo,Monaco,monospace;font-size:11px;line-height:1.5;color:var(--t1);background:var(--bg1);border:1px solid var(--gborder);border-radius:6px;resize:vertical;tab-size:2;white-space:pre;overflow:auto}
 .mtg-report-preview{margin-top:12px;padding:20px;background:#fff;border:1px solid #e0e0e0;border-radius:8px;max-height:600px;overflow-y:auto;color:#333}
 .mtg-report-preview.hidden{display:none}
 

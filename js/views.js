@@ -7783,9 +7783,11 @@ function rMeetingDetail(){
     h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
     h+='<span style="font-size:13px;font-weight:600;color:var(--t1)">'+icon('file',13)+' Kajabi Report</span>';
     h+='<div style="flex:1"></div>';
+    h+='<button class="btn btn-p" onclick="TF.saveKajabiReport(\''+esc(m.id)+'\')" style="font-size:11px;padding:4px 10px">'+icon('check',10)+' Save</button>';
     h+='<button class="btn" onclick="TF.copyKajabiReport(\''+esc(m.id)+'\')" style="font-size:11px;padding:4px 10px">'+icon('copy',10)+' Copy HTML</button>';
     h+='<button class="btn" id="kajabi-preview-toggle" onclick="TF.toggleKajabiPreview()" style="font-size:11px;padding:4px 10px">Show Preview</button>';
     h+='</div>';
+    h+='<textarea id="kajabi-report-editor" class="mtg-report-editor" spellcheck="false">'+esc(m.kajabiReportHtml)+'</textarea>';
     h+='<div id="kajabi-preview" class="mtg-report-preview hidden">'+m.kajabiReportHtml+'</div>';
     h+='</div>'}
 
@@ -7824,27 +7826,6 @@ function rMeetingDetail(){
       h+='</div>'}
     else{
       h+='<div style="padding:8px 16px;margin:12px 0;font-size:12px;color:var(--t4);display:flex;align-items:center;gap:6px">'+icon('check',12)+' AI tasks generated and reviewed</div>'}}
-
-  /* Participants */
-  h+='<div class="meeting-section">';
-  h+='<div class="meeting-section-header">'+icon('users',13)+' Participants</div>';
-  h+='<div class="meeting-participants-grid">';
-  var knownEmails={};
-  (S.contacts||[]).forEach(function(c){if(c.email)knownEmails[c.email.toLowerCase()]=true});
-  (m.participants||[]).forEach(function(p,pIdx){
-    var avatarBg=emailAvatarColor(p.email||p.name||'');
-    var initial=(p.name||p.email||'?').charAt(0).toUpperCase();
-    var isOwner=p.email&&m.ownerEmail&&p.email.toLowerCase()===m.ownerEmail.toLowerCase();
-    var isKnown=p.email&&knownEmails[p.email.toLowerCase()];
-    h+='<div class="meeting-participant">';
-    h+='<div class="meeting-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
-    h+='<div style="flex:1"><div style="font-size:13px;color:var(--t1)">'+esc(p.name||'Unknown')+'</div>';
-    if(p.email)h+='<div style="font-size:11px;color:var(--t4)">'+esc(p.email)+'</div>';
-    h+='</div>';
-    if(p.email&&!isKnown&&!isOwner){
-      h+='<button class="btn" onclick="TF.addMeetingParticipantAsContact(\''+esc(m.id)+'\','+pIdx+')" style="font-size:10px;padding:3px 8px;white-space:nowrap" title="Add as contact">'+icon('plus',10)+' Add</button>'}
-    h+='</div>'});
-  h+='</div></div>';
 
   /* Summary */
   if(m.summary){
@@ -7923,6 +7904,27 @@ function rMeetingDetail(){
   if(m.source)h+='<div style="font-size:11px;color:var(--t4);margin-bottom:8px">Source: '+esc(m.source)+'</div>';
   if(m.sessionId)h+='<div style="font-size:10px;color:var(--t5);word-break:break-all">ID: '+esc(m.sessionId)+'</div>';
   h+='</div>';
+
+  /* Participants in sidebar */
+  if((m.participants||[]).length){
+    var knownEmails={};
+    (S.contacts||[]).forEach(function(c){if(c.email)knownEmails[c.email.toLowerCase()]=true});
+    h+='<div class="crm-sb-section">';
+    h+='<div class="crm-sb-heading">'+icon('users',11)+' Participants ('+m.participants.length+')</div>';
+    (m.participants||[]).forEach(function(p,pIdx){
+      var avatarBg=emailAvatarColor(p.email||p.name||'');
+      var initial=(p.name||p.email||'?').charAt(0).toUpperCase();
+      var isOwner=p.email&&m.ownerEmail&&p.email.toLowerCase()===m.ownerEmail.toLowerCase();
+      var isKnown=p.email&&knownEmails[p.email.toLowerCase()];
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 0">';
+      h+='<div class="meeting-avatar" style="background:'+avatarBg+';width:24px;height:24px;min-width:24px;font-size:10px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff">'+initial+'</div>';
+      h+='<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(p.name||'Unknown')+'</div>';
+      if(p.email)h+='<div style="font-size:10px;color:var(--t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(p.email)+'</div>';
+      h+='</div>';
+      if(p.email&&!isKnown&&!isOwner){
+        h+='<button class="btn" onclick="TF.addMeetingParticipantAsContact(\''+esc(m.id)+'\','+pIdx+')" style="font-size:9px;padding:2px 6px;white-space:nowrap" title="Add as contact">'+icon('plus',9)+'</button>'}
+      h+='</div>'});
+    h+='</div>'}
 
   /* Client info in sidebar */
   if(m.clientId){

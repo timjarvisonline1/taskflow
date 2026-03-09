@@ -1421,7 +1421,7 @@ async function generateKajabiReport(meetingId){
     }catch(e){console.error('generateKajabiReport load:',e)}}
   if(!m.transcript){toast('No transcript available for this meeting','warn');return}
   /* Show loading state */
-  var btn=gel('kajabi-gen-btn');if(btn){btn.disabled=true;btn.innerHTML=icon('loader',13)+' Generating...'}
+  var btn=gel('kajabi-gen-btn');if(btn){btn.disabled=true;btn.innerHTML=icon('loader',13)+' Generating\u2026'}
   try{
     var sess=await _sb.auth.getSession();
     var token=sess.data.session.access_token;
@@ -1430,25 +1430,38 @@ async function generateKajabiReport(meetingId){
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body:JSON.stringify({meetingId:meetingId})});
     var result=await resp.json();
-    if(!resp.ok){toast(result.error||'Generation failed','warn');return}
+    if(!resp.ok){toast(result.error||'Generation failed','warn');render();return}
     m.kajabiReportHtml=result.html||'';
     if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
     render();toast('Report generated','ok');
   }catch(e){
-    console.error('generateKajabiReport:',e);toast('Generation failed','warn');
-  }finally{
-    var btn2=gel('kajabi-gen-btn');if(btn2){btn2.disabled=false;btn2.innerHTML=icon('zap',13)+' Generate Report'}}}
+    console.error('generateKajabiReport:',e);toast('Generation failed: '+(e.message||'Unknown error'),'warn');render()}}
 
 function copyKajabiReport(meetingId){
-  var m=S.meetings.find(function(mt){return mt.id===meetingId});
-  if(!m||!m.kajabiReportHtml){toast('No report to copy','warn');return}
-  navigator.clipboard.writeText(m.kajabiReportHtml).then(function(){
+  /* Copy from editor if available (may have unsaved edits), else from state */
+  var ed=gel('kajabi-report-editor');
+  var html=ed?ed.value:'';
+  if(!html){var m=S.meetings.find(function(mt){return mt.id===meetingId});html=m&&m.kajabiReportHtml||''}
+  if(!html){toast('No report to copy','warn');return}
+  navigator.clipboard.writeText(html).then(function(){
     toast('HTML copied to clipboard','ok')
   }).catch(function(){
-    /* Fallback */
-    var ta=document.createElement('textarea');ta.value=m.kajabiReportHtml;
+    var ta=document.createElement('textarea');ta.value=html;
     document.body.appendChild(ta);ta.select();document.execCommand('copy');
     document.body.removeChild(ta);toast('HTML copied to clipboard','ok')})}
+
+async function saveKajabiReport(meetingId){
+  var el=gel('kajabi-report-editor');if(!el)return;
+  var html=el.value;
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m)return;
+  var ok=await dbEditMeeting(meetingId,{kajabiReportHtml:html});
+  if(!ok)return;
+  m.kajabiReportHtml=html;
+  if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
+  /* Update preview if visible */
+  var prev=gel('kajabi-preview');if(prev&&!prev.classList.contains('hidden'))prev.innerHTML=html;
+  toast('Report saved','ok')}
 
 function toggleKajabiPreview(){
   var el=gel('kajabi-preview');if(!el)return;

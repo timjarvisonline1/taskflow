@@ -130,7 +130,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   refreshMtgCrm:refreshMtgCrm,refreshMtgCampaigns:refreshMtgCampaigns,
   acceptMeetingSuggestion:acceptMeetingSuggestion,dismissMeetingSuggestion:dismissMeetingSuggestion,addMeetingParticipantAsContact:addMeetingParticipantAsContact,
   setMeetingFilter:setMeetingFilter,toggleGroupCall:toggleGroupCall,setGroupCallType:setGroupCallType,
-  generateKajabiReport:generateKajabiReport,copyKajabiReport:copyKajabiReport,toggleKajabiPreview:toggleKajabiPreview,
+  generateKajabiReport:generateKajabiReport,copyKajabiReport:copyKajabiReport,saveKajabiReport:saveKajabiReport,toggleKajabiPreview:toggleKajabiPreview,
   /* Contacts */
   dbAddContact:dbAddContact,dbEditContact:dbEditContact,dbDeleteContact:dbDeleteContact,
   openAddContactModal:openAddContactModal,openEditContactModal:openEditContactModal,
