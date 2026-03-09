@@ -3664,17 +3664,19 @@ function openIntegrationsModal(){
     }
 
     /* Credential fields */
+    var storedKeys=existing&&existing.stored_keys?existing.stored_keys:[];
     h+='<div class="intg-fields" id="intg-fields-'+plat.id+'">';
     plat.fields.forEach(function(f){
-      var val=existing&&existing.credentials&&existing.credentials[f.key]?existing.credentials[f.key]:'';
-      h+='<label class="intg-label">'+esc(f.label);
-      h+='<input type="'+f.type+'" class="intg-input" id="intg-'+plat.id+'-'+f.key+'" value="'+esc(val)+'" placeholder="'+esc(f.label)+'">';
+      var isStored=storedKeys.indexOf(f.key)!==-1;
+      var placeholder=isStored?'Saved ✓ — enter new value to update':esc(f.label);
+      h+='<label class="intg-label">'+esc(f.label)+(isStored?' <span style="color:var(--green);font-size:10px;font-weight:700">✓ Stored</span>':'');
+      h+='<input type="'+f.type+'" class="intg-input" id="intg-'+plat.id+'-'+f.key+'" value="" placeholder="'+placeholder+'" autocomplete="off">';
       h+='</label>';
     });
     plat.configFields.forEach(function(f){
       var val=existing&&existing.config&&existing.config[f.key]?existing.config[f.key]:'';
       h+='<label class="intg-label">'+esc(f.label);
-      h+='<input type="'+f.type+'" class="intg-input" id="intg-cfg-'+plat.id+'-'+f.key+'" value="'+esc(val)+'" placeholder="'+esc(f.label)+'">';
+      h+='<input type="'+f.type+'" class="intg-input" id="intg-cfg-'+plat.id+'-'+f.key+'" value="'+esc(val)+'" placeholder="'+esc(f.label)+'" autocomplete="off">';
       h+='</label>';
     });
     h+='</div>';

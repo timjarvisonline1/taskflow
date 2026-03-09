@@ -14,18 +14,20 @@ module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     const { data, error } = await client
       .from('integration_credentials')
-      .select('id,platform,config,last_sync_at,last_sync_status,last_sync_message,is_active,created_at,updated_at')
+      .select('id,platform,credentials,config,last_sync_at,last_sync_status,last_sync_message,is_active,created_at,updated_at')
       .eq('user_id', userId)
       .order('platform');
 
     if (error) return res.status(500).json({ error: error.message });
 
     // Mask credentials — never send full keys to the client
-    // But we return a 'has_credentials' flag so the UI knows if keys are set
-    const integrations = (data || []).map(row => ({
-      ...row,
-      has_credentials: true
-    }));
+    // Return which credential keys are set (without values) so the UI can show placeholders
+    const integrations = (data || []).map(row => {
+      const creds = row.credentials || {};
+      const stored_keys = Object.keys(creds).filter(k => !!creds[k]);
+      delete row.credentials; // never send actual values
+      return { ...row, has_credentials: stored_keys.length > 0, stored_keys };
+    });
 
     return res.status(200).json({ integrations });
   }
@@ -36,6 +38,29 @@ module.exports = async function handler(req, res) {
     if (!platform) return res.status(400).json({ error: 'platform is required' });
 
     let creds = credentials || {};
+    let mergedConfig = config || {};
+
+    // Merge with existing stored credentials so that empty form fields
+    // (which the GET endpoint intentionally omits for security) don't
+    // accidentally wipe previously saved keys.
+    const existing = await client
+      .from('integration_credentials')
+      .select('credentials,config')
+      .eq('user_id', userId)
+      .eq('platform', platform)
+      .maybeSingle();
+
+    if (existing && existing.data) {
+      const storedCreds = existing.data.credentials || {};
+      const storedConfig = existing.data.config || {};
+      // Stored values are used as fallback — incoming non-empty values win
+      Object.keys(storedCreds).forEach(k => {
+        if (!creds[k]) creds[k] = storedCreds[k];
+      });
+      Object.keys(storedConfig).forEach(k => {
+        if (!mergedConfig[k]) mergedConfig[k] = storedConfig[k];
+      });
+    }
 
     // For Zoho platforms: if auth code is present but no refresh_token, exchange it
     if ((platform === 'zoho_books' || platform === 'zoho_payments') && creds.client_id && creds.client_secret) {
@@ -56,7 +81,7 @@ module.exports = async function handler(req, res) {
       user_id: userId,
       platform: platform,
       credentials: creds,
-      config: config || {},
+      config: mergedConfig,
       is_active: true,
       updated_at: new Date().toISOString()
     };
