@@ -130,7 +130,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   emailFilters:{client:'',endClient:'',opportunity:'',campaign:''},emailFilterExclude:{client:false,endClient:false,opportunity:false,campaign:false},
   emailBulkMode:false,emailBulkSelected:{},
   contacts:[],scheduledEmails:[],emailRules:[],
-  meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,
+  meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,meetingFilter:'',
   endClients:[],ecSort:'name',
   prospectCompanies:[],prospects:[],pcSort:'name',pSort:'name',
   _ecCandidates:[],
@@ -1185,7 +1185,7 @@ async function loadMeetings(){
     /* Load only list-view fields (no transcript/summary — too large for 1000+ meetings).
        Full data is fetched on-demand when a meeting is opened.
        Paginate past Supabase 1000-row default limit. */
-    var cols='id,session_id,title,start_time,end_time,duration_minutes,participants,owner_name,owner_email,report_url,video_storage_path,video_size_bytes,client_id,end_client,end_client_id,campaign_id,opportunity_id,source,ai_tasks_generated,ai_suggestions,action_items,created_at';
+    var cols='id,session_id,title,start_time,end_time,duration_minutes,participants,owner_name,owner_email,report_url,video_storage_path,video_size_bytes,client_id,end_client,end_client_id,campaign_id,opportunity_id,source,ai_tasks_generated,ai_suggestions,action_items,is_group_call,group_call_type,created_at';
     var allRows=[],pageSize=1000,from=0;
     while(true){
       var res=await _sb.from('meetings').select(cols).order('start_time',{ascending:false}).range(from,from+pageSize-1);
@@ -1208,7 +1208,8 @@ async function loadMeetings(){
       videoStoragePath:r.video_storage_path||'',videoSizeBytes:r.video_size_bytes||0,
       clientId:r.client_id,endClient:r.end_client||'',endClientId:r.end_client_id||null,
       campaignId:r.campaign_id,opportunityId:r.opportunity_id,
-      source:r.source||'readai',aiTasksGenerated:!!r.ai_tasks_generated,aiSuggestions:r.ai_suggestions||[],createdAt:r.created_at}});
+      source:r.source||'readai',aiTasksGenerated:!!r.ai_tasks_generated,aiSuggestions:r.ai_suggestions||[],
+      isGroupCall:!!r.is_group_call,groupCallType:r.group_call_type||'',kajabiReportHtml:'',createdAt:r.created_at}});
     S.meetingsPage=1;
   }catch(e){console.error('loadMeetings:',e)}}
 
@@ -1221,6 +1222,9 @@ async function dbEditMeeting(id,data){
   if(data.opportunityId!==undefined)upd.opportunity_id=data.opportunityId||null;
   if(data.actionItems!==undefined)upd.action_items=data.actionItems;
   if(data.aiSuggestions!==undefined)upd.ai_suggestions=data.aiSuggestions;
+  if(data.isGroupCall!==undefined)upd.is_group_call=!!data.isGroupCall;
+  if(data.groupCallType!==undefined)upd.group_call_type=data.groupCallType||'';
+  if(data.kajabiReportHtml!==undefined)upd.kajabi_report_html=data.kajabiReportHtml||'';
   var res=await _sb.from('meetings').update(upd).eq('id',id);
   if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
   return true}
@@ -1236,13 +1240,14 @@ async function openMeeting(id){
   /* Fetch full data (transcript, summary, etc.) on demand */
   if(!m._fullLoaded){
     try{
-      var res=await _sb.from('meetings').select('summary,transcript,key_questions,topics,chapter_summaries').eq('id',id).single();
+      var res=await _sb.from('meetings').select('summary,transcript,key_questions,topics,chapter_summaries,kajabi_report_html').eq('id',id).single();
       if(res.data){
         m.summary=res.data.summary||'';
         m.transcript=res.data.transcript||'';
         m.keyQuestions=res.data.key_questions||[];
         m.topics=res.data.topics||[];
         m.chapterSummaries=res.data.chapter_summaries||[];
+        m.kajabiReportHtml=res.data.kajabi_report_html||'';
         m._fullLoaded=true}
     }catch(e){console.error('openMeeting full load:',e)}}
   S.meetingDetail=m;render()}
@@ -1373,6 +1378,83 @@ function addMeetingParticipantAsContact(meetingId,participantIndex){
   var firstName=parts[0]||'';
   var lastName=parts.slice(1).join(' ')||'';
   openAddContactModal(null,{email:p.email||'',firstName:firstName,lastName:lastName})}
+
+function setMeetingFilter(f){S.meetingFilter=f;S.meetingsPage=1;render()}
+
+async function toggleGroupCall(meetingId,isGroupCall){
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m)return;
+  var data={isGroupCall:!!isGroupCall};
+  if(!isGroupCall)data.groupCallType='';
+  var ok=await dbEditMeeting(meetingId,data);
+  if(!ok)return;
+  m.isGroupCall=!!isGroupCall;
+  if(!isGroupCall)m.groupCallType='';
+  if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
+  render();toast('Updated','ok')}
+
+async function setGroupCallType(meetingId,type){
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m)return;
+  var data={groupCallType:type||''};
+  if(type)data.isGroupCall=true;
+  var ok=await dbEditMeeting(meetingId,data);
+  if(!ok)return;
+  m.groupCallType=type||'';
+  if(type)m.isGroupCall=true;
+  if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
+  render();toast('Updated','ok')}
+
+async function generateKajabiReport(meetingId){
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m)return;
+  if(!m.isGroupCall||!m.groupCallType){toast('Set a group call type first','warn');return}
+  /* Ensure full data is loaded */
+  if(!m._fullLoaded){
+    try{
+      var res=await _sb.from('meetings').select('summary,transcript,key_questions,topics,chapter_summaries,kajabi_report_html').eq('id',meetingId).single();
+      if(res.data){
+        m.summary=res.data.summary||'';m.transcript=res.data.transcript||'';
+        m.keyQuestions=res.data.key_questions||[];m.topics=res.data.topics||[];
+        m.chapterSummaries=res.data.chapter_summaries||[];
+        m.kajabiReportHtml=res.data.kajabi_report_html||'';m._fullLoaded=true}
+    }catch(e){console.error('generateKajabiReport load:',e)}}
+  if(!m.transcript){toast('No transcript available for this meeting','warn');return}
+  /* Show loading state */
+  var btn=gel('kajabi-gen-btn');if(btn){btn.disabled=true;btn.innerHTML=icon('loader',13)+' Generating...'}
+  try{
+    var sess=await _sb.auth.getSession();
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/meetings/generate-report',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({meetingId:meetingId})});
+    var result=await resp.json();
+    if(!resp.ok){toast(result.error||'Generation failed','warn');return}
+    m.kajabiReportHtml=result.html||'';
+    if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
+    render();toast('Report generated','ok');
+  }catch(e){
+    console.error('generateKajabiReport:',e);toast('Generation failed','warn');
+  }finally{
+    var btn2=gel('kajabi-gen-btn');if(btn2){btn2.disabled=false;btn2.innerHTML=icon('zap',13)+' Generate Report'}}}
+
+function copyKajabiReport(meetingId){
+  var m=S.meetings.find(function(mt){return mt.id===meetingId});
+  if(!m||!m.kajabiReportHtml){toast('No report to copy','warn');return}
+  navigator.clipboard.writeText(m.kajabiReportHtml).then(function(){
+    toast('HTML copied to clipboard','ok')
+  }).catch(function(){
+    /* Fallback */
+    var ta=document.createElement('textarea');ta.value=m.kajabiReportHtml;
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');
+    document.body.removeChild(ta);toast('HTML copied to clipboard','ok')})}
+
+function toggleKajabiPreview(){
+  var el=gel('kajabi-preview');if(!el)return;
+  el.classList.toggle('hidden');
+  var btn=gel('kajabi-preview-toggle');
+  if(btn)btn.textContent=el.classList.contains('hidden')?'Show Preview':'Hide Preview'}
 
 async function loadPayerMap(){
   var res=await _sb.from('payer_client_map').select('*');

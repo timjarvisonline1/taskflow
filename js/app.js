@@ -129,6 +129,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   setMeetingCrm:setMeetingCrm,createTaskFromMeetingAction:createTaskFromMeetingAction,
   refreshMtgCrm:refreshMtgCrm,refreshMtgCampaigns:refreshMtgCampaigns,
   acceptMeetingSuggestion:acceptMeetingSuggestion,dismissMeetingSuggestion:dismissMeetingSuggestion,addMeetingParticipantAsContact:addMeetingParticipantAsContact,
+  setMeetingFilter:setMeetingFilter,toggleGroupCall:toggleGroupCall,setGroupCallType:setGroupCallType,
+  generateKajabiReport:generateKajabiReport,copyKajabiReport:copyKajabiReport,toggleKajabiPreview:toggleKajabiPreview,
   /* Contacts */
   dbAddContact:dbAddContact,dbEditContact:dbEditContact,dbDeleteContact:dbDeleteContact,
   openAddContactModal:openAddContactModal,openEditContactModal:openEditContactModal,

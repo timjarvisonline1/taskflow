@@ -1596,6 +1596,26 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   .meeting-crm-sidebar{position:static;max-height:none}
 }
 
+/* Meeting filter bar */
+.mtg-filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.mtg-filter-btn{background:var(--glass);border:1px solid var(--gborder);border-radius:16px;padding:5px 14px;font-size:11px;color:var(--t3);cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap}
+.mtg-filter-btn:hover{background:rgba(255,255,255,.08);color:var(--t1)}
+.mtg-filter-btn.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+.mtg-fb-oh.on{background:#004085;border-color:#004085}
+.mtg-fb-ga.on{background:#155724;border-color:#155724}
+.mtg-fb-om.on{background:#563d7c;border-color:#563d7c}
+
+/* Group call pills in list */
+.mtg-group-pill{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:6px;background:var(--glass);border:1px solid var(--gborder);color:var(--t3)}
+.mtg-gp-office_hours{background:rgba(0,64,133,0.1);border-color:rgba(0,64,133,0.2);color:#004085}
+.mtg-gp-group_accountability{background:rgba(21,87,36,0.1);border-color:rgba(21,87,36,0.2);color:#155724}
+.mtg-gp-olympic_mindset{background:rgba(86,61,124,0.1);border-color:rgba(86,61,124,0.2);color:#563d7c}
+
+/* Kajabi report panel */
+.mtg-report-panel{padding:16px;margin:16px 0;background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r)}
+.mtg-report-preview{margin-top:12px;padding:20px;background:#fff;border:1px solid #e0e0e0;border-radius:8px;max-height:600px;overflow-y:auto;color:#333}
+.mtg-report-preview.hidden{display:none}
+
 /* ══════════ AI BOX ══════════ */
 .ai-box{background:rgba(16,163,127,0.03);border:1px solid rgba(16,163,127,0.12);border-radius:var(--r);margin-bottom:16px;overflow:hidden;transition:all .3s var(--ease)}
 .ai-box-header{display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;transition:background .2s var(--ease);user-select:none}

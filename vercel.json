@@ -8,6 +8,9 @@
     },
     "api/knowledge/*.js": {
       "maxDuration": 60
+    },
+    "api/meetings/*.js": {
+      "maxDuration": 120
     }
   },
   "rewrites": [

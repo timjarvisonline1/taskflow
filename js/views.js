@@ -7618,11 +7618,26 @@ function rMeetings(){
   h+='</h1></div>';
 
   /* Search */
-  h+='<div style="margin-bottom:16px;display:flex;gap:12px;align-items:center">';
+  h+='<div style="margin-bottom:12px;display:flex;gap:12px;align-items:center">';
   h+='<input type="text" class="edf" id="meeting-search" value="'+esc(S.meetingSearch)+'" placeholder="Search meetings..." style="max-width:400px;font-size:13px" oninput="TF.setMeetingSearch(this.value)">';
   h+='</div>';
 
+  /* Group Call filter bar */
+  var mf=S.meetingFilter;
+  h+='<div class="mtg-filter-bar">';
+  h+='<button class="mtg-filter-btn'+(mf===''?' on':'')+'" onclick="TF.setMeetingFilter(\'\')">All</button>';
+  h+='<button class="mtg-filter-btn'+(mf==='group_call'?' on':'')+'" onclick="TF.setMeetingFilter(\'group_call\')">'+icon('users',11)+' Group Calls</button>';
+  h+='<button class="mtg-filter-btn mtg-fb-oh'+(mf==='office_hours'?' on':'')+'" onclick="TF.setMeetingFilter(\'office_hours\')">Office Hours</button>';
+  h+='<button class="mtg-filter-btn mtg-fb-ga'+(mf==='group_accountability'?' on':'')+'" onclick="TF.setMeetingFilter(\'group_accountability\')">Group Accountability</button>';
+  h+='<button class="mtg-filter-btn mtg-fb-om'+(mf==='olympic_mindset'?' on':'')+'" onclick="TF.setMeetingFilter(\'olympic_mindset\')">Olympic Mindset</button>';
+  h+='</div>';
+
   var allMeetings=S.meetings;
+  /* Apply group call filter */
+  if(S.meetingFilter==='group_call'){
+    allMeetings=allMeetings.filter(function(m){return m.isGroupCall})}
+  else if(S.meetingFilter){
+    allMeetings=allMeetings.filter(function(m){return m.isGroupCall&&m.groupCallType===S.meetingFilter})}
   if(S.meetingSearch){
     var q=S.meetingSearch.toLowerCase();
     allMeetings=allMeetings.filter(function(m){
@@ -7681,7 +7696,12 @@ function rMeetings(){
       h+='<div class="meeting-row-time">'+timeStr+'</div>';
       h+='</div>';
       h+='<div class="meeting-row-center">';
-      h+='<div class="meeting-row-title">'+esc(m.title||'Untitled Meeting')+'</div>';
+      h+='<div class="meeting-row-title">'+esc(m.title||'Untitled Meeting');
+      if(m.isGroupCall&&m.groupCallType){
+        var _gcLabel=m.groupCallType==='office_hours'?'Office Hours':m.groupCallType==='group_accountability'?'Group Accountability':m.groupCallType==='olympic_mindset'?'Olympic Mindset':'Group Call';
+        h+=' <span class="mtg-group-pill mtg-gp-'+esc(m.groupCallType)+'">'+esc(_gcLabel)+'</span>'}
+      else if(m.isGroupCall){h+=' <span class="mtg-group-pill">Group Call</span>'}
+      h+='</div>';
       h+='<div class="meeting-row-meta">';
       if(dur)h+='<span>'+icon('clock',10)+' '+durStr+'</span>';
       if(pCount)h+='<span>'+icon('users',10)+' '+pCount+'</span>';
@@ -7734,6 +7754,40 @@ function rMeetingDetail(){
 
   /* CRM categorisation bar */
   h+=rMeetingCrmBar(m);
+
+  /* Group Call controls */
+  h+='<div class="meeting-crm-bar" style="align-items:center">';
+  h+='<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);cursor:pointer">';
+  h+='<input type="checkbox" '+(m.isGroupCall?'checked ':'')+' onchange="TF.toggleGroupCall(\''+esc(m.id)+'\',this.checked)"> Group Call</label>';
+  if(m.isGroupCall){
+    h+='<div class="meeting-crm-field">';
+    h+='<span class="meeting-crm-label">Type</span>';
+    h+='<select class="edf" onchange="TF.setGroupCallType(\''+esc(m.id)+'\',this.value)" style="font-size:11px;padding:4px 8px">';
+    h+='<option value="">Select type...</option>';
+    h+='<option value="office_hours"'+(m.groupCallType==='office_hours'?' selected':'')+'>Office Hours</option>';
+    h+='<option value="group_accountability"'+(m.groupCallType==='group_accountability'?' selected':'')+'>Group Accountability</option>';
+    h+='<option value="olympic_mindset"'+(m.groupCallType==='olympic_mindset'?' selected':'')+'>Olympic Mindset Coaching</option>';
+    h+='</select></div>'}
+  /* Kajabi Report button */
+  if(m.isGroupCall&&m.groupCallType){
+    if(m.kajabiReportHtml){
+      h+='<button class="btn btn-p" id="kajabi-gen-btn" onclick="TF.generateKajabiReport(\''+esc(m.id)+'\')" style="font-size:11px;padding:5px 12px;margin-left:auto">'+icon('zap',11)+' Regenerate Report</button>';
+    }else{
+      h+='<button class="btn btn-p" id="kajabi-gen-btn" onclick="TF.generateKajabiReport(\''+esc(m.id)+'\')" style="font-size:11px;padding:5px 12px;margin-left:auto">'+icon('zap',11)+' Generate Kajabi Report</button>';
+    }}
+  h+='</div>';
+
+  /* Kajabi Report panel */
+  if(m.kajabiReportHtml){
+    h+='<div class="mtg-report-panel">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+    h+='<span style="font-size:13px;font-weight:600;color:var(--t1)">'+icon('file',13)+' Kajabi Report</span>';
+    h+='<div style="flex:1"></div>';
+    h+='<button class="btn" onclick="TF.copyKajabiReport(\''+esc(m.id)+'\')" style="font-size:11px;padding:4px 10px">'+icon('copy',10)+' Copy HTML</button>';
+    h+='<button class="btn" id="kajabi-preview-toggle" onclick="TF.toggleKajabiPreview()" style="font-size:11px;padding:4px 10px">Show Preview</button>';
+    h+='</div>';
+    h+='<div id="kajabi-preview" class="mtg-report-preview hidden">'+m.kajabiReportHtml+'</div>';
+    h+='</div>'}
 
   /* AI CRM Suggestions */
   var pendingSugs=(m.aiSuggestions||[]).filter(function(s){return s.status==='pending'});
