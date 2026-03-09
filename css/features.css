@@ -976,9 +976,12 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-split-view.has-detail .email-detail-panel{display:block}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
+/* Suppress animation on list refresh (only animate on initial load) */
+.email-list-panel.no-anim .email-row{animation:none}
+
 /* Active thread highlight in list */
 .email-row.email-active{background:rgba(77,166,255,.08);border-color:rgba(77,166,255,.2)}
-.email-row.email-active:hover{background:rgba(77,166,255,.1);border-color:rgba(77,166,255,.25)}
+.email-row.email-active:hover{background:rgba(77,166,255,.1);border-color:rgba(77,166,255,.25);transform:none}
 .email-row.email-active .email-row-subject{color:var(--t1)}
 
 /* Compact list when detail is open */
@@ -1014,15 +1017,19 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-detail-empty p{font-size:13px;margin:4px 0}
 
 /* Inline detail overrides — reduce modal padding for inline context */
-.email-detail-panel .detail-full-header{padding:0 0 0}
-.email-detail-panel .detail-split{overflow:visible}
-.email-detail-panel .detail-split-left{padding:12px 0;border-right:1px solid var(--gborder);overflow-y:auto;max-height:calc(100vh - 240px)}
-.email-detail-panel .detail-split-right{padding:12px 16px;overflow-y:auto;max-height:calc(100vh - 240px)}
-.email-detail-panel .email-thread-modal-toolbar{padding:8px 0;margin-bottom:8px}
+.email-detail-panel .detail-full-header{padding:0 0 0;position:sticky;top:0;z-index:11;background:var(--g1)}
+.email-detail-panel .detail-split{display:flex;overflow:visible;height:calc(100vh - 280px)}
+.email-detail-panel .detail-split-left{flex:1;padding:12px 0;border-right:1px solid var(--gborder);overflow-y:auto}
+.email-detail-panel .detail-split-right{width:260px;padding:12px 16px;overflow-y:auto}
+.email-detail-panel .email-thread-modal-toolbar{padding:8px 0;margin-bottom:8px;position:sticky;top:0;z-index:10;background:var(--g1)}
 .email-detail-panel .email-thread-modal-subject{font-size:16px}
 
+/* Intermediate: narrower list panel */
+@media(max-width:900px) and (min-width:701px){
+  .email-split-view.has-detail .email-list-panel{width:280px;min-width:240px}
+}
 /* Mobile: stack vertically */
-@media(max-width:900px){
+@media(max-width:700px){
   .email-split-view{flex-direction:column;height:auto}
   .email-split-view.has-detail .email-list-panel{display:none}
   .email-split-view.has-detail .email-detail-panel{padding-left:0}

@@ -2438,10 +2438,17 @@ async function openEmailThread(threadId){
     /* Capture subject for timer task */
     if(S._emailTimer&&S.gmailThread&&S.gmailThread.messages&&S.gmailThread.messages.length){
       S._emailTimer.subject=S.gmailThread.messages[0].subject||S.gmailThread.subject||''}
-    /* Mark as read locally */
+    /* Mark as read locally + update live threads + call API */
     var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
-    if(cached)cached.is_unread=false;
+    if(cached){cached.is_unread=false;cached.isUnread=false}
+    if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=false;t.is_unread=false}});
     S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
+    /* Fire-and-forget mark-read API call */
+    fetch('/api/gmail/mark-read',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({threadId:threadId,unread:false})}).catch(function(){});
+    /* Instantly refresh list panel to remove unread dot */
+    _refreshEmailListPanel();buildNav();
     /* Apply email rules if no categorization */
     if(cached&&!cached.client_id&&!cached.end_client&&!cached.campaign_id&&!cached.opportunity_id){
       var ruleActions=applyEmailRules(cached);
@@ -2515,6 +2522,8 @@ function _refreshEmailListPanel(){
   var listPanel=gel('email-list-panel');
   if(!listPanel)return;
   var scrollTop=listPanel.scrollTop;
+  /* Suppress cardIn animation on refresh (only animate on initial load) */
+  if(!listPanel.classList.contains('no-anim'))listPanel.classList.add('no-anim');
   listPanel.innerHTML=rEmailListPanel();
   listPanel.scrollTop=scrollTop;
   /* Re-apply active highlight */
@@ -2526,6 +2535,8 @@ var _draftSaveTimer=null;
 function _saveInlineDraft(threadId){
   clearTimeout(_draftSaveTimer);
   _draftSaveTimer=setTimeout(function(){
+    /* Guard: verify thread hasn't changed during debounce */
+    if(S.gmailThreadId!==threadId)return;
     var editor=gel('email-inline-reply-editor');
     if(!editor||!threadId)return;
     var html=editor.innerHTML||'';
@@ -2615,7 +2626,9 @@ async function threadCrmSave(){
   if(S._emailTimer&&S._emailTimer.threadId===threadId){
     S._emailTimer.categorization={client:client,endClient:ec,campaignId:campId,opportunityId:oppId}}
   /* Refresh the right pane context */
-  _refreshThreadCrmContext()}
+  _refreshThreadCrmContext();
+  /* Refresh list panel so smart inbox assignments update immediately */
+  _refreshEmailListPanel()}
 
 function threadCrmNoneChange(){
   var none=gel('thread-crm-none');
@@ -3247,7 +3260,8 @@ async function archiveEmail(threadId){
       var _dp=gel('email-detail-panel');
       if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
       else{gel('detail-modal').classList.remove('on','full-detail')}}
-    setTimeout(function(){render();if(emailHasActiveFilters())loadFilteredEmailThreads()},400);
+    _refreshEmailListPanel();buildNav();
+    if(emailHasActiveFilters())loadFilteredEmailThreads();
     toast('Email archived','ok')
   }catch(e){
     if(row)row.classList.remove('archiving');

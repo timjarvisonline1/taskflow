@@ -6920,8 +6920,11 @@ function rEmailThreadModal(threadId){
   h+='</div>';
   /* Toolbar */
   h+='<div class="email-thread-modal-toolbar">';
-  h+='<button class="email-toolbar-btn" onclick="TF.closeEmailThread()">'+icon('arrow_left',13)+' Back</button>';
-  h+='<div class="email-toolbar-sep"></div>';
+  /* Only show Back button in modal mode (not inline split view) */
+  if(!gel('email-detail-panel')){
+    h+='<button class="email-toolbar-btn" onclick="TF.closeEmailThread()">'+icon('arrow_left',13)+' Back</button>';
+    h+='<div class="email-toolbar-sep"></div>';
+  }
   h+='<button class="email-toolbar-btn" style="color:var(--accent);font-weight:600" onclick="TF.inlineReply()">'+icon('reply',13)+' Reply</button>';
   h+='<button class="email-toolbar-btn" onclick="TF.inlineReplyAll()">'+icon('reply_all',13)+' Reply All</button>';
   h+='<button class="email-toolbar-btn" onclick="TF.inlineForward()">'+icon('forward',13)+' Forward</button>';
