@@ -2452,13 +2452,21 @@ async function openEmailThread(threadId){
     /* Instantly refresh list panel to remove unread dot */
     _refreshEmailListPanel();buildNav();
     /* Apply email rules if completely uncategorized */
+    console.log('[AutoCat] threadId='+threadId+' cached='+(cached?'YES':'NO')+
+      ' client_id='+(cached?cached.client_id||'':'?')+
+      ' end_client='+(cached?cached.end_client||'':'?')+
+      ' from='+(cached?cached.from_email||'':'?')+
+      ' to='+(cached?(cached.to_emails||'').substring(0,60):'?')+
+      ' S.gmailThreads.length='+S.gmailThreads.length);
     if(cached&&!cached.client_id&&!cached.end_client&&!cached.campaign_id&&!cached.opportunity_id){
+      console.log('[AutoCat] BRANCH=fully_uncategorized');
       var ruleActions=applyEmailRules(cached);
-      if(ruleActions)_applyRuleActionsToThread(threadId,ruleActions);
-      else _autoCategorizeFromContacts(threadId,cached)}
+      if(ruleActions){console.log('[AutoCat] rules matched');_applyRuleActionsToThread(threadId,ruleActions)}
+      else{console.log('[AutoCat] no rules → contact matching');_autoCategorizeFromContacts(threadId,cached)}}
     /* Auto-fill remaining empty fields from contacts (e.g. sync set client but not end-client) */
     else if(cached&&(!cached.client_id||!cached.end_client)){
-      _autoCategorizeFromContacts(threadId,cached)}
+      console.log('[AutoCat] BRANCH=partial');_autoCategorizeFromContacts(threadId,cached)}
+    else{console.log('[AutoCat] BRANCH=skip reason='+(cached?'fully_set':'no_cached'))}
 
     /* Re-render with loaded data */
     detailPanel=gel('email-detail-panel');
@@ -3795,11 +3803,16 @@ async function _applyRuleActionsToThread(threadId,actions){
    Updates local cache synchronously (so re-render shows values immediately),
    then fire-and-forget writes to DB. */
 function _autoCategorizeFromContacts(threadId,cached){
-  if(!cached||!threadId)return;
+  if(!cached||!threadId){console.log('[AutoCat] _autoCateg bail: no cached/threadId');return}
   var from=cached.from_email||'';
   var to=cached.to_emails||'';
   var cc=cached.cc_emails||'';
+  console.log('[AutoCat] _autoCateg from='+from+' to='+(to||'').substring(0,60)+' cc='+(cc||'').substring(0,60));
   var ctx=resolveThreadCrmContext(from,to,cc);
+  console.log('[AutoCat] ctx: primaryClient='+(ctx.primaryClient?ctx.primaryClient.clientName:'null')+
+    ' primaryEC='+(ctx.primaryEndClient||'null')+
+    ' camps='+ctx.campaigns.length+' opps='+ctx.opportunities.length+
+    ' unknowns='+ctx.unknownAddrs.join(','));
 
   var updates={};
   var hasChanges=false;
@@ -3825,7 +3838,7 @@ function _autoCategorizeFromContacts(threadId,cached){
     updates.opportunity_id=ctx.opportunities[0].id;
     hasChanges=true}
 
-  if(!hasChanges)return;
+  if(!hasChanges){console.log('[AutoCat] _autoCateg: no changes needed');return}
   /* Update local cache synchronously so re-render picks up values */
   Object.keys(updates).forEach(function(k){cached[k]=updates[k]});
   S._threadCrmCache={};
