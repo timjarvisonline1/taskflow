@@ -4525,10 +4525,18 @@ async function syncEndClientRecords(){
 /* Backfill: set end_client_id on any rows that have end_client text but null end_client_id */
 async function backfillEndClientIds(){
   var tables=['tasks','done','review','campaigns','opportunities','contacts','finance_payments','finance_payment_splits','knowledge_chunks','meetings','gmail_threads'];
+  var updated=false;
   for(var i=0;i<(S.endClients||[]).length;i++){
     var ec=S.endClients[i];
-    tables.forEach(function(t){
-      _sb.from(t).update({end_client_id:ec.id}).eq('end_client',ec.name).is('end_client_id',null)})}}
+    for(var j=0;j<tables.length;j++){
+      var res=await _sb.from(tables[j]).update({end_client_id:ec.id}).eq('end_client',ec.name).is('end_client_id',null).select('id');
+      if(res.data&&res.data.length>0)updated=true}}
+  /* Refresh in-memory campaign endClientIds so filters work immediately */
+  if(updated){
+    S.campaigns.forEach(function(c){
+      if(c.endClient&&!c.endClientId){
+        var ec=(S.endClients||[]).find(function(e){return e.name===c.endClient});
+        if(ec)c.endClientId=ec.id}})}}
 
 function setEcSort(v){
   var cur=S.ecSort||'name';

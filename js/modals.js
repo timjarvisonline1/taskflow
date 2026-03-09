@@ -1172,9 +1172,11 @@ function buildEndClientOptions(currentValue,filterClient){
 
 function buildCampaignOptions(currentValue,filterClient,filterEC){
   var opts='<option value="">None</option>';
+  /* Resolve filterEC UUID to a name so we can match campaigns that only have end_client text (no end_client_id) */
+  var filterECName=filterEC?endClientNameById(filterEC):'';
   S.campaigns.filter(function(c){
     if(filterClient&&c.partner!==filterClient)return false;
-    if(filterEC&&c.endClientId!==filterEC&&c.endClient!==filterEC)return false;
+    if(filterEC&&c.endClientId!==filterEC&&c.endClient!==filterEC&&(!filterECName||c.endClient!==filterECName))return false;
     return true}).forEach(function(c){
     opts+='<option value="'+esc(c.id)+'"'+(currentValue===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
   return opts}
