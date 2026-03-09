@@ -1459,7 +1459,13 @@ async function generateKajabiReport(meetingId){
     if(!html){toast('No report was generated','warn');render();return}
     m.kajabiReportHtml=html;
     if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
-    render();toast('Report generated','ok');
+    /* If stream ended without done event (function timeout), save from client */
+    if(!gotDone&&html){
+      console.log('[KajabiReport] No done event — saving from client');
+      await dbEditMeeting(meetingId,{kajabiReportHtml:html});
+      render();toast('Report generated (may be incomplete — server timed out)','warn');
+    }else{
+      render();toast('Report generated','ok')}
   }catch(e){
     console.error('generateKajabiReport:',e);toast('Generation failed: '+(e.message||'Unknown error'),'warn');render()}}
 
