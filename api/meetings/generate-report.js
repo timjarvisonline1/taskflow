@@ -41,8 +41,11 @@ module.exports = async function handler(req, res) {
     // Build participant names list
     const participants = (meeting.participants || []).map(p => p.name || p.email || 'Unknown').join(', ');
 
+    // Build start time string for elapsed time calculation (HH:MM:SS in UTC)
+    const startTimeStr = dt ? dt.toISOString().slice(11, 19) : '';
+
     // Get type-specific prompt — full transcript, no truncation
-    const prompt = buildPrompt(meeting.group_call_type, dateStr, participants, meeting.title, meeting.transcript, meeting.summary || '', meeting.chapter_summaries || []);
+    const prompt = buildPrompt(meeting.group_call_type, dateStr, startTimeStr, participants, meeting.title, meeting.transcript, meeting.summary || '', meeting.chapter_summaries || []);
 
     console.log('[generate-report] Transcript length:', meeting.transcript.length, 'Prompt length:', prompt.length, 'Model:', model);
 
@@ -96,7 +99,7 @@ module.exports = async function handler(req, res) {
   }
 };
 
-function buildPrompt(type, dateStr, participants, title, transcript, summary, chapters) {
+function buildPrompt(type, dateStr, startTimeStr, participants, title, transcript, summary, chapters) {
   const chapterText = (chapters || []).map(ch => {
     return (ch.title || '') + ': ' + (ch.description || '');
   }).join('\n');
@@ -107,6 +110,7 @@ function buildPrompt(type, dateStr, participants, title, transcript, summary, ch
   const sharedContext = `
 Meeting title: ${title}
 Date: ${dateStr}
+${startTimeStr ? 'Meeting start time (UTC): ' + startTimeStr : ''}
 Participants: ${participants}
 ${summary ? 'AI Summary: ' + summary : ''}
 ${chapterText ? 'Chapter Summaries:\n' + chapterText : ''}
@@ -123,7 +127,7 @@ ${transcript}
 
 function buildOfficeHoursPrompt(dateStr, hasTimecodes, context) {
   const tsNote = hasTimecodes
-    ? 'The transcript contains WALL-CLOCK timestamps (e.g. [16:01:30]). These are the actual time of day, NOT elapsed time into the meeting. To calculate elapsed time, subtract the first timestamp in the transcript from each subsequent timestamp. Display elapsed times in the report as hours:minutes (e.g. "~0:05", "~1:15"). Include these in card headers and the questions list (e.g. 📍 ~0:05 — Person: Topic).'
+    ? 'The transcript contains WALL-CLOCK timestamps (e.g. [16:01:30]) which are the time of day in UTC, NOT elapsed time into the meeting. The "Meeting start time (UTC)" provided above is when the meeting began. To calculate elapsed time for the report, subtract the meeting start time from each wall-clock timestamp. Display elapsed times as hours:minutes (e.g. "~0:05", "~1:15"). Include these in card headers and the questions list (e.g. 📍 ~0:05 — Person: Topic). There may be a few minutes of silence/chat at the start as people join — that is normal.'
     : 'The transcript does NOT contain timecodes. Do NOT include any timestamps or timecodes in the report — no approximate times, no "~0:05" references. Just use the person\'s name and topic in card headers (e.g. Person: Topic).';
 
   return `You are generating an HTML report for a Retain Live "Office Hours" group call. This is a Q&A session where members ask Tim questions about their marketing campaigns, landing pages, ad performance, and business strategy.
@@ -178,7 +182,7 @@ ${context}`;
 
 function buildGroupAccountabilityPrompt(dateStr, hasTimecodes, context) {
   const tsNote = hasTimecodes
-    ? 'The transcript contains WALL-CLOCK timestamps (e.g. [16:01:30]). These are the actual time of day, NOT elapsed time. To calculate elapsed time, subtract the first timestamp from each subsequent one. You may reference elapsed timestamps where helpful.'
+    ? 'The transcript contains WALL-CLOCK timestamps (e.g. [16:01:30]) which are the time of day in UTC, NOT elapsed time. The "Meeting start time (UTC)" provided above is when the meeting began. To calculate elapsed time, subtract the meeting start time from each wall-clock timestamp. You may reference elapsed timestamps where helpful.'
     : 'The transcript does NOT contain timecodes. Do NOT include any timestamps or timecodes in the report — no approximate times, no fabricated timestamps.';
 
   return `You are generating an HTML report for a Retain Live "Group Accountability" session. This is a weekly check-in where members report on their commitments from last week, share progress updates, and make new commitments for the coming week. Dom (the mindset coach) facilitates.
@@ -238,7 +242,7 @@ ${context}`;
 
 function buildOlympicMindsetPrompt(dateStr, hasTimecodes, context) {
   const tsNote = hasTimecodes
-    ? 'The transcript contains WALL-CLOCK timestamps (e.g. [16:01:30]). These are the actual time of day, NOT elapsed time. To calculate elapsed time, subtract the first timestamp from each subsequent one. You may reference elapsed timestamps where helpful.'
+    ? 'The transcript contains WALL-CLOCK timestamps (e.g. [16:01:30]) which are the time of day in UTC, NOT elapsed time. The "Meeting start time (UTC)" provided above is when the meeting began. To calculate elapsed time, subtract the meeting start time from each wall-clock timestamp. You may reference elapsed timestamps where helpful.'
     : 'The transcript does NOT contain timecodes. Do NOT include any timestamps or timecodes in the report — no approximate times, no fabricated timestamps.';
 
   return `You are generating an HTML report for a Retain Live "Olympic Mindset Coaching" session. This is a teaching-focused session led by Dom (the mindset coach), covering mental performance, productivity, sales psychology, and personal development frameworks. It includes homework, frameworks, case studies, and group discussion.
