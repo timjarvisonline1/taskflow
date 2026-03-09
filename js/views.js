@@ -3684,7 +3684,7 @@ function opCardCompact(op,td_,idx,compact){
   var borderColor=oppIsClosedStage(op.stage)?(op.stage==='Closed Won'?'var(--green)':'var(--red)'):(stageIdx>=0&&stageIdx<_stageColors.length?_stageColors[stageIdx]:'var(--t4)');
   var delay=typeof idx==='number'?Math.min(idx*0.03,0.45):0;
   var cls=compact?'op-card op-card-compact':'op-card';
-  var h='<div class="'+cls+'" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')" style="animation-delay:'+delay+'s">';
+  var h='<div class="'+cls+'" draggable="true" ondragstart="TF.oppDragStart(event,\''+escAttr(op.id)+'\')" ondragend="TF.oppDragEnd()" onclick="TF.openOpportunityDetail(\''+escAttr(op.id)+'\')" style="animation-delay:'+delay+'s">';
   h+='<div style="position:absolute;top:0;left:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:'+borderColor+'"></div>';
   if(!compact){
     h+='<span class="op-card-meta" style="margin-bottom:2px"><span class="bg '+opTypeBadgeCls(op.type)+'" style="font-size:8px;padding:1px 6px">'+conf.short+'</span></span>'}
@@ -3741,7 +3741,7 @@ function renderTypePipeline(typeKey,opps,td_){
   var h='<div class="op-pipeline" style="grid-template-columns:repeat('+colCount+',1fr)">';
   stages.forEach(function(s){
     var items=grouped[s]||[];
-    h+='<div class="op-column">';
+    h+='<div class="op-column" ondragover="TF.oppDragOver(event)" ondragenter="TF.oppDragEnter(event)" ondragleave="TF.oppDragLeave(event)" ondrop="TF.oppDragDrop(event,\''+escAttr(s)+'\',\''+escAttr(typeKey)+'\')">';
     h+='<div class="op-column-head">'+esc(s)+' <span class="op-column-count">'+items.length+'</span></div>';
     if(!items.length){h+='<div style="text-align:center;padding:30px 10px;color:var(--t4);font-size:12px">No opportunities</div>'}
     items.forEach(function(op,idx){h+=opCardCompact(op,td_,idx,true)});

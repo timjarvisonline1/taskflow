@@ -555,6 +555,13 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
 .op-card-row{display:flex;align-items:center;gap:8px;width:100%}
 .op-card-row-r{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:auto}
 
+/* Drag and drop */
+.op-card[draggable="true"]{cursor:grab}
+.op-card[draggable="true"]:active{cursor:grabbing}
+.op-card.dragging{opacity:0.3;transform:scale(0.97);pointer-events:none}
+.op-column.op-col-drop-target{transition:background .2s,outline .2s}
+.op-column.op-col-drag-over{background:rgba(77,166,255,0.06);border-radius:10px;outline:2px dashed rgba(77,166,255,0.3);outline-offset:-2px}
+
 /* Won / Lost card overrides */
 .op-won{border-left-color:var(--green)}
 .op-lost{border-left-color:var(--red);opacity:.7}

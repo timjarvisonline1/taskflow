@@ -41,6 +41,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   projDragStart:projDragStart,projDragOver:projDragOver,projDragDrop:projDragDrop,
   setProjView:function(v){subNav(v)},
   /* Opportunities */
+  oppDragStart:oppDragStart,oppDragOver:oppDragOver,oppDragEnter:oppDragEnter,oppDragLeave:oppDragLeave,oppDragEnd:oppDragEnd,oppDragDrop:oppDragDrop,
   openOpportunityDetail:openOpportunityDetail,saveOpportunity:saveOpportunity,
   openAddOpportunity:openAddOpportunity,addOpportunity:addOpportunity,selectOpType:selectOpType,
   confirmDeleteOpportunity:confirmDeleteOpportunity,doDeleteOpportunity:doDeleteOpportunity,

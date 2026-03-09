@@ -534,6 +534,52 @@ function applyProjTaskOrder(tasks,phaseId){
   Object.keys(map).forEach(function(id){ordered.push(map[id])});
   return ordered}
 
+/* ═══════════ OPPORTUNITY DRAG & DROP ═══════════ */
+var _oppDragId=null;
+
+function oppDragStart(e,oppId){
+  if(window.innerWidth<=480){e.preventDefault();return}
+  _oppDragId=oppId;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',oppId);
+  var card=e.target.closest('.op-card');if(card)card.classList.add('dragging');
+  setTimeout(function(){document.querySelectorAll('.op-column').forEach(function(col){col.classList.add('op-col-drop-target')})},0)}
+
+function oppDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move'}
+
+function oppDragEnter(e){
+  var col=e.target.closest('.op-column');
+  if(col){document.querySelectorAll('.op-column').forEach(function(c){c.classList.remove('op-col-drag-over')});col.classList.add('op-col-drag-over')}}
+
+function oppDragLeave(e){
+  var col=e.target.closest('.op-column');
+  if(col&&!col.contains(e.relatedTarget)){col.classList.remove('op-col-drag-over')}}
+
+function oppDragEnd(){
+  _oppDragId=null;
+  document.querySelectorAll('.op-column').forEach(function(c){c.classList.remove('op-col-drop-target','op-col-drag-over')});
+  document.querySelectorAll('.op-card').forEach(function(c){c.classList.remove('dragging')})}
+
+async function oppDragDrop(e,targetStage,targetType){
+  e.preventDefault();e.stopPropagation();
+  if(!_oppDragId)return;
+  var op=S.opportunities.find(function(o){return o.id===_oppDragId});
+  if(!op){_oppDragId=null;return}
+  /* Only allow drops within the same pipeline type */
+  if(op.type!==targetType){toast('Cannot move between different pipelines','warn');oppDragEnd();return}
+  if(op.stage===targetStage){oppDragEnd();return}
+  var oldStage=op.stage;
+  op.stage=targetStage;
+  var ok=await dbUpdateOpStage(op.id,targetStage);
+  if(!ok){op.stage=oldStage;toast('Failed to update stage','warn')}
+  else{toast(op.name+' → '+targetStage,'ok')}
+  oppDragEnd();render()}
+
+async function dbUpdateOpStage(id,stage){
+  var res=await _sb.from('opportunities').update({stage:stage}).eq('id',id);
+  if(res.error){console.error('Stage update failed:',res.error);return false}
+  save();return true}
+
 /* ═══════════ CHARTS ═══════════ */
 function killChart(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
 function mkDonut(id,data){var el=gel(id);if(!el)return;killChart(id);var labels=Object.keys(data),vals=labels.map(function(k){return data[k]});var cols=labels.map(function(_,i){return P[i%P.length]});
