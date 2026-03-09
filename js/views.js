@@ -3519,7 +3519,7 @@ function rOpTabDetails(op,st){
       h+='<option value="'+escAttr(pc.id)+'"'+(op.prospectCompanyId===pc.id?' selected':'')+'>'+esc(pc.name)+'</option>'});
     h+='<option value="__manual__">Enter manually...</option></select></div>';
   }else{
-    h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="op-client" onchange="TF.refreshOpEndClients()"><option value="">Select...</option>'+cliOpts+'</select></div>';
   }
   h+='</div>';
   h+='<div class="ed-grid ed-grid-3">';
@@ -3531,7 +3531,7 @@ function rOpTabDetails(op,st){
       h+='<option value="'+escAttr(p.id)+'"'+(op.prospectId===p.id?' selected':'')+'>'+esc(pN)+(p.email?' ('+esc(p.email)+')':'')+'</option>'});
     h+='<option value="__manual__">Enter manually...</option></select></div>';
   }else{
-    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="op-endclient" value="'+esc(op.endClient)+'"></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="op-endclient" onchange="TF.ecAddNew(\'op-endclient\')">'+buildEndClientOptions(op.endClientId||op.endClient||'',op.client)+'</select></div>';
   }
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';

@@ -1340,8 +1340,15 @@ async function acceptMeetingSuggestion(meetingId,index){
       selectOpType(t);
       setTimeout(function(){
         var f=gel('nop-name');if(f)f.value=sug.suggested_name||'';
-        var cs=gel('nop-client');if(cs)cs.value=sug.client||'';
-        var ec=gel('nop-endclient');if(ec)ec.value=sug.end_client||'';
+        var cs=gel('nop-client');if(cs){cs.value=sug.client||'';refreshNopEndClients()}
+        var ec=gel('nop-endclient');if(ec){
+          var _ecName=sug.end_client||'';
+          if(ec.tagName==='SELECT'&&_ecName){
+            var _ecRec=(S.endClients||[]).find(function(e){return e.name===_ecName});
+            if(_ecRec){ec.value=_ecRec.id}
+            else{ec.value='__addnew__';ecAddNew('nop-endclient');var _ecInp=gel('nop-endclient');if(_ecInp)_ecInp.value=_ecName}
+          }else{ec.value=_ecName}
+        }
         var cn=gel('nop-contact');if(cn)cn.value=sug.contact_name||'';
         var ce=gel('nop-email');if(ce)ce.value=sug.contact_email||'';
         var ns=gel('nop-notes');if(ns)ns.value=(sug.reason||'')+'\nSource: Meeting — '+(m.title||'');

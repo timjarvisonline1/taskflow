@@ -1232,6 +1232,18 @@ function refreshAddOpportunities(){
   var sel=gel('f-opportunity');if(!sel)return;
   sel.innerHTML=buildOpportunityOptions('',client)}
 
+/* Cascade refresh for New Opportunity modal (nop- prefix) */
+function refreshNopEndClients(){
+  var client=gel('nop-client')?gel('nop-client').value:'';
+  var ecSel=gel('nop-endclient');
+  if(ecSel&&ecSel.tagName==='SELECT'){ecSel.innerHTML=buildEndClientOptions('',client)}}
+
+/* Cascade refresh for Opportunity edit/Details tab (op- prefix) */
+function refreshOpEndClients(){
+  var client=gel('op-client')?gel('op-client').value:'';
+  var ecSel=gel('op-endclient');
+  if(ecSel&&ecSel.tagName==='SELECT'){var cur=ecSel.value;ecSel.innerHTML=buildEndClientOptions(cur,client)}}
+
 /* Cascade refresh for Detail modal (d- prefix) */
 function refreshDetailEndClients(){
   var client=gel('d-cli')?gel('d-cli').value:'';
@@ -1899,8 +1911,8 @@ function selectOpType(type){
       h+='<option value="'+escAttr(p.id)+'">'+esc(pName)+(p.email?' ('+esc(p.email)+')':'')+'</option>'});
     h+='<option value="__manual__">Enter manually...</option></select></div>';
   }else{
-    h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="nop-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="nop-endclient" placeholder="End client..."></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="nop-client" onchange="TF.refreshNopEndClients()"><option value="">Select...</option>'+cliOpts+'</select></div>';
+    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="nop-endclient" onchange="TF.ecAddNew(\'nop-endclient\')">'+buildEndClientOptions('','')+'</select></div>';
   }
   h+='</div>';
 
