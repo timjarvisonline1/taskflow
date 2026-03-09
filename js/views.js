@@ -31,7 +31,7 @@ function render(){
   if(S.view==='projects')initProjectCharts();
   if(S.view==='opportunities'){initOpportunityCharts();if(S.opViewMode==='profitability'&&S.subView&&OPP_TYPES[S.subView])initOppProfitabilityCharts(S.subView);if(S.subView==='profitability')initOppProfitabilityDashboard()}
   if(S.view==='clients')initClientsCharts();
-  if(S.view==='finance')initFinanceCharts();
+  if(S.view==='finance'){initFinanceCharts();if(typeof checkStaleBalances==='function')checkStaleBalances()}
   if(S.view==='campaigns'&&S.subView==='performance')initCampaignPerformanceCharts();
   if(S.view==='email'){initEmailIframes();startEmailPolling();
     /* Auto-scroll to newest message in thread */
@@ -3470,17 +3470,23 @@ function rOpTabContacts(op){
 function rOpTabMeetings(op,st){
   var h='';
   var eid=escAttr(op.id);
+  /* Merge opportunity_meetings + associated Read.ai meetings */
+  var allMtgs=st.meetings.slice();
+  (S.meetings||[]).forEach(function(m){
+    if(m.opportunityId===op.id)allMtgs.push({date:m.startTime,title:m.title||'Meeting',
+      recordingLink:m.reportUrl||'',notes:m.summary||'',source:'readai'})});
+  allMtgs.sort(function(a,b){var da=a.date?new Date(a.date):new Date(0);var db=b.date?new Date(b.date):new Date(0);return db-da});
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-  h+='<div class="dash-section" style="margin:0">'+icon('calendar',13)+' Meetings ('+st.meetingCount+')</div>';
+  h+='<div class="dash-section" style="margin:0">'+icon('calendar',13)+' Meetings ('+allMtgs.length+')</div>';
   h+='<button class="btn btn-p" onclick="TF.openAddOpportunityMeeting(\''+eid+'\')" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Meeting</button>';
   h+='</div>';
-  if(st.meetings.length){
-    st.meetings.forEach(function(m){
+  if(allMtgs.length){
+    allMtgs.forEach(function(m){
       h+='<div class="op-meeting-row">';
-      h+='<span style="font-size:11px;color:var(--t3);min-width:80px">'+fmtDShort(m.date)+'</span>';
+      h+='<span style="font-size:11px;color:var(--t3);min-width:80px">'+(m.date?fmtDShort(new Date(m.date)):'-')+'</span>';
       h+='<span style="flex:1;font-size:12px;font-weight:600;color:var(--t1)">'+esc(m.title)+'</span>';
       if(m.recordingLink)h+='<a href="'+esc(m.recordingLink)+'" target="_blank" style="font-size:10px;color:var(--blue)">'+icon('link',10)+' Recording</a>';
-      h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.5">'+icon('x',10)+'</button>';
+      if(!m.source)h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.5">'+icon('x',10)+'</button>';
       h+='</div>'})}
   else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No meetings yet</div>'}
   return h}
@@ -4178,9 +4184,11 @@ function rCampaignDashboard(cp,st){
   var statusCls=cp.status==='Active'?'im':cp.status==='Setup'?'mt':cp.status==='Paused'?'wt':'cr';
   var tab=S.campaignTab||'overview';
   var cpContacts=[];
-  /* Collect contacts for campaign client + end-client */
+  /* Collect contacts for campaign client + end-client (filter by endClient when set) */
   if(cp.partner){var cr=S.clientRecords.find(function(r){return r.name===cp.partner});
-    if(cr)cpContacts=cpContacts.concat(S.contacts.filter(function(c){return c.clientId===cr.id}))}
+    if(cr){var _cc=S.contacts.filter(function(c){return c.clientId===cr.id});
+      if(cp.endClient)_cc=_cc.filter(function(c){return c.endClient===cp.endClient});
+      cpContacts=cpContacts.concat(_cc)}}
   if(cp.endClient){var ecOnly=S.contacts.filter(function(c){return c.endClient===cp.endClient&&cpContacts.indexOf(c)===-1});
     cpContacts=cpContacts.concat(ecOnly)}
 
@@ -4514,14 +4522,19 @@ function rCpTabContacts(cp,cpContacts){
 /* ── Campaign Tab: Meetings ── */
 function rCpTabMeetings(cp,st){
   var h='';
+  /* Merge campaign_meetings + associated Read.ai meetings */
+  var allMtgs=st.meetings.slice();
+  (S.meetings||[]).forEach(function(m){
+    if(m.campaignId===cp.id)allMtgs.push({date:m.startTime,title:m.title||'Meeting',
+      recordingLink:m.reportUrl||'',notes:m.summary||'',source:'readai'})});
+  allMtgs.sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)});
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-  h+='<div class="dash-section" style="margin:0">'+icon('calendar',13)+' Meetings ('+st.meetings.length+')</div>';
+  h+='<div class="dash-section" style="margin:0">'+icon('calendar',13)+' Meetings ('+allMtgs.length+')</div>';
   h+='<button class="btn btn-p" onclick="TF.openAddCampaignMeeting(\''+escAttr(cp.id)+'\')" style="font-size:11px;padding:5px 12px">'+icon('plus',10)+' Add Meeting</button>';
   h+='</div>';
-  if(st.meetings.length){
-    var sortedMtgs=st.meetings.slice().sort(function(a,b){return(b.date?b.date.getTime():0)-(a.date?a.date.getTime():0)});
+  if(allMtgs.length){
     h+='<div class="tb-wrap" style="margin-bottom:16px"><table class="tb"><thead><tr><th>Date</th><th>Title</th><th>Recording</th><th>Notes</th></tr></thead><tbody>';
-    sortedMtgs.forEach(function(m){
+    allMtgs.forEach(function(m){
       h+='<tr><td>'+(m.date?fmtDShort(m.date):'')+'</td><td>'+esc(m.title||'')+'</td><td>'+(m.recordingLink?'<a href="'+esc(m.recordingLink)+'" target="_blank" style="color:var(--pink)">Watch &#8599;</a>':'')+'</td><td style="color:var(--t3);font-size:11px">'+esc(m.notes||'')+'</td></tr>'});
     h+='</tbody></table></div>'}
   else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No meetings recorded yet</div>'}
@@ -7026,6 +7039,8 @@ function rEmailThreadModal(threadId){
 
   /* Get current values from cached thread */
   var curClient=cached?cached.client_id||'':'';
+  /* Resolve UUID to name — AI analysis stores client record UUID, manual saves store name */
+  if(curClient){var _cr=S.clientRecords.find(function(r){return r.id===curClient});if(_cr)curClient=_cr.name}
   var curEc=cached?cached.end_client||'':'';
   var curCamp=cached?cached.campaign_id||'':'';
   var curOpp=cached?cached.opportunity_id||'':'';

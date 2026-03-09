@@ -3974,6 +3974,13 @@ async function triggerSync(platform){
     }
   }catch(e){console.error('Sync error:',e);toast('Sync error: '+e.message,'warn')}}
 
+function checkStaleBalances(){
+  if(S._balanceSyncPending)return;
+  var last=S.accountBalances.length?S.accountBalances[0].capturedAt:null;
+  if(!last||Date.now()-last.getTime()>30*60*1000){
+    S._balanceSyncPending=true;
+    syncAllIntegrations(true).finally(function(){S._balanceSyncPending=false})}}
+
 async function syncAllIntegrations(silent){
   var platformMap={brex:'brex',mercury:'mercury',zoho_books:'zoho-books',zoho_payments:'zoho-payments'};
   var active=S.integrations.filter(function(i){return i.is_active});
@@ -5064,7 +5071,7 @@ function finFilteredPayments(){
   if(S.finSearch){var q=S.finSearch.toLowerCase();
     fp=fp.filter(function(p){return(p.payerEmail||'').toLowerCase().indexOf(q)!==-1||(p.payerName||'').toLowerCase().indexOf(q)!==-1||(p.description||'').toLowerCase().indexOf(q)!==-1||(p.notes||'').toLowerCase().indexOf(q)!==-1})}
   return fp}
-function setFinSearch(v){S.finSearch=v;render()}
+function setFinSearch(v){S.finSearch=v;clearTimeout(S._finSearchTmr);S._finSearchTmr=setTimeout(function(){render()},250)}
 function finToggleAnalytics(){subNav(S.subView==='dashboard'?'payments':'dashboard')}
 function finToggleBulk(){S.finBulkMode=!S.finBulkMode;S.finBulkSelected={};render()}
 function finToggleSel(id){if(S.finBulkSelected[id])delete S.finBulkSelected[id];else S.finBulkSelected[id]=true;render()}

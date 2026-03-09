@@ -3107,7 +3107,8 @@ async function addCampaignNote(campaignId){
   var text=el.value.trim();if(!text)return;
   el.value='';
   await dbAddCampaignNote(campaignId,text);
-  await loadCampaignNotes();render()}
+  await loadCampaignNotes();
+  if(S.campaignDetailId===campaignId)openCampaignDashboard(campaignId);else render()}
 
 async function addClientNote(clientId){
   var el=gel('cln-input');if(!el)return;
