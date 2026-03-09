@@ -41,8 +41,14 @@ module.exports = async function handler(req, res) {
     // Build participant names list
     const participants = (meeting.participants || []).map(p => p.name || p.email || 'Unknown').join(', ');
 
+    // Cap transcript length to avoid timeout (100k chars ≈ 25k tokens)
+    let transcript = meeting.transcript;
+    if (transcript.length > 100000) {
+      transcript = transcript.slice(0, 100000) + '\n\n[Transcript truncated due to length]';
+    }
+
     // Get type-specific prompt
-    const prompt = buildPrompt(meeting.group_call_type, dateStr, participants, meeting.title, meeting.transcript, meeting.summary || '', meeting.chapter_summaries || []);
+    const prompt = buildPrompt(meeting.group_call_type, dateStr, participants, meeting.title, transcript, meeting.summary || '', meeting.chapter_summaries || []);
 
     const response = await anthropic.messages.create({
       model: model,

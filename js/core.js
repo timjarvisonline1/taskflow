@@ -1429,8 +1429,10 @@ async function generateKajabiReport(meetingId){
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body:JSON.stringify({meetingId:meetingId})});
-    var result=await resp.json();
-    if(!resp.ok){toast(result.error||'Generation failed','warn');render();return}
+    var text=await resp.text();
+    var result;
+    try{result=JSON.parse(text)}catch(_){result={error:text||'Server error ('+resp.status+')'}}
+    if(!resp.ok){toast(result.error||'Generation failed ('+resp.status+')','warn');render();return}
     m.kajabiReportHtml=result.html||'';
     if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
     render();toast('Report generated','ok');
