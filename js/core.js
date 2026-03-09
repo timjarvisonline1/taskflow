@@ -2451,10 +2451,14 @@ async function openEmailThread(threadId){
       body:JSON.stringify({threadId:threadId,unread:false})}).catch(function(){});
     /* Instantly refresh list panel to remove unread dot */
     _refreshEmailListPanel();buildNav();
-    /* Apply email rules if no categorization */
+    /* Apply email rules if completely uncategorized */
     if(cached&&!cached.client_id&&!cached.end_client&&!cached.campaign_id&&!cached.opportunity_id){
       var ruleActions=applyEmailRules(cached);
-      if(ruleActions)_applyRuleActionsToThread(threadId,ruleActions)}
+      if(ruleActions)_applyRuleActionsToThread(threadId,ruleActions);
+      else _autoCategorizeFromContacts(threadId,cached)}
+    /* Auto-fill remaining empty fields from contacts (e.g. sync set client but not end-client) */
+    else if(cached&&(!cached.client_id||!cached.end_client)){
+      _autoCategorizeFromContacts(threadId,cached)}
 
     /* Re-render with loaded data */
     detailPanel=gel('email-detail-panel');
@@ -3786,6 +3790,64 @@ async function _applyRuleActionsToThread(threadId,actions){
   /* Handle auto-archive */
   var archiveAct=actions.find(function(a){return a.type==='auto_archive'});
   if(archiveAct)archiveEmail(threadId)}
+
+/* Auto-populate empty CRM fields from contact matching.
+   Updates local cache synchronously (so re-render shows values immediately),
+   then fire-and-forget writes to DB. */
+function _autoCategorizeFromContacts(threadId,cached){
+  if(!cached||!threadId)return;
+  var from=cached.from_email||'';
+  var to=cached.to_emails||'';
+  var cc=cached.cc_emails||'';
+  var ctx=resolveThreadCrmContext(from,to,cc);
+
+  var updates={};
+  var hasChanges=false;
+
+  /* Auto-fill client_id from primary contact match */
+  if(!cached.client_id&&ctx.primaryClient){
+    updates.client_id=ctx.primaryClient.clientId;
+    hasChanges=true}
+
+  /* Auto-fill end_client from primary end-client match */
+  if(!cached.end_client&&ctx.primaryEndClient){
+    updates.end_client=ctx.primaryEndClient;
+    updates.end_client_id=resolveEndClientId(ctx.primaryEndClient)||null;
+    hasChanges=true}
+
+  /* Auto-fill campaign_id if exactly one campaign resolved */
+  if(!cached.campaign_id&&ctx.campaigns.length===1){
+    updates.campaign_id=ctx.campaigns[0].id;
+    hasChanges=true}
+
+  /* Auto-fill opportunity_id if exactly one opportunity resolved */
+  if(!cached.opportunity_id&&ctx.opportunities.length===1){
+    updates.opportunity_id=ctx.opportunities[0].id;
+    hasChanges=true}
+
+  if(!hasChanges)return;
+
+  /* Update local cache synchronously so re-render picks up values */
+  Object.keys(updates).forEach(function(k){cached[k]=updates[k]});
+  S._threadCrmCache={};
+
+  /* Update email timer categorization so completed task gets correct CRM */
+  if(S._emailTimer&&S._emailTimer.threadId===threadId){
+    var _cr=updates.client_id?S.clientRecords.find(function(r){return r.id===updates.client_id}):null;
+    S._emailTimer.categorization={
+      client:_cr?_cr.name:(S._emailTimer.categorization?S._emailTimer.categorization.client:''),
+      endClient:updates.end_client||(S._emailTimer.categorization?S._emailTimer.categorization.endClient:''),
+      campaignId:updates.campaign_id||(S._emailTimer.categorization?S._emailTimer.categorization.campaignId:''),
+      opportunityId:updates.opportunity_id||(S._emailTimer.categorization?S._emailTimer.categorization.opportunityId:'')}}
+
+  /* Fire-and-forget database write */
+  getUserId().then(function(uid){
+    if(!uid)return;
+    _sb.from('gmail_threads').update(updates).eq('user_id',uid).eq('thread_id',threadId)
+      .then(function(res){if(res.error)console.warn('Auto-categorize save:',res.error.message)})
+      .catch(function(e){console.warn('Auto-categorize error:',e.message)})});
+  /* Refresh list panel so smart inbox reflects new categorization */
+  _refreshEmailListPanel()}
 
 async function saveEmailRule(ruleData){
   var uid=await getUserId();if(!uid)return;
