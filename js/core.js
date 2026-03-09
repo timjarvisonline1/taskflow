@@ -1258,7 +1258,7 @@ function closeMeeting(){
 function setMeetingSearch(v){
   S.meetingSearch=v;S.meetingsPage=1;
   clearTimeout(S._mtgSearchTmr);
-  S._mtgSearchTmr=setTimeout(function(){render()},250)}
+  S._mtgSearchTmr=setTimeout(function(){render();var si=gel('meeting-search');if(si){si.focus();si.selectionStart=si.selectionEnd=si.value.length}},250)}
 
 function setMeetingsPage(p){S.meetingsPage=p;render();window.scrollTo(0,0)}
 
@@ -3984,7 +3984,7 @@ function checkStaleBalances(){
 async function syncAllIntegrations(silent){
   var platformMap={brex:'brex',mercury:'mercury',zoho_books:'zoho-books',zoho_payments:'zoho-payments'};
   var active=S.integrations.filter(function(i){return i.is_active});
-  if(!active.length)return;
+  if(!active.length){console.warn('[sync] No active integrations found. S.integrations:',S.integrations.map(function(i){return{platform:i.platform,is_active:i.is_active}}));return}
   try{
     var sess=await _sb.auth.getSession();
     if(!sess.data.session)return;
@@ -5071,7 +5071,7 @@ function finFilteredPayments(){
   if(S.finSearch){var q=S.finSearch.toLowerCase();
     fp=fp.filter(function(p){return(p.payerEmail||'').toLowerCase().indexOf(q)!==-1||(p.payerName||'').toLowerCase().indexOf(q)!==-1||(p.description||'').toLowerCase().indexOf(q)!==-1||(p.notes||'').toLowerCase().indexOf(q)!==-1})}
   return fp}
-function setFinSearch(v){S.finSearch=v;clearTimeout(S._finSearchTmr);S._finSearchTmr=setTimeout(function(){render()},250)}
+function setFinSearch(v){S.finSearch=v;clearTimeout(S._finSearchTmr);S._finSearchTmr=setTimeout(function(){render();var si=gel('fin-search');if(si){si.focus();si.selectionStart=si.selectionEnd=si.value.length}},250)}
 function finToggleAnalytics(){subNav(S.subView==='dashboard'?'payments':'dashboard')}
 function finToggleBulk(){S.finBulkMode=!S.finBulkMode;S.finBulkSelected={};render()}
 function finToggleSel(id){if(S.finBulkSelected[id])delete S.finBulkSelected[id];else S.finBulkSelected[id]=true;render()}

@@ -5,10 +5,10 @@ const CSV_CUTOFF = '2026-02-28'; // All data before this date was imported via C
 
 async function syncBrex(userId) {
   const cred = await getCredentials(userId, 'brex');
-  if (!cred) throw new Error('Brex not connected');
+  if (!cred) throw new Error('Brex not connected — no active credentials found for platform "brex". Check Integrations modal.');
 
-  const apiKey = cred.credentials.api_key;
-  if (!apiKey) throw new Error('Brex API key missing');
+  const apiKey = cred.credentials ? cred.credentials.api_key : null;
+  if (!apiKey) throw new Error('Brex API key missing — credentials record exists but api_key is empty. Re-enter your API key in Integrations.');
 
   const headers = { 'Authorization': 'Bearer ' + apiKey };
   const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, error: '' };
