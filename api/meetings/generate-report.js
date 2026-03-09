@@ -41,33 +41,49 @@ module.exports = async function handler(req, res) {
     // Build participant names list
     const participants = (meeting.participants || []).map(p => p.name || p.email || 'Unknown').join(', ');
 
-    // Cap transcript length to avoid timeout (100k chars ≈ 25k tokens)
-    let transcript = meeting.transcript;
-    if (transcript.length > 100000) {
-      transcript = transcript.slice(0, 100000) + '\n\n[Transcript truncated due to length]';
-    }
+    // Get type-specific prompt — full transcript, no truncation
+    const prompt = buildPrompt(meeting.group_call_type, dateStr, participants, meeting.title, meeting.transcript, meeting.summary || '', meeting.chapter_summaries || []);
 
-    // Get type-specific prompt
-    const prompt = buildPrompt(meeting.group_call_type, dateStr, participants, meeting.title, transcript, meeting.summary || '', meeting.chapter_summaries || []);
+    // Stream the response via SSE to keep the connection alive
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
 
-    const response = await anthropic.messages.create({
+    let fullHtml = '';
+
+    const stream = anthropic.messages.stream({
       model: model,
       max_tokens: 16384,
       messages: [{ role: 'user', content: prompt }]
     });
 
-    const html = (response.content[0] && response.content[0].text) || '';
+    stream.on('text', (text) => {
+      fullHtml += text;
+      res.write('data: ' + JSON.stringify({ t: 'c' }) + '\n\n');
+    });
 
-    // Cache the result
+    const finalMessage = await stream.finalMessage();
+    fullHtml = (finalMessage.content[0] && finalMessage.content[0].text) || fullHtml;
+
+    // Cache the result in DB
     await client.from('meetings').update({
-      kajabi_report_html: html,
+      kajabi_report_html: fullHtml,
       updated_at: new Date().toISOString()
     }).eq('id', meetingId).eq('user_id', userId);
 
-    return res.status(200).json({ html });
+    // Send the final HTML
+    res.write('data: ' + JSON.stringify({ t: 'd', html: fullHtml }) + '\n\n');
+    res.end();
   } catch (e) {
     console.error('generate-report error:', e);
-    return res.status(500).json({ error: 'Report generation failed: ' + (e.message || 'Unknown error') });
+    // If headers already sent (streaming started), send error as SSE
+    if (res.headersSent) {
+      res.write('data: ' + JSON.stringify({ t: 'e', error: e.message || 'Unknown error' }) + '\n\n');
+      res.end();
+    } else {
+      return res.status(500).json({ error: 'Report generation failed: ' + (e.message || 'Unknown error') });
+    }
   }
 };
 

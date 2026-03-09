@@ -1429,11 +1429,29 @@ async function generateKajabiReport(meetingId){
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body:JSON.stringify({meetingId:meetingId})});
-    var text=await resp.text();
-    var result;
-    try{result=JSON.parse(text)}catch(_){result={error:text||'Server error ('+resp.status+')'}}
-    if(!resp.ok){toast(result.error||'Generation failed ('+resp.status+')','warn');render();return}
-    m.kajabiReportHtml=result.html||'';
+    /* Check for non-streaming error responses (4xx etc) */
+    var ct=resp.headers.get('content-type')||'';
+    if(!resp.ok&&ct.indexOf('text/event-stream')<0){
+      var errText=await resp.text();
+      var errObj;try{errObj=JSON.parse(errText)}catch(_){errObj={error:errText||'Server error ('+resp.status+')'}}
+      toast(errObj.error||'Generation failed ('+resp.status+')','warn');render();return}
+    /* Read SSE stream */
+    var reader=resp.body.getReader();
+    var decoder=new TextDecoder();
+    var html='';var buf='';
+    while(true){
+      var chunk=await reader.read();
+      if(chunk.done)break;
+      buf+=decoder.decode(chunk.value,{stream:true});
+      var lines=buf.split('\n');buf=lines.pop()||'';
+      for(var i=0;i<lines.length;i++){
+        var line=lines[i];if(line.indexOf('data: ')!==0)continue;
+        try{var evt=JSON.parse(line.slice(6));
+          if(evt.t==='d'){html=evt.html||''}
+          else if(evt.t==='e'){toast(evt.error||'Generation failed','warn');render();return}
+        }catch(_){}}}
+    if(!html){toast('No report was generated','warn');render();return}
+    m.kajabiReportHtml=html;
     if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
     render();toast('Report generated','ok');
   }catch(e){
