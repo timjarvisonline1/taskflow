@@ -44,6 +44,8 @@ module.exports = async function handler(req, res) {
     // Get type-specific prompt — full transcript, no truncation
     const prompt = buildPrompt(meeting.group_call_type, dateStr, participants, meeting.title, meeting.transcript, meeting.summary || '', meeting.chapter_summaries || []);
 
+    console.log('[generate-report] Transcript length:', meeting.transcript.length, 'Prompt length:', prompt.length, 'Model:', model);
+
     // Stream the response via SSE to keep the connection alive
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -51,6 +53,7 @@ module.exports = async function handler(req, res) {
     res.flushHeaders();
 
     let fullHtml = '';
+    let chunkCount = 0;
 
     const stream = anthropic.messages.stream({
       model: model,
@@ -60,20 +63,27 @@ module.exports = async function handler(req, res) {
 
     stream.on('text', (text) => {
       fullHtml += text;
+      chunkCount++;
+      if (chunkCount <= 3) console.log('[generate-report] Streaming chunk #' + chunkCount + ' (' + text.length + ' chars)');
       res.write('data: ' + JSON.stringify({ t: 'c' }) + '\n\n');
     });
 
+    console.log('[generate-report] Waiting for stream to complete...');
     const finalMessage = await stream.finalMessage();
+    console.log('[generate-report] Stream complete. Chunks:', chunkCount, 'stop_reason:', finalMessage.stop_reason, 'fullHtml length:', fullHtml.length);
     fullHtml = (finalMessage.content[0] && finalMessage.content[0].text) || fullHtml;
+    console.log('[generate-report] Final HTML length:', fullHtml.length);
 
     // Cache the result in DB
-    await client.from('meetings').update({
+    const dbResult = await client.from('meetings').update({
       kajabi_report_html: fullHtml,
       updated_at: new Date().toISOString()
     }).eq('id', meetingId).eq('user_id', userId);
+    console.log('[generate-report] DB save result:', dbResult.error ? 'ERROR: ' + dbResult.error.message : 'OK');
 
     // Send the final HTML
     res.write('data: ' + JSON.stringify({ t: 'd', html: fullHtml }) + '\n\n');
+    console.log('[generate-report] Sent done event, ending response');
     res.end();
   } catch (e) {
     console.error('generate-report error:', e);

@@ -1431,25 +1431,34 @@ async function generateKajabiReport(meetingId){
       body:JSON.stringify({meetingId:meetingId})});
     /* Check for non-streaming error responses (4xx etc) */
     var ct=resp.headers.get('content-type')||'';
+    console.log('[KajabiReport] Response status:',resp.status,'content-type:',ct);
     if(!resp.ok&&ct.indexOf('text/event-stream')<0){
       var errText=await resp.text();
+      console.log('[KajabiReport] Error response body:',errText);
       var errObj;try{errObj=JSON.parse(errText)}catch(_){errObj={error:errText||'Server error ('+resp.status+')'}}
       toast(errObj.error||'Generation failed ('+resp.status+')','warn');render();return}
     /* Read SSE stream */
     var reader=resp.body.getReader();
     var decoder=new TextDecoder();
-    var html='';var buf='';
+    var html='';var buf='';var chunkCount=0;var eventCount=0;
     while(true){
       var chunk=await reader.read();
-      if(chunk.done)break;
-      buf+=decoder.decode(chunk.value,{stream:true});
+      if(chunk.done){console.log('[KajabiReport] Stream ended. Chunks:',chunkCount,'Events parsed:',eventCount,'HTML length:',html.length);break}
+      chunkCount++;
+      var raw=decoder.decode(chunk.value,{stream:true});
+      buf+=raw;
+      if(chunkCount<=3)console.log('[KajabiReport] Chunk #'+chunkCount+' ('+raw.length+' chars):',raw.slice(0,200));
       var lines=buf.split('\n');buf=lines.pop()||'';
       for(var i=0;i<lines.length;i++){
         var line=lines[i];if(line.indexOf('data: ')!==0)continue;
-        try{var evt=JSON.parse(line.slice(6));
-          if(evt.t==='d'){html=evt.html||''}
-          else if(evt.t==='e'){toast(evt.error||'Generation failed','warn');render();return}
-        }catch(_){}}}
+        var payload=line.slice(6);
+        try{var evt=JSON.parse(payload);
+          eventCount++;
+          if(evt.t==='d'){html=evt.html||'';console.log('[KajabiReport] Got done event. HTML length:',html.length)}
+          else if(evt.t==='e'){console.log('[KajabiReport] Got error event:',evt.error);toast(evt.error||'Generation failed','warn');render();return}
+          else if(evt.t==='c'&&eventCount<=3){console.log('[KajabiReport] Got chunk event #'+eventCount)}
+        }catch(parseErr){console.warn('[KajabiReport] Failed to parse SSE payload:',payload.slice(0,200),parseErr)}}}
+    console.log('[KajabiReport] Remaining buffer:',buf.length?buf.slice(0,200):'(empty)');
     if(!html){toast('No report was generated','warn');render();return}
     m.kajabiReportHtml=html;
     if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;
