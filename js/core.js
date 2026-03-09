@@ -2442,6 +2442,17 @@ async function openEmailThread(threadId){
       S._emailTimer.subject=S.gmailThread.messages[0].subject||S.gmailThread.subject||''}
     /* Mark as read locally + update live threads + call API */
     var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
+    /* Fallback: thread loaded from Gmail API but not in Supabase cache — build from live data */
+    if(!cached&&S._gmailLiveThreads){
+      var _live=S._gmailLiveThreads.find(function(t){return(t.threadId||t.thread_id)===threadId});
+      if(_live){
+        cached={thread_id:threadId,from_email:_live.fromEmail||_live.from_email||'',
+          to_emails:_live.toEmails||_live.to_emails||'',cc_emails:_live.ccEmails||_live.cc_emails||'',
+          subject:_live.subject||'',is_unread:false,client_id:null,end_client:'',
+          end_client_id:null,campaign_id:null,opportunity_id:null,labels:_live.labels||'',
+          snippet:_live.snippet||'',from_name:_live.fromName||'',
+          last_message_at:_live.date||'',message_count:_live.messageCount||1};
+        S.gmailThreads.push(cached)}}
     if(cached){cached.is_unread=false;cached.isUnread=false}
     if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=false;t.is_unread=false}});
     S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
@@ -2457,7 +2468,8 @@ async function openEmailThread(threadId){
       ' end_client='+(cached?cached.end_client||'':'?')+
       ' from='+(cached?cached.from_email||'':'?')+
       ' to='+(cached?(cached.to_emails||'').substring(0,60):'?')+
-      ' S.gmailThreads.length='+S.gmailThreads.length);
+      ' S.gmailThreads.length='+S.gmailThreads.length+
+      ' liveThreads='+(S._gmailLiveThreads?S._gmailLiveThreads.length:'null'));
     if(cached&&!cached.client_id&&!cached.end_client&&!cached.campaign_id&&!cached.opportunity_id){
       console.log('[AutoCat] BRANCH=fully_uncategorized');
       var ruleActions=applyEmailRules(cached);
