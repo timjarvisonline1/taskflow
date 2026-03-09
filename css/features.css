@@ -980,9 +980,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-list-panel.no-anim .email-row{animation:none}
 
 /* Active thread highlight in list */
-.email-row.email-active{background:rgba(77,166,255,.08);border-color:rgba(77,166,255,.2)}
-.email-row.email-active:hover{background:rgba(77,166,255,.1);border-color:rgba(77,166,255,.25);transform:none}
+.email-row.email-active{background:rgba(255,255,255,.04);border-color:rgba(255,0,153,.15);border-left:3px solid var(--accent)}
+.email-row.email-active:hover{background:rgba(255,255,255,.06);border-color:rgba(255,0,153,.2);transform:none}
 .email-row.email-active .email-row-subject{color:var(--t1)}
+.email-row.email-active .email-row-from{color:var(--t1)}
 
 /* Compact list when detail is open */
 .email-split-view.has-detail .email-row{grid-template-columns:8px 30px 1fr;gap:8px;padding:10px 12px}
@@ -999,6 +1000,16 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-split-view.has-detail .tm-btn{font-size:11px;padding:5px 10px}
 .email-split-view.has-detail .email-filter-bar{display:none}
 .email-split-view.has-detail .email-bulk-bar{display:none}
+/* Badge overflow control in compact mode */
+.email-split-view.has-detail .email-row-top{flex-wrap:wrap;gap:3px 5px;max-height:36px;overflow:hidden}
+.email-split-view.has-detail .email-client-badge,
+.email-split-view.has-detail .email-ec-pill,
+.email-split-view.has-detail .email-camp-pill,
+.email-split-view.has-detail .email-opp-pill{max-width:85px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-split-view.has-detail .email-add-contact-pill,
+.email-split-view.has-detail .email-cat-pill,
+.email-split-view.has-detail .email-participant-count,
+.email-split-view.has-detail .email-sentiment-dot{display:none}
 
 /* Detail panel inline styles */
 .email-detail-inline-header{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--gborder)}
@@ -1010,6 +1021,8 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-list-panel::-webkit-scrollbar,.email-detail-panel::-webkit-scrollbar{width:4px}
 .email-list-panel::-webkit-scrollbar-thumb,.email-detail-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px}
 .email-list-panel::-webkit-scrollbar-thumb:hover,.email-detail-panel::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.15)}
+/* Scroll cue: subtle fade at bottom of scrollable panels */
+.detail-split-left,.detail-split-right{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 20px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 20px),transparent)}
 
 /* Empty state for detail panel */
 .email-detail-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--t4);text-align:center;padding:40px}
@@ -1023,6 +1036,17 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-detail-panel .detail-split-right{width:260px;padding:12px 16px;overflow-y:auto}
 .email-detail-panel .email-thread-modal-toolbar{padding:8px 0;margin-bottom:8px;position:sticky;top:0;z-index:10;background:var(--g1)}
 .email-detail-panel .email-thread-modal-subject{font-size:16px}
+
+/* ── Compact inline reply (collapsed by default, expand on focus) ── */
+.email-detail-panel .email-inline-reply .inline-reply-header{display:none}
+.email-detail-panel .email-inline-reply-editor{min-height:42px;max-height:42px;overflow:hidden;transition:min-height .2s var(--ease),max-height .2s var(--ease);padding:10px 18px}
+.email-detail-panel .email-inline-reply:focus-within .email-inline-reply-editor{min-height:80px;max-height:250px;overflow-y:auto;padding:14px 18px}
+.email-detail-panel .email-inline-reply-toolbar{display:none}
+.email-detail-panel .email-inline-reply:focus-within .email-inline-reply-toolbar{display:flex}
+.email-detail-panel .email-inline-reply-actions{display:none}
+.email-detail-panel .email-inline-reply:focus-within .email-inline-reply-actions{display:flex}
+/* Bottom padding to avoid timer widget overlap */
+.email-detail-panel .detail-split-left,.email-detail-panel .detail-split-right{padding-bottom:60px}
 
 /* Intermediate: narrower list panel */
 @media(max-width:900px) and (min-width:701px){
@@ -1152,7 +1176,9 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-msg-collapse{font-size:10px;color:var(--t4);background:var(--bg3);border:none;
   padding:3px 10px;border-radius:6px;cursor:pointer;margin-left:8px;transition:all .15s}
 .email-msg-collapse:hover{color:var(--t2);background:var(--bg4)}
-.email-msg-to{font-size:11px;color:var(--t4);padding:6px 18px 6px 64px;border-top:1px solid var(--gborder)}
+.email-msg-to{font-size:11px;color:var(--t4);padding:6px 18px 6px 64px;border-top:1px solid var(--gborder);line-height:1.5}
+.email-rcpt{color:var(--t3);cursor:default;transition:color .15s}
+.email-rcpt:hover{color:var(--t2)}
 .email-msg-body{padding:16px 18px 16px 64px}
 .email-iframe{border-radius:8px;background:transparent;border:none}
 /* Snippet preview for collapsed messages */
@@ -1385,8 +1411,8 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-ec-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:rgba(168,85,247,.12);color:#a855f7;font-weight:600;flex-shrink:0}
 .email-camp-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:rgba(59,130,246,.12);color:#3b82f6;font-weight:600;flex-shrink:0}
 .email-opp-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:rgba(34,197,94,.12);color:#22c55e;font-weight:600;flex-shrink:0}
-.email-add-contact-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:rgba(251,191,36,.12);color:#f59e0b;font-weight:600;flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;gap:3px;transition:background .15s}
-.email-add-contact-pill:hover{background:rgba(251,191,36,.22)}
+.email-add-contact-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:transparent;border:1px dashed rgba(251,191,36,.3);color:var(--t4);font-weight:500;flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;gap:3px;transition:all .15s}
+.email-add-contact-pill:hover{background:rgba(251,191,36,.12);color:#f59e0b;border-color:rgba(251,191,36,.5)}
 
 /* ── Smart inbox sub-nav divider ── */
 .sub-nav-divider{padding:12px 0 4px;margin:4px 0 2px;display:flex;align-items:center;gap:8px}
@@ -1608,10 +1634,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .thread-crm-section{margin-bottom:16px}
 .thread-crm-row{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .thread-crm-row .edf{flex:1;font-size:12px;padding:6px 10px}
-.thread-crm-add{width:28px;height:28px;border-radius:6px;border:1px solid var(--gborder);
+.thread-crm-add{width:32px;height:32px;border-radius:6px;border:1px solid var(--gborder);
   background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;
   justify-content:center;transition:all .12s;flex-shrink:0}
-.thread-crm-add:hover{background:rgba(255,255,255,.06);color:var(--t1)}
+.thread-crm-add:hover{background:rgba(255,255,255,.08);color:var(--t1);border-color:rgba(255,255,255,.15)}
 
 /* ── Thread context info panels ── */
 .thread-context-panel{background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);

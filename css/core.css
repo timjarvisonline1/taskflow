@@ -229,8 +229,9 @@ h3{font-family:var(--fd);font-size:13px;font-weight:600;color:var(--t2);margin:2
 .ed-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 /* ── FLOATING ACTIVE TASKS WIDGET ── */
-.at-widget{position:fixed;bottom:20px;right:20px;width:280px;background:var(--bg1);border:1px solid var(--gborder);border-radius:var(--r);box-shadow:0 8px 32px rgba(0,0,0,0.35);z-index:200;overflow:hidden;transition:opacity .3s var(--ease),box-shadow .2s var(--ease)}
-.at-widget:hover{box-shadow:0 8px 40px rgba(0,0,0,0.45)}
+.at-widget{position:fixed;bottom:20px;right:20px;width:280px;background:var(--bg1);border:1px solid var(--gborder);border-radius:var(--r);box-shadow:0 8px 32px rgba(0,0,0,0.35);z-index:200;overflow:hidden;transition:opacity .3s var(--ease),box-shadow .2s var(--ease),transform .2s var(--ease)}
+.at-widget:not(:hover){opacity:.75}
+.at-widget:hover{box-shadow:0 8px 40px rgba(0,0,0,0.45);opacity:1}
 .at-widget.hidden{display:none}
 .at-header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--gborder);cursor:grab;user-select:none;background:var(--bg2)}
 .at-header:active{cursor:grabbing}

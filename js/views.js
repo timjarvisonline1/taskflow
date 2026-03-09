@@ -6887,6 +6887,17 @@ function _buildInlineRecipientFieldInner(field,label){
   h+='</div>';
   return h}
 
+/* ── Format recipient addresses for clean display ── */
+function _fmtRecipients(raw){
+  if(!raw)return'';
+  return raw.split(',').map(function(a){
+    a=a.trim();if(!a)return'';
+    var m=a.match(/"?([^"<]+?)"?\s*<([^>]+)>/);
+    if(m){var name=m[1].trim();var email=m[2].trim();
+      return'<span class="email-rcpt" title="'+esc(email)+'">'+esc(name)+'</span>'}
+    return'<span class="email-rcpt">'+esc(a.replace(/[<>"]/g,'').trim())+'</span>';
+  }).filter(Boolean).join(', ')}
+
 /* ═══════════ FULL-SCREEN EMAIL THREAD MODAL ═══════════ */
 function rEmailThreadModal(threadId){
   var h='';
@@ -6976,7 +6987,7 @@ function rEmailThreadModal(threadId){
   h+='<button class="compose-toolbar-btn" title="Quote" onclick="event.preventDefault();document.execCommand(\'formatBlock\',false,\'blockquote\')">'+icon('quote',11)+'</button>';
   h+='<span class="email-toolbar-sep"></span>';
   h+='<button class="compose-toolbar-btn" title="Link" onclick="event.preventDefault();var u=prompt(\'URL:\');if(u)document.execCommand(\'createLink\',false,u)">'+icon('link',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Clear Formatting" onclick="event.preventDefault();document.execCommand(\'removeFormat\')">'+icon('x',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Clear Formatting" onclick="event.preventDefault();document.execCommand(\'removeFormat\')" style="font-size:11px;text-decoration:line-through;font-weight:600;color:var(--t4)">T</button>';
   h+='<div style="flex:1"></div>';
   h+='<button class="email-inline-reply-btn ai-draft-inline" onclick="TF.inlineAiDraft()">'+icon('sparkle',11)+' AI Draft</button>';
   h+='</div>';
@@ -7040,8 +7051,8 @@ function rEmailThreadModal(threadId){
       h+=icon('paperclip',10)+' '+msg.attachments.length+'</span>'}
     if(totalMsgs>1)h+='<button class="email-msg-collapse" onclick="event.stopPropagation();TF.toggleEmailMsg('+idx+')">'+(isCollapsed?icon('chevron_right',10):icon('chevron_down',10))+'</button>';
     h+='</div>';
-    if(msg.to){h+='<div class="email-msg-to">To: '+esc(msg.to.substring(0,200))+'</div>'}
-    if(msg.cc){h+='<div class="email-msg-to">Cc: '+esc(msg.cc.substring(0,200))+'</div>'}
+    if(msg.to){h+='<div class="email-msg-to">To: '+_fmtRecipients(msg.to)+'</div>'}
+    if(msg.cc){h+='<div class="email-msg-to">Cc: '+_fmtRecipients(msg.cc)+'</div>'}
     h+='<div class="email-msg-body">';
     if(msg.body){
       var encoded=btoa(unescape(encodeURIComponent(msg.body)));
@@ -7084,7 +7095,7 @@ function rEmailThreadModal(threadId){
 
   /* CRM Categorization */
   h+='<div class="thread-crm-section">';
-  h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t4);margin-bottom:10px">'+icon('briefcase',11)+' CRM Categorization</div>';
+  h+='<div class="crm-sb-header">'+icon('briefcase',11)+' CRM Categorization</div>';
 
   /* Get current values from cached thread */
   var curClient=cached?cached.client_id||'':'';
@@ -7124,7 +7135,8 @@ function rEmailThreadModal(threadId){
   S.tasks.concat(S.done).forEach(function(t){if(!curClient||t.client===curClient){if(t.endClient&&_ecNames.indexOf(t.endClient)===-1)_ecNames.push(t.endClient)}});
   S.opportunities.forEach(function(o){if(!curClient||o.client===curClient){if(o.endClient&&_ecNames.indexOf(o.endClient)===-1)_ecNames.push(o.endClient)}});
   _ecNames.sort().forEach(function(ec){h+='<option value="'+esc(ec)+'"'+(ec===curEc?' selected':'')+'>'+esc(ec)+'</option>'});
-  h+='</select></div>';
+  h+='</select>';
+  h+='<button class="thread-crm-add" onclick="TF.openAddEndClientModal()" title="Add End Client">'+icon('plus',12)+'</button></div>';
 
   /* Campaign dropdown */
   h+='<div class="thread-crm-row"><select class="edf" id="thread-crm-campaign" onchange="TF.threadCrmSave()"'+(isNone?' disabled':'')+'>';
@@ -7138,7 +7150,8 @@ function rEmailThreadModal(threadId){
   h+='<div class="thread-crm-row"><select class="edf" id="thread-crm-opportunity" onchange="TF.threadCrmSave()"'+(isNone?' disabled':'')+'>';
   h+='<option value="">— Opportunity —</option>';
   S.opportunities.filter(function(o){return!o.closedAt&&(!curClient||o.client===curClient)}).forEach(function(o){
-    h+='<option value="'+esc(o.id)+'"'+(o.id===curOpp?' selected':'')+'>'+esc(o.name)+'</option>'});
+    var _oppLabel=o.name+(o.stage?' ('+o.stage+')':'');
+    h+='<option value="'+esc(o.id)+'"'+(o.id===curOpp?' selected':'')+'>'+esc(_oppLabel)+'</option>'});
   h+='</select>';
   h+='<button class="thread-crm-add" onclick="TF.openAddOpportunity()" title="Add Opportunity">'+icon('plus',12)+'</button></div>';
 
@@ -7409,8 +7422,8 @@ function rEmailThread(){
       h+='</span>'}
     if(totalMsgs>1)h+='<button class="email-msg-collapse" onclick="event.stopPropagation();TF.toggleEmailMsg('+idx+')">'+(isCollapsed?icon('chevron_right',10):icon('chevron_down',10))+'</button>';
     h+='</div>';
-    if(msg.to){h+='<div class="email-msg-to">To: '+esc(msg.to.substring(0,200))+'</div>'}
-    if(msg.cc){h+='<div class="email-msg-to">Cc: '+esc(msg.cc.substring(0,200))+'</div>'}
+    if(msg.to){h+='<div class="email-msg-to">To: '+_fmtRecipients(msg.to)+'</div>'}
+    if(msg.cc){h+='<div class="email-msg-to">Cc: '+_fmtRecipients(msg.cc)+'</div>'}
 
     h+='<div class="email-msg-body">';
     if(msg.body){

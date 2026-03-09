@@ -5533,7 +5533,7 @@ function buildNav(){var h='';
       h+='</span></div>';
       return;
     }
-    h+='<div class="s-item'+(isOn?' on':'')+'" data-v="'+sec.id+'" onclick="TF.nav(\''+sec.id+'\')">';
+    h+='<div class="s-item'+(isOn?' on':'')+'" data-v="'+sec.id+'" title="'+esc(sec.label)+'" onclick="TF.nav(\''+sec.id+'\')">';
     h+='<span class="ico">'+icon(sec.icon)+'</span><span class="s-label">'+sec.label+'</span>';
     h+='<span class="s-right">'+badge;
     if(sec.kbd)h+='<span class="kbd">'+sec.kbd+'</span>';
