@@ -556,9 +556,10 @@ select.edf:focus{background-color:var(--bg3);background-image:url("data:image/sv
 .op-card-row-r{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:auto}
 
 /* Drag and drop */
-.op-card[draggable="true"]{cursor:grab}
+.op-card[draggable="true"]{cursor:grab;-webkit-user-drag:element;user-select:none}
+.op-card[draggable="true"] *{-webkit-user-drag:none;user-select:none;pointer-events:none}
 .op-card[draggable="true"]:active{cursor:grabbing}
-.op-card.dragging{opacity:0.3;transform:scale(0.97);pointer-events:none}
+.op-card.dragging{opacity:0.3;transform:scale(0.97)!important}
 .op-column.op-col-drop-target{transition:background .2s,outline .2s}
 .op-column.op-col-drag-over{background:rgba(77,166,255,0.06);border-radius:10px;outline:2px dashed rgba(77,166,255,0.3);outline-offset:-2px}
 
