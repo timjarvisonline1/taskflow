@@ -1437,28 +1437,25 @@ async function generateKajabiReport(meetingId){
       console.log('[KajabiReport] Error response body:',errText);
       var errObj;try{errObj=JSON.parse(errText)}catch(_){errObj={error:errText||'Server error ('+resp.status+')'}}
       toast(errObj.error||'Generation failed ('+resp.status+')','warn');render();return}
-    /* Read SSE stream */
+    /* Read SSE stream — HTML arrives in chunk events */
     var reader=resp.body.getReader();
     var decoder=new TextDecoder();
-    var html='';var buf='';var chunkCount=0;var eventCount=0;
+    var html='';var buf='';var chunkCount=0;var eventCount=0;var gotDone=false;
     while(true){
       var chunk=await reader.read();
-      if(chunk.done){console.log('[KajabiReport] Stream ended. Chunks:',chunkCount,'Events parsed:',eventCount,'HTML length:',html.length);break}
+      if(chunk.done){console.log('[KajabiReport] Stream ended. Chunks:',chunkCount,'Events:',eventCount,'gotDone:',gotDone,'HTML length:',html.length);break}
       chunkCount++;
       var raw=decoder.decode(chunk.value,{stream:true});
       buf+=raw;
-      if(chunkCount<=3)console.log('[KajabiReport] Chunk #'+chunkCount+' ('+raw.length+' chars):',raw.slice(0,200));
       var lines=buf.split('\n');buf=lines.pop()||'';
       for(var i=0;i<lines.length;i++){
         var line=lines[i];if(line.indexOf('data: ')!==0)continue;
-        var payload=line.slice(6);
-        try{var evt=JSON.parse(payload);
+        try{var evt=JSON.parse(line.slice(6));
           eventCount++;
-          if(evt.t==='d'){html=evt.html||'';console.log('[KajabiReport] Got done event. HTML length:',html.length)}
-          else if(evt.t==='e'){console.log('[KajabiReport] Got error event:',evt.error);toast(evt.error||'Generation failed','warn');render();return}
-          else if(evt.t==='c'&&eventCount<=3){console.log('[KajabiReport] Got chunk event #'+eventCount)}
-        }catch(parseErr){console.warn('[KajabiReport] Failed to parse SSE payload:',payload.slice(0,200),parseErr)}}}
-    console.log('[KajabiReport] Remaining buffer:',buf.length?buf.slice(0,200):'(empty)');
+          if(evt.t==='c'&&evt.h){html+=evt.h}
+          else if(evt.t==='d'){gotDone=true;console.log('[KajabiReport] Done. HTML length:',html.length)}
+          else if(evt.t==='e'){console.error('[KajabiReport] Error:',evt.error);toast(evt.error||'Generation failed','warn');render();return}
+        }catch(_){}}}
     if(!html){toast('No report was generated','warn');render();return}
     m.kajabiReportHtml=html;
     if(S.meetingDetail&&S.meetingDetail.id===meetingId)S.meetingDetail=m;

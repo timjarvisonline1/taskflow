@@ -61,18 +61,17 @@ module.exports = async function handler(req, res) {
       messages: [{ role: 'user', content: prompt }]
     });
 
+    // Send each text chunk to the client so it can accumulate the HTML
     stream.on('text', (text) => {
       fullHtml += text;
       chunkCount++;
       if (chunkCount <= 3) console.log('[generate-report] Streaming chunk #' + chunkCount + ' (' + text.length + ' chars)');
-      res.write('data: ' + JSON.stringify({ t: 'c' }) + '\n\n');
+      res.write('data: ' + JSON.stringify({ t: 'c', h: text }) + '\n\n');
     });
 
     console.log('[generate-report] Waiting for stream to complete...');
     const finalMessage = await stream.finalMessage();
     console.log('[generate-report] Stream complete. Chunks:', chunkCount, 'stop_reason:', finalMessage.stop_reason, 'fullHtml length:', fullHtml.length);
-    fullHtml = (finalMessage.content[0] && finalMessage.content[0].text) || fullHtml;
-    console.log('[generate-report] Final HTML length:', fullHtml.length);
 
     // Cache the result in DB
     const dbResult = await client.from('meetings').update({
@@ -81,8 +80,8 @@ module.exports = async function handler(req, res) {
     }).eq('id', meetingId).eq('user_id', userId);
     console.log('[generate-report] DB save result:', dbResult.error ? 'ERROR: ' + dbResult.error.message : 'OK');
 
-    // Send the final HTML
-    res.write('data: ' + JSON.stringify({ t: 'd', html: fullHtml }) + '\n\n');
+    // Send small done signal (HTML already sent in chunks)
+    res.write('data: ' + JSON.stringify({ t: 'd' }) + '\n\n');
     console.log('[generate-report] Sent done event, ending response');
     res.end();
   } catch (e) {
