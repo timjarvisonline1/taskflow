@@ -2415,9 +2415,18 @@ async function openEmailThread(threadId){
 
   S.gmailThreadId=threadId;S.gmailThread=null;
 
-  /* Show full-screen modal with skeleton */
-  gel('detail-body').innerHTML=rEmailThreadModal(threadId);
-  gel('detail-modal').classList.add('on','full-detail');
+  /* ── Inline split view mode ── */
+  var detailPanel=gel('email-detail-panel');
+  if(detailPanel){
+    var splitView=document.querySelector('.email-split-view');
+    if(splitView)splitView.classList.add('has-detail');
+    detailPanel.innerHTML=rEmailDetailInline(threadId);
+    _highlightActiveThread(threadId);
+  }else{
+    /* Fallback: modal mode */
+    gel('detail-body').innerHTML=rEmailThreadModal(threadId);
+    gel('detail-modal').classList.add('on','full-detail');
+  }
 
   try{
     var sess=await _sb.auth.getSession();
@@ -2438,9 +2447,17 @@ async function openEmailThread(threadId){
       var ruleActions=applyEmailRules(cached);
       if(ruleActions)_applyRuleActionsToThread(threadId,ruleActions)}
 
-    /* Re-render modal content with loaded data */
-    gel('detail-body').innerHTML=rEmailThreadModal(threadId);
+    /* Re-render with loaded data */
+    detailPanel=gel('email-detail-panel');
+    if(detailPanel){
+      detailPanel.innerHTML=rEmailDetailInline(threadId);
+      _highlightActiveThread(threadId);
+    }else{
+      gel('detail-body').innerHTML=rEmailThreadModal(threadId);
+    }
     initEmailIframes();
+    /* Restore draft if exists */
+    _loadInlineDraft(threadId);
   }catch(e){toast('Gmail: '+e.message,'warn')}}
 
 function _flushEmailTimer(){
@@ -2467,8 +2484,84 @@ function _flushEmailTimer(){
 
 function closeEmailThread(){
   _flushEmailTimer();S.gmailThread=null;S.gmailThreadId='';
-  gel('detail-modal').classList.remove('on','full-detail');
-  render()}
+
+  /* ── Inline split view: update panels without full render() ── */
+  var detailPanel=gel('email-detail-panel');
+  if(detailPanel){
+    detailPanel.innerHTML=rEmailEmptyDetail();
+    var splitView=document.querySelector('.email-split-view');
+    if(splitView)splitView.classList.remove('has-detail');
+    /* Remove active highlight from thread list */
+    document.querySelectorAll('.email-row.email-active').forEach(function(el){el.classList.remove('email-active')});
+    /* Update unread count in list */
+    _refreshEmailListPanel();
+    buildNav();
+  }else{
+    /* Fallback: modal mode */
+    gel('detail-modal').classList.remove('on','full-detail');
+    render();
+  }}
+
+/* ── Highlight active thread in list panel ── */
+function _highlightActiveThread(threadId){
+  document.querySelectorAll('.email-row.email-active').forEach(function(el){el.classList.remove('email-active')});
+  if(!threadId)return;
+  var row=document.querySelector('.email-row[data-tid="'+threadId+'"]');
+  if(row)row.classList.add('email-active');
+}
+
+/* ── Refresh only the list panel (no full render) ── */
+function _refreshEmailListPanel(){
+  var listPanel=gel('email-list-panel');
+  if(!listPanel)return;
+  var scrollTop=listPanel.scrollTop;
+  listPanel.innerHTML=rEmailListPanel();
+  listPanel.scrollTop=scrollTop;
+  /* Re-apply active highlight */
+  if(S.gmailThreadId)_highlightActiveThread(S.gmailThreadId);
+}
+
+/* ── Draft auto-save ── */
+var _draftSaveTimer=null;
+function _saveInlineDraft(threadId){
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer=setTimeout(function(){
+    var editor=gel('email-inline-reply-editor');
+    if(!editor||!threadId)return;
+    var html=editor.innerHTML||'';
+    if(!html||html==='<br>')html='';
+    var modeLabel=gel('inline-reply-mode-label');
+    var mode=modeLabel?modeLabel.textContent:'Reply';
+    var data={html:html,mode:mode,ts:Date.now()};
+    if(html){
+      try{localStorage.setItem('tf_email_draft_'+threadId,JSON.stringify(data))}catch(e){}
+    }else{
+      try{localStorage.removeItem('tf_email_draft_'+threadId)}catch(e){}
+    }
+  },1000);
+}
+
+function _loadInlineDraft(threadId){
+  if(!threadId)return;
+  try{
+    var raw=localStorage.getItem('tf_email_draft_'+threadId);
+    if(!raw)return;
+    var data=JSON.parse(raw);
+    if(!data||!data.html)return;
+    /* Don't restore stale drafts (>24 hours) */
+    if(data.ts&&Date.now()-data.ts>86400000){localStorage.removeItem('tf_email_draft_'+threadId);return}
+    var editor=gel('email-inline-reply-editor');
+    if(editor){
+      editor.innerHTML=data.html;
+      toast('Draft restored','ok');
+    }
+  }catch(e){}
+}
+
+function _clearInlineDraft(threadId){
+  if(!threadId)return;
+  try{localStorage.removeItem('tf_email_draft_'+threadId)}catch(e){}
+}
 
 /* ═══════════ THREAD CRM CATEGORIZATION ═══════════ */
 function threadCrmClientChange(){
@@ -2884,7 +2977,7 @@ function startEmailPolling(){
     /* Check scheduled emails regardless of view */
     _checkScheduledEmails();
     if(S.view!=='email')return;
-    if(S.gmailThreadId)return;
+    /* Allow polling even when thread is open — list panel updates independently */
     if(S._gmailFetching)return;
     pollGmailInbox()
   },60000)}
@@ -2905,8 +2998,14 @@ async function pollGmailInbox(){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage};
     /* Reload Supabase threads so smart inboxes stay in sync */
     await loadGmailThreads();
-    if(newCount>0){showNewEmailIndicator(newCount);buildNav()}
-    else{buildNav()}
+    /* If thread is open, only refresh the list panel (preserve detail) */
+    if(S.gmailThreadId){
+      _refreshEmailListPanel();
+      if(newCount>0)buildNav();
+    }else{
+      if(newCount>0){showNewEmailIndicator(newCount);buildNav()}
+      else{buildNav()}
+    }
     /* Trigger AI analysis for new threads */
     analyzeNewEmails();
   }catch(e){console.warn('Email poll:',e)}}
@@ -3145,7 +3244,9 @@ async function archiveEmail(threadId){
     if(st){st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
     if(S.gmailThreadId===threadId){S.gmailThread=null;S.gmailThreadId='';
-      gel('detail-modal').classList.remove('on','full-detail')}
+      var _dp=gel('email-detail-panel');
+      if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
+      else{gel('detail-modal').classList.remove('on','full-detail')}}
     setTimeout(function(){render();if(emailHasActiveFilters())loadFilteredEmailThreads()},400);
     toast('Email archived','ok')
   }catch(e){
@@ -3173,7 +3274,9 @@ async function toggleEmailRead(threadId,markUnread){
     if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(updateThread);
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
     if(markUnread){S.gmailThread=null;S.gmailThreadId='';
-      gel('detail-modal').classList.remove('on','full-detail')}
+      var _dp=gel('email-detail-panel');
+      if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
+      else{gel('detail-modal').classList.remove('on','full-detail')}}
     render();toast(markUnread?'Marked as unread':'Marked as read','ok')
   }catch(e){toast('Failed: '+e.message,'warn')}}
 
@@ -3191,7 +3294,9 @@ async function trashEmail(threadId){
     S.gmailThreads=S.gmailThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
     S.gmailThread=null;S.gmailThreadId='';
-    gel('detail-modal').classList.remove('on','full-detail');
+    var _dp=gel('email-detail-panel');
+    if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
+    else{gel('detail-modal').classList.remove('on','full-detail')}
     render();toast('Email moved to trash','ok')
   }catch(e){toast('Trash failed: '+e.message,'warn')}}
 
@@ -3251,6 +3356,8 @@ async function quickReplyEmail(){
     toast(mode==='forward'?'Email forwarded':'Reply sent','ok');
     if(editor)editor.innerHTML='';
     if(ta)ta.value='';
+    /* Clear saved draft */
+    _clearInlineDraft(S.gmailThreadId);
     /* Reset inline state */
     window._inlineReplyMode='reply';
     window._inlineRecipients={to:[],cc:[],bcc:[]};

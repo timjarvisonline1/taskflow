@@ -119,6 +119,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   addRuleAct:addRuleAct,removeRuleAct:removeRuleAct,ruleActTypeChange:ruleActTypeChange,ruleActValueChange:ruleActValueChange,
   acRecipient:acRecipient,acSelect:acSelect,acRemoveChip:acRemoveChip,recipientKeydown:recipientKeydown,
   inlineReply:inlineReply,inlineReplyAll:inlineReplyAll,inlineForward:inlineForward,
+  saveInlineDraft:_saveInlineDraft,
   addInlineAttachment:addInlineAttachment,removeInlineAttachment:removeInlineAttachment,toggleInlineCcBcc:toggleInlineCcBcc,
   addComposeAttachment:addComposeAttachment,removeComposeAttachment:removeComposeAttachment,downloadAttachment:downloadAttachment,
   openSignatureEditor:openSignatureEditor,renderRecipientChips:renderRecipientChips,handleComposeFiles:handleComposeFiles,renderComposeAttachments:renderComposeAttachments,

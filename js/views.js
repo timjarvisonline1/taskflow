@@ -24,6 +24,14 @@ function render(){
   /* Desktop: 8-view experience */
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
+
+  /* ── Protect email detail panel from full rebuild ── */
+  if(S.view==='email'&&S.gmailThreadId&&gel('email-detail-panel')){
+    _refreshEmailListPanel();
+    buildNav();startEmailPolling();
+    if(S.gmailThread)setTimeout(function(){initEmailIframes()},50);
+    renderSidebar();renderActiveWidget();return}
+
   switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
@@ -6549,7 +6557,7 @@ function rEmail(){
   if(sub==='e-action'&&!S.gmailThreadId)return rEmailActionRequired();
   if(sub==='e-drafts')return rEmailDraftList();
   if(sub==='e-scheduled')return rEmailScheduledList();
-  if(S.gmailThreadId)S.gmailThreadId='';
+  /* NOTE: Do NOT clear S.gmailThreadId here — that caused state loss on every render() */
 
   var h='<div class="pg-head"><h1>'+icon('mail',18)+' Email';
   if(S.gmailUnread>0)h+=' <span style="background:#EA4335;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+S.gmailUnread+'</span>';
@@ -6560,6 +6568,38 @@ function rEmail(){
   if(!isSmartInbox)h+='<button class="btn'+(S.emailBulkMode?' btn-p':'')+'" onclick="TF.emailToggleBulk()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.emailBulkMode?'Exit Bulk':'Bulk')+'</button>';
   h+='<button class="btn" onclick="TF.openEmailRulesModal()" style="font-size:12px;padding:7px 14px;border-radius:10px" title="Email Rules">'+icon('settings',12)+'</button>';
   h+='</div></div>';
+
+  /* ── Split view container ── */
+  var hasDetail=!!S.gmailThreadId;
+  h+='<div class="email-split-view'+(hasDetail?' has-detail':'')+'">';
+
+  /* ── Left: List Panel ── */
+  h+='<div id="email-list-panel" class="email-list-panel">';
+  h+=rEmailListPanel();
+  h+='</div>';
+
+  /* ── Right: Detail Panel ── */
+  h+='<div id="email-detail-panel" class="email-detail-panel">';
+  if(hasDetail&&S.gmailThread){
+    h+=rEmailDetailInline(S.gmailThreadId);
+  }else if(hasDetail){
+    /* Thread loading — skeleton */
+    h+='<div class="email-detail-inline-header"><div class="email-detail-inline-subject">Loading...</div>';
+    h+='<button class="email-detail-inline-close" onclick="TF.closeEmailThread()">&times;</button></div>';
+    h+='<div style="padding:20px 0">'+rEmailSkeleton()+'</div>';
+  }else{
+    h+=rEmailEmptyDetail();
+  }
+  h+='</div>';
+
+  h+='</div>'; /* close email-split-view */
+  return h}
+
+/* ── Email List Panel (can be refreshed independently) ── */
+function rEmailListPanel(){
+  var sub=S.subView||'inbox';
+  var isSmartInbox=sub.indexOf('e-')===0;
+  var h='';
 
   var _smartLabels={'e-active':'Clients (Active)','e-lapsed':'Clients (Lapsed)','e-prospects':'Prospects','e-campaigns':'By Campaign','e-opportunities':'By Opportunity','e-other':'Other'};
   if(!isSmartInbox){
@@ -6644,6 +6684,12 @@ function rEmail(){
     h+='<div style="text-align:center;padding:16px"><button class="btn" onclick="TF.loadMoreGmailThreads()" style="font-size:12px;padding:8px 20px">Load More</button></div>';
   }
   return h}
+
+/* ── Empty state for detail panel ── */
+function rEmailEmptyDetail(){
+  return '<div class="email-detail-empty">'+icon('mail',40)+
+    '<p style="font-size:14px;font-weight:600;color:var(--t3)">Select an email to read</p>'+
+    '<p>Click a thread from the list to view it here</p></div>'}
 
 function rEmailGrouped(threads,groupBy){
   var groups={};var noGroup=[];
@@ -6914,8 +6960,8 @@ function rEmailThreadModal(threadId){
   h+=_buildInlineRecipientFieldInner('bcc','BCC');
   h+='</div>';
   h+='</div>';
-  /* Contenteditable editor */
-  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..."></div>';
+  /* Contenteditable editor — with draft auto-save */
+  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(threadId)+'\')"></div>';
   /* Full formatting toolbar */
   h+='<div class="email-inline-reply-toolbar">';
   h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
@@ -7224,6 +7270,10 @@ function rThreadCrmContext(client,ec,campId,oppId){
   }
   return h}
 
+/* ── Inline detail panel — reuses rEmailThreadModal content ── */
+function rEmailDetailInline(threadId){
+  return rEmailThreadModal(threadId)}
+
 /* Keep old rEmailThread for backward compat (no longer used from render) */
 function rEmailThread(){
   var h='';
@@ -7279,7 +7329,7 @@ function rEmailThread(){
   /* ── Inline Reply (at top, before messages) ── */
   var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
   h+='<div class="email-inline-reply">';
-  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..."></div>';
+  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(S.gmailThreadId||'')+'\')"></div>';
   h+='<div class="email-inline-reply-toolbar">';
   h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
   h+='<button class="compose-toolbar-btn" title="Italic" onclick="event.preventDefault();document.execCommand(\'italic\')">'+icon('italic',11)+'</button>';
