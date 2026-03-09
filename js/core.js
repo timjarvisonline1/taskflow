@@ -1023,25 +1023,21 @@ function matchEmailToClient(email){
   if(cc){
     var cr=S.clientRecords.find(function(r){return r.id===cc.clientId});
     var cName=(cc.firstName+' '+cc.lastName).trim();
-    console.log('[AutoCat:match]',e,'→ CONTACT match:',cName,'clientId='+cc.clientId,'clientName='+(cr?cr.name:'?'),'endClient='+(cc.endClient||'none'));
     return{clientId:cc.clientId,clientName:cr?cr.name:'',contactName:cName,contactRole:cc.role,
       contactId:cc.id,contactEmail:cc.email,contactPhone:cc.phone,contactCompany:cc.company,contactWebsite:cc.website,
       endClient:cc.endClient||'',clientStatus:cr?cr.status:'active'}}
   /* Fall back to client.email field */
   var cl=S.clientRecords.find(function(r){return r.email&&r.email.toLowerCase()===e});
-  if(cl){console.log('[AutoCat:match]',e,'→ CLIENT RECORD match:',cl.name,'id='+cl.id);
-    return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:'',
+  if(cl)return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:'',
     contactId:'',contactEmail:cl.email,contactPhone:'',contactCompany:cl.company||cl.name,contactWebsite:'',
-    endClient:'',clientStatus:cl.status||'active'}}
+    endClient:'',clientStatus:cl.status||'active'};
   /* Domain-based end-client matching */
   var domain=e.split('@')[1];
   if(domain&&S._domainMap&&S._domainMap[domain]){
     var dm=S._domainMap[domain];
-    console.log('[AutoCat:match]',e,'→ DOMAIN match:',domain,'clientName='+dm.clientName,'endClient='+dm.endClient);
     return{clientId:dm.clientId,clientName:dm.clientName,contactName:'',contactRole:'',
       contactId:'',contactEmail:email,contactPhone:'',contactCompany:'',contactWebsite:'',
       endClient:dm.endClient,clientStatus:dm.clientStatus,domainMatch:true}}
-  console.log('[AutoCat:match]',e,'→ NO MATCH');
   return null}
 
 /* Parse email addresses from a raw header string (e.g. "Name <email>, Other <email2>") */
@@ -1058,9 +1054,7 @@ function resolveThreadCrmContext(fromEmail,toEmails,ccEmails){
   /* Remove user's own email(s) — Supabase login + connected Gmail */
   var ue=S._userEmails||[];
   if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
-  var _beforeFilter=allAddrs.slice();
   if(ue.length)allAddrs=allAddrs.filter(function(a){return ue.indexOf(a)===-1});
-  console.log('[AutoCat:resolve] All addrs before filter:',_beforeFilter,'userEmails:',ue,'after filter:',allAddrs);
 
   var clients=[],endClients=[],contacts=[],unknownAddrs=[],seenClients={},seenEC={};
   allAddrs.forEach(function(addr){
@@ -2458,20 +2452,13 @@ async function openEmailThread(threadId){
     /* Instantly refresh list panel to remove unread dot */
     _refreshEmailListPanel();buildNav();
     /* Apply email rules if completely uncategorized */
-    console.log('[AutoCat] openEmailThread',threadId,'cached CRM fields:',
-      {client_id:cached?cached.client_id:'NO_CACHED',end_client:cached?cached.end_client:'',
-       campaign_id:cached?cached.campaign_id:'',opportunity_id:cached?cached.opportunity_id:'',
-       from_email:cached?cached.from_email:'',to_emails:cached?(cached.to_emails||'').substring(0,80):''});
     if(cached&&!cached.client_id&&!cached.end_client&&!cached.campaign_id&&!cached.opportunity_id){
-      console.log('[AutoCat] Thread fully uncategorized — trying rules first');
       var ruleActions=applyEmailRules(cached);
-      if(ruleActions){console.log('[AutoCat] Rules matched:',ruleActions);_applyRuleActionsToThread(threadId,ruleActions)}
-      else{console.log('[AutoCat] No rules matched — falling back to contact matching');_autoCategorizeFromContacts(threadId,cached)}}
+      if(ruleActions)_applyRuleActionsToThread(threadId,ruleActions);
+      else _autoCategorizeFromContacts(threadId,cached)}
     /* Auto-fill remaining empty fields from contacts (e.g. sync set client but not end-client) */
     else if(cached&&(!cached.client_id||!cached.end_client)){
-      console.log('[AutoCat] Partially categorized — filling remaining empty fields');
       _autoCategorizeFromContacts(threadId,cached)}
-    else{console.log('[AutoCat] Thread already fully categorized or no cached data — skipping')}
 
     /* Re-render with loaded data */
     detailPanel=gel('email-detail-panel');
@@ -3808,58 +3795,37 @@ async function _applyRuleActionsToThread(threadId,actions){
    Updates local cache synchronously (so re-render shows values immediately),
    then fire-and-forget writes to DB. */
 function _autoCategorizeFromContacts(threadId,cached){
-  if(!cached||!threadId){console.log('[AutoCat] _autoCategorizeFromContacts: no cached or threadId');return}
+  if(!cached||!threadId)return;
   var from=cached.from_email||'';
   var to=cached.to_emails||'';
   var cc=cached.cc_emails||'';
-  console.log('[AutoCat] Resolving CRM context for:',{from:from,to:(to||'').substring(0,80),cc:(cc||'').substring(0,80)});
-  console.log('[AutoCat] S.contacts count:',S.contacts?S.contacts.length:0,
-    'S.clientRecords count:',S.clientRecords?S.clientRecords.length:0,
-    'S._domainMap keys:',S._domainMap?Object.keys(S._domainMap).length:0);
   var ctx=resolveThreadCrmContext(from,to,cc);
-  console.log('[AutoCat] resolveThreadCrmContext result:',{
-    clients:ctx.clients.map(function(c){return c.clientName+'('+c.clientId+')'}),
-    endClients:ctx.endClients.map(function(e){return e.name}),
-    primaryClient:ctx.primaryClient?ctx.primaryClient.clientName+'('+ctx.primaryClient.clientId+')':'null',
-    primaryEndClient:ctx.primaryEndClient||'null',
-    campaigns:ctx.campaigns.map(function(c){return c.name}),
-    opportunities:ctx.opportunities.map(function(o){return o.name}),
-    unknownAddrs:ctx.unknownAddrs,
-    contacts:ctx.contacts.map(function(c){return c.contactName+' <'+c.contactEmail+'> client='+c.clientName+' ec='+c.endClient})});
 
   var updates={};
   var hasChanges=false;
 
   /* Auto-fill client_id from primary contact match */
   if(!cached.client_id&&ctx.primaryClient){
-    console.log('[AutoCat] → Setting client_id:',ctx.primaryClient.clientId,'('+ctx.primaryClient.clientName+')');
     updates.client_id=ctx.primaryClient.clientId;
     hasChanges=true}
-  else{console.log('[AutoCat] → client_id skip: cached.client_id=',cached.client_id,'primaryClient=',ctx.primaryClient?ctx.primaryClient.clientName:'null')}
 
   /* Auto-fill end_client from primary end-client match */
   if(!cached.end_client&&ctx.primaryEndClient){
-    console.log('[AutoCat] → Setting end_client:',ctx.primaryEndClient);
     updates.end_client=ctx.primaryEndClient;
     updates.end_client_id=resolveEndClientId(ctx.primaryEndClient)||null;
     hasChanges=true}
-  else{console.log('[AutoCat] → end_client skip: cached.end_client=',cached.end_client,'primaryEndClient=',ctx.primaryEndClient||'null')}
 
   /* Auto-fill campaign_id if exactly one campaign resolved */
   if(!cached.campaign_id&&ctx.campaigns.length===1){
-    console.log('[AutoCat] → Setting campaign_id:',ctx.campaigns[0].id,'('+ctx.campaigns[0].name+')');
     updates.campaign_id=ctx.campaigns[0].id;
     hasChanges=true}
 
   /* Auto-fill opportunity_id if exactly one opportunity resolved */
   if(!cached.opportunity_id&&ctx.opportunities.length===1){
-    console.log('[AutoCat] → Setting opportunity_id:',ctx.opportunities[0].id,'('+ctx.opportunities[0].name+')');
     updates.opportunity_id=ctx.opportunities[0].id;
     hasChanges=true}
 
-  if(!hasChanges){console.log('[AutoCat] No changes to apply — all fields already set or no matches');return}
-
-  console.log('[AutoCat] APPLYING updates to local cache:',JSON.stringify(updates));
+  if(!hasChanges)return;
   /* Update local cache synchronously so re-render picks up values */
   Object.keys(updates).forEach(function(k){cached[k]=updates[k]});
   S._threadCrmCache={};
@@ -3875,13 +3841,10 @@ function _autoCategorizeFromContacts(threadId,cached){
 
   /* Fire-and-forget database write */
   getUserId().then(function(uid){
-    if(!uid){console.warn('[AutoCat] No userId for DB write');return}
-    console.log('[AutoCat] Writing to DB for thread:',threadId,'uid:',uid);
+    if(!uid)return;
     _sb.from('gmail_threads').update(updates).eq('user_id',uid).eq('thread_id',threadId)
-      .then(function(res){
-        if(res.error)console.warn('[AutoCat] DB save FAILED:',res.error.message);
-        else console.log('[AutoCat] DB save SUCCESS for thread:',threadId)})
-      .catch(function(e){console.warn('[AutoCat] DB save ERROR:',e.message)})});
+      .then(function(res){if(res.error)console.warn('Auto-categorize save:',res.error.message)})
+      .catch(function(e){console.warn('Auto-categorize error:',e.message)})});
   /* Refresh list panel so smart inbox reflects new categorization */
   _refreshEmailListPanel()}
 
