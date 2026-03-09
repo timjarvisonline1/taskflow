@@ -101,6 +101,9 @@ function buildPrompt(type, dateStr, participants, title, transcript, summary, ch
     return (ch.title || '') + ': ' + (ch.description || '');
   }).join('\n');
 
+  // Detect if transcript contains timecodes (e.g. "0:05", "00:05:30", "[0:05]", "0:05 -")
+  const hasTimecodes = /\b\d{1,2}:\d{2}(:\d{2})?\b/.test(transcript.slice(0, 2000));
+
   const sharedContext = `
 Meeting title: ${title}
 Date: ${dateStr}
@@ -112,23 +115,29 @@ FULL TRANSCRIPT:
 ${transcript}
 `;
 
-  if (type === 'office_hours') return buildOfficeHoursPrompt(dateStr, sharedContext);
-  if (type === 'group_accountability') return buildGroupAccountabilityPrompt(dateStr, sharedContext);
-  if (type === 'olympic_mindset') return buildOlympicMindsetPrompt(dateStr, sharedContext);
-  return buildOfficeHoursPrompt(dateStr, sharedContext); // fallback
+  if (type === 'office_hours') return buildOfficeHoursPrompt(dateStr, hasTimecodes, sharedContext);
+  if (type === 'group_accountability') return buildGroupAccountabilityPrompt(dateStr, hasTimecodes, sharedContext);
+  if (type === 'olympic_mindset') return buildOlympicMindsetPrompt(dateStr, hasTimecodes, sharedContext);
+  return buildOfficeHoursPrompt(dateStr, hasTimecodes, sharedContext); // fallback
 }
 
-function buildOfficeHoursPrompt(dateStr, context) {
+function buildOfficeHoursPrompt(dateStr, hasTimecodes, context) {
+  const tsNote = hasTimecodes
+    ? 'The transcript contains timecodes. Include timestamps in card headers and the questions list (e.g. 📍 ~0:05 — Person: Topic).'
+    : 'The transcript does NOT contain timecodes. Do NOT include any timestamps or timecodes in the report — no approximate times, no "~0:05" references. Just use the person\'s name and topic in card headers (e.g. Person: Topic).';
+
   return `You are generating an HTML report for a Retain Live "Office Hours" group call. This is a Q&A session where members ask Tim questions about their marketing campaigns, landing pages, ad performance, and business strategy.
 
 Your job is to read the transcript carefully and produce a beautifully formatted HTML document that can be pasted directly into Kajabi. The HTML must use ONLY inline styles (no <style> blocks, no classes). Every style property must end with !important.
+
+TIMECODES: ${tsNote}
 
 STRUCTURE REQUIREMENTS:
 1. **Gradient header** — purple gradient background with:
    - H1 title: "Office Hours — ${dateStr}"
    - Subtitle paragraph listing all questions/topics covered (comma-separated)
 
-2. **"Questions Covered" section** — light grey box with left border, noting timestamps are provided
+2. **"Questions Covered" section** — light grey box with left border listing the questions/topics covered${hasTimecodes ? ', with timestamps noted' : ''}
 
 3. **One card per question** — each question gets its own bordered card with:
    - **Colored header** — alternate between these colors in order:
@@ -136,7 +145,7 @@ STRUCTURE REQUIREMENTS:
      - Green: background #d4edda, border #c3e6cb, text color #155724
      - Yellow: background #fff3cd, border #ffeeba, text color #856404
      - Red: background #f8d7da, border #f5c6cb, text color #721c24
-   - Header text: timestamp emoji (use 📍) + timestamp + em dash + Person's name + colon + Topic title
+   - Header text: ${hasTimecodes ? 'timestamp emoji (use 📍) + timestamp + em dash + ' : ''}Person's name + colon + Topic title
    - **Body content** including:
      - "The Question:" in bold
      - Problem/context box (grey background #f8f9fa)
@@ -167,10 +176,16 @@ OUTPUT: Return ONLY the raw HTML. No markdown code fences. No explanation. Just 
 ${context}`;
 }
 
-function buildGroupAccountabilityPrompt(dateStr, context) {
+function buildGroupAccountabilityPrompt(dateStr, hasTimecodes, context) {
+  const tsNote = hasTimecodes
+    ? 'The transcript contains timecodes. You may reference timestamps where helpful.'
+    : 'The transcript does NOT contain timecodes. Do NOT include any timestamps or timecodes in the report — no approximate times, no fabricated timestamps.';
+
   return `You are generating an HTML report for a Retain Live "Group Accountability" session. This is a weekly check-in where members report on their commitments from last week, share progress updates, and make new commitments for the coming week. Dom (the mindset coach) facilitates.
 
 Your job is to read the transcript carefully and produce a beautifully formatted HTML document that can be pasted directly into Kajabi. The HTML must use ONLY inline styles (no <style> blocks, no classes). Every style property must end with !important.
+
+TIMECODES: ${tsNote}
 
 STRUCTURE REQUIREMENTS:
 1. **Gradient header** — purple gradient background with:
@@ -221,10 +236,16 @@ OUTPUT: Return ONLY the raw HTML. No markdown code fences. No explanation. Just 
 ${context}`;
 }
 
-function buildOlympicMindsetPrompt(dateStr, context) {
+function buildOlympicMindsetPrompt(dateStr, hasTimecodes, context) {
+  const tsNote = hasTimecodes
+    ? 'The transcript contains timecodes. You may reference timestamps where helpful.'
+    : 'The transcript does NOT contain timecodes. Do NOT include any timestamps or timecodes in the report — no approximate times, no fabricated timestamps.';
+
   return `You are generating an HTML report for a Retain Live "Olympic Mindset Coaching" session. This is a teaching-focused session led by Dom (the mindset coach), covering mental performance, productivity, sales psychology, and personal development frameworks. It includes homework, frameworks, case studies, and group discussion.
 
 Your job is to read the transcript carefully and produce a beautifully formatted HTML document that can be pasted directly into Kajabi. The HTML must use ONLY inline styles (no <style> blocks, no classes). Every style property must end with !important.
+
+TIMECODES: ${tsNote}
 
 STRUCTURE REQUIREMENTS:
 1. **Gradient header** — purple gradient background with:
