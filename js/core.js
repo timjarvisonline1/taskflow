@@ -1133,11 +1133,13 @@ function getThreadCrmContext(t){
 
   if(savedClient){
     var cr=S.clientRecords.find(function(r){return r.id===savedClient});
+    /* Backward compat: if client_id is a name string (corrupted data), try name match */
+    if(!cr)cr=S.clientRecords.find(function(r){return r.name===savedClient});
     if(cr){
       /* Ensure saved client is primaryClient (first in list) */
-      var alreadyHas=ctx.clients.some(function(c){return c.clientId===savedClient});
+      var alreadyHas=ctx.clients.some(function(c){return c.clientId===cr.id});
       if(!alreadyHas)ctx.clients.unshift({clientId:cr.id,clientName:cr.name,status:cr.status||'active'});
-      else{/* Move to front */var idx=ctx.clients.findIndex(function(c){return c.clientId===savedClient});
+      else{/* Move to front */var idx=ctx.clients.findIndex(function(c){return c.clientId===cr.id});
         if(idx>0){var item=ctx.clients.splice(idx,1)[0];ctx.clients.unshift(item)}}
       ctx.primaryClient=ctx.clients[0];
       ctx.hasActiveClient=ctx.clients.some(function(c){return c.status==='active'})}}
@@ -2581,6 +2583,11 @@ function threadCrmClientChange(){
   var ecSel=gel('thread-crm-ec');if(ecSel){
     var oh='<option value="">— Select —</option>';
     var ecs=[];
+    (S.endClients||[]).forEach(function(e){
+      if(!client){if(e.name&&ecs.indexOf(e.name)===-1)ecs.push(e.name)}
+      else{if(e.clientId){var _ecCr=S.clientRecords.find(function(r){return r.id===e.clientId});
+        if(_ecCr&&_ecCr.name===client&&e.name&&ecs.indexOf(e.name)===-1)ecs.push(e.name)}
+        else{if(e.name&&ecs.indexOf(e.name)===-1)ecs.push(e.name)}}});
     S.campaigns.forEach(function(c){if(!client||c.partner===client){if(c.endClient&&ecs.indexOf(c.endClient)===-1)ecs.push(c.endClient)}});
     S.tasks.concat(S.done).forEach(function(t){if(!client||t.client===client){if(t.endClient&&ecs.indexOf(t.endClient)===-1)ecs.push(t.endClient)}});
     S.opportunities.forEach(function(o){if(!client||o.client===client){if(o.endClient&&ecs.indexOf(o.endClient)===-1)ecs.push(o.endClient)}});
@@ -2610,13 +2617,17 @@ async function threadCrmSave(){
   var none=gel('thread-crm-none');
   var isNone=none&&none.checked;
   var _ecId=resolveEndClientId(ec)||null;
+  var _clientId=resolveClientId(client)||null;
   var updates={
-    client_id:isNone?null:(client||null),
+    client_id:isNone?null:_clientId,
     end_client:isNone?'':(ec||''),
     end_client_id:isNone?null:_ecId,
     campaign_id:isNone?null:(campId||null),
     opportunity_id:isNone?null:(oppId||null)};
-  await _sb.from('gmail_threads').update(updates).eq('user_id',uid).eq('thread_id',threadId);
+  try{
+    var res=await _sb.from('gmail_threads').update(updates).eq('user_id',uid).eq('thread_id',threadId);
+    if(res.error){toast('CRM save failed: '+res.error.message,'warn');return}
+  }catch(e){toast('CRM save error: '+e.message,'warn');return}
   /* Update local cache */
   var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
   if(cached){cached.client_id=updates.client_id;cached.end_client=updates.end_client;cached.end_client_id=updates.end_client_id;
@@ -3762,7 +3773,7 @@ async function _applyRuleActionsToThread(threadId,actions){
   var uid=await getUserId();if(!uid)return;
   var updates={};
   actions.forEach(function(act){
-    if(act.type==='assign_client')updates.client_id=act.value||null;
+    if(act.type==='assign_client')updates.client_id=resolveClientId(act.value)||null;
     else if(act.type==='assign_end_client'){updates.end_client=act.value||'';updates.end_client_id=resolveEndClientId(act.value)||null}
     else if(act.type==='assign_campaign')updates.campaign_id=act.value||null;
     else if(act.type==='assign_opportunity')updates.opportunity_id=act.value||null});
@@ -4646,6 +4657,13 @@ function resolveEndClientId(val){
   if(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val))return val;
   var ec=(S.endClients||[]).find(function(e){return e.name===val});
   return ec?ec.id:null}
+
+/* Resolve a client value (UUID or name string) to a UUID. Returns null if not found. */
+function resolveClientId(val){
+  if(!val)return null;
+  if(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val))return val;
+  var cr=(S.clientRecords||[]).find(function(r){return r.name===val});
+  return cr?cr.id:null}
 
 /* Look up end-client name by UUID. Returns '' if not found. */
 function endClientNameById(id){

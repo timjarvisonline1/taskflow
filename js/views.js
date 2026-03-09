@@ -7102,7 +7102,9 @@ function rEmailThreadModal(threadId){
   /* Client dropdown */
   h+='<div class="thread-crm-row"><select class="edf" id="thread-crm-client" onchange="TF.threadCrmClientChange()"'+(isNone?' disabled':'')+'>';
   h+='<option value="">— Client —</option>';
-  var _cliNames=[];S.campaigns.forEach(function(c){if(c.partner&&_cliNames.indexOf(c.partner)===-1)_cliNames.push(c.partner)});
+  var _cliNames=[];
+  S.clientRecords.forEach(function(r){if(r.name&&_cliNames.indexOf(r.name)===-1)_cliNames.push(r.name)});
+  S.campaigns.forEach(function(c){if(c.partner&&_cliNames.indexOf(c.partner)===-1)_cliNames.push(c.partner)});
   S.tasks.concat(S.done).forEach(function(t){if(t.client&&_cliNames.indexOf(t.client)===-1)_cliNames.push(t.client)});
   S.opportunities.forEach(function(o){if(o.client&&_cliNames.indexOf(o.client)===-1)_cliNames.push(o.client)});
   _cliNames.sort().forEach(function(cn){h+='<option value="'+esc(cn)+'"'+(cn===curClient?' selected':'')+'>'+esc(cn)+'</option>'});
@@ -7113,6 +7115,11 @@ function rEmailThreadModal(threadId){
   h+='<div class="thread-crm-row"><select class="edf" id="thread-crm-ec" onchange="TF.threadCrmSave()"'+(isNone?' disabled':'')+'>';
   h+='<option value="">— End Client —</option>';
   var _ecNames=[];
+  (S.endClients||[]).forEach(function(e){
+    if(!curClient){if(e.name&&_ecNames.indexOf(e.name)===-1)_ecNames.push(e.name)}
+    else{if(e.clientId){var _ecCr=S.clientRecords.find(function(r){return r.id===e.clientId});
+      if(_ecCr&&_ecCr.name===curClient&&e.name&&_ecNames.indexOf(e.name)===-1)_ecNames.push(e.name)}
+      else{if(e.name&&_ecNames.indexOf(e.name)===-1)_ecNames.push(e.name)}}});
   S.campaigns.forEach(function(c){if(!curClient||c.partner===curClient){if(c.endClient&&_ecNames.indexOf(c.endClient)===-1)_ecNames.push(c.endClient)}});
   S.tasks.concat(S.done).forEach(function(t){if(!curClient||t.client===curClient){if(t.endClient&&_ecNames.indexOf(t.endClient)===-1)_ecNames.push(t.endClient)}});
   S.opportunities.forEach(function(o){if(!curClient||o.client===curClient){if(o.endClient&&_ecNames.indexOf(o.endClient)===-1)_ecNames.push(o.endClient)}});
@@ -7143,9 +7150,9 @@ function rEmailThreadModal(threadId){
   h+='</div>';
 
   /* Contact info — show all thread participants, not just sender */
-  var _threadCrmCtx=getThreadCrmContext(cached||{thread_id:threadId,from_email:senderEmail,
-    to_emails:firstMsg.to||'',cc_emails:firstMsg.cc||'',
-    client_id:curClient,end_client:curEc,campaign_id:curCamp,opportunity_id:curOpp});
+  var _cachedCrmObj=cached||{thread_id:threadId,from_email:senderEmail,
+    to_emails:firstMsg.to||'',cc_emails:firstMsg.cc||''};
+  var _threadCrmCtx=getThreadCrmContext(_cachedCrmObj);
   if(_threadCrmCtx&&_threadCrmCtx.contacts.length){
     h+='<div class="crm-sb-section">';
     h+='<div class="crm-sb-header">'+icon('contact',13)+' People ('+_threadCrmCtx.contacts.length+')</div>';
