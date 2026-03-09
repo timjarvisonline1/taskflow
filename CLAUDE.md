@@ -77,7 +77,8 @@ taskflow/
 ├── css/
 │   ├── core.css            # CSS variables, layout, sidebar, typography, sub-nav badges
 │   ├── components.css      # Cards, badges, buttons, forms, tables (compact task rows)
-│   └── features.css        # Finance, campaigns, projects, opportunities, email, compose toolbar, modals, entity tabs
+│   └── features.css        # Finance, campaigns, projects, opportunities, email, compose toolbar, modals, entity tabs,
+│                           #   meeting filter bar, group call badges, Kajabi report panel/editor
 │
 ├── api/
 │   ├── _lib/
@@ -126,9 +127,12 @@ taskflow/
 │   │   └── test-connection.js # POST — test a platform connection
 │   ├── cron/
 │   │   └── sync-all.js     # Periodic sync for all active integrations
+│   ├── meetings/
+│   │   └── generate-report.js # POST — AI Kajabi report generation (SSE streaming, Claude Sonnet)
 │   └── webhook/
 │       ├── mercury.js      # Mercury webhook (HMAC-SHA256 verified)
-│       └── zoho-payments.js # Zoho Payments webhook
+│       ├── zoho-payments.js # Zoho Payments webhook
+│       └── readai.js       # Read.ai webhook (meeting data ingestion)
 │
 ├── supabase/
 │   ├── schema.sql                  # Core schema (tasks, done, review, clients, campaigns, etc.)
@@ -155,7 +159,8 @@ taskflow/
 │   ├── add-email-ai-analysis.sql   # AI analysis columns on gmail_threads
 │   ├── add-end-clients.sql         # end_clients table (managed end-client entities)
 │   ├── add-knowledge-base.sql     # knowledge_chunks + knowledge_sources tables, pgvector, match_knowledge() fn
-│   └── add-prospects.sql          # prospect_companies + prospects tables
+│   ├── add-prospects.sql          # prospect_companies + prospects tables
+│   └── add-meeting-group-call.sql # is_group_call, group_call_type, kajabi_report_html columns on meetings
 │
 └── scripts/
     ├── run-migration.py        # Helper to run SQL migrations
@@ -227,7 +232,8 @@ S = {
   teamMembers: [],        // Team payroll/commission data
   contacts: [],           // CRM contacts (name, email, clientId, endClient)
   endClients: [],         // Managed end-client entities (from Supabase end_clients table)
-  meetings: [],           // Read.ai meeting records
+  meetings: [],           // Read.ai meeting records (each has isGroupCall, groupCallType, kajabiReportHtml)
+  meetingFilter: '',       // Meetings list filter: '' | 'group_call' | 'office_hours' | 'group_accountability' | 'olympic_mindset'
 
   // Entity dashboard tab state
   clientTab: 'overview',           // Active tab in client detail modal
@@ -425,6 +431,18 @@ Entity Detail Modals (full-screen tabbed dashboards, opened via detail-modal):
     rOpTabMeetings(op,st)  — Opportunity meetings with add/delete
     rOpTabDetails(op,st)   — All editable fields, save/convert/delete buttons
 
+Meetings views:
+  rMeetings()              — Meeting list with search, filter bar (All / Group Calls / Office Hours /
+                             Group Accountability / Olympic Mindset), pagination, type badges
+  rMeetingDetail()         — Two-column layout:
+    Left (main):           — Title, header meta, CRM bar, group call controls (checkbox + type dropdown),
+                             Kajabi Report button (Generate/Regenerate), report panel (editable HTML
+                             textarea with Save/Copy HTML/Show Preview buttons), AI suggestions,
+                             AI tasks banner, summary, action items, key questions, topics,
+                             chapter summaries, transcript
+    Right (sidebar):       — Meeting info, participants (compact avatars with Add to contacts),
+                             client info
+
 Email sub-views (via rEmail() dispatcher):
   rEmailActionRequired()   — AI-powered triage: urgency-grouped cards with CRM context, dismiss, snooze
   rEmailDraftList()        — Saved drafts with open/delete (uses localStorage)
@@ -528,6 +546,11 @@ Gmail is connected via OAuth 2.0 with scopes `gmail.readonly`, `gmail.send`, `gm
 - `POST /api/gmail/analyze` — batch AI email analysis (Claude Sonnet, up to 30 threads per call, returns 12 fields: needs_reply, summary, urgency, category, sentiment, has_meeting, meeting_details, needs_followup, followup_details, suggested_client, suggested_task)
 - `POST /api/gmail/summarize` — on-demand thread summarization (fetches full message bodies, caches result)
 - `POST /api/gmail/ec-suggest` — AI-powered end-client suggestions. Accepts candidate contacts (email, name, clientName, emailCount, meetingCount), existing end-clients, and contacts. Returns end-client group suggestions with confidence scores, contact categorization, and reasoning. Used by EC Review feature.
+
+### Meetings API
+
+- `POST /api/meetings/generate-report` — AI Kajabi report generation. Loads meeting with full transcript from DB, builds type-specific prompt (Office Hours / Group Accountability / Olympic Mindset), streams response via **Server-Sent Events** (SSE) to avoid Vercel timeout on long transcripts. Each chunk event (`{t:'c',h:'<text>'}`) contains a fragment of HTML; done event (`{t:'d'}`) signals completion. Caches result in `kajabi_report_html` column. Uses Claude Sonnet with `max_tokens: 64000`. Auto-detects wall-clock timestamps (`[16:01:30]`) vs speaker-only format (`[Tim Jarvis]:`) and adjusts prompts accordingly — elapsed time is calculated from the meeting's `start_time`. Vercel `maxDuration: 300` (Pro plan).
+- `POST /api/webhook/readai` — Read.ai webhook endpoint for meeting data ingestion. Receives meeting transcripts, summaries, action items, participants, and metadata.
 
 ### Compose Editor
 
@@ -934,6 +957,13 @@ Python CLI scripts for initial population of the knowledge base:
 - `scheduled_emails` — emails queued for future sending (to, cc, bcc, subject, body, attachments, scheduled_at, status: pending/sent/failed)
 - `email_rules` — auto-categorization rules (name, conditions JSON, actions JSON, is_active, priority)
 
+### Meetings Table
+- `meetings` — Read.ai meeting records ingested via webhook (title, start_time, end_time, duration_minutes, participants JSONB, summary, transcript, action_items JSONB, key_questions JSONB, topics JSONB, chapter_summaries JSONB, report_url, owner_email, owner_name, source, session_id, client_id FK, end_client, campaign_id, opportunity_id, is_group_call boolean, group_call_type text, kajabi_report_html text, ai_suggestions JSONB, ai_tasks_generated boolean)
+  - `is_group_call` — marks meeting as a group call (checkbox in detail view)
+  - `group_call_type` — one of: `office_hours`, `group_accountability`, `olympic_mindset`, or empty
+  - `kajabi_report_html` — cached AI-generated HTML report for Kajabi (inline styles, no classes)
+  - Transcript format varies: webhook transcripts have wall-clock timestamps `[16:01:30] Speaker:`, manually added transcripts use `[Speaker Name]:` without timestamps
+
 All tables have RLS policies: users can only read/write their own data.
 
 ## DB Helper Functions (core.js)
@@ -952,6 +982,7 @@ Each entity has standard CRUD helpers:
 - **End Clients**: `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `loadEndClients()`
 - **Prospect Companies**: `dbAddProspectCompany()`, `dbEditProspectCompany()`, `dbDeleteProspectCompany()`, `loadProspectCompanies()`, `ensureProspectCompanyExists()`, `syncRlProspectCompanies()`
 - **Prospects**: `dbAddProspect()`, `dbEditProspect()`, `dbDeleteProspect()`, `loadProspects()`
+- **Meetings**: `loadMeetings()`, `openMeeting()`, `closeMeeting()`, `dbEditMeeting()`, `setMeetingFilter()`, `toggleGroupCall()`, `setGroupCallType()`, `generateKajabiReport()`, `copyKajabiReport()`, `saveKajabiReport()`, `toggleKajabiPreview()`, `addMeetingParticipantAsContact()`
 - **Reconciliation**: `linkExpenseToScheduled()`, `unlinkExpenseFromScheduled()`, `saveExpenseAsOneOff()`
 - **Email Drafts** (localStorage): `_loadDrafts()`, `_saveDraft(id)`, `_deleteDraft(id)`, `openDraft(id)`, `deleteDraft(id)`, `getDraftCount()`
 - **Scheduled Emails**: `loadScheduledEmails()`, `scheduleEmail(scheduledAt)`, `cancelScheduledEmail(id)`, `_checkScheduledEmails()`
@@ -1055,6 +1086,9 @@ Each entity has standard CRUD helpers:
 - `buildClientMap()` filters out "Internal" and "N/A" client names from all client views and dashboards
 - The Finance Transactions view has no separate Split tab — split records are included in the Matched tab
 - Quick Add sets `is_inbox=true`. Desktop Add Modal does not. Saving from detail modal always clears `isInbox`
+- **Kajabi report generation** uses SSE streaming to avoid Vercel 504 timeouts on long transcripts. Client accumulates HTML from chunk events. If the stream ends without a done event (function timeout), the client saves whatever HTML was received and shows a warning toast.
+- **Meeting transcripts** have two formats: webhook-sourced with wall-clock timestamps `[16:01:30] Speaker:` and manually-added with speaker-only `[Speaker Name]:`. Report prompts auto-detect the format and either calculate elapsed time from the meeting's `start_time` or omit timestamps entirely.
+- `vercel.json` maxDuration for `api/meetings/*.js` is 300s (Pro plan max) to accommodate long transcript processing
 - Open Tasks view excludes inbox items (`!t.isInbox`)
 - `_buildDomainMap()` must clear `S._threadCrmCache` to ensure smart inbox views update after contact changes
 - `closeModal()` checks for active compose and prompts "Save as draft?" — bypasses draft prompt when called after `sendEmail()` which handles cleanup directly
