@@ -57,7 +57,7 @@ module.exports = async function handler(req, res) {
 
     const stream = anthropic.messages.stream({
       model: model,
-      max_tokens: 16384,
+      max_tokens: 64000,
       messages: [{ role: 'user', content: prompt }]
     });
 
