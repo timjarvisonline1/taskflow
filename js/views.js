@@ -6278,32 +6278,33 @@ function rFinanceTeam(){
   return h}
 
 /* ═══════════ EMAIL IFRAME INIT ═══════════ */
+function _initSingleIframe(iframe){
+  var encoded=iframe.getAttribute('data-email-body');
+  if(!encoded||iframe.getAttribute('data-loaded'))return;
+  try{
+    var html=decodeURIComponent(escape(atob(encoded)));
+    var doc='<!DOCTYPE html><html><head><style>body{font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;color:#e0e0e0;background:transparent;margin:0;padding:12px;word-wrap:break-word}a{color:#4da6ff}img{max-width:100%;height:auto}blockquote{border-left:3px solid #444;margin:8px 0;padding-left:12px;color:#aaa}</style></head><body>'+html+'</body></html>';
+    iframe.srcdoc=doc;iframe.setAttribute('data-loaded','1');
+    iframe.onload=function(){
+      try{var h=iframe.contentDocument.body.scrollHeight;
+        iframe.style.height=Math.min(h+20,600)+'px';
+      }catch(e){iframe.style.height='300px'}}
+  }catch(e){console.error('Email iframe error:',e)}}
+
 function initEmailIframes(){
-  /* Set iframe content from data attributes after render */
-  var iframes=document.querySelectorAll('.email-iframe[data-email-body]');
-  iframes.forEach(function(iframe){
-    var encoded=iframe.getAttribute('data-email-body');
-    if(!encoded)return;
-    try{
-      var html=decodeURIComponent(escape(atob(encoded)));
-      /* Wrap in a styled container for dark theme compatibility */
-      var doc='<!DOCTYPE html><html><head><style>body{font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;color:#e0e0e0;background:transparent;margin:0;padding:12px;word-wrap:break-word}a{color:#4da6ff}img{max-width:100%;height:auto}blockquote{border-left:3px solid #444;margin:8px 0;padding-left:12px;color:#aaa}</style></head><body>'+html+'</body></html>';
-      iframe.srcdoc=doc;
-      /* Auto-resize iframe height after load */
-      iframe.onload=function(){
-        try{
-          var h=iframe.contentDocument.body.scrollHeight;
-          iframe.style.height=Math.min(h+20,600)+'px';
-        }catch(e){iframe.style.height='300px'}}
-    }catch(e){console.error('Email iframe error:',e)}
-  })}
+  /* Only init iframes in expanded (non-collapsed) messages — lazy load collapsed ones */
+  var iframes=document.querySelectorAll('.email-message:not(.collapsed) .email-iframe[data-email-body]');
+  iframes.forEach(_initSingleIframe)}
 
 /* ═══════════ EMAIL VIEWS ═══════════ */
 var AVATAR_COLORS=['#EA4335','#4285F4','#34A853','#FBBC04','#FF6D01','#46BDC6','#7B1FA2','#C2185B','#00897B','#5C6BC0'];
 function emailAvatarColor(email){if(!email)return AVATAR_COLORS[0];var h=0;for(var i=0;i<email.length;i++){h=((h<<5)-h)+email.charCodeAt(i);h|=0}return AVATAR_COLORS[Math.abs(h)%AVATAR_COLORS.length]}
 
 function rEmailSkeleton(){
+  var stage=S._gmailLoadingStage||'Loading inbox...';
   var h='<div class="email-skel">';
+  h+='<div class="email-skel-progress"><div class="email-skel-bar"></div></div>';
+  h+='<div id="email-loading-msg" class="email-skel-msg">'+esc(stage)+'</div>';
   for(var i=0;i<8;i++){
     h+='<div class="email-skel-row">';
     h+='<div class="email-skel-dot"></div>';

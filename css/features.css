@@ -1214,6 +1214,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 
 /* ── Skeleton loader ── */
 .email-skel{display:flex;flex-direction:column;gap:2px}
+.email-skel-progress{height:3px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden;margin-bottom:8px}
+.email-skel-bar{height:100%;width:30%;border-radius:2px;background:var(--acc);animation:skelSlide 2s ease-in-out infinite}
+.email-skel-msg{font-size:12px;color:var(--t4);margin-bottom:12px;text-align:center}
+@keyframes skelSlide{0%{transform:translateX(-100%)}50%{transform:translateX(250%)}100%{transform:translateX(-100%)}}
 .email-skel-row{display:grid;grid-template-columns:12px 36px 1fr auto;gap:12px;padding:14px 16px;
   background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r)}
 .email-skel-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.04);
@@ -1238,6 +1242,17 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   background:#EA4335;color:#fff;border:none;cursor:pointer;font-weight:600;
   transition:all .15s}
 .email-new-btn:hover{background:#d63030;transform:translateY(-1px)}
+
+/* ── Undo bar ── */
+.email-undo-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  display:flex;align-items:center;gap:12px;padding:10px 20px;
+  background:var(--surface,#323232);border:1px solid var(--gborder);border-radius:10px;
+  font-size:13px;color:var(--t1);z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.3);
+  opacity:0;transition:opacity .2s,transform .2s}
+.email-undo-bar.visible{opacity:1;transform:translateX(-50%) translateY(0)}
+.email-undo-btn{background:none;border:none;color:var(--acc);font-size:13px;font-weight:600;
+  cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .15s}
+.email-undo-btn:hover{background:rgba(255,255,255,.08)}
 
 /* ── Compose modal — wide ── */
 .tf-modal-wide .tf-modal-inner{max-width:900px!important;width:95vw}

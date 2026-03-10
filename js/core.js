@@ -875,13 +875,22 @@ async function loadProspects(){
 var _FREE_DOMAINS={'gmail.com':1,'yahoo.com':1,'hotmail.com':1,'outlook.com':1,'icloud.com':1,'aol.com':1,'live.com':1,'me.com':1,'msn.com':1,'protonmail.com':1,'mail.com':1,'zoho.com':1};
 function _buildDomainMap(){
   S._domainMap={};
+  /* Build email-to-contact index for O(1) lookups in matchEmailToClient */
+  S._emailContactIndex={};
   (S.contacts||[]).forEach(function(c){
-    if(!c.email||!c.endClient)return;
-    var domain=c.email.toLowerCase().split('@')[1];
+    if(!c.email)return;
+    var e=c.email.toLowerCase().trim();
+    if(!S._emailContactIndex[e])S._emailContactIndex[e]=c;
+    if(!c.endClient)return;
+    var domain=e.split('@')[1];
     if(!domain||_FREE_DOMAINS[domain])return;
     if(S._domainMap[domain])return;
     var cr=S.clientRecords.find(function(r){return r.id===c.clientId});
     S._domainMap[domain]={clientId:c.clientId,clientName:cr?cr.name:'',endClient:c.endClient,clientStatus:cr?cr.status:'active'}});
+  /* Build client email index */
+  S._clientEmailIndex={};
+  (S.clientRecords||[]).forEach(function(r){
+    if(r.email)S._clientEmailIndex[r.email.toLowerCase().trim()]=r});
   /* Invalidate CRM context cache — contact/domain data changed */
   S._threadCrmCache={}}
 
@@ -1018,20 +1027,22 @@ function discoverEcCandidates(){
 function matchEmailToClient(email){
   if(!email)return null;
   var e=email.toLowerCase().trim();
-  /* Check contacts first */
-  var cc=S.contacts.find(function(c){return c.email&&c.email.toLowerCase()===e});
+  /* Check contacts index (O(1)) */
+  var cc=S._emailContactIndex&&S._emailContactIndex[e];
+  if(!cc)cc=(S.contacts||[]).find(function(c){return c.email&&c.email.toLowerCase()===e});
   if(cc){
     var cr=S.clientRecords.find(function(r){return r.id===cc.clientId});
     var cName=(cc.firstName+' '+cc.lastName).trim();
     return{clientId:cc.clientId,clientName:cr?cr.name:'',contactName:cName,contactRole:cc.role,
       contactId:cc.id,contactEmail:cc.email,contactPhone:cc.phone,contactCompany:cc.company,contactWebsite:cc.website,
       endClient:cc.endClient||'',clientStatus:cr?cr.status:'active'}}
-  /* Fall back to client.email field */
-  var cl=S.clientRecords.find(function(r){return r.email&&r.email.toLowerCase()===e});
+  /* Check client email index (O(1)) */
+  var cl=S._clientEmailIndex&&S._clientEmailIndex[e];
+  if(!cl)cl=(S.clientRecords||[]).find(function(r){return r.email&&r.email.toLowerCase()===e});
   if(cl)return{clientId:cl.id,clientName:cl.name,contactName:'',contactRole:'',
     contactId:'',contactEmail:cl.email,contactPhone:'',contactCompany:cl.company||cl.name,contactWebsite:'',
     endClient:'',clientStatus:cl.status||'active'};
-  /* Domain-based end-client matching */
+  /* Domain-based end-client matching (O(1)) */
   var domain=e.split('@')[1];
   if(domain&&S._domainMap&&S._domainMap[domain]){
     var dm=S._domainMap[domain];
@@ -2416,18 +2427,30 @@ async function fetchWithRetry(url,opts,timeoutMs,retries){
     catch(e){lastErr=e;if(attempt<retries)await new Promise(function(r){setTimeout(r,1000*Math.pow(2,attempt))})}}
   throw lastErr}
 
+/* Loading stage for progress indicator */
+S._gmailLoadingStage='';
+function _setLoadingStage(stage){
+  S._gmailLoadingStage=stage;
+  var el=gel('email-loading-msg');if(el)el.textContent=stage}
+
 async function fetchGmailThreads(label,search,pageToken){
   try{
+    _setLoadingStage('Connecting to Gmail...');
     var sess=await _sb.auth.getSession();
     if(!sess.data.session)return null;
     var token=sess.data.session.access_token;
     var params='?label='+(label||'inbox')+'&maxResults=50';
     if(search)params+='&q='+encodeURIComponent(search);
     if(pageToken)params+='&pageToken='+encodeURIComponent(pageToken);
+    _setLoadingStage('Fetching threads...');
     var resp=await fetchWithTimeout('/api/gmail/threads'+params,{headers:{'Authorization':'Bearer '+token}},20000);
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Failed')}
+    _setLoadingStage('');
     return await resp.json();
-  }catch(e){toast('Gmail: '+e.message,'warn');return null}}
+  }catch(e){_setLoadingStage('');toast('Gmail: '+e.message,'warn');return null}}
+
+/* Thread detail cache — cleared on send/reply/archive for that thread */
+S._gmailThreadDetailCache={};
 
 async function openEmailThread(threadId){
   /* Exit bulk mode on thread open */
@@ -2439,6 +2462,10 @@ async function openEmailThread(threadId){
 
   S.gmailThreadId=threadId;S.gmailThread=null;
 
+  /* Use cached thread detail if available (show instantly) */
+  var cachedDetail=S._gmailThreadDetailCache[threadId];
+  if(cachedDetail)S.gmailThread=cachedDetail;
+
   /* ── Inline split view mode ── */
   var detailPanel=gel('email-detail-panel');
   if(detailPanel){
@@ -2446,10 +2473,12 @@ async function openEmailThread(threadId){
     if(splitView)splitView.classList.add('has-detail');
     detailPanel.innerHTML=rEmailDetailInline(threadId);
     _highlightActiveThread(threadId);
+    if(cachedDetail)initEmailIframes();
   }else{
     /* Fallback: modal mode */
     gel('detail-body').innerHTML=rEmailThreadModal(threadId);
     gel('detail-modal').classList.add('on','full-detail');
+    if(cachedDetail)initEmailIframes();
   }
 
   try{
@@ -2459,6 +2488,8 @@ async function openEmailThread(threadId){
     var resp=await fetchWithRetry('/api/gmail/thread?id='+encodeURIComponent(threadId),{headers:{'Authorization':'Bearer '+token}},15000,1);
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Failed')}
     S.gmailThread=await resp.json();
+    /* Store in thread detail cache */
+    S._gmailThreadDetailCache[threadId]=S.gmailThread;
     /* Capture subject for timer task */
     if(S._emailTimer&&S.gmailThread&&S.gmailThread.messages&&S.gmailThread.messages.length){
       S._emailTimer.subject=S.gmailThread.messages[0].subject||S.gmailThread.subject||''}
@@ -2669,7 +2700,7 @@ async function threadCrmSave(){
   var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
   if(cached){cached.client_id=updates.client_id;cached.end_client=updates.end_client;cached.end_client_id=updates.end_client_id;
     cached.campaign_id=updates.campaign_id;cached.opportunity_id=updates.opportunity_id}
-  S._threadCrmCache={};
+  delete S._threadCrmCache[threadId];
   /* Update email timer categorization */
   if(S._emailTimer&&S._emailTimer.threadId===threadId){
     S._emailTimer.categorization={client:client,endClient:ec,campaignId:campId,opportunityId:oppId}}
@@ -2713,13 +2744,19 @@ function setGmailFilter(filter){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   S.gmailFilter=filter;S.subView=filter;S.gmailSearch='';
   S.gmailThread=null;S.gmailThreadId='';S._filteredEmailResults=null;
-  /* Restore from cache if available, otherwise mark as fetching to show skeleton */
+  /* Restore from cache if available, otherwise show stale Supabase data */
   var cached=S._gmailCache[filter];
   var isSmartInbox=filter.indexOf('e-')===0;
-  if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage}
-  else if(!isSmartInbox&&filter!=='all'){S._gmailLiveThreads=null;S._gmailNextPage=null}
+  if(cached){S._gmailLiveThreads=cached.threads;S._gmailNextPage=cached.nextPage;S._gmailStaleView=false}
+  else if(!isSmartInbox&&filter!=='all'){
+    /* IUX3: Show stale Supabase threads filtered by label while fresh data loads */
+    var labelMap={inbox:'INBOX',sent:'SENT',trash:'TRASH',spam:'SPAM',starred:'STARRED'};
+    var targetLabel=labelMap[filter]||filter.toUpperCase();
+    var stale=S.gmailThreads.filter(function(t){return(t.labels||'').indexOf(targetLabel)!==-1});
+    S._gmailLiveThreads=stale.length?stale:null;S._gmailNextPage=null;
+    S._gmailStaleView=!!stale.length}
   else{S._gmailLiveThreads=null;S._gmailNextPage=null}
-  save();render();
+  save();_refreshEmailListPanel();buildNav();
   /* Re-query server-side filtered results if filters are active */
   if(emailHasActiveFilters())loadFilteredEmailThreads();
   /* Smart inboxes and All Mail use Supabase data, not live fetch */
@@ -2727,13 +2764,13 @@ function setGmailFilter(filter){
 
 /* ═══════════ EMAIL FILTERS ═══════════ */
 function setEmailFilter(field,value){
-  S.emailFilters[field]=value;S._filteredEmailResults=null;render();loadFilteredEmailThreads()}
+  S.emailFilters[field]=value;S._filteredEmailResults=null;_refreshEmailListPanel();loadFilteredEmailThreads()}
 function toggleEmailFilterExclude(field){
-  S.emailFilterExclude[field]=!S.emailFilterExclude[field];S._filteredEmailResults=null;render();loadFilteredEmailThreads()}
+  S.emailFilterExclude[field]=!S.emailFilterExclude[field];S._filteredEmailResults=null;_refreshEmailListPanel();loadFilteredEmailThreads()}
 function clearEmailFilters(){
   S.emailFilters={client:'',endClient:'',opportunity:'',campaign:''};
   S.emailFilterExclude={client:false,endClient:false,opportunity:false,campaign:false};
-  S._filteredEmailResults=null;render()}
+  S._filteredEmailResults=null;_refreshEmailListPanel()}
 function emailHasActiveFilters(){
   return S.emailFilters.client!==''||S.emailFilters.endClient!==''||
     S.emailFilters.opportunity!==''||S.emailFilters.campaign!==''}
@@ -2801,20 +2838,30 @@ async function loadFilteredEmailThreads(){
     threads=applyEmailFilters(threads);
     S._filteredEmailResults=threads;
     _loadingFiltered=false;
-    render()
+    _refreshEmailListPanel()
   }catch(e){console.warn('loadFilteredEmailThreads:',e);_loadingFiltered=false}}
 
 /* ═══════════ EMAIL BULK MODE ═══════════ */
 function emailToggleBulk(){
-  S.emailBulkMode=!S.emailBulkMode;S.emailBulkSelected={};render()}
+  S.emailBulkMode=!S.emailBulkMode;S.emailBulkSelected={};_refreshEmailListPanel();buildNav()}
 function emailToggleSel(threadId){
   if(S.emailBulkSelected[threadId])delete S.emailBulkSelected[threadId];
-  else S.emailBulkSelected[threadId]=true;render()}
+  else S.emailBulkSelected[threadId]=true;
+  /* Toggle CSS directly instead of full DOM rebuild */
+  var row=document.querySelector('.email-row[data-tid="'+threadId+'"]');
+  if(row){row.classList.toggle('email-bulk-sel');
+    var cb=row.querySelector('input[type="checkbox"]');if(cb)cb.checked=!!S.emailBulkSelected[threadId]}
+  /* Update bulk action bar count */
+  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent=emailBulkCount()+' selected'}
 function emailSelectAll(){
   var rows=document.querySelectorAll('.email-row[data-tid]');
-  rows.forEach(function(r){var tid=r.getAttribute('data-tid');if(tid)S.emailBulkSelected[tid]=true});
-  render()}
-function emailDeselectAll(){S.emailBulkSelected={};render()}
+  rows.forEach(function(r){var tid=r.getAttribute('data-tid');if(tid){S.emailBulkSelected[tid]=true;
+    r.classList.add('email-bulk-sel');var cb=r.querySelector('input[type="checkbox"]');if(cb)cb.checked=true}});
+  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent=emailBulkCount()+' selected'}
+function emailDeselectAll(){S.emailBulkSelected={};
+  document.querySelectorAll('.email-row.email-bulk-sel').forEach(function(r){r.classList.remove('email-bulk-sel');
+    var cb=r.querySelector('input[type="checkbox"]');if(cb)cb.checked=false});
+  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent='0 selected'}
 function emailBulkCount(){return Object.keys(S.emailBulkSelected).length}
 async function bulkArchiveEmails(){
   var ids=Object.keys(S.emailBulkSelected);
@@ -2827,7 +2874,7 @@ async function bulkArchiveEmails(){
   S._gmailCache={};
   S.emailBulkMode=false;S.emailBulkSelected={};
   S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-  render();
+  _refreshEmailListPanel();buildNav();
   toast('Archiving '+ids.length+' email'+(ids.length>1?'s':'')+'...','info');
   /* Use batch endpoint for parallel processing */
   try{
@@ -2850,7 +2897,7 @@ async function loadMoreGmailThreads(){
     S._gmailLiveThreads=(S._gmailLiveThreads||[]).concat(data.threads||[]);
     S._gmailNextPage=data.nextPageToken||null;
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage};
-    render()}}
+    _refreshEmailListPanel()}}
 
 var _refreshing=false;
 async function refreshGmailInbox(){
@@ -2865,14 +2912,14 @@ async function refreshGmailInbox(){
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
   _refreshing=false;
-  render();
+  _refreshEmailListPanel();buildNav();
   /* Sync Gmail metadata to Supabase in background (for smart inboxes, CRM, rules) */
   _sb.auth.getSession().then(function(sess){
     if(!sess.data.session)return;
     fetch('/api/sync/gmail',{method:'POST',
       headers:{'Authorization':'Bearer '+sess.data.session.access_token}})
     .then(function(){return loadGmailThreads()})
-    .then(function(){render();analyzeNewEmails();embedNewEmails()})
+    .then(function(){_refreshEmailListPanel();buildNav();analyzeNewEmails();embedNewEmails()})
     .catch(function(e){console.warn('Background Gmail sync:',e)})
   })}
 
@@ -3018,14 +3065,15 @@ function aiClearHistory(id){
 async function ensureGmailThreads(){
   if(_refreshing)return;
   if(S._gmailFetching)return;
-  if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0)return;
+  /* Skip if we already have fresh (non-stale) live data */
+  if(S._gmailLiveThreads&&S._gmailLiveThreads.length>0&&!S._gmailStaleView)return;
   S._gmailFetching=true;
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
-  S._gmailFetching=false;
+  S._gmailFetching=false;S._gmailStaleView=false;
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
-  render()}
+  _refreshEmailListPanel();buildNav()}
 
 var _emailPollTimer=null;
 function startEmailPolling(){
@@ -3077,7 +3125,7 @@ function showNewEmailIndicator(count){
   else{var main=gel('main');if(main){var search=main.querySelector('.email-search');
     if(search)search.parentElement.insertBefore(bar,search.nextSibling)}}}
 function applyNewEmails(){
-  var el=gel('email-new-indicator');if(el)el.remove();render()}
+  var el=gel('email-new-indicator');if(el)el.remove();_refreshEmailListPanel()}
 
 /* ═══════════ EMAIL AI ANALYSIS ═══════════ */
 var _analyzingEmails=false;
@@ -3136,10 +3184,10 @@ async function analyzeNewEmails(){
           if(r.client_id)t.client_id=r.client_id;
           if(r.end_client)t.end_client=r.end_client;
           if(r.campaign_id)t.campaign_id=r.campaign_id;
-          if(r.opportunity_id)t.opportunity_id=r.opportunity_id}});
-      /* Invalidate CRM cache so thread modals show updated data */
-      S._threadCrmCache={};
-      render();buildNav()}
+          if(r.opportunity_id)t.opportunity_id=r.opportunity_id}
+        delete S._threadCrmCache[r.threadId]});
+      /* Granular cache invalidation — only analyzed threads cleared above */
+      _refreshEmailListPanel();buildNav()}
   }catch(e){console.warn('analyzeNewEmails:',e)}
   _analyzingEmails=false}
 
@@ -3173,7 +3221,7 @@ function getActionRequiredThreads(){
 async function dismissEmailAction(threadId){
   var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
   if(t)t.reply_status='dismissed';
-  render();buildNav();
+  _refreshEmailListPanel();buildNav();
   try{
     var uid=await getUserId();if(!uid)return;
     await _sb.from('gmail_threads').update({reply_status:'dismissed'}).eq('user_id',uid).eq('thread_id',threadId);
@@ -3183,7 +3231,7 @@ async function dismissEmailAction(threadId){
 async function snoozeEmailAction(threadId,until){
   var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
   if(t){t.reply_status='snoozed';t.snoozed_until=until}
-  render();buildNav();
+  _refreshEmailListPanel();buildNav();
   try{
     var uid=await getUserId();if(!uid)return;
     await _sb.from('gmail_threads').update({reply_status:'snoozed',snoozed_until:until}).eq('user_id',uid).eq('thread_id',threadId);
@@ -3216,7 +3264,7 @@ function openSnoozeMenu(threadId,evt){
 async function dismissFollowup(threadId){
   var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
   if(t)t.needs_followup=false;
-  render();buildNav();
+  _refreshEmailListPanel();buildNav();
   try{
     var uid=await getUserId();if(!uid)return;
     await _sb.from('gmail_threads').update({needs_followup:false}).eq('user_id',uid).eq('thread_id',threadId);
@@ -3242,7 +3290,7 @@ async function summarizeThread(threadId){
 
 async function doSummarize(threadId){
   var summary=await summarizeThread(threadId);
-  if(summary)render()}
+  if(summary){var dp=gel('email-detail-panel');if(dp&&S.gmailThreadId===threadId)dp.innerHTML=rEmailDetailInline(threadId);else _refreshEmailListPanel()}}
 
 async function resummarizeThread(threadId){
   var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
@@ -3278,11 +3326,35 @@ async function createTaskFromSuggestion(threadId){
     toast('Task created: '+suggestion.item,'ok');
   }}
 
+/* ═══════════ GLOBAL UNDO SYSTEM ═══════════ */
+var _undoState=null;var _undoTimer=null;var _UNDO_DELAY=5000;
+function _showUndoBar(label){
+  _hideUndoBar();
+  var bar=document.createElement('div');bar.id='email-undo-bar';bar.className='email-undo-bar';
+  bar.innerHTML='<span>'+esc(label)+'</span><button onclick="TF.undoLastAction()" class="email-undo-btn">Undo</button>';
+  var main=gel('main');if(main)main.appendChild(bar);
+  setTimeout(function(){if(bar.parentElement)bar.classList.add('visible')},10)}
+function _hideUndoBar(){
+  var bar=gel('email-undo-bar');if(bar)bar.remove()}
+function _scheduleUndoCommit(commitFn,rollbackFn,label){
+  /* Cancel any previous pending undo */
+  if(_undoTimer){clearTimeout(_undoTimer);if(_undoState&&_undoState.commitFn)_undoState.commitFn()}
+  _undoState={commitFn:commitFn,rollbackFn:rollbackFn,label:label};
+  _showUndoBar(label);
+  _undoTimer=setTimeout(function(){_hideUndoBar();if(_undoState){_undoState.commitFn();_undoState=null;_undoTimer=null}},_UNDO_DELAY)}
+function undoLastAction(){
+  if(!_undoState)return;
+  clearTimeout(_undoTimer);_undoTimer=null;
+  _undoState.rollbackFn();
+  _hideUndoBar();_undoState=null;
+  toast('Undone','ok')}
+
 /* ═══════════ ARCHIVE ═══════════ */
 async function archiveEmail(threadId){
   if(!threadId)return;
-  /* Optimistic: update UI immediately before API call */
-  var removedLive=null,removedLiveIdx=-1,removedSt=null,removedStLabels=null,wasOpen=S.gmailThreadId===threadId;
+  delete S._gmailThreadDetailCache[threadId];
+  /* Optimistic: update UI immediately */
+  var removedLive=null,removedLiveIdx=-1,removedStLabels=null,wasOpen=S.gmailThreadId===threadId;
   if(S.gmailFilter==='inbox'&&S._gmailLiveThreads){
     removedLiveIdx=S._gmailLiveThreads.findIndex(function(t){return(t.threadId||t.thread_id)===threadId});
     if(removedLiveIdx>=0)removedLive=S._gmailLiveThreads.splice(removedLiveIdx,1)[0];
@@ -3296,36 +3368,46 @@ async function archiveEmail(threadId){
     if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
     else{gel('detail-modal').classList.remove('on','full-detail')}}
   _refreshEmailListPanel();buildNav();
-  toast('Email archived','ok');
-  /* Fire API call in background — roll back on failure */
-  try{
-    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
-    var token=sess.data.session.access_token;
-    var resp=await fetchWithTimeout('/api/gmail/archive',{method:'POST',
-      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({threadId:threadId})},15000);
-    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Archive failed')}
-    if(emailHasActiveFilters())loadFilteredEmailThreads()
-  }catch(e){
-    /* Roll back optimistic update */
-    if(removedLive&&S._gmailLiveThreads){S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
-      if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
-    if(st&&removedStLabels!==null)st.labels=removedStLabels;
-    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-    _refreshEmailListPanel();buildNav();
-    toast('Archive failed: '+e.message,'warn')}}
+  /* Undo system: delay API call by 5 seconds */
+  _scheduleUndoCommit(
+    async function(){/* commit */
+      try{
+        var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+        var token=sess.data.session.access_token;
+        var resp=await fetchWithTimeout('/api/gmail/archive',{method:'POST',
+          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+          body:JSON.stringify({threadId:threadId})},15000);
+        if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Archive failed')}
+        if(emailHasActiveFilters())loadFilteredEmailThreads()
+      }catch(e){/* Roll back on API failure */
+        if(removedLive&&S._gmailLiveThreads){S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
+          if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
+        if(st&&removedStLabels!==null)st.labels=removedStLabels;
+        S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+        _refreshEmailListPanel();buildNav();toast('Archive failed: '+e.message,'warn')}},
+    function(){/* rollback (undo) */
+      if(removedLive&&S._gmailLiveThreads){S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
+        if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
+      if(st&&removedStLabels!==null)st.labels=removedStLabels;
+      S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+      _refreshEmailListPanel();buildNav()},
+    'Email archived')}
 
 function toggleEmailMsg(idx){
   var el=document.querySelector('.email-message[data-msg-idx="'+idx+'"]');if(!el)return;
   el.classList.toggle('collapsed');
   var btn=el.querySelector('.email-msg-collapse');
-  if(btn)btn.textContent=el.classList.contains('collapsed')?'Expand':'Collapse'}
+  if(btn)btn.textContent=el.classList.contains('collapsed')?'Expand':'Collapse';
+  /* Lazy-load iframe when message is expanded */
+  if(!el.classList.contains('collapsed')){
+    var iframe=el.querySelector('.email-iframe[data-email-body]');
+    if(iframe)_initSingleIframe(iframe)}}
 
 async function toggleEmailRead(threadId,markUnread){
   if(!threadId)return;
   /* Optimistic: update UI immediately */
-  var prevState=!!markUnread;
   var updateThread=function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=!!markUnread;t.is_unread=!!markUnread}};
+  var revertThread=function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=!markUnread;t.is_unread=!markUnread}};
   S.gmailThreads.forEach(updateThread);
   if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(updateThread);
   S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
@@ -3333,26 +3415,30 @@ async function toggleEmailRead(threadId,markUnread){
     var _dp=gel('email-detail-panel');
     if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
     else{gel('detail-modal').classList.remove('on','full-detail')}}
-  render();toast(markUnread?'Marked as unread':'Marked as read','ok');
-  /* Fire API call in background — roll back on failure */
-  try{
-    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
-    var token=sess.data.session.access_token;
-    var resp=await fetchWithTimeout('/api/gmail/mark-read',{method:'POST',
-      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({threadId:threadId,unread:!!markUnread})},15000);
-    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Mark read failed')}
-  }catch(e){
-    /* Roll back: revert to opposite state */
-    var revertThread=function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=!prevState;t.is_unread=!prevState}};
-    S.gmailThreads.forEach(revertThread);
-    if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(revertThread);
-    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-    render();toast('Failed: '+e.message,'warn')}}
+  _refreshEmailListPanel();buildNav();
+  /* Undo system: delay API call */
+  var label=markUnread?'Marked as unread':'Marked as read';
+  _scheduleUndoCommit(
+    async function(){/* commit */
+      try{
+        var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+        var token=sess.data.session.access_token;
+        var resp=await fetchWithTimeout('/api/gmail/mark-read',{method:'POST',
+          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+          body:JSON.stringify({threadId:threadId,unread:!!markUnread})},15000);
+        if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Mark read failed')}
+      }catch(e){S.gmailThreads.forEach(revertThread);if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(revertThread);
+        S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+        _refreshEmailListPanel();buildNav();toast('Failed: '+e.message,'warn')}},
+    function(){/* rollback (undo) */
+      S.gmailThreads.forEach(revertThread);if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(revertThread);
+      S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+      _refreshEmailListPanel();buildNav()},
+    label)}
 
 async function trashEmail(threadId){
   if(!threadId)return;
-  if(!confirm('Move this email to trash?'))return;
+  delete S._gmailThreadDetailCache[threadId];
   /* Optimistic: remove from UI immediately */
   var removedLive=null,removedLiveIdx=-1,removedSup=null,removedSupIdx=-1;
   if(S._gmailLiveThreads){
@@ -3365,21 +3451,27 @@ async function trashEmail(threadId){
   var _dp=gel('email-detail-panel');
   if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
   else{gel('detail-modal').classList.remove('on','full-detail')}
-  render();toast('Email moved to trash','ok');
-  /* Fire API call in background — roll back on failure */
-  try{
-    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
-    var token=sess.data.session.access_token;
-    var resp=await fetchWithTimeout('/api/gmail/trash',{method:'POST',
-      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({threadId:threadId})},15000);
-    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Trash failed')}
-  }catch(e){
-    /* Roll back: re-insert removed items */
-    if(removedLive&&S._gmailLiveThreads)S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
-    if(removedSup)S.gmailThreads.splice(removedSupIdx,0,removedSup);
-    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-    render();toast('Trash failed: '+e.message,'warn')}}
+  _refreshEmailListPanel();buildNav();
+  /* Undo system: delay API call, allow undo within 5 seconds */
+  _scheduleUndoCommit(
+    async function(){/* commit */
+      try{
+        var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+        var token=sess.data.session.access_token;
+        var resp=await fetchWithTimeout('/api/gmail/trash',{method:'POST',
+          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+          body:JSON.stringify({threadId:threadId})},15000);
+        if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Trash failed')}
+      }catch(e){if(removedLive&&S._gmailLiveThreads)S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
+        if(removedSup)S.gmailThreads.splice(removedSupIdx,0,removedSup);
+        S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+        _refreshEmailListPanel();buildNav();toast('Trash failed: '+e.message,'warn')}},
+    function(){/* rollback (undo) */
+      if(removedLive&&S._gmailLiveThreads)S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
+      if(removedSup)S.gmailThreads.splice(removedSupIdx,0,removedSup);
+      S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+      _refreshEmailListPanel();buildNav()},
+    'Email moved to trash')}
 
 async function quickReplyEmail(){
   /* Support both old textarea and new contenteditable inline reply */
@@ -3447,7 +3539,8 @@ async function quickReplyEmail(){
     window._inlineAttachments=[];
     var recSec=gel('inline-recipients-section');if(recSec)recSec.style.display='none';
     var attBar=gel('inline-attachments-bar');if(attBar){attBar.innerHTML='';attBar.style.display='none'}
-    /* Refresh thread to show the new message */
+    /* Invalidate cache and refresh thread to show the new message */
+    delete S._gmailThreadDetailCache[S.gmailThreadId];
     openEmailThread(S.gmailThreadId)
   }catch(e){
     /* Re-enable send buttons on failure */
@@ -3702,7 +3795,7 @@ function openDraft(draftId){
 function deleteDraft(draftId){
   _deleteDraft(draftId);
   toast('Draft deleted','ok');
-  render()}
+  _refreshEmailListPanel();buildNav()}
 
 function getDraftCount(){return _loadDrafts().length}
 
@@ -3759,14 +3852,14 @@ async function scheduleEmail(scheduledAt){
   var dt=new Date(scheduledAt);
   var lbl=(dt.getMonth()+1)+'/'+dt.getDate()+' at '+(dt.getHours()%12||12)+':'+String(dt.getMinutes()).padStart(2,'0')+(dt.getHours()<12?' AM':' PM');
   toast('Email scheduled for '+lbl,'ok');
-  loadScheduledEmails().then(render)}
+  loadScheduledEmails().then(function(){_refreshEmailListPanel();buildNav()})}
 
 async function cancelScheduledEmail(id){
   var res=await _sb.from('scheduled_emails').delete().eq('id',id);
   if(res.error){toast('Cancel failed: '+res.error.message,'warn');return}
   S.scheduledEmails=(S.scheduledEmails||[]).filter(function(e){return e.id!==id});
   toast('Scheduled email cancelled','ok');
-  render()}
+  _refreshEmailListPanel();buildNav()}
 
 async function _checkScheduledEmails(){
   var uid=await getUserId();if(!uid)return;
@@ -3843,7 +3936,7 @@ async function _applyRuleActionsToThread(threadId,actions){
     /* Update local cache */
     var cached=S.gmailThreads.find(function(t){return(t.thread_id||t.threadId)===threadId});
     if(cached){Object.keys(updates).forEach(function(k){cached[k]=updates[k]})}
-    S._threadCrmCache={}}
+    delete S._threadCrmCache[threadId]}
   /* Handle auto-archive */
   var archiveAct=actions.find(function(a){return a.type==='auto_archive'});
   if(archiveAct)archiveEmail(threadId)}
@@ -3885,7 +3978,7 @@ function _autoCategorizeFromContacts(threadId,cached){
   if(!hasChanges)return;
   /* Update local cache synchronously so re-render picks up values */
   Object.keys(updates).forEach(function(k){cached[k]=updates[k]});
-  S._threadCrmCache={};
+  delete S._threadCrmCache[threadId];
 
   /* Update email timer categorization so completed task gets correct CRM */
   if(S._emailTimer&&S._emailTimer.threadId===threadId){
@@ -3921,11 +4014,11 @@ async function saveEmailRule(ruleData){
 async function deleteEmailRule(id){
   var res=await _sb.from('email_rules').delete().eq('id',id);
   if(res.error){toast('Delete failed: '+res.error.message,'warn');return}
-  await loadEmailRules();toast('Rule deleted','ok');render()}
+  await loadEmailRules();toast('Rule deleted','ok');_refreshEmailListPanel()}
 
 async function toggleEmailRule(id,active){
   await _sb.from('email_rules').update({is_active:active}).eq('id',id);
-  await loadEmailRules();render()}
+  await loadEmailRules();_refreshEmailListPanel()}
 
 /* ── Contact autocomplete ── */
 window._composeRecipients={to:[],cc:[],bcc:[]};

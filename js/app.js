@@ -100,7 +100,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   saveCampaignBilling:saveCampaignBilling,
   /* Email */
   openEmailThread:openEmailThread,closeEmailThread:closeEmailThread,searchGmail:searchGmail,setGmailFilter:setGmailFilter,loadMoreGmailThreads:loadMoreGmailThreads,refreshGmailInbox:refreshGmailInbox,
-  ensureGmailThreads:ensureGmailThreads,archiveEmail:archiveEmail,toggleEmailMsg:toggleEmailMsg,
+  ensureGmailThreads:ensureGmailThreads,archiveEmail:archiveEmail,undoLastAction:undoLastAction,toggleEmailMsg:toggleEmailMsg,
   setEmailFilter:setEmailFilter,toggleEmailFilterExclude:toggleEmailFilterExclude,clearEmailFilters:clearEmailFilters,
   emailToggleBulk:emailToggleBulk,emailToggleSel:emailToggleSel,emailSelectAll:emailSelectAll,emailDeselectAll:emailDeselectAll,bulkArchiveEmails:bulkArchiveEmails,
   applyNewEmails:applyNewEmails,startEmailPolling:startEmailPolling,stopEmailPolling:stopEmailPolling,

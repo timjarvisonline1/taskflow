@@ -517,7 +517,7 @@ These are the bugs causing the "weird formatting / different font" problem.
 - **Fix:** Move sync to background worker. Return partial results immediately. Process remaining threads asynchronously. Or: only sync new/changed threads (use Gmail `historyId` for incremental sync).
 
 ### I3. Full DOM rebuild on every state change
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **File:** `js/views.js` line 36, `js/core.js` render() callers
 - **Problem:** Every `render()` call sets `gel('main').innerHTML = ...`, destroying and recreating the entire DOM including all event listeners, iframes, scroll positions. A 50-thread email list generates ~25KB of HTML string per render. `render()` is called on: view change, tab switch, search, filter change, **every bulk selection checkbox click**, poll completion, analysis completion.
@@ -528,14 +528,14 @@ These are the bugs causing the "weird formatting / different font" problem.
   - Poll: use DOM diffing or append-only for new threads
 
 ### I4. CRM context cache invalidation storm
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **File:** `js/core.js` lines 1120, 886, 3123, 4364
 - **Problem:** `S._threadCrmCache` is completely cleared on every `loadData()`, every `_buildDomainMap()`, and every `analyzeNewEmails()` completion. After invalidation, the next `render()` calls `getThreadCrmContext()` for ALL 500 threads, each calling `matchEmailToClient()` with linear scans. This blocks the main thread for 100-500ms.
 - **Fix:** Invalidate individual cache entries (by thread_id) instead of clearing the entire cache. Pre-build email-to-client index map with `O(1)` lookups instead of `O(n)` linear `.find()` scans.
 
 ### I5. matchEmailToClient uses linear scans with no indexing
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **File:** `js/core.js` line 1018
 - **Problem:** `matchEmailToClient()` does `S.contacts.find(...)` (O(n)) then `S.clientRecords.find(...)` (O(n)) on every call, calling `.toLowerCase()` on each iteration. With 100 contacts and 30 clients, this runs 130 comparisons PER email address. Across 500 threads with ~3 addresses each, that's **195,000 string comparisons** on a cold cache rebuild.
@@ -549,7 +549,7 @@ These are the bugs causing the "weird formatting / different font" problem.
 - **Fix:** Pre-calculate smart inbox counts once after data load, store in `S._smartCounts`. Update incrementally when threads change.
 
 ### I7. Opening same thread twice makes duplicate API calls
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `js/core.js` lines 2418, 2437
 - **Problem:** `openEmailThread()` sets `S.gmailThread=null` and fetches the full thread from the API every time, even if the user just viewed it 2 seconds ago. No client-side thread detail cache.
@@ -584,7 +584,7 @@ These are the bugs causing the "weird formatting / different font" problem.
 - **Fix:** Use Gmail `historyId` for incremental polling. Only fetch threads that changed since last check. Or use Gmail push notifications (pub/sub webhook) instead of polling.
 
 ### I12. initEmailIframes iterates ALL iframes on every render
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `js/views.js` line 6281
 - **Problem:** After every `render()` or thread open, `initEmailIframes()` queries ALL `.email-iframe[data-email-body]` elements on the page, decodes each, and sets `srcdoc`. For a 20-message thread, that's 20 iframes created (even collapsed messages).
@@ -631,13 +631,13 @@ These are the bugs causing the "weird formatting / different font" problem.
 - **Fix:** Update UI immediately (remove row, update badge, etc.), fire API call in background, roll back on failure.
 
 ### IUX2. No loading progress for initial inbox load
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **Problem:** The skeleton shows during the 5-6 second initial load with zero progress indication. User doesn't know if the app is loading, broken, or stalled.
 - **Fix:** Show a progress bar or "Loading 23 of 50 threads..." counter. Or stream results: render the first batch of threads as they arrive, add more as they load.
 
 ### IUX3. Tab switching shows skeleton instead of stale data
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **Problem:** When switching from Inbox to Sent (first time), the UI immediately shows a skeleton. It could instead show stale Supabase-cached sent threads instantly, then refresh in background.
 - **Fix:** Show cached `S.gmailThreads` filtered to SENT label immediately. Fetch fresh data in background and update when ready. Label as "Updating..." if data is stale.
@@ -656,7 +656,7 @@ These are the bugs causing the "weird formatting / different font" problem.
 - **Fix:** Disable button immediately, show "Sending..." text, re-enable on success/failure. Show success toast.
 
 ### IUX6. Archive has no undo → Global undo system
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **Problem:** Clicking "Archive" immediately removes the email with no way to undo. Gmail offers a 5-second undo bar. Same issue applies to Delete, Mark Read/Unread, and Move actions.
 - **Fix:** Implement a global undo system (merged with N44 scope — covers ALL destructive email actions, not just archive). Show persistent undo bar at bottom of email section for 5-10 seconds after: archive, delete, mark read/unread, move. Delay API call, instant visual removal (optimistic), rollback on undo. N44 is merged into this item.
@@ -2129,6 +2129,7 @@ For implementation reference, these are the key Gmail measurements and patterns 
 
 | Date | Commit | Issues Fixed |
 |------|--------|--------------|
+| 2026-03-10 | (Phase 2) | I5 (email-to-client index maps), I4 (granular CRM cache), I7 (thread detail cache), I3 (targeted DOM updates replace render()), IUX2 (loading progress bar), IUX3 (stale-while-revalidate), IUX6 (global undo system for archive/trash/mark-read), I12 (lazy iframe loading) |
 | 2026-03-10 | (Phase 1) | I1 (parallel thread fetch), I2 (background sync), IUX1 (optimistic UI), IUX5 (send loading state), I9 (batch archive endpoint), I13 (request timeouts + retry) |
 | 2026-03-10 | (doc audit) | Added Section O (Smart CRM Suggestions, O1-O11). Marked 14 items superseded by Section N. Merged N44 into IUX6. Added cross-references (B12→N16, C9→N20, F3→N9/N20, F4→N9, H1→N42, H5→N10). Consolidated duplicates (C8+F1→N35, D5+F2→N32). Restructured priority phases 10-13 with new Phase 10 for Smart CRM. |
 | 2026-03-09 | ea7f224 | B1 (partial - compact mode only), C2, C3, D1, D2, D3, D4, E1, G1, G2, G3, G4 (partial) |
