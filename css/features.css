@@ -1026,7 +1026,15 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-detail-panel .detail-full-header{padding:0 0 0;position:sticky;top:0;z-index:11;background:var(--g1)}
 .email-detail-panel .detail-split{display:flex;overflow:visible;flex:1;min-height:0}
 .email-detail-panel .detail-split-left{flex:1;padding:12px 0;border-right:1px solid var(--gborder);overflow-y:auto}
-.email-detail-panel .detail-split-right{width:260px;padding:12px 16px;overflow-y:auto}
+/* N32: Collapsible CRM sidebar — hidden by default, toggle to show */
+.email-detail-panel .detail-split-right{width:260px;padding:12px 16px;overflow-y:auto;
+  transition:width .2s ease,padding .2s ease,opacity .2s ease}
+.email-detail-panel .detail-split-right.crm-collapsed{width:0;padding:0;opacity:0;overflow:hidden;border:none}
+.crm-toggle-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--gborder);
+  background:none;color:var(--t3);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .12s;flex-shrink:0;position:relative}
+.crm-toggle-btn:hover{background:rgba(255,255,255,.06);color:var(--t1)}
+.crm-toggle-btn .crm-dot{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:#1a73e8}
 .email-detail-panel .email-thread-modal-toolbar{padding:8px 0;margin-bottom:8px;position:sticky;top:0;z-index:10;background:var(--g1)}
 .email-detail-panel .email-thread-modal-subject{font-size:16px}
 
@@ -1053,7 +1061,17 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   .email-detail-panel{flex:1;min-height:0}
 }
 
-.email-search{margin-bottom:16px;display:flex;align-items:center;gap:8px}
+/* N16: Gmail-style prominent search bar */
+.email-search{margin-bottom:16px;display:flex;align-items:center;position:relative}
+.email-search-bar{display:flex;align-items:center;gap:8px;width:100%;background:rgba(255,255,255,.06);
+  border:1px solid var(--gborder);border-radius:24px;padding:0 12px;height:40px;transition:all .2s}
+.email-search-bar:focus-within{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.15);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.email-search-bar svg{color:var(--t4);flex-shrink:0}
+.email-search-input{flex:1;border:none;background:transparent;outline:none;font-size:14px;color:var(--t1);font-family:inherit;padding:0}
+.email-search-input::placeholder{color:var(--t4)}
+.email-search-clear{width:24px;height:24px;border-radius:50%;border:none;background:none;color:var(--t4);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s}
+.email-search-clear:hover{background:rgba(255,255,255,.08);color:var(--t1)}
 .email-empty{padding:60px 30px;text-align:center;color:var(--t4)}
 .email-empty p{margin:8px 0}
 .email-empty svg{opacity:.3;margin-bottom:8px}
@@ -1073,10 +1091,20 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-unread .email-row-subject{font-weight:600;color:var(--t1)}
 .email-unread .email-row-snippet{color:var(--t3)}
 
-/* Unread dot — small blue dot like Gmail */
-.email-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin:0 6px 0 4px}
+/* N10: Checkbox + star system (replaces unread dot) */
+.email-row-select{width:20px;height:20px;flex-shrink:0;margin:0 4px 0 0;display:flex;align-items:center;justify-content:center}
+.email-row-select input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:#1a73e8;opacity:0;transition:opacity .1s}
+.email-row:hover .email-row-select input[type="checkbox"]{opacity:1}
+.email-row-select input[type="checkbox"]:checked{opacity:1}
+/* Show unread dot when checkbox is hidden */
+.email-row-select .email-dot{position:absolute;width:8px;height:8px;border-radius:50%;pointer-events:none}
 .email-dot-on{background:#1a73e8;box-shadow:0 0 3px rgba(26,115,232,.3)}
 .email-dot-off{background:transparent}
+.email-row:hover .email-row-select .email-dot{display:none}
+.email-row-star{width:20px;height:20px;flex-shrink:0;margin:0 2px 0 0;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--t4);transition:color .1s;border:none;background:none;padding:0;font-size:14px}
+.email-row-star:hover{color:#f4b400}
+.email-row-star.starred{color:#f4b400}
 
 /* Avatar — compact */
 .email-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
@@ -1145,14 +1173,18 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-msg-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
   justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;text-transform:uppercase}
 .email-msg-info{flex:1;min-width:0}
+/* N22: Compact message header — sender name only, recipient summary */
 .email-msg-from{font-size:14px;font-weight:600;color:var(--t1)}
-.email-msg-email{font-weight:400;color:var(--t4);font-size:11px;margin-left:6px}
+.email-msg-rcpt-summary{font-size:11px;color:var(--t4);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .email-msg-contact-badge{font-size:10px;padding:2px 8px;border-radius:8px;background:rgba(77,166,255,.1);
   color:#4da6ff;font-weight:600;margin-left:8px}
 .email-msg-date{font-size:11px;color:var(--t4);white-space:nowrap;flex-shrink:0}
-.email-msg-collapse{font-size:10px;color:var(--t4);background:var(--bg3);border:none;
-  padding:3px 10px;border-radius:6px;cursor:pointer;margin-left:8px;transition:all .15s}
-.email-msg-collapse:hover{color:var(--t2);background:var(--bg4)}
+.email-msg-header-actions{display:flex;align-items:center;gap:2px;margin-left:8px}
+.email-msg-header-action{width:28px;height:28px;border:none;background:none;border-radius:50%;
+  cursor:pointer;color:var(--t4);display:flex;align-items:center;justify-content:center;
+  transition:all .1s;opacity:0}
+.email-message:hover .email-msg-header-action{opacity:.7}
+.email-msg-header-action:hover{opacity:1!important;color:var(--t1);background:rgba(255,255,255,.08)}
 .email-msg-to{font-size:11px;color:var(--t4);padding:6px 18px 6px 44px;border-top:1px solid var(--gborder);line-height:1.5}
 .email-rcpt{color:var(--t3);cursor:default;transition:color .15s}
 .email-rcpt:hover{color:var(--t2)}
@@ -1239,12 +1271,18 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   background:rgba(255,255,255,.03);border:1px solid var(--gborder);border-radius:8px;
   min-height:36px;cursor:text;transition:border-color .2s}
 .compose-recipient-wrap:focus-within{border-color:var(--accent)}
-.compose-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px 2px 6px;
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:12px;
-  font-size:12px;color:var(--t2);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
-.compose-chip-x{cursor:pointer;opacity:.5;font-size:14px;line-height:1;margin-left:2px;
+/* N30: Polished recipient chips with avatar */
+.compose-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px 2px 2px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:16px;
+  font-size:12px;color:var(--t2);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;
+  height:28px;transition:all .12s}
+.compose-chip:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.15)}
+.compose-chip-avatar{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0;text-transform:uppercase}
+.compose-chip-x{cursor:pointer;opacity:0;font-size:14px;line-height:1;margin-left:2px;
   transition:opacity .15s}
-.compose-chip-x:hover{opacity:1;color:#EA4335}
+.compose-chip:hover .compose-chip-x{opacity:.7}
+.compose-chip-x:hover{opacity:1!important;color:#EA4335}
 .compose-recipient-input{flex:1;min-width:120px;border:none;background:transparent;outline:none;
   font-size:13px;color:var(--t1);padding:4px 0}
 .compose-recipient-input::placeholder{color:var(--t4)}
@@ -1420,8 +1458,9 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .compose-cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media(max-width:600px){.compose-cat-grid{grid-template-columns:1fr}}
 
-/* ── Two-column thread layout ── */
-.email-thread-layout{display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start}
+/* ── Two-column thread layout — N32: sidebar collapsible ── */
+.email-thread-layout{display:grid;grid-template-columns:1fr;gap:0;align-items:start}
+.email-thread-layout.crm-visible{grid-template-columns:1fr 280px;gap:20px}
 .email-thread-main{min-width:0}
 .email-thread-main .email-thread-detail{max-width:none}
 
@@ -1558,10 +1597,20 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-inline-reply-toolbar .compose-toolbar-btn{width:28px;height:26px}
 .email-inline-reply-actions{display:flex;align-items:center;gap:8px;padding:8px 14px;
   border-top:1px solid var(--gborder)}
-.email-inline-reply-send{display:flex;align-items:center;gap:5px;padding:7px 18px;
-  background:#EA4335;color:#fff;border:none;border-radius:8px;cursor:pointer;
-  font-size:12px;font-weight:600;transition:all .15s}
-.email-inline-reply-send:hover{background:#d63030;transform:translateY(-1px);box-shadow:0 4px 12px rgba(234,67,53,.3)}
+/* N27: Click-to-open reply prompt */
+.reply-prompt{display:flex;align-items:center;gap:12px;padding:12px 18px;
+  background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);
+  cursor:pointer;transition:all .15s;margin-top:8px}
+.reply-prompt:hover{border-color:rgba(255,255,255,.15);background:rgba(255,255,255,.04)}
+.reply-prompt-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;text-transform:uppercase}
+.reply-prompt-text{font-size:13px;color:var(--t4);flex:1}
+.email-inline-reply.collapsed{display:none}
+/* N29: Prominent Send button — Gmail blue, rounded, large */
+.email-inline-reply-send{display:flex;align-items:center;gap:6px;padding:8px 24px;
+  background:#1a73e8;color:#fff;border:none;border-radius:18px;cursor:pointer;
+  font-size:14px;font-weight:600;transition:all .15s}
+.email-inline-reply-send:hover{background:#1565c0;box-shadow:0 2px 8px rgba(26,115,232,.3)}
 .email-inline-reply-btn{font-size:11px;color:var(--t3);cursor:pointer;background:none;border:1px solid var(--gborder);
   padding:5px 12px;border-radius:6px;transition:all .15s;display:flex;align-items:center;gap:4px}
 .email-inline-reply-btn:hover{color:var(--t1);background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}

@@ -103,6 +103,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   ensureGmailThreads:ensureGmailThreads,archiveEmail:archiveEmail,undoLastAction:undoLastAction,toggleEmailMsg:toggleEmailMsg,
   setEmailFilter:setEmailFilter,toggleEmailFilterExclude:toggleEmailFilterExclude,clearEmailFilters:clearEmailFilters,
   emailToggleBulk:emailToggleBulk,emailToggleSel:emailToggleSel,emailSelectAll:emailSelectAll,emailDeselectAll:emailDeselectAll,bulkArchiveEmails:bulkArchiveEmails,
+  toggleCrmSidebar:toggleCrmSidebar,expandReplyEditor:expandReplyEditor,toggleEmailStar:toggleEmailStar,
   applyNewEmails:applyNewEmails,startEmailPolling:startEmailPolling,stopEmailPolling:stopEmailPolling,
   analyzeNewEmails:analyzeNewEmails,dismissEmailAction:dismissEmailAction,snoozeEmailAction:snoozeEmailAction,openSnoozeMenu:openSnoozeMenu,
   dismissFollowup:dismissFollowup,summarizeThread:summarizeThread,doSummarize:doSummarize,resummarizeThread:resummarizeThread,createTaskFromSuggestion:createTaskFromSuggestion,

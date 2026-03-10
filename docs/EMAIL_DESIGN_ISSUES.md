@@ -1269,8 +1269,8 @@ Issues observed directly from the user's screenshot:
   - Icons: 20x20px, no text, `opacity:0.7` → `1` on hover
   - Position: absolute right, overlapping the date area
 
-#### N10. Checkbox + star: dot → Gmail's selection system
-- **Status:** [ ]
+#### N10. Checkbox + star: dot → Gmail's selection system ✅
+- **Status:** [x] Fixed
 - **Severity:** MEDIUM
 - **Files:** `js/views.js` (email-dot), `css/features.css` (email-dot-on, email-dot-off)
 - **Problem:** TaskFlow uses a tiny red/gray dot (8-12px) for unread state. Gmail uses a proper checkbox (for bulk) + star (for importance), both always visible. The dot conflates "unread indicator" with "bulk selection," switching to a checkbox only in bulk mode.
@@ -1322,8 +1322,8 @@ Issues observed directly from the user's screenshot:
   .email-thread-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
   ```
 
-#### N16. Search bar: basic input → Gmail's prominent search
-- **Status:** [ ]
+#### N16. Search bar: basic input → Gmail's prominent search ✅
+- **Status:** [x] Fixed
 - **Severity:** MEDIUM
 - **Files:** `js/views.js` (email-search), `css/features.css`
 - **Problem:** TaskFlow's search is a simple `<input>` with placeholder text. Gmail has a prominent search bar at the top of the page with a search icon, filter button, and clear button. It's the most prominent UI element.
@@ -1395,8 +1395,8 @@ Issues observed directly from the user's screenshot:
   }
   ```
 
-#### N22. Message header: info layout → Gmail's compact header
-- **Status:** [ ]
+#### N22. Message header: info layout → Gmail's compact header ✅
+- **Status:** [x] Fixed
 - **Severity:** MEDIUM
 - **Files:** `js/views.js` (email-msg-header), `css/features.css`
 - **Problem:** TaskFlow's message header shows: avatar (34px) | sender name + email + contact badge | date | collapse button. Gmail shows: avatar (32px) | sender name | recipient summary ("to me", "to Chris, me") | date + dropdown arrow + star + reply + more. Gmail compacts recipient info into a tiny gray summary that expands on click.
@@ -1424,8 +1424,8 @@ Issues observed directly from the user's screenshot:
 - **Problem:** TaskFlow indents the message body by 64px to align with the header text (past the avatar). Gmail uses full-width message bodies with a smaller indent. The 64px wastes horizontal space, especially on narrower screens.
 - **Fix:** Reduce indent to match Gmail: `padding-left: 44px` (avatar width + gap). Or use `padding-left: 0` with a clear visual break between header and body.
 
-#### N25. Reply/Forward buttons: per-message inline → Gmail's bottom buttons
-- **Status:** [ ]
+#### N25. Reply/Forward buttons: per-message inline → Gmail's bottom buttons ✅
+- **Status:** [x] Fixed
 - **Severity:** MEDIUM
 - **Files:** `js/views.js` (email-msg-actions)
 - **Problem:** TaskFlow shows Reply/Reply All/Forward buttons inside every expanded message card. Gmail only shows these buttons at the very bottom of the thread, below the last message, as large outlined buttons. Per-message reply buttons are available via the reply icon in the message header.
@@ -1457,8 +1457,8 @@ Issues observed directly from the user's screenshot:
 
 ### N-COMPOSE: COMPOSE & REPLY EDITOR REDESIGN
 
-#### N27. Reply editor: expand-on-focus → Gmail's click-to-open
-- **Status:** [ ]
+#### N27. Reply editor: expand-on-focus → Gmail's click-to-open ✅
+- **Status:** [x] Fixed
 - **Severity:** HIGH
 - **Files:** `js/views.js` (inline reply), `css/features.css`
 - **Problem:** TaskFlow's reply editor is always present (collapsed to 42px), expanding on focus. Gmail shows a simple click target at the bottom of the thread — a one-line box with avatar and placeholder text (like a chat input). Clicking it opens the full composer.
@@ -1483,8 +1483,8 @@ Issues observed directly from the user's screenshot:
   - Font/size selectors as compact dropdowns
   - Keep the two-toolbar design for the full compose modal but simplify the inline reply to match Gmail
 
-#### N29. Send button: small inline button → Gmail's prominent Send
-- **Status:** [ ]
+#### N29. Send button: small inline button → Gmail's prominent Send ✅
+- **Status:** [x] Fixed
 - **Severity:** HIGH
 - **Files:** `css/features.css` (email-inline-reply-send), `js/views.js`
 - **Problem:** TaskFlow's Send button is a small button in the reply actions row. Gmail's Send is a large, prominent blue button at the bottom-left of the composer, impossible to miss.
@@ -1503,8 +1503,8 @@ Issues observed directly from the user's screenshot:
   ```
   Include a dropdown arrow for "Schedule Send" option.
 
-#### N30. Recipient chips: basic chips → Gmail's polished chips
-- **Status:** [ ]
+#### N30. Recipient chips: basic chips → Gmail's polished chips ✅
+- **Status:** [x] Fixed
 - **Severity:** MEDIUM
 - **Files:** `js/views.js` (reply To/Cc fields), `css/features.css`
 - **Problem:** TaskFlow's recipient chips are basic with small "x" delete buttons. Gmail's chips are polished: rounded pills with avatar/initial, name, hover to show email, click to edit, "x" on hover only.
@@ -1531,8 +1531,8 @@ Issues observed directly from the user's screenshot:
 
 ### N-SIDEBAR: CRM SIDEBAR POSITIONING
 
-#### N32. CRM sidebar: always visible → collapsible panel
-- **Status:** [ ]
+#### N32. CRM sidebar: always visible → collapsible panel ✅
+- **Status:** [x] Fixed
 - **Severity:** HIGH
 - **Files:** `css/features.css` (detail-split-right), `js/views.js`
 - **Problem:** TaskFlow's 260px CRM sidebar is always visible when a thread is open, eating into the message reading area. Gmail has no permanent sidebar — context is shown inline (labels on thread, contact info on hover). The CRM sidebar is TaskFlow's unique value-add but shouldn't be at the cost of readability.
@@ -1667,8 +1667,8 @@ Issues observed directly from the user's screenshot:
   - **Full view** (Gmail default): thread replaces list, full width — good for reading
   - Toggle in settings or toolbar. Default to full view to match Gmail.
 
-#### N42. Keyboard shortcuts: minimal → Gmail's full shortcut set
-- **Status:** [ ]
+#### N42. Keyboard shortcuts: minimal → Gmail's full shortcut set ✅
+- **Status:** [x] Fixed
 - **Severity:** MEDIUM
 - **Problem:** TaskFlow has minimal keyboard support in the email section. Gmail supports extensive keyboard shortcuts: `j`/`k` to navigate, `o` to open, `e` to archive, `r` to reply, `a` to reply all, `f` to forward, `#` to delete, `z` to undo.
 - **Fix:** Implement Gmail-compatible keyboard shortcuts for the email section:
@@ -1709,9 +1709,9 @@ Issues observed directly from the user's screenshot:
 
 ### N-SIGNATURE: EMAIL SIGNATURE FIXES
 
-#### N45. Signature images: "Error! Filename not specified"
-- **Status:** [ ]
-- **Severity:** CRITICAL
+#### N45. Signature images: "Error! Filename not specified" — N/A
+- **Status:** [~] Not applicable (screenshot example, not a TaskFlow issue)
+- **Severity:** ~~CRITICAL~~
 - **Files:** `js/core.js` (signature handling), `js/modals.js` (compose modal)
 - **Problem:** The Gmail screenshots show the current signature rendering "Error! Filename not specified" in red/pink highlighted boxes where images should appear. The signature has 3 broken image references — likely Word-generated `INCLUDEPICTURE` merge fields or `cid:` image references that aren't resolving.
 - **Fix:**
@@ -2003,17 +2003,17 @@ For implementation reference, these are the key Gmail measurements and patterns 
 62. **N23** ✅ - Collapsed messages: single-line summary instead of opacity
 > Note: N44 (undo system) merged into IUX6 in Phase 2
 
-### Phase 9: Gmail UI Redesign — Compose & Polish
-63. **N45** - Fix broken signature images ("Error! Filename not specified")
-64. **N27** - Reply editor: click-to-open prompt at bottom
-65. **N29** - Send button: large prominent blue button
-66. **N30** - Recipient chips: polished pills with avatar
-67. **N22** - Message header: Gmail's compact layout
-68. **N25** - Reply/Forward buttons: bottom-of-thread only
-69. **N10** - Checkbox + star: Gmail's selection system
-70. **N16** - Search bar: prominent, Gmail-style
-71. **N32** - CRM sidebar: collapsible panel with toggle
-72. **N42** - Keyboard shortcuts: Gmail-compatible set
+### Phase 9: Gmail UI Redesign — Compose & Polish ✅
+63. **N45** ~N/A~ - Not a TaskFlow issue (screenshot example)
+64. **N27** ✅ - Reply editor: click-to-open prompt at bottom
+65. **N29** ✅ - Send button: large prominent blue button
+66. **N30** ✅ - Recipient chips: polished pills with avatar
+67. **N22** ✅ - Message header: Gmail's compact layout
+68. **N25** ✅ - Reply/Forward buttons: bottom-of-thread only
+69. **N10** ✅ - Checkbox + star: Gmail's selection system
+70. **N16** ✅ - Search bar: prominent, Gmail-style
+71. **N32** ✅ - CRM sidebar: collapsible panel with toggle
+72. **N42** ✅ - Keyboard shortcuts: Gmail-compatible set
 
 ### Phase 10: Smart CRM Association Suggestions
 > Depends on Phase 6 (data integrity) and Phase 9 (CRM sidebar redesign)
@@ -2129,6 +2129,7 @@ For implementation reference, these are the key Gmail measurements and patterns 
 
 | Date | Commit | Issues Fixed |
 |------|--------|--------------|
+| 2026-03-10 | (Phase 9) | N10 (checkbox+star system), N16 (Gmail search bar), N22 (compact message header), N25 (reply icon in header), N27 (click-to-open reply prompt), N29 (prominent blue Send), N30 (polished chips), N32 (collapsible CRM sidebar), N42 (keyboard shortcuts). N45 marked N/A. |
 | 2026-03-10 | (Phase 8) | N5 (CRM pills hidden, has-client border), N6 (14px sender, CSS truncation, bold unread), N7 (subject+snippet merged), N9 (hover action icons), N11 (bold-only unread, blue dot), N18 (reply at bottom), N19 (chronological messages), N21 (flat messages), N23 (compact collapsed) |
 | 2026-03-10 | (Phase 7) | N1 (flat rows), N2 (single-line layout), N3 (grid→flex), N4 (40px rows), N14 (remove animations), N35 (flex heights), N37 (remove glass-morphism), N39 (background-only hover), N40 (fast transitions) |
 | 2026-03-10 | (Phase 6) | K1 (standardize entity email tabs), K2 (fix cp.client→cp.partner), K4 (linked email in task detail), K5 (email search in command palette), K7 (async Supabase fetch for entity emails), K10 (shared rule engine module), K13 (already implemented) |

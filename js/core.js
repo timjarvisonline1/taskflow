@@ -2910,14 +2910,19 @@ async function loadFilteredEmailThreads(){
 function emailToggleBulk(){
   S.emailBulkMode=!S.emailBulkMode;S.emailBulkSelected={};_refreshEmailListPanel();buildNav()}
 function emailToggleSel(threadId){
+  if(!S.emailBulkSelected)S.emailBulkSelected={};
   if(S.emailBulkSelected[threadId])delete S.emailBulkSelected[threadId];
   else S.emailBulkSelected[threadId]=true;
+  /* N10: Auto-enter bulk mode when any checkbox is selected */
+  var count=emailBulkCount();
+  if(count>0&&!S.emailBulkMode){S.emailBulkMode=true;_refreshEmailListPanel();buildNav();return}
+  if(count===0&&S.emailBulkMode){S.emailBulkMode=false;_refreshEmailListPanel();buildNav();return}
   /* Toggle CSS directly instead of full DOM rebuild */
   var row=document.querySelector('.email-row[data-tid="'+threadId+'"]');
   if(row){row.classList.toggle('email-bulk-sel');
     var cb=row.querySelector('input[type="checkbox"]');if(cb)cb.checked=!!S.emailBulkSelected[threadId]}
   /* Update bulk action bar count */
-  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent=emailBulkCount()+' selected'}
+  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent=count+' selected'}
 function emailSelectAll(){
   var rows=document.querySelectorAll('.email-row[data-tid]');
   rows.forEach(function(r){var tid=r.getAttribute('data-tid');if(tid){S.emailBulkSelected[tid]=true;
@@ -2928,6 +2933,32 @@ function emailDeselectAll(){S.emailBulkSelected={};
     var cb=r.querySelector('input[type="checkbox"]');if(cb)cb.checked=false});
   var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent='0 selected'}
 function emailBulkCount(){return Object.keys(S.emailBulkSelected).length}
+
+/* N32: Toggle CRM sidebar visibility */
+function toggleCrmSidebar(){
+  S._crmSidebarOpen=!S._crmSidebarOpen;
+  var layout=gel('email-thread-layout');
+  if(layout){layout.classList.toggle('crm-visible',S._crmSidebarOpen)}
+  /* Also handle inline detail panel */
+  var rightPane=document.querySelector('.detail-split-right');
+  if(rightPane){rightPane.classList.toggle('crm-collapsed',!S._crmSidebarOpen)}}
+
+/* N27: Expand reply editor from prompt */
+function expandReplyEditor(){
+  var prompt=gel('reply-prompt');
+  var editor=gel('inline-reply-wrap');
+  if(prompt)prompt.style.display='none';
+  if(editor){editor.classList.remove('collapsed');
+    var ed=gel('email-inline-reply-editor');
+    if(ed)setTimeout(function(){ed.focus()},50)}}
+
+/* N10: Toggle email star */
+function toggleEmailStar(threadId){
+  var t=S.gmailThreads.find(function(th){return(th.thread_id||th.threadId)===threadId});
+  if(t){t.is_starred=!t.is_starred;
+    var btn=document.querySelector('.email-row[data-tid="'+threadId+'"] .email-row-star');
+    if(btn){btn.classList.toggle('starred',t.is_starred);btn.textContent=t.is_starred?'★':'☆'}}}
+
 async function bulkArchiveEmails(){
   var ids=Object.keys(S.emailBulkSelected);
   if(!ids.length)return;
@@ -3153,6 +3184,70 @@ function startEmailPolling(){
   },60000)}
 function stopEmailPolling(){
   if(_emailPollTimer){clearInterval(_emailPollTimer);_emailPollTimer=null}}
+
+/* N42: Gmail keyboard shortcuts for email section */
+function _emailKeyHandler(e){
+  if(S.view!=='email')return;
+  /* Don't capture when typing in an input/editor */
+  var tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select'||e.target.contentEditable==='true')return;
+  var key=e.key;var shift=e.shiftKey;
+  var threads=(S._gmailLiveThreads||S.gmailThreads||[]);
+
+  if(S.gmailThreadId){
+    /* ── Thread view shortcuts ── */
+    if(key==='u'){e.preventDefault();TF.closeEmailThread();return}
+    if(key==='e'){e.preventDefault();TF.archiveEmail(S.gmailThreadId);return}
+    if(key==='#'){e.preventDefault();TF.trashEmail(S.gmailThreadId);return}
+    if(key==='r'&&!shift){e.preventDefault();TF.expandReplyEditor();return}
+    if(key==='a'){e.preventDefault();TF.expandReplyEditor();return}
+    if(key==='f'){e.preventDefault();TF.forwardEmail?TF.forwardEmail():null;return}
+    if(key==='z'){e.preventDefault();TF.undoLastAction();return}
+    if(shift&&key==='I'){e.preventDefault();TF.toggleEmailRead(S.gmailThreadId,false);return}
+    if(shift&&key==='U'){e.preventDefault();TF.toggleEmailRead(S.gmailThreadId,true);return}
+    if(key===']'){e.preventDefault();TF.toggleCrmSidebar();return}
+  }else{
+    /* ── List view shortcuts ── */
+    if(key==='/'){e.preventDefault();var si=gel('gmail-search');if(si)si.focus();return}
+    if(key==='j'||key==='k'){
+      e.preventDefault();
+      var rows=document.querySelectorAll('.email-row[data-tid]');
+      if(!rows.length)return;
+      var curIdx=-1;
+      rows.forEach(function(r,i){if(r.classList.contains('email-active'))curIdx=i});
+      var nextIdx=key==='j'?curIdx+1:curIdx-1;
+      if(nextIdx<0)nextIdx=0;if(nextIdx>=rows.length)nextIdx=rows.length-1;
+      rows.forEach(function(r){r.classList.remove('email-active')});
+      rows[nextIdx].classList.add('email-active');
+      rows[nextIdx].scrollIntoView({behavior:'smooth',block:'nearest'});
+      S._emailNavTid=rows[nextIdx].getAttribute('data-tid');
+      return}
+    if(key==='o'||key==='Enter'){
+      e.preventDefault();
+      var tid=S._emailNavTid;
+      if(tid){TF.openEmailThread(tid)}
+      else{var first=document.querySelector('.email-row[data-tid]');if(first)TF.openEmailThread(first.getAttribute('data-tid'))}
+      return}
+    if(key==='x'){
+      e.preventDefault();
+      var tid2=S._emailNavTid;
+      if(tid2)TF.emailToggleSel(tid2);
+      return}
+    if(key==='e'){
+      e.preventDefault();
+      var tid3=S._emailNavTid;
+      if(tid3)TF.archiveEmail(tid3);
+      return}
+    if(key==='z'){e.preventDefault();TF.undoLastAction();return}
+    if(key==='s'){
+      e.preventDefault();
+      var tid4=S._emailNavTid;
+      if(tid4)TF.toggleEmailStar(tid4);
+      return}
+  }
+}
+/* Attach once */
+if(typeof document!=='undefined'){document.addEventListener('keydown',_emailKeyHandler)}
 
 async function pollGmailInbox(){
   try{

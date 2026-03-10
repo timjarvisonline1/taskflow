@@ -6655,9 +6655,13 @@ function rEmailListPanel(){
   /* Filter bar for non-smart views */
   if(!isSmartInbox)h+=rEmailFilterBar();
 
+  /* N16: Gmail-style prominent search bar */
   h+='<div class="email-search">';
-  h+='<input type="text" class="edf" id="gmail-search" value="'+esc(S.gmailSearch)+'" placeholder="Search emails..." style="max-width:400px;font-size:13px" onkeydown="if(event.key===\'Enter\')TF.searchGmail(this.value)">';
-  if(S.gmailSearch)h+=' <button class="btn" onclick="TF.searchGmail(\'\')" style="font-size:11px;padding:4px 10px">Clear</button>';
+  h+='<div class="email-search-bar">';
+  h+=icon('search',16);
+  h+='<input type="text" class="email-search-input" id="gmail-search" value="'+esc(S.gmailSearch)+'" placeholder="Search emails" onkeydown="if(event.key===\'Enter\')TF.searchGmail(this.value)">';
+  if(S.gmailSearch)h+='<button class="email-search-clear" onclick="TF.searchGmail(\'\')">'+icon('x',14)+'</button>';
+  h+='</div>';
   h+='</div>';
 
   /* Bulk action bar */
@@ -6858,12 +6862,18 @@ function rEmailList(threads){
     var initial=(fromName||fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(fromEmail);
 
-    /* N5/N6/N7/N9: Gmail-style flat row */
+    /* N5/N6/N7/N9/N10: Gmail-style flat row with checkbox + star */
     var _isBulkSel=S.emailBulkMode&&S.emailBulkSelected[threadId];
     var _hasClient=!!(crmCtx&&crmCtx.primaryClient);
-    h+='<div class="email-row'+(isUnread?' email-unread':'')+(_isBulkSel?' email-bulk-sel':'')+(_hasClient?' has-client':'')+'" data-tid="'+esc(threadId)+'" onclick="'+(S.emailBulkMode?'TF.emailToggleSel(\''+esc(threadId)+'\')':'TF.openEmailThread(\''+esc(threadId)+'\')')+'">';
-    if(S.emailBulkMode){h+='<div class="email-bulk-check"><input type="checkbox" '+(_isBulkSel?'checked':'')+' onclick="event.stopPropagation();TF.emailToggleSel(\''+esc(threadId)+'\')"></div>'}
-    else{h+='<div class="email-dot '+(isUnread?'email-dot-on':'email-dot-off')+'"></div>'}
+    var _isStarred=t.is_starred||false;
+    h+='<div class="email-row'+(isUnread?' email-unread':'')+(_isBulkSel?' email-bulk-sel':'')+(_hasClient?' has-client':'')+'" data-tid="'+esc(threadId)+'" onclick="TF.openEmailThread(\''+esc(threadId)+'\')">';
+    /* N10: Checkbox (visible on hover or when selected) */
+    h+='<div class="email-row-select" style="position:relative">';
+    h+='<input type="checkbox" '+(_isBulkSel?'checked':'')+' onclick="event.stopPropagation();TF.emailToggleSel(\''+esc(threadId)+'\')">';
+    if(isUnread&&!_isBulkSel)h+='<span class="email-dot email-dot-on"></span>';
+    h+='</div>';
+    /* N10: Star toggle */
+    h+='<button class="email-row-star'+(_isStarred?' starred':'')+'" onclick="event.stopPropagation();TF.toggleEmailStar(\''+esc(threadId)+'\')" title="Star">'+(_isStarred?'★':'☆')+'</button>';
     h+='<div class="email-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
     h+='<div class="email-row-main">';
     /* From section (fixed width) */
@@ -6927,6 +6937,24 @@ function _fmtRecipients(raw){
       return'<span class="email-rcpt" title="'+esc(email)+'">'+esc(name)+'</span>'}
     return'<span class="email-rcpt">'+esc(a.replace(/[<>"]/g,'').trim())+'</span>';
   }).filter(Boolean).join(', ')}
+
+/* N22: Build compact recipient summary like "to me" or "to Chris, me" */
+function _rcptSummary(to,cc){
+  if(!to&&!cc)return'';
+  var userEmails=S._userEmails||[];if(!userEmails.length){var uf=(S._userEmail||'').toLowerCase();if(uf)userEmails=[uf]}
+  var names=[];
+  var raw=(to||'')+(cc?', '+cc:'');
+  raw.split(',').forEach(function(a){
+    a=a.trim();if(!a)return;
+    var m=a.match(/"?([^"<]+?)"?\s*<([^>]+)>/);
+    var email=m?m[2].trim().toLowerCase():a.replace(/[<>"]/g,'').trim().toLowerCase();
+    var name=m?m[1].trim():'';
+    if(userEmails.indexOf(email)!==-1){names.push('me')}
+    else{names.push(name?name.split(' ')[0]:email.split('@')[0])}
+  });
+  if(!names.length)return'';
+  if(names.length<=3)return'to '+names.join(', ');
+  return'to '+names.slice(0,2).join(', ')+' & '+(names.length-2)+' more'}
 
 /* M10 + M12 — AI-detected meeting/task/follow-up banners for thread view */
 function _rThreadAiBanners(cached){
@@ -7000,6 +7028,12 @@ function rEmailThreadModal(threadId){
   h+='<button class="email-toolbar-btn" onclick="TF.toggleEmailRead(\''+esc(threadId)+'\',true)">'+icon('eye_off',13)+'</button>';
   h+='<div class="email-toolbar-sep"></div>';
   h+='<button class="email-toolbar-btn btn-create" onclick="TF.createTaskFromEmail()">'+icon('tasks',13)+' Task</button>';
+  h+='<div style="flex:1"></div>';
+  /* N32: CRM sidebar toggle */
+  var _hasCrmM=!!(clientMatch&&clientMatch.clientName);
+  h+='<button class="crm-toggle-btn" onclick="TF.toggleCrmSidebar()" title="Toggle CRM sidebar">'+icon('briefcase',13);
+  if(_hasCrmM)h+='<span class="crm-dot"></span>';
+  h+='</button>';
   h+='</div>';
   h+='</div>';
 
@@ -7047,21 +7081,26 @@ function rEmailThreadModal(threadId){
     var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
     var msgMatch=matchEmailToClient(msg.fromEmail);
 
+    /* N22: Compact message header — sender name, recipient summary, reply icon */
+    var _rcptSum=_rcptSummary(msg.to,msg.cc);
     h+='<div class="email-message'+(isNewest?' email-message-last':'')+(isCollapsed?' collapsed':'')+'" data-msg-idx="'+idx+'">';
     h+='<div class="email-msg-header" onclick="TF.toggleEmailMsg('+idx+')">';
     h+='<div class="email-msg-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
     h+='<div class="email-msg-info">';
     h+='<div class="email-msg-from">'+esc(fromDisplay);
-    if(msg.fromEmail)h+=' <span class="email-msg-email">&lt;'+esc(msg.fromEmail)+'&gt;</span>';
     if(msgMatch&&msgMatch.contactName)h+='<span class="email-msg-contact-badge">'+esc(msgMatch.contactName)+'</span>';
     h+='</div>';
+    if(!isCollapsed&&_rcptSum){h+='<div class="email-msg-rcpt-summary">'+esc(_rcptSum)+'</div>'}
     if(isCollapsed&&msg.snippet){h+='<div class="email-msg-snippet">'+esc(msg.snippet.substring(0,120))+'</div>'}
     h+='</div>';
     h+='<div class="email-msg-date">'+dateLabel+'</div>';
     if(msg.attachments&&msg.attachments.length>0){
       h+='<span class="email-msg-att-badge" title="'+msg.attachments.length+' attachment'+(msg.attachments.length>1?'s':'')+'">';
       h+=icon('paperclip',10)+' '+msg.attachments.length+'</span>'}
-    if(totalMsgs>1)h+='<button class="email-msg-collapse" onclick="event.stopPropagation();TF.toggleEmailMsg('+idx+')">'+(isCollapsed?icon('chevron_right',10):icon('chevron_down',10))+'</button>';
+    /* N25: Reply icon in header (replaces per-message action buttons) */
+    h+='<div class="email-msg-header-actions">';
+    h+='<button class="email-msg-header-action" title="Reply" onclick="event.stopPropagation();TF.inlineReply('+idx+')">'+icon('reply',14)+'</button>';
+    h+='</div>';
     h+='</div>';
     if(msg.to){h+='<div class="email-msg-to">To: '+_fmtRecipients(msg.to)+'</div>'}
     if(msg.cc){h+='<div class="email-msg-to">Cc: '+_fmtRecipients(msg.cc)+'</div>'}
@@ -7091,18 +7130,20 @@ function rEmailThreadModal(threadId){
       h+='</div>';
     }
     h+='</div>'; /* close .email-msg-body */
-
-    h+='<div class="email-msg-actions">';
-    h+='<button class="email-msg-action-btn" onclick="TF.inlineReply('+idx+')">'+icon('reply',12)+' Reply</button>';
-    h+='<button class="email-msg-action-btn" onclick="TF.inlineReplyAll('+idx+')">'+icon('reply_all',12)+' Reply All</button>';
-    h+='<button class="email-msg-action-btn" onclick="TF.inlineForward('+idx+')">'+icon('forward',12)+' Forward</button>';
-    h+='</div>';
+    /* N25: No per-message action buttons — reply icon is in header */
     h+='</div>'; /* close .email-message */
   });
 
-  /* N18: Inline Reply at BOTTOM of thread (below messages) */
+  /* N27: Click-to-open reply prompt at bottom */
   var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
-  h+='<div class="email-inline-reply">';
+  var _userInitialM=((S._userEmail||'U').charAt(0)).toUpperCase();
+  var _userAvBgM=emailAvatarColor(S._userEmail||'');
+  h+='<div class="reply-prompt" id="reply-prompt" onclick="TF.expandReplyEditor()">';
+  h+='<div class="reply-prompt-avatar" style="background:'+_userAvBgM+'">'+_userInitialM+'</div>';
+  h+='<div class="reply-prompt-text">Click here to reply</div>';
+  h+='</div>';
+  /* N18: Full reply editor (hidden by default, shown on click) */
+  h+='<div class="email-inline-reply collapsed" id="inline-reply-wrap">';
   /* Mode label */
   h+='<div class="inline-reply-header">';
   h+='<span class="inline-reply-mode-label" id="inline-reply-mode-label">Reply</span>';
@@ -7164,8 +7205,9 @@ function rEmailThreadModal(threadId){
 
   h+='</div>'; /* close .detail-split-left */
 
-  /* ── RIGHT PANE: CRM Context ── */
-  h+='<div class="detail-split-right">';
+  /* ── RIGHT PANE: CRM Context (N32: collapsible) ── */
+  var _crmOpenM=S._crmSidebarOpen||false;
+  h+='<div class="detail-split-right'+(!_crmOpenM?' crm-collapsed':'')+'">';
 
   /* CRM Categorization */
   h+='<div class="thread-crm-section">';
@@ -7406,10 +7448,17 @@ function rEmailThread(){
   h+='<div class="email-toolbar-sep"></div>';
   h+='<button class="email-toolbar-btn btn-create" onclick="TF.createTaskFromEmail()">'+icon('tasks',13)+' Task</button>';
   h+='<div style="flex:1"></div>';
+  /* N32: CRM sidebar toggle */
+  var _hasCrm=!!(clientMatch&&clientMatch.clientName);
+  h+='<button class="crm-toggle-btn" onclick="TF.toggleCrmSidebar()" title="Toggle CRM sidebar">'+icon('briefcase',13);
+  if(_hasCrm)h+='<span class="crm-dot"></span>';
+  h+='</button>';
   h+='<button class="email-toolbar-btn" onclick="TF.openComposeEmail()">'+icon('edit',13)+' New</button>';
   h+='</div>';
 
-  h+='<div class="email-thread-layout">';
+  /* N32: Default sidebar hidden, shown via toggle (or auto on wide screens) */
+  var _crmOpen=S._crmSidebarOpen||false;
+  h+='<div class="email-thread-layout'+(_crmOpen?' crm-visible':'')+'" id="email-thread-layout">';
   h+='<div class="email-thread-main">';
   h+='<div class="email-thread-detail">';
 
@@ -7463,24 +7512,27 @@ function rEmailThread(){
     /* Match this message sender to a contact */
     var msgMatch=matchEmailToClient(msg.fromEmail);
 
+    /* N22: Compact message header — sender name, recipient summary, reply icon */
+    var _rcptSum2=_rcptSummary(msg.to,msg.cc);
     h+='<div class="email-message'+(isNewest?' email-message-last':'')+(isCollapsed?' collapsed':'')+'" data-msg-idx="'+idx+'">';
     h+='<div class="email-msg-header" onclick="TF.toggleEmailMsg('+idx+')">';
     h+='<div class="email-msg-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
     h+='<div class="email-msg-info">';
     h+='<div class="email-msg-from">'+esc(fromDisplay);
-    if(msg.fromEmail)h+=' <span class="email-msg-email">&lt;'+esc(msg.fromEmail)+'&gt;</span>';
     if(msgMatch&&msgMatch.contactName)h+='<span class="email-msg-contact-badge">'+esc(msgMatch.contactName)+'</span>';
     h+='</div>';
-    /* Snippet preview for collapsed messages */
+    if(!isCollapsed&&_rcptSum2){h+='<div class="email-msg-rcpt-summary">'+esc(_rcptSum2)+'</div>'}
     if(isCollapsed&&msg.snippet){h+='<div class="email-msg-snippet">'+esc(msg.snippet.substring(0,120))+'</div>'}
     h+='</div>';
     h+='<div class="email-msg-date">'+dateLabel+'</div>';
-    /* Inline attachment badge (always visible even when collapsed) */
     if(msg.attachments&&msg.attachments.length>0){
       h+='<span class="email-msg-att-badge" title="'+msg.attachments.length+' attachment'+(msg.attachments.length>1?'s':'')+'">';
       h+=icon('paperclip',10)+' '+msg.attachments.length;
       h+='</span>'}
-    if(totalMsgs>1)h+='<button class="email-msg-collapse" onclick="event.stopPropagation();TF.toggleEmailMsg('+idx+')">'+(isCollapsed?icon('chevron_right',10):icon('chevron_down',10))+'</button>';
+    /* N25: Reply icon in header */
+    h+='<div class="email-msg-header-actions">';
+    h+='<button class="email-msg-header-action" title="Reply" onclick="event.stopPropagation();TF.openReplyEmail('+idx+')">'+icon('reply',14)+'</button>';
+    h+='</div>';
     h+='</div>';
     if(msg.to){h+='<div class="email-msg-to">To: '+_fmtRecipients(msg.to)+'</div>'}
     if(msg.cc){h+='<div class="email-msg-to">Cc: '+_fmtRecipients(msg.cc)+'</div>'}
@@ -7492,7 +7544,6 @@ function rEmailThread(){
     }else{
       h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2);line-height:1.6">'+esc(msg.snippet)+'</div>';
     }
-    /* ── Attachments (inside msg-body so hidden when collapsed) ── */
     if(msg.attachments&&msg.attachments.length>0){
       h+='<div class="email-attachments">';
       msg.attachments.forEach(function(att){
@@ -7512,20 +7563,20 @@ function rEmailThread(){
       h+='</div>';
     }
     h+='</div>';
-
-    /* ── Per-message action buttons ── */
-    h+='<div class="email-msg-actions">';
-    h+='<button class="email-msg-action-btn" onclick="TF.openReplyEmail('+idx+')">'+icon('reply',12)+' Reply</button>';
-    h+='<button class="email-msg-action-btn" onclick="TF.replyAllEmail('+idx+')">'+icon('reply_all',12)+' Reply All</button>';
-    h+='<button class="email-msg-action-btn" onclick="TF.forwardEmail('+idx+')">'+icon('forward',12)+' Forward</button>';
-    h+='</div>';
-
+    /* N25: No per-message action buttons — reply icon is in header */
     h+='</div>';
   });
 
-  /* N18: Inline Reply at BOTTOM of thread (below messages) */
+  /* N27: Click-to-open reply prompt at bottom */
   var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
-  h+='<div class="email-inline-reply">';
+  var _userInitial=((S._userEmail||'U').charAt(0)).toUpperCase();
+  var _userAvBg=emailAvatarColor(S._userEmail||'');
+  h+='<div class="reply-prompt" id="reply-prompt" onclick="TF.expandReplyEditor()">';
+  h+='<div class="reply-prompt-avatar" style="background:'+_userAvBg+'">'+_userInitial+'</div>';
+  h+='<div class="reply-prompt-text">Click here to reply</div>';
+  h+='</div>';
+  /* N18: Full reply editor (hidden by default, shown on click) */
+  h+='<div class="email-inline-reply collapsed" id="inline-reply-wrap">';
   h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(S.gmailThreadId||'')+'\')"></div>';
   h+='<div class="email-inline-reply-toolbar">';
   h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
