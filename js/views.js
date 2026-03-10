@@ -6353,7 +6353,8 @@ function rEmailSkeleton(){
 /* ═══════════ ACTION REQUIRED ═══════════ */
 function rEmailActionRequired(){
   var threads=getActionRequiredThreads();
-  var h='<div class="pg-head"><h1>'+icon('zap',18)+' Action Required';
+  var h='<div class="email-page-wrap">';
+  h+='<div class="pg-head"><h1>'+icon('zap',18)+' Action Required';
   if(threads.length)h+=' <span style="background:#EA4335;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+threads.length+'</span>';
   h+='</h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
@@ -6473,11 +6474,13 @@ function rEmailActionRequired(){
       h+='</div>'});
     h+='</div>'}
 
+  h+='</div>'; /* close email-page-wrap */
   return h}
 
 function rEmailDraftList(){
   var drafts=_loadDrafts();
-  var h='<div class="pg-head"><h1>'+icon('edit',18)+' Drafts';
+  var h='<div class="email-page-wrap">';
+  h+='<div class="pg-head"><h1>'+icon('edit',18)+' Drafts';
   if(drafts.length)h+=' <span style="background:var(--accent);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+drafts.length+'</span>';
   h+='</h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
@@ -6485,7 +6488,7 @@ function rEmailDraftList(){
   h+='</div></div>';
   if(!drafts.length){
     h+='<div class="email-empty">'+icon('edit',32)+'<p>No drafts.</p><p style="font-size:12px;color:var(--t4)">Drafts are auto-saved while composing.</p></div>';
-    return h}
+    h+='</div>';return h}
   /* Sort by updatedAt desc */
   drafts.sort(function(a,b){return(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||'')});
   h+='<div class="email-list">';
@@ -6513,6 +6516,7 @@ function rEmailDraftList(){
     h+='</div>';
     h+='</div>'});
   h+='</div>';
+  h+='</div>'; /* close email-page-wrap */
   return h}
 
 function rEmailScheduledList(){
@@ -6521,7 +6525,8 @@ function rEmailScheduledList(){
   var sent=emails.filter(function(e){return e.status==='sent'});
   var failed=emails.filter(function(e){return e.status==='failed'});
 
-  var h='<div class="pg-head"><h1>'+icon('clock',18)+' Scheduled Emails';
+  var h='<div class="email-page-wrap">';
+  h+='<div class="pg-head"><h1>'+icon('clock',18)+' Scheduled Emails';
   if(pending.length)h+=' <span style="background:var(--accent);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+pending.length+'</span>';
   h+='</h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
@@ -6584,6 +6589,7 @@ function rEmailScheduledList(){
       h+='</div><div class="email-row-right"></div></div>'})}
 
   h+='</div>';
+  h+='</div>'; /* close email-page-wrap */
   return h}
 
 function rEmail(){

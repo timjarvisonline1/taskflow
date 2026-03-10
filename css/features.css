@@ -1051,6 +1051,34 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 :is(.email-page-wrap,.email-light) .compose-recipient-wrap{border-color:var(--gborder);background:var(--bg1)}
 :is(.email-page-wrap,.email-light) .compose-schedule-menu{box-shadow:0 8px 24px rgba(0,0,0,.15)}
 :is(.email-page-wrap,.email-light) .compose-schedule-opt:hover{background:rgba(0,0,0,.04)}
+/* Additional light-theme overrides for hardcoded rgba(255,255,255,...) values */
+:is(.email-page-wrap,.email-light) .email-search-bar{background:var(--bg2);border-color:var(--gborder)}
+:is(.email-page-wrap,.email-light) .email-search-bar:focus-within{background:var(--bg);border-color:#1a73e8}
+:is(.email-page-wrap,.email-light) .email-search-clear:hover{background:rgba(0,0,0,.06)}
+:is(.email-page-wrap,.email-light) .email-detail-inline-close:hover{background:rgba(0,0,0,.06)}
+:is(.email-page-wrap,.email-light) .email-row-actions{background:var(--bg1)}
+:is(.email-page-wrap,.email-light) .email-row-action:hover{background:rgba(0,0,0,.06)}
+:is(.email-page-wrap,.email-light) .email-undo-btn:hover{background:rgba(0,0,0,.06)}
+:is(.email-page-wrap,.email-light) .compose-chip{background:var(--bg2);border-color:var(--gborder)}
+:is(.email-page-wrap,.email-light) .compose-chip:hover{background:var(--bg3);border-color:var(--bg4)}
+:is(.email-page-wrap,.email-light) .compose-ac-item:hover,:is(.email-page-wrap,.email-light) .compose-ac-item.active{background:rgba(0,0,0,.04)}
+:is(.email-page-wrap,.email-light) .compose-editor code{background:rgba(0,0,0,.06)}
+:is(.email-page-wrap,.email-light) .compose-cat-bar{background:var(--bg1)}
+:is(.email-page-wrap,.email-light) .email-attachment-card{background:var(--bg1);border-color:var(--gborder)}
+:is(.email-page-wrap,.email-light) .email-attachment-card:hover{background:var(--bg2)}
+:is(.email-page-wrap,.email-light) .email-msg-action-btn:hover{background:rgba(0,0,0,.04);border-color:var(--bg4)}
+:is(.email-page-wrap,.email-light) .email-crm-sidebar::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12)}
+:is(.email-page-wrap,.email-light) .crm-sb-item{border-color:rgba(0,0,0,.04)}
+:is(.email-page-wrap,.email-light) .crm-sb-item:hover{background:rgba(0,0,0,.03)}
+:is(.email-page-wrap,.email-light) .action-card:hover{border-color:var(--bg4)}
+:is(.email-page-wrap,.email-light) .email-inline-reply-toolbar{background:rgba(0,0,0,.015);border-top-color:var(--gborder)}
+:is(.email-page-wrap,.email-light) .email-inline-reply-btn:hover{background:rgba(0,0,0,.04);border-color:var(--gborder)}
+:is(.email-page-wrap,.email-light) .inline-att-chip{background:var(--bg2)}
+:is(.email-page-wrap,.email-light) .thread-crm-add:hover{background:rgba(0,0,0,.04);border-color:var(--gborder)}
+:is(.email-page-wrap,.email-light) .email-list-panel::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12)}
+:is(.email-page-wrap,.email-light) .email-list-panel::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.2)}
+:is(.email-page-wrap,.email-light) .email-empty{color:var(--t3)}
+:is(.email-page-wrap,.email-light) .email-skel-avatar,:is(.email-page-wrap,.email-light) .email-skel-line,:is(.email-page-wrap,.email-light) .email-skel-date{background:rgba(0,0,0,.06)}
 .email-split-view{display:flex;gap:0;flex:1;min-height:0;overflow:hidden}
 .email-list-panel{width:100%;overflow-y:auto;overflow-x:hidden;padding-right:4px;transition:width .25s var(--ease)}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -1709,7 +1737,7 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 /* ── Compact Action Cards ── */
 .action-card-compact{background:var(--glass);border:1px solid var(--gborder);border-radius:10px;
   padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:background .12s,border-color .12s}
-.action-card-compact:hover{background:var(--bg1);border-color:rgba(255,255,255,.12)}
+.action-card-compact:hover{background:var(--bg1);border-color:var(--bg4)}
 .action-card-compact-top{display:flex;align-items:center;gap:10px}
 .action-urgency-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .action-card-compact-sender{font-size:12px;font-weight:600;color:var(--t1);white-space:nowrap;
