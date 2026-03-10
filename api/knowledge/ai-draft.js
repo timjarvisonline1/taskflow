@@ -274,7 +274,7 @@ Reply:`;
 
     // Wrap in styled div so font matches editor and sent email
     if (draft && !draft.includes('font-family')) {
-      draft = '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.6">' + draft + '</div>';
+      draft = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6">' + draft + '</div>';
     }
 
     return res.status(200).json({

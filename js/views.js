@@ -6597,7 +6597,10 @@ function rEmail(){
   /* NOTE: Do NOT clear S.gmailThreadId here — that caused state loss on every render() */
 
   /* N35: Flex column wrapper so split-view can use flex:1 */
+  var hasDetail=!!S.gmailThreadId;
   var h='<div class="email-page-wrap">';
+  /* Hide page header when viewing a thread (full-screen thread view) */
+  if(!hasDetail){
   h+='<div class="pg-head"><h1>'+icon('mail',18)+' Email';
   if(S.gmailUnread>0)h+=' <span style="background:#EA4335;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+S.gmailUnread+'</span>';
   h+='</h1>';
@@ -6607,9 +6610,9 @@ function rEmail(){
   if(!isSmartInbox)h+='<button class="btn'+(S.emailBulkMode?' btn-p':'')+'" onclick="TF.emailToggleBulk()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.emailBulkMode?'Exit Bulk':'Bulk')+'</button>';
   h+='<button class="btn" onclick="TF.openEmailRulesModal()" style="font-size:12px;padding:7px 14px;border-radius:10px" title="Email Rules">'+icon('settings',12)+'</button>';
   h+='</div></div>';
+  }
 
   /* ── Split view container ── */
-  var hasDetail=!!S.gmailThreadId;
   h+='<div class="email-split-view'+(hasDetail?' has-detail':'')+'">';
 
   /* ── Left: List Panel ── */
@@ -7015,10 +7018,8 @@ function rEmailThreadModal(threadId){
   /* Toolbar */
   h+='<div class="email-thread-modal-toolbar">';
   /* Only show Back button in modal mode (not inline split view) */
-  if(!gel('email-detail-panel')){
-    h+='<button class="email-toolbar-btn" onclick="TF.closeEmailThread()">'+icon('arrow_left',13)+' Back</button>';
-    h+='<div class="email-toolbar-sep"></div>';
-  }
+  h+='<button class="email-toolbar-btn" onclick="TF.closeEmailThread()">'+icon('arrow_left',13)+' Back</button>';
+  h+='<div class="email-toolbar-sep"></div>';
   h+='<button class="email-toolbar-btn" style="color:var(--accent);font-weight:600" onclick="TF.inlineReply()">'+icon('reply',13)+' Reply</button>';
   h+='<button class="email-toolbar-btn" onclick="TF.inlineReplyAll()">'+icon('reply_all',13)+' Reply All</button>';
   h+='<button class="email-toolbar-btn" onclick="TF.inlineForward()">'+icon('forward',13)+' Forward</button>';
@@ -7074,8 +7075,11 @@ function rEmailThreadModal(threadId){
     var msg=msgs[idx];
     var isNewest=idx===msgs.length-1;
     var isCollapsed=totalMsgs>1&&!isNewest;
-    var fromDisplay=msg.fromName||msg.fromEmail||'';
-    var initial=(msg.fromName||msg.fromEmail||'?').charAt(0).toUpperCase();
+    /* Show "me" for user's own messages */
+    var _ueMH=S._userEmails||[];if(!_ueMH.length){var _ufmh=(S._userEmail||'').toLowerCase();if(_ufmh)_ueMH=[_ufmh]}
+    var _isMe=_ueMH.indexOf((msg.fromEmail||'').toLowerCase())!==-1;
+    var fromDisplay=_isMe?'me':(msg.fromName||msg.fromEmail||'');
+    var initial=_isMe?((S._userEmail||'U').charAt(0)).toUpperCase():(msg.fromName||msg.fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(msg.fromEmail);
     var dateD=new Date(msg.date);
     var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');
@@ -7503,8 +7507,11 @@ function rEmailThread(){
     var msg=msgs[idx];
     var isNewest=idx===msgs.length-1;
     var isCollapsed=totalMsgs>1&&!isNewest;
-    var fromDisplay=msg.fromName||msg.fromEmail||'';
-    var initial=(msg.fromName||msg.fromEmail||'?').charAt(0).toUpperCase();
+    /* Show "me" for user's own messages */
+    var _ueMH2=S._userEmails||[];if(!_ueMH2.length){var _ufmh2=(S._userEmail||'').toLowerCase();if(_ufmh2)_ueMH2=[_ufmh2]}
+    var _isMe2=_ueMH2.indexOf((msg.fromEmail||'').toLowerCase())!==-1;
+    var fromDisplay=_isMe2?'me':(msg.fromName||msg.fromEmail||'');
+    var initial=_isMe2?((S._userEmail||'U').charAt(0)).toUpperCase():(msg.fromName||msg.fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(msg.fromEmail);
     var dateD=new Date(msg.date);
     var dateLabel=MO[dateD.getMonth()]+' '+dateD.getDate()+', '+dateD.getFullYear()+' at '+(dateD.getHours()%12||12)+':'+String(dateD.getMinutes()).padStart(2,'0')+' '+(dateD.getHours()<12?'AM':'PM');

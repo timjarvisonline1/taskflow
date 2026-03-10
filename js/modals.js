@@ -4257,7 +4257,7 @@ async function sendEmail(){
   if(!body||body==='<br>'||body==='<div><br></div>'){toast('Write a message','warn');return}
 
   /* Wrap in styled div */
-  var htmlBody='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>';
+  var htmlBody='<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>';
 
   var payload={to:to,subject:subject,body:htmlBody};
   if(cc)payload.cc=cc;

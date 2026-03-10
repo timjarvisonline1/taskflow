@@ -32,13 +32,29 @@ module.exports = async function handler(req, res) {
     const profile = await profileResp.json();
     const fromEmail = profile.emailAddress || '';
 
+    /* Fetch display name from Gmail sendAs settings for proper From header */
+    let fromName = '';
+    try {
+      const sendAsResp = await fetch(GMAIL_API + '/settings/sendAs', {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      if (sendAsResp.ok) {
+        const sendAsData = await sendAsResp.json();
+        const primary = (sendAsData.sendAs || []).find(function(s) {
+          return s.isPrimary || s.sendAsEmail === fromEmail;
+        });
+        if (primary && primary.displayName) fromName = primary.displayName;
+      }
+    } catch (e) { /* non-fatal: fall back to bare email */ }
+    const fromHeader = fromName ? fromName + ' <' + fromEmail + '>' : fromEmail;
+
     let rawEmail;
     const hasAttachments = attachments && attachments.length > 0;
 
     if (hasAttachments) {
       /* ── Multipart MIME with attachments ── */
       const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2);
-      const mimeHeaders = ['From: ' + fromEmail, 'To: ' + to];
+      const mimeHeaders = ['From: ' + fromHeader, 'To: ' + to];
       if (cc) mimeHeaders.push('Cc: ' + cc);
       if (bcc) mimeHeaders.push('Bcc: ' + bcc);
       mimeHeaders.push('Subject: ' + (subject || ''));
@@ -67,7 +83,7 @@ module.exports = async function handler(req, res) {
       rawEmail = mimeParts;
     } else {
       /* ── Simple single-part email ── */
-      const headers = ['From: ' + fromEmail, 'To: ' + to];
+      const headers = ['From: ' + fromHeader, 'To: ' + to];
       if (cc) headers.push('Cc: ' + cc);
       if (bcc) headers.push('Bcc: ' + bcc);
       headers.push('Subject: ' + (subject || ''));

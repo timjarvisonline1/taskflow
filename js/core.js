@@ -3669,7 +3669,7 @@ async function quickReplyEmail(){
   var subject=lastMsg.subject||'';
 
   /* Build payload based on mode */
-  var payload={body:'<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>'};
+  var payload={body:'<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>'};
   if(mode==='forward'){
     /* Forward: use inline recipients, Fwd: prefix, NO threadId */
     if(!window._inlineRecipients.to.length){toast('Add at least one recipient','warn');return}
@@ -3716,9 +3716,10 @@ async function quickReplyEmail(){
     window._inlineAttachments=[];
     var recSec=gel('inline-recipients-section');if(recSec)recSec.style.display='none';
     var attBar=gel('inline-attachments-bar');if(attBar){attBar.innerHTML='';attBar.style.display='none'}
-    /* Invalidate cache and refresh thread to show the new message */
-    delete S._gmailThreadDetailCache[S.gmailThreadId];
-    openEmailThread(S.gmailThreadId)
+    /* Auto-archive after reply/forward (matches compose modal behavior) */
+    var _archiveTid=S.gmailThreadId;
+    delete S._gmailThreadDetailCache[_archiveTid];
+    archiveEmail(_archiveTid)
   }catch(e){
     /* Re-enable send buttons on failure */
     document.querySelectorAll('.email-inline-reply-send').forEach(function(b){b.disabled=false;b.style.opacity='';b.style.pointerEvents='';b.innerHTML=icon('send',12)+' Send'});
