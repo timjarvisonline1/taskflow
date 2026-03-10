@@ -18,7 +18,7 @@
 These are the bugs causing the "weird formatting / different font" problem.
 
 ### A1. Editor has no font-family CSS
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** CRITICAL
 - **File:** `css/features.css` line 1317
 - **Problem:** `.compose-editor` and `.email-inline-reply-editor` inherit font from body (`Inter`, system-ui). But the sent email wraps body in `-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif` (line core.js:3362, modals.js:4254). What you type looks different from what gets sent.
@@ -32,7 +32,7 @@ These are the bugs causing the "weird formatting / different font" problem.
 - **Fix:** Prepend draft before existing content, or warn user if editor is non-empty.
 
 ### A3. AI draft HTML has no font styling
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **File:** `api/knowledge/ai-draft.js` line 157
 - **Problem:** Claude returns raw HTML (`<p>Thanks for...</p>`) with no inline font styling. When inserted into the editor (which also has no font-family CSS), it renders in whatever browser default font applies. On send, it gets wrapped in system-ui fonts, causing a visual mismatch between draft preview and sent email.
@@ -46,7 +46,7 @@ These are the bugs causing the "weird formatting / different font" problem.
 - **Fix:** Insert draft content directly without wrapper div, or use `insertAdjacentHTML('afterbegin', draft)`.
 
 ### A5. Inline reply editor contenteditable lacks reset CSS
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `css/features.css` line 1508
 - **Problem:** The contenteditable div inherits from parent styles. Different browsers apply different defaults to contenteditable (margins, padding, line-heights on pasted content). No CSS reset for `p`, `div`, `br` elements inside the editor.
@@ -871,7 +871,7 @@ Issues observed directly from the user's screenshot:
 > Bugs and issues found auditing the AI draft pipeline, batch email analysis, knowledge embedding, and AI-powered CRM features.
 
 ### L1. AI draft cache lookup always fails — redundant API call every time
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **Files:** `js/core.js` line 3432, `js/modals.js` line 4152
 - **Problem:** Both `inlineAiDraftGo()` and `aiDraft()` try to get cached thread messages via `S._gmailCache[threadId]`. But `S._gmailCache` is keyed by **filter names** (`'inbox'`, `'sent'`), NOT by thread IDs. The lookup **always** returns `undefined`, forcing a redundant API call to `/api/gmail/thread?id=` even though the thread data is already loaded in `S.gmailThread`.
@@ -887,7 +887,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Add `|| t.thread_id === threadId` to the `.find()` call.
 
 ### L3. Inline AI draft replaces editor content instead of prepending
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `js/core.js` line 3454
 - **Problem:** `editor.innerHTML = draft` completely replaces anything the user typed. The compose modal version (`modals.js` lines 4194-4206) is smarter: it preserves signatures and prepends content.
@@ -901,7 +901,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Add the same `onkeydown` handler to the inline prompt input.
 
 ### L5. AI draft and analyze endpoints use no system message
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **Files:** `api/knowledge/ai-draft.js` lines 151-155, `api/gmail/analyze.js` lines 162-167
 - **Problem:** Both endpoints cram the entire prompt (persona, rules, context, and task) into a single `user` message. Best practice with Claude is to put persona/rules in a `system` message and variable data in the `user` message. The `ai-ask.js` endpoint correctly uses a system message (line 226).
@@ -945,7 +945,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Disable button immediately on click (both inline and compose). Add server-side rate limit (e.g., max 1 draft per 10 seconds per user).
 
 ### L11. AI batch analysis silently drops entire batch on JSON parse failure
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **File:** `api/gmail/analyze.js` lines 175-178
 - **Problem:** If Claude returns malformed JSON for a batch, the `catch` block logs to console and `continue`s to the next batch. All 30 threads in the failed batch are silently skipped. Since `needs_reply` stays `null`, they'll be re-analyzed on the next poll, but there's no visibility into failures.
@@ -973,7 +973,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Add a "re-analyze" mechanism: when CRM data changes significantly, mark affected threads for re-analysis by setting a `needs_reanalysis` flag. Or: separate CRM suggestion from needs_reply analysis.
 
 ### L15. Client-side email rule `to_or_cc_contains` reads wrong field names
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH (bug)
 - **File:** `js/core.js` line 3773
 - **Problem:** `_applyRuleActionsToThread()` reads `thread.to` and `thread.cc`, but Supabase-cached threads use `to_emails` and `cc_emails`. The `to_or_cc_contains` and `any_participant_domain` rule conditions silently fail to match on all Supabase-sourced thread data.
@@ -2129,6 +2129,7 @@ For implementation reference, these are the key Gmail measurements and patterns 
 
 | Date | Commit | Issues Fixed |
 |------|--------|--------------|
+| 2026-03-10 | (Phase 3) | A1 (editor font-family), A5 (editor CSS reset), A3 (AI draft font styling), L1 (AI draft cache fix), L3 (AI draft prepend not replace), L5 (system messages for AI endpoints), L11 (batch analysis parse recovery), L15 (rule To/CC field names) |
 | 2026-03-10 | (Phase 2) | I5 (email-to-client index maps), I4 (granular CRM cache), I7 (thread detail cache), I3 (targeted DOM updates replace render()), IUX2 (loading progress bar), IUX3 (stale-while-revalidate), IUX6 (global undo system for archive/trash/mark-read), I12 (lazy iframe loading) |
 | 2026-03-10 | (Phase 1) | I1 (parallel thread fetch), I2 (background sync), IUX1 (optimistic UI), IUX5 (send loading state), I9 (batch archive endpoint), I13 (request timeouts + retry) |
 | 2026-03-10 | (doc audit) | Added Section O (Smart CRM Suggestions, O1-O11). Marked 14 items superseded by Section N. Merged N44 into IUX6. Added cross-references (B12→N16, C9→N20, F3→N9/N20, F4→N9, H1→N42, H5→N10). Consolidated duplicates (C8+F1→N35, D5+F2→N32). Restructured priority phases 10-13 with new Phase 10 for Smart CRM. |

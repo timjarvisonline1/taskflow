@@ -4148,8 +4148,8 @@ async function aiDraft(){
     if(!sess.data||!sess.data.session){toast('Not authenticated','warn');return}
     var token=sess.data.session.access_token;
 
-    /* Get the cached thread messages */
-    var thread=S._gmailCache&&S._gmailCache[threadId];
+    /* Get thread messages — use already-loaded S.gmailThread if it matches */
+    var thread=(S.gmailThreadId===threadId&&S.gmailThread)?S.gmailThread:null;
     var messages=[];
     if(thread&&thread.messages){
       messages=thread.messages.map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})
@@ -4166,7 +4166,7 @@ async function aiDraft(){
 
     /* Get subject and client context */
     var subject=(gel('compose-subject')||{}).value||messages[0].subject||'';
-    var gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId});
+    var gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId||t.thread_id===threadId});
     var clientId=gmailThread?gmailThread.clientId||gmailThread.client_id:null;
 
     /* Build payload with optional custom prompt */

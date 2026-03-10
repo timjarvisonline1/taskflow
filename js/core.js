@@ -3575,8 +3575,8 @@ async function inlineAiDraftGo(){
     var sess=await _sb.auth.getSession();
     if(!sess.data||!sess.data.session){toast('Not authenticated','warn');return}
     var token=sess.data.session.access_token;
-    /* Get thread messages */
-    var thread=S._gmailCache&&S._gmailCache[threadId];
+    /* Get thread messages — use already-loaded S.gmailThread if it matches */
+    var thread=(S.gmailThreadId===threadId&&S.gmailThread)?S.gmailThread:null;
     var messages=[];
     if(thread&&thread.messages){
       messages=thread.messages.map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})}
@@ -3596,9 +3596,11 @@ async function inlineAiDraftGo(){
     var result=await draftResp.json();
     var draft=result.draft||'';
     if(!draft){toast('AI could not generate a draft','warn');return}
-    /* Insert into inline reply editor */
+    /* Prepend into inline reply editor (preserve existing content) */
     var editor=gel('email-inline-reply-editor');
-    if(editor)editor.innerHTML=draft;
+    if(editor){var existing=editor.innerHTML||'';
+      if(existing&&existing!=='<br>')editor.innerHTML=draft+'<br><br>'+existing;
+      else editor.innerHTML=draft}
     /* Hide prompt */
     var wrap=gel('inline-ai-draft-prompt');if(wrap)wrap.classList.remove('open');
     if(promptInput)promptInput.value='';
@@ -3917,7 +3919,7 @@ function applyEmailRules(thread){
       var from=((thread.from_email||thread.fromEmail||'')).toLowerCase();
       var fromDomain=from.indexOf('@')!==-1?from.split('@')[1]:'';
       var subj=((thread.subject||'')).toLowerCase();
-      var toCc=((thread.to||'')+ ' '+(thread.cc||'')).toLowerCase();
+      var toCc=((thread.to_emails||thread.toEmails||thread.to||'')+' '+(thread.cc_emails||thread.ccEmails||thread.cc||'')).toLowerCase();
       var allParticipants=(from+' '+toCc).toLowerCase();
 
       if(cond.type==='from_domain_equals'&&fromDomain!==val){allMatch=false;break}

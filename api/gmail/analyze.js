@@ -71,7 +71,7 @@ module.exports = async function handler(req, res) {
           '\n   User sent last: ' + (t.userSentLast ? 'yes' : 'no');
       }).join('\n\n');
 
-      const prompt = `Analyze these email threads for the user (Tim Jarvis, who runs two businesses: Tim Jarvis Online LLC and Film&Content LLC).
+      const systemPrompt = `You are an email analysis assistant for Tim Jarvis, who runs two businesses: Tim Jarvis Online LLC (consulting, training, speaking) and Film&Content LLC (video production, content strategy, digital advertising).
 
 Return ONLY a valid JSON array with one object per thread, in the same order as the input. Each object must have these exact fields:
 - thread_id (string: the Thread ID from the input)
@@ -154,15 +154,17 @@ Return null if no distinct task is warranted (a simple reply doesn't count as a 
 ═══ CATEGORIES ═══
 Comms, Finance, Campaign Mgmt, Sales, Admin, Reporting, Content, Strategy, One-on-One, Discovery Call, Pitch Meeting, Tracking, Retain Live
 
-${clientContext ? '\n' + clientContext + '\n' : ''}
-Threads to analyze:
+${clientContext ? '\n' + clientContext + '\n' : ''}`;
+
+      const userPrompt = `Threads to analyze:
 
 ${threadList}`;
 
       const response = await anthropic.messages.create({
         model: model,
         max_tokens: 8192,
-        messages: [{ role: 'user', content: prompt }]
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }]
       });
 
       // Parse response
@@ -173,8 +175,39 @@ ${threadList}`;
         const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/g, '').trim();
         parsed = JSON.parse(cleaned);
       } catch (parseErr) {
-        console.error('Failed to parse Claude response:', text.substring(0, 500));
-        continue;
+        console.error('Failed to parse Claude response for batch, attempting per-thread extraction:', parseErr.message);
+        // Attempt to extract individual thread results from partial/malformed JSON
+        parsed = [];
+        const threadIdPattern = /"thread_id"\s*:\s*"([^"]+)"/g;
+        let match;
+        while ((match = threadIdPattern.exec(text)) !== null) {
+          try {
+            // Find the object containing this thread_id
+            const start = text.lastIndexOf('{', match.index);
+            let depth = 0, end = start;
+            for (let ci = start; ci < text.length; ci++) {
+              if (text[ci] === '{') depth++;
+              else if (text[ci] === '}') { depth--; if (depth === 0) { end = ci + 1; break; } }
+            }
+            if (end > start) {
+              const obj = JSON.parse(text.substring(start, end));
+              if (obj.thread_id) parsed.push(obj);
+            }
+          } catch (e) { /* skip malformed individual result */ }
+        }
+        if (!parsed.length) {
+          console.error('Could not extract any results from malformed response:', text.substring(0, 500));
+          // Log failure to sync_log for visibility
+          try {
+            await client.from('sync_log').insert({
+              user_id: userId, platform: 'gmail', action: 'analyze_parse_failure',
+              details: 'Batch parse failed, ' + batch.length + ' threads affected',
+              created_at: new Date().toISOString()
+            });
+          } catch (logErr) { /* best effort */ }
+          continue;
+        }
+        console.log('Recovered ' + parsed.length + ' of ' + batch.length + ' results from malformed response');
       }
 
       if (Array.isArray(parsed)) {

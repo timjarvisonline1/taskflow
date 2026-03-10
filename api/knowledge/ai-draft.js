@@ -120,8 +120,8 @@ module.exports = async function handler(req, res) {
       }).join('\n\n');
     }
 
-    // Build Claude prompt
-    var prompt = `You are drafting an email reply for Tim Jarvis, who runs two businesses:
+    // Build Claude prompt — split into system (persona/rules) and user (data) messages
+    var systemPrompt = `You are drafting an email reply for Tim Jarvis, who runs two businesses:
 - Tim Jarvis Online LLC (consulting, training, speaking)
 - Film&Content LLC (video production, content strategy, digital advertising)
 
@@ -135,9 +135,9 @@ IMPORTANT RULES:
 - Do not include a subject line. Just the reply body.
 - Format with HTML for the email editor (use <p>, <br>, <b>, <ul>, <li> tags as needed).
 - Do not include greeting/closing unless contextually appropriate.
-- Keep responses focused and direct. Avoid filler phrases.
+- Keep responses focused and direct. Avoid filler phrases.`;
 
-EMAIL THREAD:
+    var userPrompt = `EMAIL THREAD:
 Subject: ${subject}
 
 ${threadText}
@@ -151,13 +151,19 @@ Reply:`;
     var response = await anthropic.messages.create({
       model: model,
       max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }]
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }]
     });
 
     var draft = response.content[0].text.trim();
 
     // Clean up if Claude wrapped in code blocks
     draft = draft.replace(/^```html\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/g, '').trim();
+
+    // Wrap in styled div so font matches editor and sent email
+    if (draft && !draft.includes('font-family')) {
+      draft = '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.6">' + draft + '</div>';
+    }
 
     // Build sources list for display
     var sources = results.slice(0, 8).map(function(r) {
