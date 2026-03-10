@@ -46,54 +46,63 @@ module.exports = async function handler(req, res) {
     const listData = await listResp.json();
     const threads = listData.threads || [];
 
+    // Fetch thread metadata in parallel (concurrency limit of 10)
+    const CONCURRENCY = 10;
+    const getHeader = (msg, name) => {
+      const h = (msg.payload && msg.payload.headers || []).find(h => h.name.toLowerCase() === name.toLowerCase());
+      return h ? h.value : '';
+    };
+
+    const fetchThreadMeta = async (threadId) => {
+      const threadResp = await fetch(
+        GMAIL_API + '/threads/' + threadId + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Cc',
+        { headers: { 'Authorization': 'Bearer ' + accessToken } }
+      );
+      if (!threadResp.ok) return null;
+      const threadData = await threadResp.json();
+      const messages = threadData.messages || [];
+      if (!messages.length) return null;
+
+      const firstMsg = messages[0];
+      const lastMsg = messages[messages.length - 1];
+
+      const fromRaw = getHeader(firstMsg, 'From');
+      const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
+      const fromName = fromMatch ? fromMatch[1].replace(/"/g, '').trim() : '';
+      const fromEmail = fromMatch ? fromMatch[2].trim() : fromRaw.trim();
+
+      const lastLabels = lastMsg.labelIds || [];
+      const isUnread = lastLabels.includes('UNREAD');
+      const allLabels = [...new Set(messages.flatMap(m => m.labelIds || []))];
+
+      const lastFromRaw = getHeader(lastMsg, 'From');
+      const lastFromMatch = lastFromRaw.match(/<(.+?)>/);
+      const lastMessageFromEmail = lastFromMatch ? lastFromMatch[1].trim() : lastFromRaw.trim();
+
+      return {
+        threadId,
+        subject: getHeader(firstMsg, 'Subject') || '(no subject)',
+        fromName, fromEmail,
+        toEmails: getHeader(firstMsg, 'To'),
+        ccEmails: getHeader(firstMsg, 'Cc') || '',
+        snippet: lastMsg.snippet || '',
+        date: new Date(parseInt(lastMsg.internalDate)).toISOString(),
+        messageCount: messages.length,
+        isUnread, labels: allLabels,
+        lastMessageFromEmail
+      };
+    };
+
+    // Process in batches of CONCURRENCY
     const results = [];
-    for (const thread of threads) {
-      try {
-        const threadResp = await fetch(
-          GMAIL_API + '/threads/' + thread.id + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Cc',
-          { headers: { 'Authorization': 'Bearer ' + accessToken } }
-        );
-        if (!threadResp.ok) continue;
-        const threadData = await threadResp.json();
-
-        const messages = threadData.messages || [];
-        if (!messages.length) continue;
-
-        const firstMsg = messages[0];
-        const lastMsg = messages[messages.length - 1];
-
-        const getHeader = (msg, name) => {
-          const h = (msg.payload && msg.payload.headers || []).find(h => h.name.toLowerCase() === name.toLowerCase());
-          return h ? h.value : '';
-        };
-
-        const fromRaw = getHeader(firstMsg, 'From');
-        const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
-        const fromName = fromMatch ? fromMatch[1].replace(/"/g, '').trim() : '';
-        const fromEmail = fromMatch ? fromMatch[2].trim() : fromRaw.trim();
-
-        const lastLabels = lastMsg.labelIds || [];
-        const isUnread = lastLabels.includes('UNREAD');
-        const allLabels = [...new Set(messages.flatMap(m => m.labelIds || []))];
-
-        // Parse last message From for direction tracking
-        const lastFromRaw = getHeader(lastMsg, 'From');
-        const lastFromMatch = lastFromRaw.match(/<(.+?)>/);
-        const lastMessageFromEmail = lastFromMatch ? lastFromMatch[1].trim() : lastFromRaw.trim();
-
-        results.push({
-          threadId: thread.id,
-          subject: getHeader(firstMsg, 'Subject') || '(no subject)',
-          fromName, fromEmail,
-          toEmails: getHeader(firstMsg, 'To'),
-          ccEmails: getHeader(firstMsg, 'Cc') || '',
-          snippet: lastMsg.snippet || '',
-          date: new Date(parseInt(lastMsg.internalDate)).toISOString(),
-          messageCount: messages.length,
-          isUnread, labels: allLabels,
-          lastMessageFromEmail
-        });
-      } catch (e) { /* skip */ }
+    for (let i = 0; i < threads.length; i += CONCURRENCY) {
+      const batch = threads.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.all(
+        batch.map(t => fetchThreadMeta(t.id).catch(() => null))
+      );
+      for (const r of batchResults) {
+        if (r) results.push(r);
+      }
     }
 
     return res.status(200).json({

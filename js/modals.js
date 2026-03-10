@@ -4262,10 +4262,12 @@ async function sendEmail(){
     payload.attachments=window._composeAttachments.map(function(a){
       return{filename:a.filename,mimeType:a.mimeType,data:a.data}})}
 
+  /* Disable send button to prevent double-sends */
+  var sendBtn=gel('compose-send-btn');
+  if(sendBtn){sendBtn.disabled=true;sendBtn.style.opacity='.5';sendBtn.style.pointerEvents='none';sendBtn.innerHTML=icon('clock',12)+' Sending...'}
   try{
-    toast('Sending...','info');
     var sess=await _sb.auth.getSession();
-    if(!sess.data.session){toast('Not signed in','warn');return}
+    if(!sess.data.session){toast('Not signed in','warn');if(sendBtn){sendBtn.disabled=false;sendBtn.style.opacity='1';sendBtn.style.pointerEvents='auto';sendBtn.innerHTML=icon('send',12)+' Send'}return}
     var token=sess.data.session.access_token;
 
     var resp=await fetch('/api/gmail/send',{
@@ -4311,7 +4313,11 @@ async function sendEmail(){
 
     /* Auto-archive replies/forwards */
     if(threadId){archiveEmail(threadId)}
-  }catch(e){toast('Send failed: '+e.message,'warn')}}
+  }catch(e){
+    /* Re-enable send button on failure */
+    var _sb2=gel('compose-send-btn');
+    if(_sb2){_sb2.disabled=false;_sb2.style.opacity='1';_sb2.style.pointerEvents='auto';_sb2.innerHTML=icon('send',12)+' Send'}
+    toast('Send failed: '+e.message,'warn')}}
 
 /* ── Schedule Send helpers ── */
 function toggleScheduleMenu(){

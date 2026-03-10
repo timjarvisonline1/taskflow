@@ -2394,6 +2394,28 @@ async function loadGmailThreads(){
   }catch(e){console.error('loadGmailThreads:',e)}}
 
 /* ═══════════ EMAIL FUNCTIONS ═══════════ */
+
+/* Fetch with timeout + retry (prevents infinite hangs on slow/failed requests) */
+async function fetchWithTimeout(url,opts,timeoutMs){
+  timeoutMs=timeoutMs||15000;
+  var controller=new AbortController();
+  var timer=setTimeout(function(){controller.abort()},timeoutMs);
+  try{
+    var resp=await fetch(url,Object.assign({},opts,{signal:controller.signal}));
+    clearTimeout(timer);return resp
+  }catch(e){
+    clearTimeout(timer);
+    if(e.name==='AbortError')throw new Error('Request timed out');
+    throw e}}
+
+async function fetchWithRetry(url,opts,timeoutMs,retries){
+  retries=retries||2;timeoutMs=timeoutMs||15000;
+  var lastErr;
+  for(var attempt=0;attempt<=retries;attempt++){
+    try{return await fetchWithTimeout(url,opts,timeoutMs)}
+    catch(e){lastErr=e;if(attempt<retries)await new Promise(function(r){setTimeout(r,1000*Math.pow(2,attempt))})}}
+  throw lastErr}
+
 async function fetchGmailThreads(label,search,pageToken){
   try{
     var sess=await _sb.auth.getSession();
@@ -2402,7 +2424,7 @@ async function fetchGmailThreads(label,search,pageToken){
     var params='?label='+(label||'inbox')+'&maxResults=50';
     if(search)params+='&q='+encodeURIComponent(search);
     if(pageToken)params+='&pageToken='+encodeURIComponent(pageToken);
-    var resp=await fetch('/api/gmail/threads'+params,{headers:{'Authorization':'Bearer '+token}});
+    var resp=await fetchWithTimeout('/api/gmail/threads'+params,{headers:{'Authorization':'Bearer '+token}},20000);
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Failed')}
     return await resp.json();
   }catch(e){toast('Gmail: '+e.message,'warn');return null}}
@@ -2434,7 +2456,7 @@ async function openEmailThread(threadId){
     var sess=await _sb.auth.getSession();
     if(!sess.data.session)return;
     var token=sess.data.session.access_token;
-    var resp=await fetch('/api/gmail/thread?id='+encodeURIComponent(threadId),{headers:{'Authorization':'Bearer '+token}});
+    var resp=await fetchWithRetry('/api/gmail/thread?id='+encodeURIComponent(threadId),{headers:{'Authorization':'Bearer '+token}},15000,1);
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Failed')}
     S.gmailThread=await resp.json();
     /* Capture subject for timer task */
@@ -2797,28 +2819,27 @@ function emailBulkCount(){return Object.keys(S.emailBulkSelected).length}
 async function bulkArchiveEmails(){
   var ids=Object.keys(S.emailBulkSelected);
   if(!ids.length)return;
-  toast('Archiving '+ids.length+' email'+(ids.length>1?'s':'')+'...','info');
-  var sess=await _sb.auth.getSession();if(!sess.data.session)return;
-  var token=sess.data.session.access_token;
-  var ok=0,fail=0;
-  for(var i=0;i<ids.length;i++){
-    try{
-      var resp=await fetch('/api/gmail/archive',{method:'POST',
-        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-        body:JSON.stringify({threadId:ids[i]})});
-      if(!resp.ok)throw new Error('failed');
-      /* Update local state */
-      if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==ids[i]});
-      var st=S.gmailThreads.find(function(t){return t.thread_id===ids[i]});
-      if(st)st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',');
-      ok++
-    }catch(e){fail++}}
+  /* Optimistic: remove from UI immediately */
+  ids.forEach(function(tid){
+    if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==tid});
+    var st=S.gmailThreads.find(function(t){return t.thread_id===tid});
+    if(st)st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')});
   S._gmailCache={};
   S.emailBulkMode=false;S.emailBulkSelected={};
   S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
   render();
-  toast('Archived '+ok+' email'+(ok!==1?'s':'')+(fail?' ('+fail+' failed)':''),'ok');
-  /* Reload filtered results to backfill the view */
+  toast('Archiving '+ids.length+' email'+(ids.length>1?'s':'')+'...','info');
+  /* Use batch endpoint for parallel processing */
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetchWithTimeout('/api/gmail/batch-archive',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({threadIds:ids})},30000);
+    if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Batch archive failed')}
+    var result=await resp.json();
+    toast('Archived '+result.succeeded.length+' email'+(result.succeeded.length!==1?'s':'')+(result.failed?' ('+result.failed+' failed)':''),'ok')
+  }catch(e){toast('Batch archive error: '+e.message,'warn')}
   if(emailHasActiveFilters())loadFilteredEmailThreads()}
 
 async function loadMoreGmailThreads(){
@@ -2838,25 +2859,22 @@ async function refreshGmailInbox(){
   toast('Refreshing inbox...','info');
   /* Clear all cached views so stale data doesn't persist */
   S._gmailCache={};
-  /* Sync Gmail metadata to Supabase first, so smart inboxes get new threads */
-  try{
-    var sess=await _sb.auth.getSession();
-    if(sess.data.session){
-      await fetch('/api/sync/gmail',{method:'POST',
-        headers:{'Authorization':'Bearer '+sess.data.session.access_token}})}
-  }catch(e){console.warn('Gmail sync during refresh:',e)}
+  /* Fetch live threads immediately (don't wait for sync) */
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,S.gmailSearch);
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
-  /* Reload Supabase threads so smart inboxes / Action Required / CRM stay in sync */
-  await loadGmailThreads();
   _refreshing=false;
   render();
-  /* Trigger AI analysis for new threads */
-  analyzeNewEmails();
-  /* Embed any un-embedded threads into knowledge base (best-effort, non-blocking) */
-  embedNewEmails()}
+  /* Sync Gmail metadata to Supabase in background (for smart inboxes, CRM, rules) */
+  _sb.auth.getSession().then(function(sess){
+    if(!sess.data.session)return;
+    fetch('/api/sync/gmail',{method:'POST',
+      headers:{'Authorization':'Bearer '+sess.data.session.access_token}})
+    .then(function(){return loadGmailThreads()})
+    .then(function(){render();analyzeNewEmails();embedNewEmails()})
+    .catch(function(e){console.warn('Background Gmail sync:',e)})
+  })}
 
 /* ═══════════ KNOWLEDGE BASE AUTO-EMBED ═══════════ */
 var _embeddingEmails=false;
@@ -3263,34 +3281,38 @@ async function createTaskFromSuggestion(threadId){
 /* ═══════════ ARCHIVE ═══════════ */
 async function archiveEmail(threadId){
   if(!threadId)return;
-  var row=document.querySelector('.email-row[data-tid="'+threadId+'"]');
-  if(row)row.classList.add('archiving');
+  /* Optimistic: update UI immediately before API call */
+  var removedLive=null,removedLiveIdx=-1,removedSt=null,removedStLabels=null,wasOpen=S.gmailThreadId===threadId;
+  if(S.gmailFilter==='inbox'&&S._gmailLiveThreads){
+    removedLiveIdx=S._gmailLiveThreads.findIndex(function(t){return(t.threadId||t.thread_id)===threadId});
+    if(removedLiveIdx>=0)removedLive=S._gmailLiveThreads.splice(removedLiveIdx,1)[0];
+    if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
+  else{delete S._gmailCache['inbox']}
+  var st=S.gmailThreads.find(function(t){return t.thread_id===threadId});
+  if(st){removedStLabels=st.labels;st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
+  S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+  if(wasOpen){S.gmailThread=null;S.gmailThreadId='';
+    var _dp=gel('email-detail-panel');
+    if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
+    else{gel('detail-modal').classList.remove('on','full-detail')}}
+  _refreshEmailListPanel();buildNav();
+  toast('Email archived','ok');
+  /* Fire API call in background — roll back on failure */
   try{
     var sess=await _sb.auth.getSession();if(!sess.data.session)return;
     var token=sess.data.session.access_token;
-    var resp=await fetch('/api/gmail/archive',{method:'POST',
+    var resp=await fetchWithTimeout('/api/gmail/archive',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({threadId:threadId})});
+      body:JSON.stringify({threadId:threadId})},15000);
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Archive failed')}
-    /* Remove from live threads only if viewing inbox (All Mail keeps everything) */
-    if(S.gmailFilter==='inbox'&&S._gmailLiveThreads){
-      S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
-      if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
-    /* Invalidate inbox cache if archiving from another view */
-    else{delete S._gmailCache['inbox']}
-    /* Update Supabase thread labels locally — remove INBOX so smart inboxes reflect change */
-    var st=S.gmailThreads.find(function(t){return t.thread_id===threadId});
-    if(st){st.labels=(st.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
-    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-    if(S.gmailThreadId===threadId){S.gmailThread=null;S.gmailThreadId='';
-      var _dp=gel('email-detail-panel');
-      if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
-      else{gel('detail-modal').classList.remove('on','full-detail')}}
-    _refreshEmailListPanel();buildNav();
-    if(emailHasActiveFilters())loadFilteredEmailThreads();
-    toast('Email archived','ok')
+    if(emailHasActiveFilters())loadFilteredEmailThreads()
   }catch(e){
-    if(row)row.classList.remove('archiving');
+    /* Roll back optimistic update */
+    if(removedLive&&S._gmailLiveThreads){S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
+      if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
+    if(st&&removedStLabels!==null)st.labels=removedStLabels;
+    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+    _refreshEmailListPanel();buildNav();
     toast('Archive failed: '+e.message,'warn')}}
 
 function toggleEmailMsg(idx){
@@ -3301,44 +3323,63 @@ function toggleEmailMsg(idx){
 
 async function toggleEmailRead(threadId,markUnread){
   if(!threadId)return;
+  /* Optimistic: update UI immediately */
+  var prevState=!!markUnread;
+  var updateThread=function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=!!markUnread;t.is_unread=!!markUnread}};
+  S.gmailThreads.forEach(updateThread);
+  if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(updateThread);
+  S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+  if(markUnread){S.gmailThread=null;S.gmailThreadId='';
+    var _dp=gel('email-detail-panel');
+    if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
+    else{gel('detail-modal').classList.remove('on','full-detail')}}
+  render();toast(markUnread?'Marked as unread':'Marked as read','ok');
+  /* Fire API call in background — roll back on failure */
   try{
     var sess=await _sb.auth.getSession();if(!sess.data.session)return;
     var token=sess.data.session.access_token;
-    var resp=await fetch('/api/gmail/mark-read',{method:'POST',
+    var resp=await fetchWithTimeout('/api/gmail/mark-read',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({threadId:threadId,unread:!!markUnread})});
+      body:JSON.stringify({threadId:threadId,unread:!!markUnread})},15000);
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Mark read failed')}
-    /* Update local state */
-    var updateThread=function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=!!markUnread;t.is_unread=!!markUnread}};
-    S.gmailThreads.forEach(updateThread);
-    if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(updateThread);
+  }catch(e){
+    /* Roll back: revert to opposite state */
+    var revertThread=function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=!prevState;t.is_unread=!prevState}};
+    S.gmailThreads.forEach(revertThread);
+    if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(revertThread);
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-    if(markUnread){S.gmailThread=null;S.gmailThreadId='';
-      var _dp=gel('email-detail-panel');
-      if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
-      else{gel('detail-modal').classList.remove('on','full-detail')}}
-    render();toast(markUnread?'Marked as unread':'Marked as read','ok')
-  }catch(e){toast('Failed: '+e.message,'warn')}}
+    render();toast('Failed: '+e.message,'warn')}}
 
 async function trashEmail(threadId){
   if(!threadId)return;
   if(!confirm('Move this email to trash?'))return;
+  /* Optimistic: remove from UI immediately */
+  var removedLive=null,removedLiveIdx=-1,removedSup=null,removedSupIdx=-1;
+  if(S._gmailLiveThreads){
+    removedLiveIdx=S._gmailLiveThreads.findIndex(function(t){return(t.threadId||t.thread_id)===threadId});
+    if(removedLiveIdx>=0)removedLive=S._gmailLiveThreads.splice(removedLiveIdx,1)[0]}
+  removedSupIdx=S.gmailThreads.findIndex(function(t){return(t.threadId||t.thread_id)===threadId});
+  if(removedSupIdx>=0)removedSup=S.gmailThreads.splice(removedSupIdx,1)[0];
+  S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
+  S.gmailThread=null;S.gmailThreadId='';
+  var _dp=gel('email-detail-panel');
+  if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
+  else{gel('detail-modal').classList.remove('on','full-detail')}
+  render();toast('Email moved to trash','ok');
+  /* Fire API call in background — roll back on failure */
   try{
     var sess=await _sb.auth.getSession();if(!sess.data.session)return;
     var token=sess.data.session.access_token;
-    var resp=await fetch('/api/gmail/trash',{method:'POST',
+    var resp=await fetchWithTimeout('/api/gmail/trash',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({threadId:threadId})});
+      body:JSON.stringify({threadId:threadId})},15000);
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Trash failed')}
-    if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
-    S.gmailThreads=S.gmailThreads.filter(function(t){return(t.threadId||t.thread_id)!==threadId});
+  }catch(e){
+    /* Roll back: re-insert removed items */
+    if(removedLive&&S._gmailLiveThreads)S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
+    if(removedSup)S.gmailThreads.splice(removedSupIdx,0,removedSup);
     S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-    S.gmailThread=null;S.gmailThreadId='';
-    var _dp=gel('email-detail-panel');
-    if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
-    else{gel('detail-modal').classList.remove('on','full-detail')}
-    render();toast('Email moved to trash','ok')
-  }catch(e){toast('Trash failed: '+e.message,'warn')}}
+    render();toast('Trash failed: '+e.message,'warn')}}
 
 async function quickReplyEmail(){
   /* Support both old textarea and new contenteditable inline reply */
@@ -3385,13 +3426,15 @@ async function quickReplyEmail(){
   /* Include inline attachments */
   if(window._inlineAttachments&&window._inlineAttachments.length){
     payload.attachments=window._inlineAttachments}
+  /* Disable send button to prevent double-sends */
+  var _sendBtns=document.querySelectorAll('.email-inline-reply-send');
+  _sendBtns.forEach(function(b){b.disabled=true;b.style.opacity='.5';b.style.pointerEvents='none';b.textContent='Sending...'});
   try{
-    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var sess=await _sb.auth.getSession();if(!sess.data.session){_sendBtns.forEach(function(b){b.disabled=false;b.style.opacity='';b.style.pointerEvents='';b.innerHTML=icon('send',12)+' Send'});return}
     var token=sess.data.session.access_token;
-    toast('Sending '+(mode==='forward'?'forward':'reply')+'...','info');
-    var resp=await fetch('/api/gmail/send',{method:'POST',
+    var resp=await fetchWithTimeout('/api/gmail/send',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify(payload)});
+      body:JSON.stringify(payload)},30000);
     if(!resp.ok){var err=await resp.json();throw new Error(err.error||'Send failed')}
     toast(mode==='forward'?'Email forwarded':'Reply sent','ok');
     if(editor)editor.innerHTML='';
@@ -3406,7 +3449,10 @@ async function quickReplyEmail(){
     var attBar=gel('inline-attachments-bar');if(attBar){attBar.innerHTML='';attBar.style.display='none'}
     /* Refresh thread to show the new message */
     openEmailThread(S.gmailThreadId)
-  }catch(e){toast((mode==='forward'?'Forward':'Reply')+' failed: '+e.message,'warn')}}
+  }catch(e){
+    /* Re-enable send buttons on failure */
+    document.querySelectorAll('.email-inline-reply-send').forEach(function(b){b.disabled=false;b.style.opacity='';b.style.pointerEvents='';b.innerHTML=icon('send',12)+' Send'});
+    toast((mode==='forward'?'Forward':'Reply')+' failed: '+e.message,'warn')}}
 
 /* ── Inline AI Draft (in thread quick reply) ── */
 function inlineAiDraft(){
