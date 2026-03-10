@@ -42,8 +42,8 @@ function render(){
   if(S.view==='finance'){initFinanceCharts();if(typeof checkStaleBalances==='function')checkStaleBalances()}
   if(S.view==='campaigns'&&S.subView==='performance')initCampaignPerformanceCharts();
   if(S.view==='email'){initEmailIframes();startEmailPolling();
-    /* Auto-scroll to newest message in thread */
-    if(S.gmailThreadId&&S.gmailThread)setTimeout(function(){var lm=document.querySelector('.email-message-last');if(lm)lm.scrollIntoView({behavior:'auto',block:'start'})},120)}else{stopEmailPolling()}
+    /* N19: Auto-scroll to newest message (now at bottom in chronological order) */
+    if(S.gmailThreadId&&S.gmailThread)setTimeout(function(){var lm=document.querySelector('.email-message-last');if(lm)lm.scrollIntoView({behavior:'auto',block:'nearest'})},120)}else{stopEmailPolling()}
   renderSidebar();renderActiveWidget()}
 
 
@@ -6853,14 +6853,15 @@ function rEmailList(threads){
       var _inboxToName=_inboxTo.match(/^(.+?)\s*</);
       fromName=_inboxToName?_inboxToName[1].replace(/"/g,'').trim():_inboxToEmail.split('@')[0];
       fromEmail=_inboxToEmail}
+    /* N6: No JS truncation — CSS text-overflow handles it */
     var fromDisplay=fromName||fromEmail;
-    if(fromDisplay.length>30)fromDisplay=fromDisplay.substring(0,28)+'…';
     var initial=(fromName||fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(fromEmail);
 
-    /* N2/N3: Single-line flat row: [dot] [avatar] [from-wrap] [subject — snippet] [meta] */
+    /* N5/N6/N7/N9: Gmail-style flat row */
     var _isBulkSel=S.emailBulkMode&&S.emailBulkSelected[threadId];
-    h+='<div class="email-row'+(isUnread?' email-unread':'')+(_isBulkSel?' email-bulk-sel':'')+'" data-tid="'+esc(threadId)+'" onclick="'+(S.emailBulkMode?'TF.emailToggleSel(\''+esc(threadId)+'\')':'TF.openEmailThread(\''+esc(threadId)+'\')')+'">';
+    var _hasClient=!!(crmCtx&&crmCtx.primaryClient);
+    h+='<div class="email-row'+(isUnread?' email-unread':'')+(_isBulkSel?' email-bulk-sel':'')+(_hasClient?' has-client':'')+'" data-tid="'+esc(threadId)+'" onclick="'+(S.emailBulkMode?'TF.emailToggleSel(\''+esc(threadId)+'\')':'TF.openEmailThread(\''+esc(threadId)+'\')')+'">';
     if(S.emailBulkMode){h+='<div class="email-bulk-check"><input type="checkbox" '+(_isBulkSel?'checked':'')+' onclick="event.stopPropagation();TF.emailToggleSel(\''+esc(threadId)+'\')"></div>'}
     else{h+='<div class="email-dot '+(isUnread?'email-dot-on':'email-dot-off')+'"></div>'}
     h+='<div class="email-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
@@ -6879,27 +6880,21 @@ function rEmailList(threads){
     h+='<span class="email-row-subject">'+esc(subject)+'</span>';
     h+='<span class="email-row-snippet"> — '+esc(snippet.substring(0,80))+'</span>';
     h+='</div>';
-    /* CRM badges (subtle, after content) */
-    if(companyPill)h+='<span class="email-client-badge">'+esc(companyPill)+'</span>';
-    if(crmCtx&&crmCtx.primaryEndClient)h+='<span class="email-ec-pill">'+esc(crmCtx.primaryEndClient)+'</span>';
-    if(crmCtx&&crmCtx.campaigns.length)h+='<span class="email-camp-pill">'+esc(crmCtx.campaigns[0].name)+'</span>';
-    if(crmCtx&&crmCtx.opportunities.length)h+='<span class="email-opp-pill">'+esc(crmCtx.opportunities[0].name)+'</span>';
-    /* Add as Contact — for unknown addresses */
-    if(crmCtx&&crmCtx.hasUnknown){
-      var _unknAddr=crmCtx.unknownAddrs[0]||'';
-      var _unknName=(fromEmail.toLowerCase()===_unknAddr?fromName:'').replace(/'/g,"\\'");
-      h+='<span class="email-add-contact-pill" onclick="event.stopPropagation();TF.addContactFromEmail(\''+esc(_unknAddr)+'\',\''+_unknName+'\')">';
-      h+=icon('contact',9)+' + Contact</span>'}
+    /* N5: No CRM pills in row — client association shown via left border (has-client class) */
     /* AI-driven urgency dot (for Action Required threads) */
     if(t.needs_reply===true&&(t.reply_status==='pending'||!t.reply_status)){
       var _urgDotColors={critical:'#ef4444',high:'#f59e0b',normal:'#3b82f6',low:'#71717a'};
       var _urgDotColor=_urgDotColors[t.ai_urgency]||_urgDotColors.normal;
-      h+='<span style="width:6px;height:6px;border-radius:50%;background:'+_urgDotColor+';flex-shrink:0" title="Action Required"></span>'}
+      h+='<span style="width:6px;height:6px;border-radius:50%;background:'+_urgDotColor+';flex-shrink:0;margin-left:4px" title="Action Required"></span>'}
     h+='</div>';
-    /* Meta (right side) */
+    /* N9: Meta (right side) — date + hover action icons */
     h+='<div class="email-row-meta">';
     h+='<span class="email-row-date">'+dateLabel+'</span>';
-    h+='<button class="email-archive-btn" onclick="event.stopPropagation();TF.archiveEmail(\''+esc(threadId)+'\')">'+icon('archive',12)+'</button>';
+    h+='<div class="email-row-actions">';
+    h+='<button class="email-row-action" title="Archive" onclick="event.stopPropagation();TF.archiveEmail(\''+esc(threadId)+'\')">'+icon('archive',14)+'</button>';
+    h+='<button class="email-row-action" title="Delete" onclick="event.stopPropagation();TF.trashEmail(\''+esc(threadId)+'\')">'+icon('trash',14)+'</button>';
+    h+='<button class="email-row-action" title="'+(isUnread?'Mark read':'Mark unread')+'" onclick="event.stopPropagation();TF.toggleEmailRead(\''+esc(threadId)+'\','+(isUnread?'false':'true')+')">'+icon(isUnread?'eye':'eye_off',14)+'</button>';
+    h+='</div>';
     h+='</div>';
     h+='</div>';
   });
@@ -7023,68 +7018,6 @@ function rEmailThreadModal(threadId){
     /* Trigger lazy load after render */
     setTimeout(function(){if(typeof TF!=='undefined')TF.loadQuickReplies(''+threadId)},200)}
 
-  /* Inline Reply at top */
-  var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
-  h+='<div class="email-inline-reply">';
-  /* Mode label */
-  h+='<div class="inline-reply-header">';
-  h+='<span class="inline-reply-mode-label" id="inline-reply-mode-label">Reply</span>';
-  h+='<div style="flex:1"></div>';
-  h+='<button class="inline-reply-toggle-btn" onclick="TF.toggleInlineCcBcc(\'cc\')" title="Show CC">CC</button>';
-  h+='<button class="inline-reply-toggle-btn" onclick="TF.toggleInlineCcBcc(\'bcc\')" title="Show BCC">BCC</button>';
-  h+='</div>';
-  /* Recipient fields (hidden by default, shown on Reply All / Forward) */
-  h+='<div id="inline-recipients-section" class="inline-recipients-section" style="display:none">';
-  h+=_buildInlineRecipientField('to','To');
-  h+='<div id="inline-cc-wrap" class="inline-recipient-row" style="display:none">';
-  h+=_buildInlineRecipientFieldInner('cc','CC');
-  h+='</div>';
-  h+='<div id="inline-bcc-wrap" class="inline-recipient-row" style="display:none">';
-  h+=_buildInlineRecipientFieldInner('bcc','BCC');
-  h+='</div>';
-  h+='</div>';
-  /* Contenteditable editor — with draft auto-save */
-  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(threadId)+'\')"></div>';
-  /* Full formatting toolbar */
-  h+='<div class="email-inline-reply-toolbar">';
-  h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Italic" onclick="event.preventDefault();document.execCommand(\'italic\')">'+icon('italic',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Underline" onclick="event.preventDefault();document.execCommand(\'underline\')">'+icon('underline',11)+'</button>';
-  h+='<span class="email-toolbar-sep"></span>';
-  h+='<button class="compose-toolbar-btn" title="Bullet List" onclick="event.preventDefault();document.execCommand(\'insertUnorderedList\')">'+icon('list_ul',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Numbered List" onclick="event.preventDefault();document.execCommand(\'insertOrderedList\')">'+icon('list_ol',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Quote" onclick="event.preventDefault();document.execCommand(\'formatBlock\',false,\'blockquote\')">'+icon('quote',11)+'</button>';
-  h+='<span class="email-toolbar-sep"></span>';
-  h+='<button class="compose-toolbar-btn" title="Link" onclick="event.preventDefault();var u=prompt(\'URL:\');if(u)document.execCommand(\'createLink\',false,u)">'+icon('link',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Clear Formatting" onclick="event.preventDefault();document.execCommand(\'removeFormat\')" style="font-size:11px;text-decoration:line-through;font-weight:600;color:var(--t4)">T</button>';
-  h+='<div style="flex:1"></div>';
-  h+='<button class="email-inline-reply-btn ai-draft-inline" onclick="TF.inlineAiDraft()">'+icon('sparkle',11)+' AI Draft</button>';
-  h+='</div>';
-  /* AI Draft prompt */
-  h+='<div class="ai-draft-prompt-wrap" id="inline-ai-draft-prompt">';
-  h+='<input class="ai-draft-prompt-input" id="inline-ai-draft-input" placeholder="What should the reply focus on? (optional)">';
-  h+='<div class="ai-draft-controls">';
-  h+='<span class="ai-draft-ctrl-label">Tone:</span>';
-  h+='<button class="ai-draft-tone-btn" data-tone="brief" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Brief</button>';
-  h+='<button class="ai-draft-tone-btn" data-tone="friendly" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Friendly</button>';
-  h+='<button class="ai-draft-tone-btn" data-tone="formal" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Formal</button>';
-  h+='<span class="ai-draft-ctrl-label" style="margin-left:8px">Length:</span>';
-  h+='<button class="ai-draft-length-btn" data-length="short" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Short</button>';
-  h+='<button class="ai-draft-length-btn" data-length="medium" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Medium</button>';
-  h+='<button class="ai-draft-length-btn" data-length="long" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Long</button>';
-  h+='</div>';
-  h+='<button class="ai-draft-prompt-go" id="inline-ai-draft-go" onclick="TF.inlineAiDraftGo()">'+icon('sparkle',10)+' Draft</button>';
-  h+='</div>';
-  /* Inline attachments bar */
-  h+='<div id="inline-attachments-bar" class="inline-attachments-bar" style="display:none"></div>';
-  /* Action buttons */
-  h+='<div class="email-inline-reply-actions">';
-  h+='<button class="email-inline-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
-  h+='<button class="email-inline-reply-btn" onclick="TF.inlineReplyAll()">'+icon('reply_all',11)+' Reply All</button>';
-  h+='<button class="email-inline-reply-btn" onclick="TF.inlineForward()">'+icon('forward',11)+' Forward</button>';
-  h+='<button class="email-inline-reply-btn" onclick="TF.addInlineAttachment()">'+icon('paperclip',11)+' Attach</button>';
-  h+='</div></div>';
-
   /* Summarize for long threads */
   if(totalMsgs>=10){
     var _ct=S.gmailThreads.find(function(th){return th.thread_id===threadId});
@@ -7100,9 +7033,9 @@ function rEmailThreadModal(threadId){
     }
     h+='</div>'}
 
-  /* Messages (newest first) */
+  /* N19: Messages in chronological order (oldest first) — newest expanded at bottom */
   var renderOrder=[];
-  for(var ri=msgs.length-1;ri>=0;ri--)renderOrder.push(ri);
+  for(var ri=0;ri<msgs.length;ri++)renderOrder.push(ri);
   renderOrder.forEach(function(idx){
     var msg=msgs[idx];
     var isNewest=idx===msgs.length-1;
@@ -7166,6 +7099,68 @@ function rEmailThreadModal(threadId){
     h+='</div>';
     h+='</div>'; /* close .email-message */
   });
+
+  /* N18: Inline Reply at BOTTOM of thread (below messages) */
+  var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
+  h+='<div class="email-inline-reply">';
+  /* Mode label */
+  h+='<div class="inline-reply-header">';
+  h+='<span class="inline-reply-mode-label" id="inline-reply-mode-label">Reply</span>';
+  h+='<div style="flex:1"></div>';
+  h+='<button class="inline-reply-toggle-btn" onclick="TF.toggleInlineCcBcc(\'cc\')" title="Show CC">CC</button>';
+  h+='<button class="inline-reply-toggle-btn" onclick="TF.toggleInlineCcBcc(\'bcc\')" title="Show BCC">BCC</button>';
+  h+='</div>';
+  /* Recipient fields (hidden by default, shown on Reply All / Forward) */
+  h+='<div id="inline-recipients-section" class="inline-recipients-section" style="display:none">';
+  h+=_buildInlineRecipientField('to','To');
+  h+='<div id="inline-cc-wrap" class="inline-recipient-row" style="display:none">';
+  h+=_buildInlineRecipientFieldInner('cc','CC');
+  h+='</div>';
+  h+='<div id="inline-bcc-wrap" class="inline-recipient-row" style="display:none">';
+  h+=_buildInlineRecipientFieldInner('bcc','BCC');
+  h+='</div>';
+  h+='</div>';
+  /* Contenteditable editor — with draft auto-save */
+  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(threadId)+'\')"></div>';
+  /* Full formatting toolbar */
+  h+='<div class="email-inline-reply-toolbar">';
+  h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Italic" onclick="event.preventDefault();document.execCommand(\'italic\')">'+icon('italic',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Underline" onclick="event.preventDefault();document.execCommand(\'underline\')">'+icon('underline',11)+'</button>';
+  h+='<span class="email-toolbar-sep"></span>';
+  h+='<button class="compose-toolbar-btn" title="Bullet List" onclick="event.preventDefault();document.execCommand(\'insertUnorderedList\')">'+icon('list_ul',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Numbered List" onclick="event.preventDefault();document.execCommand(\'insertOrderedList\')">'+icon('list_ol',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Quote" onclick="event.preventDefault();document.execCommand(\'formatBlock\',false,\'blockquote\')">'+icon('quote',11)+'</button>';
+  h+='<span class="email-toolbar-sep"></span>';
+  h+='<button class="compose-toolbar-btn" title="Link" onclick="event.preventDefault();var u=prompt(\'URL:\');if(u)document.execCommand(\'createLink\',false,u)">'+icon('link',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Clear Formatting" onclick="event.preventDefault();document.execCommand(\'removeFormat\')" style="font-size:11px;text-decoration:line-through;font-weight:600;color:var(--t4)">T</button>';
+  h+='<div style="flex:1"></div>';
+  h+='<button class="email-inline-reply-btn ai-draft-inline" onclick="TF.inlineAiDraft()">'+icon('sparkle',11)+' AI Draft</button>';
+  h+='</div>';
+  /* AI Draft prompt */
+  h+='<div class="ai-draft-prompt-wrap" id="inline-ai-draft-prompt">';
+  h+='<input class="ai-draft-prompt-input" id="inline-ai-draft-input" placeholder="What should the reply focus on? (optional)">';
+  h+='<div class="ai-draft-controls">';
+  h+='<span class="ai-draft-ctrl-label">Tone:</span>';
+  h+='<button class="ai-draft-tone-btn" data-tone="brief" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Brief</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="friendly" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Friendly</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="formal" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Formal</button>';
+  h+='<span class="ai-draft-ctrl-label" style="margin-left:8px">Length:</span>';
+  h+='<button class="ai-draft-length-btn" data-length="short" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Short</button>';
+  h+='<button class="ai-draft-length-btn" data-length="medium" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Medium</button>';
+  h+='<button class="ai-draft-length-btn" data-length="long" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Long</button>';
+  h+='</div>';
+  h+='<button class="ai-draft-prompt-go" id="inline-ai-draft-go" onclick="TF.inlineAiDraftGo()">'+icon('sparkle',10)+' Draft</button>';
+  h+='</div>';
+  /* Inline attachments bar */
+  h+='<div id="inline-attachments-bar" class="inline-attachments-bar" style="display:none"></div>';
+  /* Action buttons */
+  h+='<div class="email-inline-reply-actions">';
+  h+='<button class="email-inline-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.inlineReplyAll()">'+icon('reply_all',11)+' Reply All</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.inlineForward()">'+icon('forward',11)+' Forward</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.addInlineAttachment()">'+icon('paperclip',11)+' Attach</button>';
+  h+='</div></div>';
 
   h+='</div>'; /* close .detail-split-left */
 
@@ -7437,39 +7432,6 @@ function rEmailThread(){
     h+='<div class="quick-reply-wrap" id="quick-reply-chips"></div>';
     setTimeout(function(){if(typeof TF!=='undefined')TF.loadQuickReplies(''+threadId)},200)}
 
-  /* ── Inline Reply (at top, before messages) ── */
-  var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
-  h+='<div class="email-inline-reply">';
-  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(S.gmailThreadId||'')+'\')"></div>';
-  h+='<div class="email-inline-reply-toolbar">';
-  h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Italic" onclick="event.preventDefault();document.execCommand(\'italic\')">'+icon('italic',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Link" onclick="event.preventDefault();var u=prompt(\'URL:\');if(u)document.execCommand(\'createLink\',false,u)">'+icon('link',11)+'</button>';
-  h+='<div style="flex:1"></div>';
-  h+='<button class="email-inline-reply-btn ai-draft-inline" onclick="TF.inlineAiDraft()">'+icon('sparkle',11)+' AI Draft</button>';
-  h+='</div>';
-  /* AI Draft prompt input (hidden by default) */
-  h+='<div class="ai-draft-prompt-wrap" id="inline-ai-draft-prompt">';
-  h+='<input class="ai-draft-prompt-input" id="inline-ai-draft-input" placeholder="What should the reply focus on? (optional)">';
-  h+='<div class="ai-draft-controls">';
-  h+='<span class="ai-draft-ctrl-label">Tone:</span>';
-  h+='<button class="ai-draft-tone-btn" data-tone="brief" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Brief</button>';
-  h+='<button class="ai-draft-tone-btn" data-tone="friendly" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Friendly</button>';
-  h+='<button class="ai-draft-tone-btn" data-tone="formal" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Formal</button>';
-  h+='<span class="ai-draft-ctrl-label" style="margin-left:8px">Length:</span>';
-  h+='<button class="ai-draft-length-btn" data-length="short" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Short</button>';
-  h+='<button class="ai-draft-length-btn" data-length="medium" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Medium</button>';
-  h+='<button class="ai-draft-length-btn" data-length="long" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Long</button>';
-  h+='</div>';
-  h+='<button class="ai-draft-prompt-go" id="inline-ai-draft-go" onclick="TF.inlineAiDraftGo()">'+icon('sparkle',10)+' Draft</button>';
-  h+='</div>';
-  h+='<div class="email-inline-reply-actions">';
-  h+='<button class="email-inline-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
-  h+='<button class="email-inline-reply-btn" onclick="TF.replyAllEmail()">'+icon('reply_all',11)+' Reply All</button>';
-  h+='<button class="email-inline-reply-btn" onclick="TF.forwardEmail()">'+icon('forward',11)+' Forward</button>';
-  h+='<button class="email-inline-reply-btn" onclick="TF.openReplyEmail()" style="margin-left:auto">'+icon('maximize',11)+' Full Reply</button>';
-  h+='</div></div>';
-
   /* ── Summarize button for long threads ── */
   if(totalMsgs>=10){
     var _cachedThread=S.gmailThreads.find(function(th){return th.thread_id===threadId});
@@ -7485,9 +7447,9 @@ function rEmailThread(){
     }
     h+='</div>'}
 
-  /* ── Messages (newest first) ── */
+  /* N19: Messages in chronological order (oldest first) — newest expanded at bottom */
   var renderOrder=[];
-  for(var ri=msgs.length-1;ri>=0;ri--)renderOrder.push(ri);
+  for(var ri=0;ri<msgs.length;ri++)renderOrder.push(ri);
   renderOrder.forEach(function(idx){
     var msg=msgs[idx];
     var isNewest=idx===msgs.length-1;
@@ -7560,6 +7522,39 @@ function rEmailThread(){
 
     h+='</div>';
   });
+
+  /* N18: Inline Reply at BOTTOM of thread (below messages) */
+  var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
+  h+='<div class="email-inline-reply">';
+  h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(S.gmailThreadId||'')+'\')"></div>';
+  h+='<div class="email-inline-reply-toolbar">';
+  h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Italic" onclick="event.preventDefault();document.execCommand(\'italic\')">'+icon('italic',11)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Link" onclick="event.preventDefault();var u=prompt(\'URL:\');if(u)document.execCommand(\'createLink\',false,u)">'+icon('link',11)+'</button>';
+  h+='<div style="flex:1"></div>';
+  h+='<button class="email-inline-reply-btn ai-draft-inline" onclick="TF.inlineAiDraft()">'+icon('sparkle',11)+' AI Draft</button>';
+  h+='</div>';
+  /* AI Draft prompt input (hidden by default) */
+  h+='<div class="ai-draft-prompt-wrap" id="inline-ai-draft-prompt">';
+  h+='<input class="ai-draft-prompt-input" id="inline-ai-draft-input" placeholder="What should the reply focus on? (optional)">';
+  h+='<div class="ai-draft-controls">';
+  h+='<span class="ai-draft-ctrl-label">Tone:</span>';
+  h+='<button class="ai-draft-tone-btn" data-tone="brief" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Brief</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="friendly" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Friendly</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="formal" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Formal</button>';
+  h+='<span class="ai-draft-ctrl-label" style="margin-left:8px">Length:</span>';
+  h+='<button class="ai-draft-length-btn" data-length="short" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Short</button>';
+  h+='<button class="ai-draft-length-btn" data-length="medium" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Medium</button>';
+  h+='<button class="ai-draft-length-btn" data-length="long" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Long</button>';
+  h+='</div>';
+  h+='<button class="ai-draft-prompt-go" id="inline-ai-draft-go" onclick="TF.inlineAiDraftGo()">'+icon('sparkle',10)+' Draft</button>';
+  h+='</div>';
+  h+='<div class="email-inline-reply-actions">';
+  h+='<button class="email-inline-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.replyAllEmail()">'+icon('reply_all',11)+' Reply All</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.forwardEmail()">'+icon('forward',11)+' Forward</button>';
+  h+='<button class="email-inline-reply-btn" onclick="TF.openReplyEmail()" style="margin-left:auto">'+icon('maximize',11)+' Full Reply</button>';
+  h+='</div></div>';
 
   h+='</div>'; /* close .email-thread-detail */
   h+='</div>'; /* close .email-thread-main */

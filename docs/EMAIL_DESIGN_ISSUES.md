@@ -1204,7 +1204,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Reduce padding to `4px 16px 4px 8px`. Single-line layout (N2) plus reduced padding will bring rows to ~40px. The compact mode already does some of this but should become the default.
 
 #### N5. CRM badge pills: inline pills → hidden/hover reveal
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — CRM pills hidden from rows, has-client left-border indicator, hover actions
 - **Severity:** HIGH
 - **Files:** `js/views.js` lines 6825-6856, `css/features.css` (email-client-badge, email-ec-pill, etc.)
 - **Problem:** TaskFlow renders up to 7 colored pills per email row (client, end-client, campaign, opportunities, contact, urgency, sentiment, category). Gmail shows zero metadata badges in rows — just sender, subject, snippet, date. The pills crowd the row, push content down, and create visual noise. They're the single biggest visual divergence from Gmail.
@@ -1215,7 +1215,7 @@ Issues observed directly from the user's screenshot:
   4. Move full CRM context to the detail panel / CRM sidebar where it belongs.
 
 #### N6. Sender display: truncated name → Gmail's bold/weight system
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — 14px font, CSS truncation (no JS), weight 400 read / 700 unread
 - **Severity:** MEDIUM
 - **Files:** `js/views.js` line 6813, `css/features.css` (email-row-from)
 - **Problem:** TaskFlow shows sender with JS truncation (`substring(0,28)+'...'`) at 13px, weight 500. Gmail uses a clear typographic hierarchy: unread sender is bold (700), read is normal (400), fixed-width column (~200px) with CSS truncation. The sender name IS the primary scan target — Gmail treats it as such.
@@ -1226,7 +1226,7 @@ Issues observed directly from the user's screenshot:
   - Font-size: `14px` (match Gmail)
 
 #### N7. Subject + snippet: two rows → single inline flow
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Subject + snippet in single truncating line with em-dash separator
 - **Severity:** MEDIUM
 - **Files:** `js/views.js` lines 6860-6866, `css/features.css` (email-row-subject, email-row-snippet)
 - **Problem:** Subject and snippet are on separate lines. In Gmail, they share one line: subject in darker text, then ` — ` separator, then snippet in lighter text. The combined string truncates with ellipsis at the container edge. This is the most space-efficient and scannable layout.
@@ -1251,7 +1251,7 @@ Issues observed directly from the user's screenshot:
   Right-align in a fixed-width column (~60px).
 
 #### N9. Hover actions: archive button → Gmail's icon row
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Archive/delete/mark-read icons on hover, replace date column
 - **Severity:** HIGH
 - **Files:** `js/views.js` (archive button), `css/features.css` (email-archive-btn)
 - **Problem:** TaskFlow shows a single "Archive" text button at `opacity:0.3` at rest. Gmail shows NO actions at rest, then reveals 4 icon-only buttons on hover: archive, delete, mark unread, snooze. The icons replace the date column on hover, keeping the row height unchanged.
@@ -1281,7 +1281,7 @@ Issues observed directly from the user's screenshot:
   - Row order: `[checkbox] [star] [avatar] [sender] [subject — snippet] [date/hover-actions]`
 
 #### N11. Unread state: red tint → bold text weight
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — No background tint, bold 700 sender + 600 subject, blue unread dot
 - **Severity:** MEDIUM
 - **Files:** `css/features.css` (email-unread background)
 - **Problem:** TaskFlow uses `background: rgba(234,67,53,.03)` (red tint) for unread. Gmail uses NO background color change — unread is communicated purely through bold text weight on sender and subject. This is cleaner and more legible.
@@ -1346,7 +1346,7 @@ Issues observed directly from the user's screenshot:
 ### N-THREAD: THREAD / CONVERSATION VIEW REDESIGN
 
 #### N18. Reply composer: top of thread → bottom of thread
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Reply editor moved to bottom of thread below all messages
 - **Severity:** CRITICAL
 - **Files:** `js/views.js` lines 6958-7007, `css/features.css` (email-inline-reply)
 - **Problem:** TaskFlow's reply editor is positioned ABOVE the message list (at the top of the detail panel). Gmail places it at the BOTTOM, below all messages. Gmail's approach is natural: you read messages top-to-bottom, then reply at the bottom. TaskFlow's layout means the reply box pushes messages down and the user has to scroll past it to read.
@@ -1362,7 +1362,7 @@ Issues observed directly from the user's screenshot:
   ```
 
 #### N19. Message order: newest-first → oldest-first
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Messages render oldest-first (chronological), newest expanded at bottom
 - **Severity:** HIGH
 - **Files:** `js/views.js` (message rendering order)
 - **Problem:** TaskFlow renders messages newest-first (reverse chronological). Gmail renders oldest-first (chronological). With the reply box at the bottom (N18), oldest-first is the correct order — you read the conversation top-to-bottom and reply at the end.
@@ -1380,7 +1380,7 @@ Issues observed directly from the user's screenshot:
   - Reduce toolbar to essentials: archive, delete, mark unread, snooze, labels, more (...)
 
 #### N21. Message cards: glass cards → Gmail's flat messages
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Flat messages, no glass/border-radius/animation, border-bottom dividers
 - **Severity:** HIGH
 - **Files:** `css/features.css` (email-message)
 - **Problem:** TaskFlow wraps each message in a glass-morphism card with border and radius. Gmail uses flat, borderless message blocks separated only by subtle dividers. The cards add visual weight that makes long threads feel heavy.
@@ -1407,7 +1407,7 @@ Issues observed directly from the user's screenshot:
   - No separate collapse button — click the entire header to collapse (already done)
 
 #### N23. Collapsed messages: opacity → Gmail's single-line summary
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Collapsed msgs show compact header+snippet, no opacity, smaller avatar
 - **Severity:** MEDIUM
 - **Files:** `css/features.css` (email-message.collapsed)
 - **Problem:** TaskFlow collapses messages by setting `opacity: .65` on the entire card. Gmail collapses to a single line: `[avatar] [sender name] — [snippet preview]` with a message count badge. The collapsed state in Gmail is clearly distinct and ultra-compact.
@@ -1991,16 +1991,16 @@ For implementation reference, these are the key Gmail measurements and patterns 
 52. **N14** ✅ Staggered entrance animations removed
 53. **N35** ✅ Section height: flex-based with email-page-wrap container
 
-### Phase 8: Gmail UI Redesign — Interactions & Thread View
-54. **N5** - CRM badges: remove from rows, use hover reveal + subtle indicators
-55. **N6** - Sender display: Gmail's bold/weight system
-56. **N7** - Subject + snippet: merge to single inline line
-57. **N9** - Hover actions: Gmail-style icon row (archive, delete, snooze, mark read)
-58. **N11** - Unread state: bold text weight instead of red background
-59. **N18** - Reply composer: move to bottom of thread
-60. **N19** - Message order: oldest-first (chronological)
-61. **N21** - Message cards: remove glass styling, flat messages
-62. **N23** - Collapsed messages: single-line summary instead of opacity
+### Phase 8: Gmail UI Redesign — Interactions & Thread View ✅
+54. **N5** ✅ - CRM badges: remove from rows, use hover reveal + subtle indicators
+55. **N6** ✅ - Sender display: Gmail's bold/weight system
+56. **N7** ✅ - Subject + snippet: merge to single inline line
+57. **N9** ✅ - Hover actions: Gmail-style icon row (archive, delete, mark read)
+58. **N11** ✅ - Unread state: bold text weight instead of red background
+59. **N18** ✅ - Reply composer: move to bottom of thread
+60. **N19** ✅ - Message order: oldest-first (chronological)
+61. **N21** ✅ - Message cards: remove glass styling, flat messages
+62. **N23** ✅ - Collapsed messages: single-line summary instead of opacity
 > Note: N44 (undo system) merged into IUX6 in Phase 2
 
 ### Phase 9: Gmail UI Redesign — Compose & Polish
@@ -2129,6 +2129,7 @@ For implementation reference, these are the key Gmail measurements and patterns 
 
 | Date | Commit | Issues Fixed |
 |------|--------|--------------|
+| 2026-03-10 | (Phase 8) | N5 (CRM pills hidden, has-client border), N6 (14px sender, CSS truncation, bold unread), N7 (subject+snippet merged), N9 (hover action icons), N11 (bold-only unread, blue dot), N18 (reply at bottom), N19 (chronological messages), N21 (flat messages), N23 (compact collapsed) |
 | 2026-03-10 | (Phase 7) | N1 (flat rows), N2 (single-line layout), N3 (grid→flex), N4 (40px rows), N14 (remove animations), N35 (flex heights), N37 (remove glass-morphism), N39 (background-only hover), N40 (fast transitions) |
 | 2026-03-10 | (Phase 6) | K1 (standardize entity email tabs), K2 (fix cp.client→cp.partner), K4 (linked email in task detail), K5 (email search in command palette), K7 (async Supabase fetch for entity emails), K10 (shared rule engine module), K13 (already implemented) |
 | 2026-03-10 | (Phase 5) | M1 (AI urgency pinning + sort), M7 (quick-reply suggestions API + UI), M8 (AI summary replaces snippet), M10 (meeting/task banners in thread), M12 (follow-up reminder in thread), L14 (re-analysis on CRM change), L16 (embed on poll), L17 (re-embed updated threads) |
