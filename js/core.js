@@ -869,7 +869,8 @@ async function loadProspects(){
     return{id:r.id,prospectCompanyId:r.prospect_company_id||'',firstName:r.first_name||'',lastName:r.last_name||'',
       email:r.email||'',phone:r.phone||'',role:r.role||'',linkedinUrl:r.linkedin_url||'',
       source:r.source||'',notes:r.notes||'',status:r.status||'active',
-      lastContactedAt:r.last_contacted_at?new Date(r.last_contacted_at):null,createdAt:r.created_at||''}})}
+      lastContactedAt:r.last_contacted_at?new Date(r.last_contacted_at):null,createdAt:r.created_at||''}});
+  S._prospectEmailIndex=null/* invalidate — rebuilt lazily by _isKnownEmailThread */}
 
 /* Build domain → end-client/client map from contacts with endClient + email */
 var _FREE_DOMAINS={'gmail.com':1,'yahoo.com':1,'hotmail.com':1,'outlook.com':1,'icloud.com':1,'aol.com':1,'live.com':1,'me.com':1,'msn.com':1,'protonmail.com':1,'mail.com':1,'zoho.com':1};
@@ -1050,6 +1051,34 @@ function matchEmailToClient(email){
       contactId:'',contactEmail:email,contactPhone:'',contactCompany:'',contactWebsite:'',
       endClient:dm.endClient,clientStatus:dm.clientStatus,domainMatch:true}}
   return null}
+
+/* Check if a thread involves any known contact, client, prospect, or domain-matched person.
+   Also passes if the user sent the last message (they obviously know the recipient).
+   Used to gate AI analysis so we don't burn tokens on newsletters, spam, etc. */
+function _isKnownEmailThread(t){
+  var ue=S._userEmails||[];if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
+  /* If user sent the last message, always analyze */
+  var lastFrom=(t.last_message_from||'').toLowerCase();
+  if(lastFrom&&ue.indexOf(lastFrom)!==-1)return true;
+  /* If thread already has a client linked, always analyze */
+  if(t.client_id||t.clientId)return true;
+  /* Gather all email addresses in the thread */
+  var addrs=[];
+  if(t.from_email)addrs.push(t.from_email.toLowerCase().trim());
+  _parseEmails(t.to_emails||'').forEach(function(e){if(addrs.indexOf(e)===-1)addrs.push(e)});
+  _parseEmails(t.cc_emails||'').forEach(function(e){if(addrs.indexOf(e)===-1)addrs.push(e)});
+  /* Remove user's own addresses */
+  if(ue.length)addrs=addrs.filter(function(a){return ue.indexOf(a)===-1});
+  /* Build prospect email set lazily */
+  if(!S._prospectEmailIndex){
+    S._prospectEmailIndex={};
+    (S.prospects||[]).forEach(function(p){if(p.email)S._prospectEmailIndex[p.email.toLowerCase().trim()]=true})}
+  /* Check each address against contacts, clients, domains, and prospects */
+  for(var i=0;i<addrs.length;i++){
+    if(matchEmailToClient(addrs[i]))return true;
+    if(S._prospectEmailIndex[addrs[i]])return true;
+  }
+  return false}
 
 /* Parse email addresses from a raw header string (e.g. "Name <email>, Other <email2>") */
 function _parseEmails(raw){
@@ -3141,11 +3170,26 @@ async function analyzeNewEmails(){
   if(_analyzingEmails)return;
   /* Find threads needing analysis: not yet analyzed, in INBOX */
   var ue=S._userEmails||[];if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
-  var toAnalyze=S.gmailThreads.filter(function(t){
+  var unanalyzed=S.gmailThreads.filter(function(t){
     if(t.needs_reply!==null&&t.needs_reply!==undefined)return false;
     if((t.labels||'').indexOf('INBOX')===-1)return false;
     return true
   });
+  if(!unanalyzed.length)return;
+  /* Gate: only analyze threads involving known contacts, clients, or prospects.
+     Threads with no known participants get marked as skipped to avoid re-checking. */
+  var toAnalyze=[];var skipped=[];
+  unanalyzed.forEach(function(t){
+    if(_isKnownEmailThread(t)){toAnalyze.push(t)}
+    else{skipped.push(t)}
+  });
+  /* Mark skipped threads with sentinel so they don't re-enter the queue.
+     needs_reply=false, ai_summary notes the skip reason for transparency. */
+  if(skipped.length){
+    skipped.forEach(function(t){
+      t.needs_reply=false;t.ai_urgency='low';t.ai_category='';
+      t.ai_summary='(Skipped — no known contacts)';t.ai_analyzed_at='skipped'});
+    _refreshEmailListPanel()}
   if(!toAnalyze.length)return;
   _analyzingEmails=true;
   try{
