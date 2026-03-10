@@ -2739,7 +2739,7 @@ async function searchGmail(query){
 function setGmailFilter(filter){
   /* Exit bulk mode on view switch */
   if(S.emailBulkMode){S.emailBulkMode=false;S.emailBulkSelected={}}
-  var _prevFilter=S.gmailFilter||'';
+  var _prevFilter=S.subView||S.gmailFilter||'';
   /* Save current view's live threads into per-filter cache */
   if(S.gmailFilter&&S._gmailLiveThreads){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
