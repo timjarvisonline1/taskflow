@@ -3953,24 +3953,23 @@ function openComposeEmail(opts){
   h+='<button class="btn btn-p" onclick="TF.scheduleCustom()" style="font-size:11px;padding:5px 12px;margin-top:6px;width:100%">Schedule</button>';
   h+='</div></div></div>';
   h+='<button class="btn" onclick="TF.addComposeAttachment()" style="font-size:12px;padding:7px 14px">'+icon('paperclip',12)+' Attach</button>';
-  if(isReply){h+='<button class="btn ai-draft-btn" id="ai-draft-btn" onclick="TF.toggleComposeDraftPrompt()" style="font-size:12px;padding:7px 14px;background:rgba(16,163,127,.12);border-color:rgba(16,163,127,.3);color:#10A37F" title="Draft reply using your knowledge base">'+icon('sparkle',12)+' AI Draft</button>'}
+  h+='<button class="btn ai-draft-btn" id="ai-draft-btn" onclick="TF.toggleComposeDraftPrompt()" style="font-size:12px;padding:7px 14px;background:rgba(16,163,127,.12);border-color:rgba(16,163,127,.3);color:#10A37F" title="'+(isReply?'Draft reply':'Generate draft')+' using your knowledge base">'+icon('sparkle',12)+' AI Draft</button>';
   h+='<div style="flex:1"></div>';
   h+='<button class="btn" onclick="TF.closeModal()" style="font-size:12px;padding:7px 14px">Discard</button>';
   h+='</div>';
   /* AI Draft prompt input for compose modal */
-  if(isReply){
-    h+='<div class="ai-draft-prompt-wrap" id="compose-ai-draft-prompt">';
-    h+='<input class="ai-draft-prompt-input" id="compose-ai-draft-input" placeholder="What should the reply focus on? (optional, press Enter or click Draft)"';
-    h+=' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.aiDraft()}">';
-    h+='<button class="ai-draft-prompt-go" onclick="TF.aiDraft()">'+icon('sparkle',10)+' Draft</button>';
-    h+='</div>'}
+  h+='<div class="ai-draft-prompt-wrap" id="compose-ai-draft-prompt">';
+  h+='<input class="ai-draft-prompt-input" id="compose-ai-draft-input" placeholder="'+(isReply?'What should the reply focus on?':'Describe what this email should say')+' (press Enter or click Draft)"';
+  h+=' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.aiDraft()}">';
+  h+='<button class="ai-draft-prompt-go" onclick="TF.aiDraft()">'+icon('sparkle',10)+' Draft</button>';
+  h+='</div>';
   h+='</div>';
 
   gel('m-body').innerHTML=h;
   /* Add wide class to modal */
   var modal=gel('modal');modal.classList.add('on');
-  /* Light theme for compose opened from email context */
-  if(S.view==='email')modal.classList.add('email-light');
+  /* Compose is always light themed (it's an email feature) */
+  modal.classList.add('email-light');
   var inner=modal.querySelector('.tf-modal-inner')||modal;
   inner.classList.add('tf-modal-wide');
 
@@ -4094,7 +4093,6 @@ function toggleComposeDraftPrompt(){
 
 async function aiDraft(){
   var threadId=(gel('compose-threadId')||{}).value||'';
-  if(!threadId){toast('AI Draft is available when replying to an email','info');return}
   var btn=gel('ai-draft-btn');
   if(btn){btn.disabled=true;btn.innerHTML=icon('sparkle',12)+' Drafting...';btn.style.opacity='.6'}
 
@@ -4102,35 +4100,50 @@ async function aiDraft(){
   var promptInput=gel('compose-ai-draft-input');
   var customPrompt=promptInput?promptInput.value.trim():'';
 
+  /* For new compositions, require a prompt or subject */
+  var subject=(gel('compose-subject')||{}).value||'';
+  if(!threadId&&!customPrompt&&!subject){toast('Enter a subject or describe what the email should say','info');if(btn){btn.disabled=false;btn.innerHTML=icon('sparkle',12)+' AI Draft';btn.style.opacity='1'}return}
+
   try{
     /* Get auth token */
     var sess=await _sb.auth.getSession();
     if(!sess.data||!sess.data.session){toast('Not authenticated','warn');return}
     var token=sess.data.session.access_token;
 
-    /* Get thread messages — use already-loaded S.gmailThread if it matches */
-    var thread=(S.gmailThreadId===threadId&&S.gmailThread)?S.gmailThread:null;
     var messages=[];
-    if(thread&&thread.messages){
-      messages=thread.messages.map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})
-    }
-    if(!messages.length){
-      /* Fetch thread from API if not cached */
-      var resp=await fetch('/api/gmail/thread?id='+threadId,{headers:{'Authorization':'Bearer '+token}});
-      if(resp.ok){
-        var data=await resp.json();
-        messages=(data.messages||[]).map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})
+    var clientId=null;
+    if(threadId){
+      /* Get thread messages — use already-loaded S.gmailThread if it matches */
+      var thread=(S.gmailThreadId===threadId&&S.gmailThread)?S.gmailThread:null;
+      if(thread&&thread.messages){
+        messages=thread.messages.map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})
       }
+      if(!messages.length){
+        /* Fetch thread from API if not cached */
+        var resp=await fetch('/api/gmail/thread?id='+threadId,{headers:{'Authorization':'Bearer '+token}});
+        if(resp.ok){
+          var data=await resp.json();
+          messages=(data.messages||[]).map(function(m){return{from:m.from,fromName:m.fromName,date:m.date,body:m.body,subject:m.subject}})
+        }
+      }
+      if(!messages.length){toast('Could not load email thread','warn');if(btn){btn.disabled=false;btn.innerHTML=icon('sparkle',12)+' AI Draft';btn.style.opacity='1'}return}
+      var gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId||t.thread_id===threadId});
+      clientId=gmailThread?gmailThread.clientId||gmailThread.client_id:null;
+      if(!subject)subject=messages[0].subject||'';
+    }else{
+      /* New composition: detect client from recipients */
+      var toRecips=(window._composeRecipients&&window._composeRecipients.to||[]).join(', ');
+      if(toRecips){
+        var ctx=resolveThreadCrmContext('',toRecips,'');
+        if(ctx&&ctx.primaryClient)clientId=ctx.primaryClient.id||null}
+      /* Build a pseudo-message from subject + prompt for context */
+      if(!customPrompt)customPrompt='Write a professional email about: '+subject;
     }
-    if(!messages.length){toast('Could not load email thread','warn');return}
-
-    /* Get subject and client context */
-    var subject=(gel('compose-subject')||{}).value||messages[0].subject||'';
-    var gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId||t.thread_id===threadId});
-    var clientId=gmailThread?gmailThread.clientId||gmailThread.client_id:null;
 
     /* Build payload with optional custom prompt */
-    var payload={threadId:threadId,messages:messages,subject:subject,clientId:clientId};
+    var payload={subject:subject,clientId:clientId};
+    if(threadId){payload.threadId=threadId;payload.messages=messages}
+    else{payload.newCompose=true;payload.to=(window._composeRecipients&&window._composeRecipients.to||[]).join(', ')}
     if(customPrompt)payload.customPrompt=customPrompt;
 
     /* Call AI Draft endpoint */
@@ -4330,7 +4343,7 @@ function openEmailRulesModal(){
       h+='<div class="rule-card-detail"><strong>When:</strong> '+condSummary+'</div>';
       h+='<div class="rule-card-detail"><strong>Then:</strong> '+actSummary+'</div>';
       h+='</div>'})}
-  gel('m-body').innerHTML=h;var _rm=gel('modal');_rm.classList.add('on');if(S.view==='email')_rm.classList.add('email-light')}
+  gel('m-body').innerHTML=h;var _rm=gel('modal');_rm.classList.add('on','email-light')}
 
 function _ruleCondLabel(type){
   var map={from_domain_equals:'From domain equals',from_email_contains:'From email contains',
@@ -4399,7 +4412,7 @@ function _renderRuleEditor(){
   h+='<button class="btn btn-p" onclick="TF.saveRule()" style="font-size:13px;padding:8px 20px">Save Rule</button>';
   h+='<button class="btn" onclick="TF.openEmailRulesModal()" style="font-size:12px;padding:7px 14px">Cancel</button>';
   h+='</div>';
-  gel('m-body').innerHTML=h;var _arm=gel('modal');_arm.classList.add('on');if(S.view==='email')_arm.classList.add('email-light')}
+  gel('m-body').innerHTML=h;var _arm=gel('modal');_arm.classList.add('on','email-light')}
 
 function _ruleActionValueSelector(act,idx){
   if(act.type==='auto_archive')return'<span style="flex:1;font-size:11px;color:var(--t3);padding:5px">Automatically archive</span>';
@@ -4470,7 +4483,7 @@ function openSignatureEditor(){
   h+='<button class="btn btn-p" onclick="var e=gel(\'sig-editor\');saveEmailSignature(e?e.innerHTML:\'\');TF.closeModal()">Save Signature</button>';
   h+='<button class="btn" onclick="saveEmailSignature(\'\');TF.closeModal()" style="color:var(--red)">Clear Signature</button>';
   h+='</div></div>';
-  gel('m-body').innerHTML=h;var _sm=gel('modal');_sm.classList.add('on');if(S.view==='email')_sm.classList.add('email-light')}
+  gel('m-body').innerHTML=h;var _sm=gel('modal');_sm.classList.add('on','email-light')}
 
 /* ═══════════ CONTACT MODALS ═══════════ */
 

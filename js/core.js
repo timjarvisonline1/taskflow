@@ -3512,6 +3512,8 @@ async function archiveEmail(threadId){
     if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
     else{gel('detail-modal').classList.remove('on','full-detail')}}
   _refreshEmailListPanel();buildNav();
+  /* Action Required / Drafts / Scheduled don't use #email-list-panel — full render needed */
+  if(S.subView&&S.subView.indexOf('e-')===0)render();
   /* Undo system: delay API call by 5 seconds */
   _scheduleUndoCommit(
     async function(){/* commit */
@@ -3528,13 +3530,13 @@ async function archiveEmail(threadId){
           if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
         if(st&&removedStLabels!==null)st.labels=removedStLabels;
         S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-        _refreshEmailListPanel();buildNav();toast('Archive failed: '+e.message,'warn')}},
+        _refreshEmailListPanel();buildNav();if(S.subView&&S.subView.indexOf('e-')===0)render();toast('Archive failed: '+e.message,'warn')}},
     function(){/* rollback (undo) */
       if(removedLive&&S._gmailLiveThreads){S._gmailLiveThreads.splice(removedLiveIdx,0,removedLive);
         if(S._gmailCache['inbox'])S._gmailCache['inbox'].threads=S._gmailLiveThreads}
       if(st&&removedStLabels!==null)st.labels=removedStLabels;
       S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return t.isUnread||t.is_unread}).length;
-      _refreshEmailListPanel();buildNav()},
+      _refreshEmailListPanel();buildNav();if(S.subView&&S.subView.indexOf('e-')===0)render()},
     'Email archived')}
 
 function toggleEmailMsg(idx){

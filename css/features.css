@@ -1073,7 +1073,15 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 :is(.email-page-wrap,.email-light) .email-crm-sidebar::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12)}
 :is(.email-page-wrap,.email-light) .crm-sb-item{border-color:rgba(0,0,0,.04)}
 :is(.email-page-wrap,.email-light) .crm-sb-item:hover{background:rgba(0,0,0,.03)}
-:is(.email-page-wrap,.email-light) .action-card:hover{border-color:var(--bg4)}
+:is(.email-page-wrap,.email-light) .action-card{background:var(--bg1);border-color:var(--bg4)}
+:is(.email-page-wrap,.email-light) .action-card:hover{background:var(--bg2);border-color:var(--bg5)}
+:is(.email-page-wrap,.email-light) .action-card-compact{background:var(--bg1);border-color:var(--bg4)}
+:is(.email-page-wrap,.email-light) .action-card-compact:hover{background:var(--bg2);border-color:var(--bg5)}
+:is(.email-page-wrap,.email-light) .action-card-compact-btn{border-color:var(--bg4);color:var(--t2)}
+:is(.email-page-wrap,.email-light) .action-card-compact-btn:hover{background:var(--bg2);color:var(--t1);border-color:var(--bg5)}
+:is(.email-page-wrap,.email-light) .action-card-compact-action{color:var(--t2)}
+:is(.email-page-wrap,.email-light) .action-card-compact-sep{color:var(--t4)}
+:is(.email-page-wrap,.email-light) .action-card-compact-time{color:var(--t3)}
 :is(.email-page-wrap,.email-light) .email-inline-reply-toolbar{background:rgba(0,0,0,.015);border-top-color:var(--gborder)}
 :is(.email-page-wrap,.email-light) .email-inline-reply-btn:hover{background:rgba(0,0,0,.04);border-color:var(--gborder)}
 :is(.email-page-wrap,.email-light) .inline-att-chip{background:var(--bg2)}
