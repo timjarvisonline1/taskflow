@@ -6768,8 +6768,12 @@ function rEmailFilterBar(){
 function rEmailList(threads){
   var h='<div class="email-thread-list">';
   var lastGroup='';
-  /* Pre-sort by date descending to prevent duplicate group headers */
+  /* M1 — Sort by AI urgency (critical/high pinned to top), then date descending */
+  var _urgencyWeight={critical:0,high:1,normal:2,low:3};
   threads=threads.slice().sort(function(a,b){
+    var ua=_urgencyWeight[a.ai_urgency]!==undefined?_urgencyWeight[a.ai_urgency]:2;
+    var ub=_urgencyWeight[b.ai_urgency]!==undefined?_urgencyWeight[b.ai_urgency]:2;
+    if(ua!==ub)return ua-ub;
     var da=a.date||a.last_message_at||'';
     var db=b.date||b.last_message_at||'';
     return db.localeCompare(da)});
@@ -6778,7 +6782,7 @@ function rEmailList(threads){
     var subject=t.subject||'(no subject)';
     var fromName=t.fromName||t.from_name||'';
     var fromEmail=t.fromEmail||t.from_email||'';
-    var snippet=t.snippet||'';
+    var snippet=(t.ai_summary&&t.ai_analyzed_at&&t.ai_analyzed_at!=='skipped')?t.ai_summary:(t.snippet||'');
     var dateStr=t.date||t.last_message_at||'';
     var msgCount=t.messageCount||t.message_count||1;
     var isUnread=t.isUnread||t.is_unread||false;
@@ -6843,7 +6847,10 @@ function rEmailList(threads){
       h+=icon('contact',9)+' + Contact';
       if(crmCtx.unknownAddrs.length>1)h+=' <span style="opacity:.7">('+crmCtx.unknownAddrs.length+')</span>';
       h+='</span>'}
-    /* AI-driven urgency dot (only for Action Required threads) */
+    /* M1 — Urgency pin for critical/high threads (visible in all views) */
+    if(t.ai_urgency==='critical')h+='<span class="email-urgency-pin critical" title="Critical">'+icon('alertTriangle',10)+'</span>';
+    else if(t.ai_urgency==='high')h+='<span class="email-urgency-pin high" title="High priority">'+icon('arrowUp',10)+'</span>';
+    /* AI-driven urgency dot (for Action Required threads) */
     if(t.needs_reply===true&&(t.reply_status==='pending'||!t.reply_status)){
       var _urgDotColors={critical:'#ef4444',high:'#f59e0b',normal:'#3b82f6',low:'#71717a'};
       var _urgDotColor=_urgDotColors[t.ai_urgency]||_urgDotColors.normal;
@@ -6899,6 +6906,31 @@ function _fmtRecipients(raw){
     return'<span class="email-rcpt">'+esc(a.replace(/[<>"]/g,'').trim())+'</span>';
   }).filter(Boolean).join(', ')}
 
+/* M10 + M12 — AI-detected meeting/task/follow-up banners for thread view */
+function _rThreadAiBanners(cached){
+  if(!cached)return'';
+  var h='';
+  /* M10 — Meeting detected */
+  if(cached.has_meeting&&cached.meeting_details){
+    h+='<div class="ai-thread-banner meeting">';
+    h+=icon('calendar',13)+' <strong>Meeting detected:</strong> '+esc(cached.meeting_details);
+    h+='</div>'}
+  /* M10 — Suggested task */
+  if(cached.ai_suggested_task){
+    try{var st=JSON.parse(cached.ai_suggested_task);
+      if(st&&st.item){
+        h+='<div class="ai-thread-banner task">';
+        h+=icon('tasks',13)+' <strong>Suggested task:</strong> '+esc(st.item);
+        h+=' <button class="ai-banner-btn" onclick="TF.createTaskFromSuggestion(\''+escAttr(cached.thread_id)+'\')">Create Task</button>';
+        h+='</div>'}}catch(e){}}
+  /* M12 — Follow-up reminder */
+  if(cached.needs_followup&&cached.followup_details){
+    h+='<div class="ai-thread-banner followup">';
+    h+=icon('clock',13)+' <strong>Follow-up needed:</strong> '+esc(cached.followup_details);
+    h+=' <button class="ai-banner-btn" onclick="TF.dismissFollowup(\''+escAttr(cached.thread_id)+'\')">Done</button>';
+    h+='</div>'}
+  return h}
+
 /* ═══════════ FULL-SCREEN EMAIL THREAD MODAL ═══════════ */
 function rEmailThreadModal(threadId){
   var h='';
@@ -6949,11 +6981,20 @@ function rEmailThreadModal(threadId){
   h+='</div>';
   h+='</div>';
 
+  /* M10/M12 — AI banners (meeting, task, follow-up) */
+  h+=_rThreadAiBanners(cached);
+
   /* ── Split layout ── */
   h+='<div class="detail-split">';
 
   /* ── LEFT PANE: Messages ── */
   h+='<div class="detail-split-left">';
+
+  /* M7 — Quick-reply suggestion chips */
+  if(cached&&cached.needs_reply===true&&cached.ai_analyzed_at&&cached.ai_analyzed_at!=='skipped'){
+    h+='<div class="quick-reply-wrap" id="quick-reply-chips"></div>';
+    /* Trigger lazy load after render */
+    setTimeout(function(){if(typeof TF!=='undefined')TF.loadQuickReplies(''+threadId)},200)}
 
   /* Inline Reply at top */
   var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';
@@ -7359,6 +7400,15 @@ function rEmailThread(){
     if(clientMatch.contactName)h+='<span style="color:var(--t3)">'+esc(clientMatch.contactName)+(clientMatch.contactRole?' · '+esc(clientMatch.contactRole):'')+'</span>';
   }
   h+='</div>';
+
+  /* M10/M12 — AI banners */
+  var _threadMeta=S.gmailThreads.find(function(t){return t.thread_id===threadId});
+  h+=_rThreadAiBanners(_threadMeta);
+
+  /* M7 — Quick-reply suggestion chips */
+  if(_threadMeta&&_threadMeta.needs_reply===true&&_threadMeta.ai_analyzed_at&&_threadMeta.ai_analyzed_at!=='skipped'){
+    h+='<div class="quick-reply-wrap" id="quick-reply-chips"></div>';
+    setTimeout(function(){if(typeof TF!=='undefined')TF.loadQuickReplies(''+threadId)},200)}
 
   /* ── Inline Reply (at top, before messages) ── */
   var replyTo=lastMsg.fromName||lastMsg.fromEmail||'';

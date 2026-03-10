@@ -2736,7 +2736,11 @@ async function threadCrmSave(){
   /* Refresh the right pane context */
   _refreshThreadCrmContext();
   /* Refresh list panel so smart inbox assignments update immediately */
-  _refreshEmailListPanel()}
+  _refreshEmailListPanel();
+  /* L14 — Trigger re-analysis now that CRM context has changed */
+  if(cached&&cached.ai_analyzed_at){
+    cached.needs_reply=null;cached.ai_analyzed_at=null;
+    analyzeNewEmails()}}
 
 function threadCrmNoneChange(){
   var none=gel('thread-crm-none');
@@ -3150,6 +3154,8 @@ async function pollGmailInbox(){
     }
     /* Trigger AI analysis for new threads */
     analyzeNewEmails();
+    /* L16 — Auto-embed new emails into knowledge base on poll */
+    embedNewEmails();
   }catch(e){console.warn('Email poll:',e)}}
 
 function showNewEmailIndicator(count){
@@ -3736,6 +3742,42 @@ function cycleDraftVariant(dir){
   _showDraftVariantBar(threadId);
 }
 function regenerateDraft(){inlineAiDraftGo()}
+
+/* M7 — Quick-reply suggestions */
+var _quickReplyCache={};
+async function loadQuickReplies(threadId){
+  if(!threadId)return;
+  if(_quickReplyCache[threadId])return _renderQuickReplies(threadId);
+  var cached=S.gmailThreads.find(function(t){return t.thread_id===threadId});
+  if(!cached||cached.needs_reply!==true)return;
+  if(cached.ai_analyzed_at==='skipped')return;
+  var wrap=gel('quick-reply-chips');if(!wrap)return;
+  wrap.innerHTML='<span style="font-size:10px;color:var(--t4)">Loading suggestions...</span>';
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data||!sess.data.session)return;
+    var resp=await fetch('/api/knowledge/quick-replies',{method:'POST',
+      headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'},
+      body:JSON.stringify({subject:cached.subject||'',snippet:cached.snippet||'',
+        aiSummary:cached.ai_summary||'',fromName:cached.from_name||'',sentiment:cached.ai_sentiment||'neutral'})});
+    if(!resp.ok){wrap.innerHTML='';return}
+    var data=await resp.json();
+    _quickReplyCache[threadId]=data.replies||[];
+    _renderQuickReplies(threadId);
+  }catch(e){console.warn('quickReplies:',e);if(wrap)wrap.innerHTML=''}}
+
+function _renderQuickReplies(threadId){
+  var wrap=gel('quick-reply-chips');if(!wrap)return;
+  var replies=_quickReplyCache[threadId]||[];
+  if(!replies.length){wrap.innerHTML='';return}
+  var h='';
+  replies.forEach(function(r){
+    h+='<button class="quick-reply-chip" onclick="TF.useQuickReply(this)">'+esc(r)+'</button>'});
+  wrap.innerHTML=h}
+
+function useQuickReply(btn){
+  var text=btn.textContent||'';if(!text)return;
+  var editor=gel('email-inline-reply-editor');
+  if(editor){editor.innerHTML='<p>'+esc(text)+'</p>';editor.focus()}}
 
 /* ── Toggle action card expand (for compact cards) ── */
 function toggleActionExpand(el){

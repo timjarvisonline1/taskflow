@@ -966,7 +966,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Sort contacts by relevance: recently active contacts first, or contacts matching thread participants first. Or send all contacts (they're small objects).
 
 ### L14. No re-analysis after CRM context changes
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `js/core.js` line 3071
 - **Problem:** Once a thread has `needs_reply !== null`, it's never re-analyzed. If new contacts, clients, or campaigns are added after initial analysis, the AI's `suggested_client` / `suggested_campaign` fields are stale. The filter `if(t.needs_reply!==null&&t.needs_reply!==undefined) return false` permanently excludes analyzed threads.
@@ -981,7 +981,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Change to `(thread.to_emails||thread.toEmails||thread.to||'')` and `(thread.cc_emails||thread.ccEmails||thread.cc||'')`.
 
 ### L16. Emails only embed into knowledge base on manual refresh
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `js/core.js` line 2859
 - **Problem:** `embedNewEmails()` is called from `refreshGmailInbox()` but NOT from `pollGmailInbox()`. The 60-second polling that detects new emails does not trigger embedding. New emails may not enter the knowledge base for hours/days until user manually refreshes.
@@ -989,7 +989,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Add `embedNewEmails()` to `pollGmailInbox()` after `analyzeNewEmails()`.
 
 ### L17. No re-embedding when email threads get new messages
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `api/knowledge/ingest-emails.js` lines 69-76
 - **Problem:** The un-embedded detection checks if `thread_id` exists in `knowledge_chunks`. If a thread was embedded with 3 messages and later gains 2 more, those new messages are NEVER embedded because the thread already has chunks.
@@ -1039,7 +1039,7 @@ Issues observed directly from the user's screenshot:
 > Features that would make AI a first-class part of the email experience instead of a bolt-on.
 
 ### M1. AI-enhanced smart inbox routing
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH (feature)
 - **Problem:** Smart inbox routing is 100% rule-based (contact lookup → domain map → email rules → fallback "Other"). AI analysis produces `ai_urgency`, `ai_category`, `ai_sentiment` but these are ONLY used for display indicators and the Action Required view — they don't influence which inbox a thread appears in.
 - **Opportunity:**
@@ -1083,13 +1083,13 @@ Issues observed directly from the user's screenshot:
 - **Opportunity:** Add "AI Search" option that embeds the query and searches `knowledge_chunks` where `source_type='email'`. This enables semantic queries like "that email where the client asked about budget for Q3" instead of requiring exact keywords.
 
 ### M7. AI auto-reply suggestions (quick responses)
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM (feature)
 - **Problem:** For simple emails (meeting confirmations, acknowledgments, yes/no questions), generating a full AI draft is overkill.
 - **Opportunity:** Show 2-3 one-line AI-suggested quick replies below the email (like Gmail's Smart Reply). Use a lightweight prompt with just the latest message + subject. Cache suggestions when threads are loaded. Examples: "Thanks, confirmed!" / "I'll review and get back to you" / "Can we discuss on Monday?"
 
 ### M8. AI thread summarization in list view
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** LOW (feature)
 - **Problem:** The email list shows Gmail's snippet (~100 chars) which is just the start of the latest message. For long threads, this gives no useful context.
 - **Opportunity:** Use `ai_summary` (already computed by batch analysis) to show a meaningful 1-line summary in the email list instead of the raw snippet. Toggle: "Show snippet / Show AI summary". The data already exists — just needs UI wiring.
@@ -1101,7 +1101,7 @@ Issues observed directly from the user's screenshot:
 - **Opportunity:** When the reply editor opens, AI detects the email type from the thread context and suggests a relevant template. "This looks like a project update — use your usual format?" Templates stored per-client or per-category with AI-filled dynamic fields.
 
 ### M10. AI meeting/task extraction into actionable items
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM (feature)
 - **Problem:** AI analysis already detects `has_meeting` and `ai_suggested_task`, but these are only visible in the Action Required view. Meeting details are computed but never displayed in the thread view or linked to the calendar.
 - **Opportunity:**
@@ -1116,7 +1116,7 @@ Issues observed directly from the user's screenshot:
 - **Opportunity:** When showing "+ Add Contact" for an unknown address, pre-populate the contact form with AI-extracted fields (name, company, role parsed from signature block, title parsed from email body context).
 
 ### M12. AI-powered follow-up reminders
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM (feature)
 - **Problem:** AI already computes `needs_followup` and `followup_details`, but these only appear in Action Required view. No proactive reminder system.
 - **Opportunity:** When a thread has `needs_followup: true`, show a reminder bar in the thread: "Follow-up suggested: Check if proposal was reviewed — Set reminder?" Auto-create a follow-up task with a due date inferred from the email context ("next week", "by Friday").
@@ -1961,15 +1961,15 @@ For implementation reference, these are the key Gmail measurements and patterns 
 28. ~~**M5** - AI draft regeneration and variant selection~~
 29. ~~**L21** - Sanitize email content in AI prompts (prompt injection defense)~~
 
-### Phase 5: AI Intelligence Layer
-30. **M1** - AI-enhanced smart inbox routing (use urgency/category/sentiment for inbox placement)
-31. **M7** - AI quick-reply suggestions (Gmail Smart Reply style)
-32. **M10** - AI meeting/task extraction into actionable items with one-click creation
-33. **L14** - Re-analysis after CRM context changes
-34. **L16** - Embed emails into knowledge base on poll (not just manual refresh)
-35. **L17** - Re-embed threads when new messages arrive
-36. **M12** - AI-powered follow-up reminders
-37. **M8** - AI thread summary in list view (replace snippet with ai_summary)
+### Phase 5: AI Intelligence Layer ✅
+30. ~~**M1** - AI-enhanced smart inbox routing (use urgency/category/sentiment for inbox placement)~~
+31. ~~**M7** - AI quick-reply suggestions (Gmail Smart Reply style)~~
+32. ~~**M10** - AI meeting/task extraction into actionable items with one-click creation~~
+33. ~~**L14** - Re-analysis after CRM context changes~~
+34. ~~**L16** - Embed emails into knowledge base on poll (not just manual refresh)~~
+35. ~~**L17** - Re-embed threads when new messages arrive~~
+36. ~~**M12** - AI-powered follow-up reminders~~
+37. ~~**M8** - AI thread summary in list view (replace snippet with ai_summary)~~
 
 ### Phase 6: Cross-Feature Data Integrity & Consistency
 38. **K7** - Entity dashboards query Supabase directly (stop silently missing historical emails beyond 500-thread cache)
@@ -2129,6 +2129,7 @@ For implementation reference, these are the key Gmail measurements and patterns 
 
 | Date | Commit | Issues Fixed |
 |------|--------|--------------|
+| 2026-03-10 | (Phase 5) | M1 (AI urgency pinning + sort), M7 (quick-reply suggestions API + UI), M8 (AI summary replaces snippet), M10 (meeting/task banners in thread), M12 (follow-up reminder in thread), L14 (re-analysis on CRM change), L16 (embed on poll), L17 (re-embed updated threads) |
 | 2026-03-10 | (Phase 4) | L6 (strip HTML to plain text), L7 (recipient context in prompt), L8 (CRM context in prompt), L9 (SSE streaming), L21 (prompt injection defense), M4 (tone/length controls), M5 (regeneration + variant cycling) |
 | 2026-03-10 | (Phase 3) | A1 (editor font-family), A5 (editor CSS reset), A3 (AI draft font styling), L1 (AI draft cache fix), L3 (AI draft prepend not replace), L5 (system messages for AI endpoints), L11 (batch analysis parse recovery), L15 (rule To/CC field names) |
 | 2026-03-10 | (Phase 2) | I5 (email-to-client index maps), I4 (granular CRM cache), I7 (thread detail cache), I3 (targeted DOM updates replace render()), IUX2 (loading progress bar), IUX3 (stale-while-revalidate), IUX6 (global undo system for archive/trash/mark-read), I12 (lazy iframe loading) |

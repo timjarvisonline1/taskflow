@@ -65,17 +65,21 @@ module.exports = async function handler(req, res) {
       var allRes = await query.limit(200);
       var allThreads = allRes.data || [];
 
-      // Check existing embeddings
-      var existingRes = await client.from('knowledge_chunks')
-        .select('source_id')
+      // Check existing embeddings + last ingested timestamp (L17 — re-embed on new messages)
+      var existingRes = await client.from('knowledge_sources')
+        .select('source_id, updated_at')
         .eq('user_id', userId)
         .eq('source_type', 'email');
 
-      var embeddedIds = {};
-      (existingRes.data || []).forEach(function(r) { embeddedIds[r.source_id] = true; });
+      var embeddedMap = {};
+      (existingRes.data || []).forEach(function(r) { embeddedMap[r.source_id] = r.updated_at || ''; });
 
       threads = allThreads.filter(function(t) {
-        return !embeddedIds[t.thread_id];
+        var lastIngested = embeddedMap[t.thread_id];
+        if (!lastIngested) return true; // never embedded
+        // Re-embed if thread has newer messages than last ingestion
+        if (t.last_message_at && new Date(t.last_message_at) > new Date(lastIngested)) return true;
+        return false;
       }).slice(0, batchSize);
     }
 
