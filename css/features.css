@@ -969,43 +969,45 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 /* ═══════════ EMAIL ═══════════ */
 
 /* ── Gmail-style split view ── */
-.email-split-view{display:flex;gap:0;height:calc(100vh - 140px);min-height:400px}
+/* N35: Flex column wrapper so split-view fills available height */
+.email-page-wrap{display:flex;flex-direction:column;height:calc(100vh - 90px);min-height:400px}
+.email-page-wrap .pg-head{flex-shrink:0}
+.email-split-view{display:flex;gap:0;flex:1;min-height:0;overflow:hidden}
 .email-list-panel{width:100%;overflow-y:auto;overflow-x:hidden;padding-right:4px;transition:width .25s var(--ease)}
 .email-split-view.has-detail .email-list-panel{width:380px;min-width:320px;max-width:420px;border-right:1px solid var(--gborder);padding-right:12px}
 .email-detail-panel{flex:1;overflow-y:auto;overflow-x:hidden;display:none;padding-left:16px;animation:fadeIn .2s var(--ease-out)}
 .email-split-view.has-detail .email-detail-panel{display:block}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
-/* Suppress animation on list refresh (only animate on initial load) */
+/* N14: No entrance animations — this rule kept for compat but rows no longer animate */
 .email-list-panel.no-anim .email-row{animation:none}
 
-/* Active thread highlight in list */
-.email-row.email-active{background:rgba(255,255,255,.04);border-color:rgba(255,0,153,.15);border-left:3px solid var(--accent)}
-.email-row.email-active:hover{background:rgba(255,255,255,.06);border-color:rgba(255,0,153,.2);transform:none}
+/* Active thread highlight in list — flat style */
+.email-row.email-active{background:rgba(255,0,153,.04);border-left:3px solid var(--accent)}
+.email-row.email-active:hover{background:rgba(255,0,153,.06)}
 .email-row.email-active .email-row-subject{color:var(--t1)}
 .email-row.email-active .email-row-from{color:var(--t1)}
 
-/* Compact list when detail is open */
-.email-split-view.has-detail .email-row{grid-template-columns:8px 30px 1fr;gap:8px;padding:10px 12px}
+/* Compact list when detail is open — adapted for flat flex rows */
+.email-split-view.has-detail .email-row{padding:0 10px 0 6px;height:36px}
 .email-split-view.has-detail .email-row-meta{display:none}
-.email-split-view.has-detail .email-row-snippet{display:none}
-.email-split-view.has-detail .email-row-subject{font-size:12px}
+.email-split-view.has-detail .email-row-content{display:none}
+.email-split-view.has-detail .email-row-from-wrap{width:auto;flex:1}
 .email-split-view.has-detail .email-row-from{font-size:12px}
-.email-split-view.has-detail .email-avatar{width:30px;height:30px;font-size:12px}
+.email-split-view.has-detail .email-avatar{width:26px;height:26px;font-size:11px;margin-right:8px}
 .email-split-view.has-detail .email-archive-btn{display:none}
-.email-split-view.has-detail .email-group-header{font-size:10px;padding:8px 12px 2px}
+.email-split-view.has-detail .email-group-header{font-size:10px;padding:8px 10px 2px}
 .email-split-view.has-detail .email-search{margin-bottom:10px}
 .email-split-view.has-detail .email-search .edf{font-size:12px;padding:6px 10px}
 .email-split-view.has-detail .task-mode-toggle{margin-bottom:10px}
 .email-split-view.has-detail .tm-btn{font-size:11px;padding:5px 10px}
 .email-split-view.has-detail .email-filter-bar{display:none}
 .email-split-view.has-detail .email-bulk-bar{display:none}
-/* Badge overflow control in compact mode */
-.email-split-view.has-detail .email-row-top{flex-wrap:wrap;gap:3px 5px;max-height:36px;overflow:hidden}
+/* Hide CRM pills in compact mode */
 .email-split-view.has-detail .email-client-badge,
 .email-split-view.has-detail .email-ec-pill,
 .email-split-view.has-detail .email-camp-pill,
-.email-split-view.has-detail .email-opp-pill{max-width:85px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-split-view.has-detail .email-opp-pill,
 .email-split-view.has-detail .email-add-contact-pill,
 .email-split-view.has-detail .email-cat-pill,
 .email-split-view.has-detail .email-participant-count,
@@ -1031,7 +1033,7 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 
 /* Inline detail overrides — reduce modal padding for inline context */
 .email-detail-panel .detail-full-header{padding:0 0 0;position:sticky;top:0;z-index:11;background:var(--g1)}
-.email-detail-panel .detail-split{display:flex;overflow:visible;height:calc(100vh - 280px)}
+.email-detail-panel .detail-split{display:flex;overflow:visible;flex:1;min-height:0}
 .email-detail-panel .detail-split-left{flex:1;padding:12px 0;border-right:1px solid var(--gborder);overflow-y:auto}
 .email-detail-panel .detail-split-right{width:260px;padding:12px 16px;overflow-y:auto}
 .email-detail-panel .email-thread-modal-toolbar{padding:8px 0;margin-bottom:8px;position:sticky;top:0;z-index:10;background:var(--g1)}
@@ -1054,10 +1056,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 }
 /* Mobile: stack vertically */
 @media(max-width:700px){
-  .email-split-view{flex-direction:column;height:auto}
+  .email-split-view{flex-direction:column;flex:1}
   .email-split-view.has-detail .email-list-panel{display:none}
   .email-split-view.has-detail .email-detail-panel{padding-left:0}
-  .email-detail-panel{min-height:calc(100vh - 200px)}
+  .email-detail-panel{flex:1;min-height:0}
 }
 
 .email-search{margin-bottom:16px;display:flex;align-items:center;gap:8px}
@@ -1065,68 +1067,54 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-empty p{margin:8px 0}
 .email-empty svg{opacity:.3;margin-bottom:8px}
 
-/* Thread list */
-.email-thread-list{display:flex;flex-direction:column;gap:2px}
-.email-row{display:grid;grid-template-columns:12px 36px 1fr auto;gap:12px;padding:12px 16px;
-  background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);
-  cursor:pointer;transition:all .28s var(--ease);align-items:center;position:relative;overflow:hidden;
-  animation:cardIn .3s var(--ease-out) backwards}
-.email-row::before{content:'';position:absolute;top:0;left:0;bottom:0;width:0;
-  background:rgba(255,255,255,0.01);transition:width .3s var(--ease)}
-.email-row:hover{background:var(--ghover);border-color:rgba(255,255,255,0.1);
-  box-shadow:var(--shadow-md);transform:translateY(-1px)}
-.email-row:hover::before{width:100%}
+/* Thread list — N1/N2/N3/N4/N14/N37/N39/N40: Gmail-style flat rows */
+.email-thread-list{display:flex;flex-direction:column;gap:0}
+.email-row{display:flex;align-items:center;gap:0;padding:0 16px 0 8px;height:40px;
+  background:transparent;border:none;border-bottom:1px solid var(--gborder);border-radius:0;
+  cursor:pointer;transition:background .1s ease;position:relative;overflow:hidden}
+.email-row:hover{background:rgba(255,255,255,.04)}
 .email-row:hover .email-row-subject{color:var(--t1)}
 .email-row:hover .email-archive-btn{opacity:1}
 
-/* Staggered entrance */
-.email-row:nth-child(1){animation-delay:0s}
-.email-row:nth-child(2){animation-delay:.03s}
-.email-row:nth-child(3){animation-delay:.06s}
-.email-row:nth-child(4){animation-delay:.09s}
-.email-row:nth-child(5){animation-delay:.12s}
-.email-row:nth-child(6){animation-delay:.15s}
-.email-row:nth-child(7){animation-delay:.18s}
-.email-row:nth-child(8){animation-delay:.21s}
-.email-row:nth-child(9){animation-delay:.24s}
-.email-row:nth-child(10){animation-delay:.27s}
+/* N14: No entrance animations — instant render */
 
-/* Unread state */
-.email-unread{background:rgba(234,67,53,.03);border-color:rgba(234,67,53,.08)}
-.email-unread:hover{border-color:rgba(234,67,53,.2)}
+/* Unread state — N11-prep: bold text weight instead of red background */
+.email-unread{background:transparent}
+.email-unread:hover{background:rgba(255,255,255,.04)}
 .email-unread .email-row-from{font-weight:700;color:var(--t1)}
-.email-unread .email-row-subject{font-weight:600;color:var(--t1)}
+.email-unread .email-row-subject{font-weight:700;color:var(--t1)}
 
 /* Unread dot */
-.email-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.email-dot-on{background:#EA4335;box-shadow:0 0 6px rgba(234,67,53,.4)}
+.email-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin:0 6px 0 4px}
+.email-dot-on{background:#EA4335;box-shadow:0 0 4px rgba(234,67,53,.3)}
 .email-dot-off{background:transparent}
 
-/* Avatar */
-.email-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;
-  justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;
-  text-transform:uppercase;letter-spacing:-0.02em}
+/* Avatar — smaller in flat layout */
+.email-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;
+  text-transform:uppercase;letter-spacing:-0.02em;margin-right:10px}
 
-/* Row content */
-.email-row-main{display:flex;flex-direction:column;gap:2px;min-width:0;overflow:hidden}
-.email-row-top{display:flex;align-items:center;gap:8px}
+/* Row content — N2: single-line layout (sender | subject — snippet) */
+.email-row-main{display:flex;flex-direction:row;align-items:center;gap:0;min-width:0;overflow:hidden;flex:1}
+.email-row-from-wrap{width:180px;flex-shrink:0;display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}
 .email-row-from{font-size:13px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
-.email-count{font-size:10px;color:var(--t4);background:var(--bg4);padding:1px 6px;border-radius:8px;font-weight:600;flex-shrink:0}
-.email-row-bottom{display:flex;align-items:center;gap:6px;min-width:0}
-.email-row-subject{color:var(--t2);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .2s}
-.email-row-snippet{color:var(--t4);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0}
+.email-count{font-size:10px;color:var(--t4);background:var(--bg4);padding:1px 5px;border-radius:8px;font-weight:600;flex-shrink:0}
+.email-row-content{flex:1;display:flex;align-items:center;gap:0;min-width:0;overflow:hidden;margin:0 12px}
+.email-row-subject{color:var(--t2);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;max-width:40%}
+.email-row-snippet{color:var(--t4);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 
 /* Meta (right side) */
-.email-row-meta{display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0}
+.email-row-meta{display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0;margin-left:auto}
 .email-row-date{font-size:11px;color:var(--t4);font-weight:500}
-.email-client-badge{font-size:10px;padding:2px 8px;border-radius:8px;background:rgba(77,166,255,.1);color:#4da6ff;font-weight:600;letter-spacing:0.01em}
+.email-client-badge{font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(77,166,255,.1);color:#4da6ff;font-weight:600;letter-spacing:0.01em;flex-shrink:0;margin-left:4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* Archive button on row — visible at low opacity, full on hover */
-.email-archive-btn{opacity:.3;transition:opacity .2s,background .15s,border-color .15s;
-  background:none;border:1px solid var(--gborder);
-  border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--t3);font-size:11px;
-  display:flex;align-items:center;gap:4px;white-space:nowrap;position:relative;z-index:2}
-.email-archive-btn:hover{opacity:1!important;color:var(--t1);border-color:rgba(255,255,255,.15);background:var(--bg4)}
+/* Archive button on row — icon only, appears on hover */
+.email-archive-btn{opacity:0;transition:opacity .1s ease;
+  background:none;border:none;
+  border-radius:50%;padding:6px;cursor:pointer;color:var(--t4);font-size:11px;
+  display:flex;align-items:center;justify-content:center;white-space:nowrap;position:relative;z-index:2}
+.email-row:hover .email-archive-btn{opacity:.6}
+.email-archive-btn:hover{opacity:1!important;color:var(--t1);background:rgba(255,255,255,.08)}
 
 /* Archive slide-out animation */
 .email-row.archiving{animation:emailSlideOut .4s var(--ease) forwards}
@@ -1138,9 +1126,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-thread-meta{font-size:12px;color:var(--t4);margin-bottom:20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
 /* ── Toolbar ── */
-.email-toolbar{display:flex;align-items:center;gap:4px;padding:10px 16px;margin-bottom:16px;
-  background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);
-  position:sticky;top:0;z-index:10;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+/* N37: Clean toolbar — no glass-morphism */
+.email-toolbar{display:flex;align-items:center;gap:4px;padding:10px 16px;margin-bottom:12px;
+  background:var(--bg1);border-bottom:1px solid var(--gborder);border-radius:0;
+  position:sticky;top:0;z-index:10}
 .email-toolbar-btn{display:flex;align-items:center;gap:5px;padding:7px 12px;border:none;
   background:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;
   color:var(--t3);transition:all .15s;white-space:nowrap}
@@ -1417,8 +1406,8 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-att-indicator{font-size:12px;color:var(--t4);margin-left:4px;flex-shrink:0}
 
 /* ── Date group headers in email list ── */
-.email-group-header{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;
-  padding:12px 16px 4px;border-bottom:1px solid var(--gborder);margin-top:2px}
+.email-group-header{font-size:10px;font-weight:600;color:var(--t4);text-transform:uppercase;letter-spacing:.06em;
+  padding:10px 16px 4px;margin-top:0}
 
 /* ── Communication badges in email list ── */
 .email-needs-reply{font-size:10px;padding:2px 7px;border-radius:8px;background:rgba(234,67,53,.1);color:#EA4335;font-weight:600;flex-shrink:0}
@@ -1426,9 +1415,9 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-participant-count{font-size:10px;color:var(--t4);display:flex;align-items:center;gap:3px;flex-shrink:0}
 
 /* ── End-client + opportunity pills ── */
-.email-ec-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:rgba(168,85,247,.12);color:#a855f7;font-weight:600;flex-shrink:0}
-.email-camp-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:rgba(59,130,246,.12);color:#3b82f6;font-weight:600;flex-shrink:0}
-.email-opp-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:rgba(34,197,94,.12);color:#22c55e;font-weight:600;flex-shrink:0}
+.email-ec-pill{font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(168,85,247,.1);color:#a855f7;font-weight:600;flex-shrink:0;margin-left:4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-camp-pill{font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(59,130,246,.1);color:#3b82f6;font-weight:600;flex-shrink:0;margin-left:4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-opp-pill{font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(34,197,94,.1);color:#22c55e;font-weight:600;flex-shrink:0;margin-left:4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .email-add-contact-pill{font-size:10px;padding:2px 7px;border-radius:8px;background:transparent;border:1px dashed rgba(251,191,36,.3);color:var(--t4);font-weight:500;flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center;gap:3px;transition:all .15s}
 .email-add-contact-pill:hover{background:rgba(251,191,36,.12);color:#f59e0b;border-color:rgba(251,191,36,.5)}
 

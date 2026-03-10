@@ -1146,7 +1146,7 @@ Issues observed directly from the user's screenshot:
 ### N-INBOX: EMAIL LIST VIEW REDESIGN
 
 #### N1. Row structure: cards → flat rows
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Flat rows with bottom border, no cards/shadows/radius
 - **Severity:** CRITICAL
 - **Files:** `css/features.css` (email-row), `js/views.js` (rEmailListPanel)
 - **Problem:** TaskFlow email rows use card-style design: `background: var(--glass)`, `border: 1px solid var(--gborder)`, `border-radius: var(--r)`, `box-shadow` on hover, `transform: translateY(-1px)` lift effect. Gmail rows are flat — no border, no radius, no shadow, no lift. Rows are separated only by a `1px` bottom border. The card aesthetic makes each email feel like a standalone widget rather than a list item in a continuous stream.
@@ -1166,7 +1166,7 @@ Issues observed directly from the user's screenshot:
   ```
 
 #### N2. Row layout: subject + snippet on same line as sender
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Single-line layout: sender | subject — snippet | date
 - **Severity:** CRITICAL
 - **Files:** `js/views.js` lines 6767-6870, `css/features.css` (email-row-main)
 - **Problem:** TaskFlow uses a 2-row layout per email: Row 1 = sender + badges, Row 2 = subject + snippet. Gmail uses a single-row layout: `[checkbox] [star] [sender] [subject — snippet] [date]` all on one line. Gmail's layout is denser and scannable — you see 20+ emails per screen vs TaskFlow's ~12.
@@ -1177,7 +1177,7 @@ Issues observed directly from the user's screenshot:
   Move `.email-row-main` from `flex-direction:column` to `flex-direction:row`. Subject and snippet share a single truncated line with ` — ` separator (already used in the snippet span, just needs to be on the same row as sender). CRM badges move to a subtle indicator system (see N5).
 
 #### N3. Row grid: 4 columns → Gmail's flat flex
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Switched from CSS grid to flexbox row
 - **Severity:** HIGH
 - **Files:** `css/features.css` (email-row grid-template-columns)
 - **Problem:** TaskFlow uses `grid-template-columns: 12px 36px 1fr auto` (dot, avatar, content, meta). Gmail uses a simpler flex row: checkbox area, star, sender block (fixed ~200px), subject+snippet (flex:1), date (right-aligned). The grid approach adds structural rigidity that makes it hard to achieve Gmail's fluid feel.
@@ -1197,7 +1197,7 @@ Issues observed directly from the user's screenshot:
   ```
 
 #### N4. Row height: ~60px → ~40px
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — 40px row height with 0 vertical padding
 - **Severity:** HIGH
 - **Files:** `css/features.css` (email-row padding)
 - **Problem:** TaskFlow rows have `padding: 12px 16px` plus the 2-row internal layout, resulting in ~56-64px row height. Gmail rows are ~40px (single line, `padding: 4px 16px`). This means Gmail fits ~18 emails in view vs TaskFlow's ~10-12.
@@ -1306,7 +1306,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Make group headers optional (toggle in settings). When shown, use Gmail's minimal style: small text, left-aligned, no background, just a thin top border. Or remove entirely and rely on per-row dates.
 
 #### N14. Staggered animations: card entrance → instant render
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — All entrance animations removed
 - **Severity:** LOW
 - **Files:** `css/features.css` lines 1059-1068 (animation delays)
 - **Problem:** TaskFlow animates email rows in with staggered `cardIn` animations (0.03s delays per row). Gmail renders the list instantly with no animations. The stagger makes the list feel slower than it is.
@@ -1579,7 +1579,7 @@ Issues observed directly from the user's screenshot:
   Consider a draggable divider for user-controlled sizing.
 
 #### N35. Section height: calc(100vh - 140px) → flex-based
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Flex-based height with email-page-wrap container
 - **Severity:** HIGH
 - **Files:** `css/features.css` (email-split-view height)
 - **Problem:** TaskFlow hardcodes `height: calc(100vh - 140px)`. The 140px estimate breaks when header height changes. Gmail uses flex layout with `overflow: auto` — the email section fills all available space naturally.
@@ -1609,7 +1609,7 @@ Issues observed directly from the user's screenshot:
 ### N-THEME: VISUAL LANGUAGE & TYPOGRAPHY
 
 #### N37. Color scheme: dark glass-morphism → clean and neutral
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Transparent rows, solid toolbar, no glass/blur
 - **Severity:** HIGH
 - **Problem:** TaskFlow's email section uses the app's dark theme with glass-morphism (translucent backgrounds, blur, glowing borders). Gmail uses a clean white/light theme with minimal decoration. The glass-morphism aesthetic conflicts with email readability — emails are text-heavy content that benefits from high-contrast, clean backgrounds.
 - **Fix:** For the email section specifically, adopt a cleaner visual language:
@@ -1635,7 +1635,7 @@ Issues observed directly from the user's screenshot:
   - Use system font stack for email content: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
 
 #### N39. Hover effects: transform + shadow → subtle background only
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Background-only hover, no transform/shadow
 - **Severity:** MEDIUM
 - **Files:** `css/features.css` (email-row:hover)
 - **Problem:** TaskFlow's hover effects include `transform: translateY(-1px)`, `box-shadow: var(--shadow-md)`, and expanding `::before` pseudo-element. Gmail's hover effect is a single `background-color` change. The aggressive hover effects make the list feel jumpy.
@@ -1648,7 +1648,7 @@ Issues observed directly from the user's screenshot:
   ```
 
 #### N40. Transitions: .28s ease → fast or instant
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — transition: background .1s ease
 - **Severity:** LOW
 - **Files:** `css/features.css` (transition: all .28s)
 - **Problem:** TaskFlow uses `transition: all .28s var(--ease)` on email rows. This is perceptibly slow for a list UI — hovering feels laggy. Gmail uses either no transition or very fast ones (~100ms) for hover states.
@@ -1980,16 +1980,16 @@ For implementation reference, these are the key Gmail measurements and patterns 
 43. **K13** ✅ Unread badge on sidebar email nav item (already implemented)
 44. **K10** ✅ Consolidate duplicate rule engines (shared api/_lib/email-rules.js)
 
-### Phase 7: Gmail UI Redesign — Foundation (the visual overhaul)
-45. **N1** - Row structure: remove card styling, use flat rows with bottom border
-46. **N2** - Row layout: flatten to single-line (sender + subject — snippet + date)
-47. **N3** - Row grid: switch from CSS grid to flex row
-48. **N4** - Row height: reduce from ~60px to ~40px
-49. **N37** - Color scheme: remove glass-morphism from email section
-50. **N39** - Hover effects: simplify to background-only
-51. **N40** - Transitions: speed up from .28s to .1s
-52. **N14** - Remove staggered entrance animations
-53. **N35** - Section height: flex-based instead of calc()
+### Phase 7: Gmail UI Redesign — Foundation (the visual overhaul) ✅
+45. **N1** ✅ Row structure: flat rows with bottom border (no cards/shadows/radius)
+46. **N2** ✅ Row layout: single-line (sender | subject — snippet | date)
+47. **N3** ✅ Row grid: flexbox row replacing CSS grid
+48. **N4** ✅ Row height: 40px (down from ~60px)
+49. **N37** ✅ Color scheme: transparent rows, solid toolbar, no glass/blur
+50. **N39** ✅ Hover effects: background-only (no transform/shadow)
+51. **N40** ✅ Transitions: background .1s ease
+52. **N14** ✅ Staggered entrance animations removed
+53. **N35** ✅ Section height: flex-based with email-page-wrap container
 
 ### Phase 8: Gmail UI Redesign — Interactions & Thread View
 54. **N5** - CRM badges: remove from rows, use hover reveal + subtle indicators
@@ -2129,6 +2129,7 @@ For implementation reference, these are the key Gmail measurements and patterns 
 
 | Date | Commit | Issues Fixed |
 |------|--------|--------------|
+| 2026-03-10 | (Phase 7) | N1 (flat rows), N2 (single-line layout), N3 (grid→flex), N4 (40px rows), N14 (remove animations), N35 (flex heights), N37 (remove glass-morphism), N39 (background-only hover), N40 (fast transitions) |
 | 2026-03-10 | (Phase 6) | K1 (standardize entity email tabs), K2 (fix cp.client→cp.partner), K4 (linked email in task detail), K5 (email search in command palette), K7 (async Supabase fetch for entity emails), K10 (shared rule engine module), K13 (already implemented) |
 | 2026-03-10 | (Phase 5) | M1 (AI urgency pinning + sort), M7 (quick-reply suggestions API + UI), M8 (AI summary replaces snippet), M10 (meeting/task banners in thread), M12 (follow-up reminder in thread), L14 (re-analysis on CRM change), L16 (embed on poll), L17 (re-embed updated threads) |
 | 2026-03-10 | (Phase 4) | L6 (strip HTML to plain text), L7 (recipient context in prompt), L8 (CRM context in prompt), L9 (SSE streaming), L21 (prompt injection defense), M4 (tone/length controls), M5 (regeneration + variant cycling) |

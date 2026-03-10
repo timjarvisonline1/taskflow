@@ -6596,7 +6596,9 @@ function rEmail(){
   if(sub==='e-scheduled')return rEmailScheduledList();
   /* NOTE: Do NOT clear S.gmailThreadId here — that caused state loss on every render() */
 
-  var h='<div class="pg-head"><h1>'+icon('mail',18)+' Email';
+  /* N35: Flex column wrapper so split-view can use flex:1 */
+  var h='<div class="email-page-wrap">';
+  h+='<div class="pg-head"><h1>'+icon('mail',18)+' Email';
   if(S.gmailUnread>0)h+=' <span style="background:#EA4335;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+S.gmailUnread+'</span>';
   h+='</h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
@@ -6630,6 +6632,7 @@ function rEmail(){
   h+='</div>';
 
   h+='</div>'; /* close email-split-view */
+  h+='</div>'; /* close email-page-wrap */
   return h}
 
 /* ── Email List Panel (can be refreshed independently) ── */
@@ -6855,60 +6858,48 @@ function rEmailList(threads){
     var initial=(fromName||fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(fromEmail);
 
+    /* N2/N3: Single-line flat row: [dot] [avatar] [from-wrap] [subject — snippet] [meta] */
     var _isBulkSel=S.emailBulkMode&&S.emailBulkSelected[threadId];
     h+='<div class="email-row'+(isUnread?' email-unread':'')+(_isBulkSel?' email-bulk-sel':'')+'" data-tid="'+esc(threadId)+'" onclick="'+(S.emailBulkMode?'TF.emailToggleSel(\''+esc(threadId)+'\')':'TF.openEmailThread(\''+esc(threadId)+'\')')+'">';
     if(S.emailBulkMode){h+='<div class="email-bulk-check"><input type="checkbox" '+(_isBulkSel?'checked':'')+' onclick="event.stopPropagation();TF.emailToggleSel(\''+esc(threadId)+'\')"></div>'}
     else{h+='<div class="email-dot '+(isUnread?'email-dot-on':'email-dot-off')+'"></div>'}
     h+='<div class="email-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
     h+='<div class="email-row-main">';
-    h+='<div class="email-row-top">';
+    /* From section (fixed width) */
+    h+='<div class="email-row-from-wrap">';
     h+='<span class="email-row-from">'+esc(fromDisplay)+'</span>';
     if(msgCount>1)h+='<span class="email-count">'+msgCount+'</span>';
-    if(t.hasAttachments)h+='<span class="email-att-indicator">'+icon('paperclip',11)+'</span>';
+    if(t.hasAttachments)h+='<span class="email-att-indicator">'+icon('paperclip',10)+'</span>';
+    /* M1 — Urgency pin */
+    if(t.ai_urgency==='critical')h+='<span class="email-urgency-pin critical" title="Critical">'+icon('alertTriangle',10)+'</span>';
+    else if(t.ai_urgency==='high')h+='<span class="email-urgency-pin high" title="High priority">'+icon('arrowUp',10)+'</span>';
+    h+='</div>';
+    /* Subject + snippet section (flex:1, truncated) */
+    h+='<div class="email-row-content">';
+    h+='<span class="email-row-subject">'+esc(subject)+'</span>';
+    h+='<span class="email-row-snippet"> — '+esc(snippet.substring(0,80))+'</span>';
+    h+='</div>';
+    /* CRM badges (subtle, after content) */
     if(companyPill)h+='<span class="email-client-badge">'+esc(companyPill)+'</span>';
-    /* End-client pill */
     if(crmCtx&&crmCtx.primaryEndClient)h+='<span class="email-ec-pill">'+esc(crmCtx.primaryEndClient)+'</span>';
-    /* Campaign pill */
     if(crmCtx&&crmCtx.campaigns.length)h+='<span class="email-camp-pill">'+esc(crmCtx.campaigns[0].name)+'</span>';
-    /* Opportunity pills — max 2 */
-    if(crmCtx&&crmCtx.opportunities.length){
-      var _oppMax=Math.min(crmCtx.opportunities.length,2);
-      for(var oi=0;oi<_oppMax;oi++){h+='<span class="email-opp-pill">'+esc(crmCtx.opportunities[oi].name)+'</span>'}
-      if(crmCtx.opportunities.length>2)h+='<span class="email-opp-pill">+'+(crmCtx.opportunities.length-2)+'</span>'}
+    if(crmCtx&&crmCtx.opportunities.length)h+='<span class="email-opp-pill">'+esc(crmCtx.opportunities[0].name)+'</span>';
     /* Add as Contact — for unknown addresses */
     if(crmCtx&&crmCtx.hasUnknown){
       var _unknAddr=crmCtx.unknownAddrs[0]||'';
       var _unknName=(fromEmail.toLowerCase()===_unknAddr?fromName:'').replace(/'/g,"\\'");
       h+='<span class="email-add-contact-pill" onclick="event.stopPropagation();TF.addContactFromEmail(\''+esc(_unknAddr)+'\',\''+_unknName+'\')">';
-      h+=icon('contact',9)+' + Contact';
-      if(crmCtx.unknownAddrs.length>1)h+=' <span style="opacity:.7">('+crmCtx.unknownAddrs.length+')</span>';
-      h+='</span>'}
-    /* M1 — Urgency pin for critical/high threads (visible in all views) */
-    if(t.ai_urgency==='critical')h+='<span class="email-urgency-pin critical" title="Critical">'+icon('alertTriangle',10)+'</span>';
-    else if(t.ai_urgency==='high')h+='<span class="email-urgency-pin high" title="High priority">'+icon('arrowUp',10)+'</span>';
+      h+=icon('contact',9)+' + Contact</span>'}
     /* AI-driven urgency dot (for Action Required threads) */
     if(t.needs_reply===true&&(t.reply_status==='pending'||!t.reply_status)){
       var _urgDotColors={critical:'#ef4444',high:'#f59e0b',normal:'#3b82f6',low:'#71717a'};
       var _urgDotColor=_urgDotColors[t.ai_urgency]||_urgDotColors.normal;
-      h+='<span style="width:7px;height:7px;border-radius:50%;background:'+_urgDotColor+';flex-shrink:0;display:inline-block" title="Action Required ('+esc(t.ai_urgency||'normal')+')"></span>'}
-    /* AI indicators */
-    if(t.ai_sentiment&&t.ai_sentiment!=='neutral'){
-      var _esDot={positive:'var(--green)',cautious:'var(--amber)',negative:'var(--red)'};
-      h+='<span class="email-sentiment-dot" style="background:'+_esDot[t.ai_sentiment]+'" title="'+esc(t.ai_sentiment)+'"></span>'}
-    if(t.has_meeting)h+='<span class="email-meeting-badge" title="Meeting">'+icon('calendar',10)+'</span>';
-    if(t.ai_category)h+='<span class="email-cat-pill">'+esc(t.ai_category)+'</span>';
-    /* Participant count */
-    var toEmails=t.toEmails||t.to_emails||'';
-    if(toEmails){var pCount=1;var toParts=toEmails.split(',');pCount+=toParts.length;
-      if(pCount>2)h+='<span class="email-participant-count">'+icon('users',10)+' '+pCount+'</span>'}
+      h+='<span style="width:6px;height:6px;border-radius:50%;background:'+_urgDotColor+';flex-shrink:0" title="Action Required"></span>'}
     h+='</div>';
-    h+='<div class="email-row-bottom">';
-    h+='<span class="email-row-subject">'+esc(subject)+'</span>';
-    h+='<span class="email-row-snippet"> — '+esc(snippet.substring(0,80))+'</span>';
-    h+='</div></div>';
+    /* Meta (right side) */
     h+='<div class="email-row-meta">';
     h+='<span class="email-row-date">'+dateLabel+'</span>';
-    h+='<button class="email-archive-btn" onclick="event.stopPropagation();TF.archiveEmail(\''+esc(threadId)+'\')">'+icon('archive',12)+' Archive</button>';
+    h+='<button class="email-archive-btn" onclick="event.stopPropagation();TF.archiveEmail(\''+esc(threadId)+'\')">'+icon('archive',12)+'</button>';
     h+='</div>';
     h+='</div>';
   });
