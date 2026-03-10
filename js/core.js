@@ -3589,25 +3589,109 @@ async function inlineAiDraftGo(){
     var clientId=gmailThread?gmailThread.clientId||gmailThread.client_id:null;
     var payload={threadId:threadId,messages:messages,subject:subject,clientId:clientId};
     if(customPrompt)payload.customPrompt=customPrompt;
+    /* M4 — tone/length from UI controls */
+    var toneEl=document.querySelector('.ai-draft-tone-btn.active');
+    var lengthEl=document.querySelector('.ai-draft-length-btn.active');
+    if(toneEl&&toneEl.dataset.tone)payload.tone=toneEl.dataset.tone;
+    if(lengthEl&&lengthEl.dataset.length)payload.length=lengthEl.dataset.length;
+    /* L7 — Recipient context: find contact info for the latest sender */
+    var latestFrom=(messages[messages.length-1]||{}).from||'';
+    if(latestFrom&&S.contacts){
+      var contactMatch=S.contacts.find(function(c){return c.email&&c.email.toLowerCase()===latestFrom.toLowerCase()});
+      if(contactMatch){
+        payload.recipientContext={name:((contactMatch.firstName||'')+' '+(contactMatch.lastName||'')).trim(),role:contactMatch.role||'',clientName:contactMatch.clientName||'',endClientName:contactMatch.endClient||'',relationship:contactMatch.relationship||''};
+      }
+    }
+    /* L8 — CRM context from the thread's linked client/campaign/opportunity */
+    if(gmailThread){
+      var crm={};
+      var cId=gmailThread.client_id||gmailThread.clientId;
+      if(cId&&S.clients){var cl=S.clients.find(function(c){return c.id===cId});if(cl)crm.clientName=cl.name}
+      var ecName=gmailThread.end_client||gmailThread.endClient;if(ecName)crm.endClientName=ecName;
+      var campId=gmailThread.campaign_id||gmailThread.campaignId;
+      if(campId&&S.campaigns){var camp=S.campaigns.find(function(c){return c.id===campId});if(camp){crm.campaignName=camp.name;crm.campaignStatus=camp.status||''}}
+      var oppId=gmailThread.opportunity_id||gmailThread.opportunityId;
+      if(oppId&&S.opportunities){var opp=S.opportunities.find(function(o){return o.id===oppId});if(opp){crm.opportunityName=opp.name;crm.opportunityStage=opp.stage||''}}
+      if(Object.keys(crm).length)payload.crmContext=crm;
+    }
+    /* L9 — SSE streaming mode */
+    payload.stream=true;
+    var editor=gel('email-inline-reply-editor');
+    if(editor)editor.innerHTML='<span class="ai-draft-cursor"></span>';
+    var wrap=gel('inline-ai-draft-prompt');if(wrap)wrap.classList.remove('open');
+    if(promptInput)promptInput.value='';
     var draftResp=await fetch('/api/knowledge/ai-draft',{
       method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify(payload)});
     if(!draftResp.ok){var errData=await draftResp.json().catch(function(){return{}});throw new Error(errData.error||'AI Draft failed')}
-    var result=await draftResp.json();
-    var draft=result.draft||'';
+    var rawText='';var sourceCount=0;
+    var reader=draftResp.body.getReader();var decoder=new TextDecoder();var buf='';
+    while(true){
+      var chunk=await reader.read();
+      if(chunk.done)break;
+      buf+=decoder.decode(chunk.value,{stream:true});
+      var lines=buf.split('\n');buf=lines.pop()||'';
+      var evtType='';
+      for(var li=0;li<lines.length;li++){
+        var line=lines[li];
+        if(line.startsWith('event: ')){evtType=line.substring(7).trim();continue}
+        if(line.startsWith('data: ')){
+          var dStr=line.substring(6);
+          try{var dObj=JSON.parse(dStr);
+            if(evtType==='sources'){sourceCount=(dObj.sources||[]).length}
+            else if(evtType==='token'&&dObj.token){
+              rawText+=dObj.token;
+              if(editor){var cursor=editor.querySelector('.ai-draft-cursor');
+                if(cursor)cursor.insertAdjacentText('beforebegin',dObj.token);
+                else editor.insertAdjacentText('beforeend',dObj.token)}
+            }
+          }catch(pe){}
+          evtType='';
+        }
+      }
+    }
+    /* Clean up streaming result */
+    var draft=rawText.trim();
+    draft=draft.replace(/^```html\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/g,'').trim();
+    if(draft&&!draft.includes('font-family')){
+      draft='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.6">'+draft+'</div>'}
+    if(editor){editor.innerHTML=draft}
     if(!draft){toast('AI could not generate a draft','warn');return}
-    /* Prepend into inline reply editor (preserve existing content) */
-    var editor=gel('email-inline-reply-editor');
-    if(editor){var existing=editor.innerHTML||'';
-      if(existing&&existing!=='<br>')editor.innerHTML=draft+'<br><br>'+existing;
-      else editor.innerHTML=draft}
-    /* Hide prompt */
-    var wrap=gel('inline-ai-draft-prompt');if(wrap)wrap.classList.remove('open');
-    if(promptInput)promptInput.value='';
-    var sources=result.sources||[];
-    toast('Draft generated from '+sources.length+' knowledge sources','ok')
+    /* M5 — Store variant for cycling */
+    if(!S._aiDraftVariants)S._aiDraftVariants={};
+    if(!S._aiDraftVariants[threadId])S._aiDraftVariants[threadId]={drafts:[],idx:0};
+    var variants=S._aiDraftVariants[threadId];
+    variants.drafts.push(draft);
+    variants.idx=variants.drafts.length-1;
+    _showDraftVariantBar(threadId);
+    toast('Draft generated from '+sourceCount+' knowledge sources','ok')
   }catch(e){console.error('inlineAiDraft error:',e);toast(e.message||'AI Draft failed','err')
   }finally{if(goBtn){goBtn.disabled=false;goBtn.innerHTML=icon('sparkle',10)+' Draft'}}}
+
+/* M5 — AI draft variant bar & cycling */
+function _showDraftVariantBar(threadId){
+  var existing=gel('ai-draft-variant-bar');if(existing)existing.remove();
+  var variants=S._aiDraftVariants&&S._aiDraftVariants[threadId];
+  if(!variants||!variants.drafts.length)return;
+  var total=variants.drafts.length;var cur=variants.idx+1;
+  var bar=document.createElement('div');bar.id='ai-draft-variant-bar';bar.className='ai-draft-variant-bar';
+  bar.innerHTML='<span class="ai-draft-variant-label">Draft '+cur+' of '+total+'</span>'+
+    (total>1?'<button class="ai-draft-variant-btn" onclick="TF.cycleDraftVariant(-1)" title="Previous">'+icon('chevronLeft',10)+'</button>'+
+    '<button class="ai-draft-variant-btn" onclick="TF.cycleDraftVariant(1)" title="Next">'+icon('chevronRight',10)+'</button>':'')+
+    '<button class="ai-draft-variant-btn ai-draft-regen" onclick="TF.regenerateDraft()">'+icon('refresh',10)+' Regenerate</button>';
+  var editor=gel('email-inline-reply-editor');
+  if(editor&&editor.parentNode)editor.parentNode.insertBefore(bar,editor);
+}
+function cycleDraftVariant(dir){
+  var threadId=S.gmailThreadId;if(!threadId)return;
+  var variants=S._aiDraftVariants&&S._aiDraftVariants[threadId];
+  if(!variants||variants.drafts.length<2)return;
+  variants.idx=(variants.idx+dir+variants.drafts.length)%variants.drafts.length;
+  var editor=gel('email-inline-reply-editor');
+  if(editor)editor.innerHTML=variants.drafts[variants.idx];
+  _showDraftVariantBar(threadId);
+}
+function regenerateDraft(){inlineAiDraftGo()}
 
 /* ── Toggle action card expand (for compact cards) ── */
 function toggleActionExpand(el){

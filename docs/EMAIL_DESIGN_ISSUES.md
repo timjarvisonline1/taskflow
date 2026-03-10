@@ -909,7 +909,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Split prompts: persona + rules → `system` message; email thread + knowledge context → `user` message.
 
 ### L6. AI draft sends raw HTML email bodies to Claude
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `api/knowledge/ai-draft.js` line 102
 - **Problem:** Message bodies from Gmail are HTML. These are sent directly to Claude as-is. Heavily-styled emails with `<div>`, `<table>`, CSS, and tracking pixels waste tokens without adding useful context.
@@ -917,21 +917,21 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Strip HTML to plain text before including in the prompt. Keep the response format as HTML per the prompt instructions.
 
 ### L7. AI draft has no recipient context
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `api/knowledge/ai-draft.js` (JSDoc line 15 documents `recipients` but it's never used)
 - **Problem:** Claude doesn't know WHO the reply is going to. The prompt provides the email thread but not recipient names, roles, or CRM relationships. This limits tone appropriateness and personalization.
 - **Fix:** Include recipient info: name, email, role (from contacts), client/end-client relationship. Extract from the thread `to`/`cc` fields already available.
 
 ### L8. AI draft has no CRM context beyond RAG
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **File:** `api/knowledge/ai-draft.js` lines 124-148
 - **Problem:** The prompt relies entirely on RAG-retrieved knowledge chunks for business context. It doesn't include the explicit CRM data already available: client name, campaign name/status, opportunity name/stage, end-client, contact details, recent tasks. This structured context would significantly improve draft relevance.
 - **Fix:** Accept CRM context from the client (thread CRM fields are already resolved), include in prompt as structured context before the email thread.
 
 ### L9. AI draft has no streaming — blocks for 5-30 seconds
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** HIGH
 - **File:** `api/knowledge/ai-draft.js` lines 151-155, `js/core.js` line 3443
 - **Problem:** The endpoint waits for the complete Claude response before returning. For complex emails with lots of knowledge context, this can take 15-30+ seconds. UI shows only "Drafting..." with no progressive feedback. Other endpoints in the app (Kajabi report generator) already use SSE streaming.
@@ -1018,7 +1018,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Return generic error message to client; log full error server-side.
 
 ### L21. Prompt injection risk — email content interpolated unsanitized
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM
 - **Files:** `api/gmail/analyze.js` lines 60-68, `api/knowledge/ai-draft.js` lines 99-103
 - **Problem:** Email subjects, snippets, bodies, and from names are interpolated directly into AI prompts without any sanitization. A malicious email could contain text like "Ignore all previous instructions..." in its subject line.
@@ -1061,7 +1061,7 @@ Issues observed directly from the user's screenshot:
 - **Opportunity:** Stream Claude's response via SSE into the editor in real-time. Text appears progressively as it's generated, like ChatGPT. The user sees the draft forming and can stop early if the direction is wrong. Add "Stop generating" button.
 
 ### M4. AI draft with tone/length controls
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM (feature)
 - **Problem:** Current AI draft takes an optional custom prompt but has no structured controls for tone, length, or formality.
 - **Opportunity:** Add quick selectors before generating:
@@ -1071,7 +1071,7 @@ Issues observed directly from the user's screenshot:
   These map to prompt modifiers. Most replies need just "short + professional + acknowledge" rather than a custom prompt.
 
 ### M5. AI draft regeneration and variant selection
-- **Status:** [ ]
+- **Status:** [x]
 - **Severity:** MEDIUM (feature)
 - **Problem:** Current flow generates one draft. If the user doesn't like it, they must click "AI Draft" again, re-enter a prompt, and wait another 5-30 seconds. No way to compare alternatives.
 - **Opportunity:** Add "Regenerate" button that uses cached embedding/search results (skip the 2-second RAG step, only re-call Claude). Show "Draft 1 of 3" with arrows to flip between variants.
@@ -1952,14 +1952,14 @@ For implementation reference, these are the key Gmail measurements and patterns 
 21. **A3** - AI draft HTML has no font styling
 22. **L5** - Add system messages to AI draft and analyze endpoints
 
-### Phase 4: AI Draft Quality & Speed
-23. **L9** - Add SSE streaming to AI draft (M3 — stop blocking for 5-30 seconds)
-24. **L8** - Include CRM context in AI draft prompt (client, campaign, opportunity data)
-25. **L7** - Include recipient context in AI draft prompt (name, role, relationship)
-26. **L6** - Strip HTML to plain text before sending to Claude (save tokens)
-27. **M4** - Add tone/length/action controls to AI draft
-28. **M5** - AI draft regeneration and variant selection
-29. **L21** - Sanitize email content in AI prompts (prompt injection defense)
+### Phase 4: AI Draft Quality & Speed ✅
+23. ~~**L9** - Add SSE streaming to AI draft (M3 — stop blocking for 5-30 seconds)~~
+24. ~~**L8** - Include CRM context in AI draft prompt (client, campaign, opportunity data)~~
+25. ~~**L7** - Include recipient context in AI draft prompt (name, role, relationship)~~
+26. ~~**L6** - Strip HTML to plain text before sending to Claude (save tokens)~~
+27. ~~**M4** - Add tone/length/action controls to AI draft~~
+28. ~~**M5** - AI draft regeneration and variant selection~~
+29. ~~**L21** - Sanitize email content in AI prompts (prompt injection defense)~~
 
 ### Phase 5: AI Intelligence Layer
 30. **M1** - AI-enhanced smart inbox routing (use urgency/category/sentiment for inbox placement)
@@ -2129,6 +2129,7 @@ For implementation reference, these are the key Gmail measurements and patterns 
 
 | Date | Commit | Issues Fixed |
 |------|--------|--------------|
+| 2026-03-10 | (Phase 4) | L6 (strip HTML to plain text), L7 (recipient context in prompt), L8 (CRM context in prompt), L9 (SSE streaming), L21 (prompt injection defense), M4 (tone/length controls), M5 (regeneration + variant cycling) |
 | 2026-03-10 | (Phase 3) | A1 (editor font-family), A5 (editor CSS reset), A3 (AI draft font styling), L1 (AI draft cache fix), L3 (AI draft prepend not replace), L5 (system messages for AI endpoints), L11 (batch analysis parse recovery), L15 (rule To/CC field names) |
 | 2026-03-10 | (Phase 2) | I5 (email-to-client index maps), I4 (granular CRM cache), I7 (thread detail cache), I3 (targeted DOM updates replace render()), IUX2 (loading progress bar), IUX3 (stale-while-revalidate), IUX6 (global undo system for archive/trash/mark-read), I12 (lazy iframe loading) |
 | 2026-03-10 | (Phase 1) | I1 (parallel thread fetch), I2 (background sync), IUX1 (optimistic UI), IUX5 (send loading state), I9 (batch archive endpoint), I13 (request timeouts + retry) |

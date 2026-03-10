@@ -162,6 +162,9 @@ taskflow/
 │   ├── add-prospects.sql          # prospect_companies + prospects tables
 │   └── add-meeting-group-call.sql # is_group_call, group_call_type, kajabi_report_html columns on meetings
 │
+├── docs/
+│   └── EMAIL_DESIGN_ISSUES.md  # Living email audit: 153 issues across 13 sections (A-M), priority phases, quick wins, changelog
+│
 └── scripts/
     ├── run-migration.py        # Helper to run SQL migrations
     ├── fix-null-dates.py       # Utility for fixing null date issues
@@ -447,7 +450,10 @@ Email sub-views (via rEmail() dispatcher):
   rEmailActionRequired()   — AI-powered triage: urgency-grouped cards with CRM context, dismiss, snooze
   rEmailDraftList()        — Saved drafts with open/delete (uses localStorage)
   rEmailScheduledList()    — Scheduled emails: pending (with countdown), failed, sent history
-  rEmailThread()           — Thread view: message list with expand/collapse, reply/forward/reply-all
+  rEmailListPanel()        — Split view left panel: thread list with avatars, badges, archive button
+  rEmailThreadModal()      — Split view center+right: message list + inline reply + CRM sidebar
+  rEmailThread()           — Legacy full-page thread view (backward compat, no longer primary)
+  rThreadCrmContext()      — CRM context info panels (client badges, people section)
   (inbox/sent/all)         — Thread list with filter toggle + search + CRM filter bar + bulk mode
   (smart inboxes)          — Filtered by CRM context: e-active, e-lapsed, e-prospects, e-campaigns, e-opportunities, e-other
 
@@ -462,6 +468,9 @@ Mobile views:
 
 - **`buildClientMap()`** — Shared helper that aggregates client data (revenue, tasks, time, campaigns, opportunities, meetings, payments) while filtering out "Internal" and "N/A" entries. Used by both `rClients()` and `rDashboard()`.
 - **`buildEndClientMap()`** — Aggregates end-client data across campaigns, opportunities, contacts, tasks. Returns a map of `{name → {campaigns, opportunities, contacts, openTasks, ...}}`.
+- **`rEmailListPanel()`** — Split view left panel. Renders compact email rows with avatars, category badges, archive buttons, date grouping ("Today", "Yesterday", etc.).
+- **`rEmailThreadModal(threadId)`** — Split view center+right panels. Full thread messages with expand/collapse, inline reply editor (collapsed by default, expands on focus), and CRM sidebar with dropdowns + people section.
+- **`rThreadCrmContext()`** — CRM context info panels showing client/campaign/opportunity badges and contact people cards.
 - **`buildSubNav(subs)`** — Renders sub-navigation panel. Shows badge counts for review, inbox, drafts, scheduled emails, and smart inboxes.
 - **`filterBar()`** — Renders compact filter controls (client, category, importance, type, search, date range). Uses 11px font, 6px border-radius pills.
 - **`rEntityTabs(tabs, activeTab, setterFn)`** — Shared tab bar component for entity detail modals. Renders `.cp-tabs` with icons and optional badge counts.
@@ -517,7 +526,10 @@ HTML uses: `onclick="TF.openDetail('task-id')"`, `onchange="TF.filt('client', th
 - `buildUpcomingPayments(horizon)` — Builds projected inflows/outflows for forecast
 - `aiBox(id, config)` — AI Assistant chat box component. Config: `{label, system, context, collapsed}`. Used on entity Overview tabs with entity-specific keywords and live data context.
 - `emailAvatarColor(email)` — Consistent color from email string for avatar circles
-- `getThreadCrmContext(thread)` — CRM context (client, campaigns, opportunities) for a thread. Works on both live threads (camelCase) and Supabase threads (snake_case)
+- `_fmtRecipients(raw)` — Formats raw To/Cc address strings into name-only spans with email tooltips
+- `resolveClientId(val)` — Resolves a client name string or UUID to a UUID. Returns null if not found. Mirrors `resolveEndClientId()`.
+- `_autoCategorizeFromContacts(thread)` — Auto-fills CRM fields from contact email matching on thread open. Falls back to live Gmail thread data for Inbox tab threads not yet in Supabase.
+- `getThreadCrmContext(thread)` — CRM context (client, campaigns, opportunities) for a thread. Works on both live threads (camelCase) and Supabase threads (snake_case). Has backward-compat name-based fallback for corrupted `client_id` rows.
 - `resolveThreadCrmContext(from, to, cc)` — Full CRM resolution with contact cascade
 - `applyEmailFilters(threads)` — Client-side CRM filter application via `getThreadCrmContext()`
 - `loadFilteredEmailThreads()` — Server-side Supabase query with label + client_id conditions for filtered views
@@ -897,7 +909,33 @@ Python CLI scripts for initial population of the knowledge base:
 
 **Vector search** (`searchKnowledge()`): Calls `match_knowledge()` SQL function with cosine distance, returns chunks above similarity threshold (default 0.3), ordered by relevance.
 
-**AI Q&A** (`/api/knowledge/ai-ask`): Combines keyword search (SQL `ilike`) with vector similarity search, deduplicates results, sends top chunks as context to Claude for answer generation.
+**AI Q&A** (`/api/knowledge/ai-ask`): Combines keyword search (SQL `ilike`) with vector similarity search, deduplicates results, sends top chunks as context to Claude for answer generation. Uses proper `system` message with persona. Supports multi-turn conversation history.
+
+### AI Email Analysis Pipeline
+
+Six AI-powered email features, all using Claude Sonnet (configurable via `integration_credentials`):
+
+| Feature | Endpoint | Trigger | Model | Max Tokens |
+|---------|----------|---------|-------|------------|
+| Batch Analysis | `/api/gmail/analyze` | Poll (60s) / Refresh / Load | Sonnet | 8192 |
+| Summarization | `/api/gmail/summarize` | Manual | Sonnet | 1024 |
+| EC Suggest | `/api/gmail/ec-suggest` | Manual | Sonnet | 4096 |
+| AI Draft | `/api/knowledge/ai-draft` | Manual | Sonnet + OpenAI embedding | 2048 |
+| AI Q&A | `/api/knowledge/ai-ask` | Manual | Sonnet + OpenAI embedding | 4096 |
+| Email Embedding | `/api/knowledge/ingest-emails` | Manual refresh | OpenAI embedding | N/A |
+
+**Batch analysis** (`analyzeNewEmails()` → `/api/gmail/analyze`): Sends up to 30 threads per batch with snippet, metadata, and CRM context (clients, first 50 contacts, active campaigns, open opportunities). Returns 15 fields per thread including `needs_reply`, `ai_urgency`, `ai_category`, `ai_sentiment`, `has_meeting`, `ai_suggested_task`. Auto-associates suggested client/campaign/opportunity to thread CRM fields.
+
+**AI Draft** (`inlineAiDraftGo()` / `aiDraft()` → `/api/knowledge/ai-draft`): RAG pipeline — embeds latest message + subject → two-tier vector search (client-scoped then broad, up to 15 chunks) → Claude generates HTML reply. Hardcoded persona for Tim Jarvis with style rules (no em-dashes, US English, "Film&Content"). Optional custom prompt for focus direction.
+
+**Email embedding** (`embedNewEmails()` → `/api/knowledge/ingest-emails`): Processes up to 25 un-embedded threads per call. Fetches full message bodies from Gmail API, chunks per-message (15K char max with header), embeds via OpenAI, stores in `knowledge_chunks` with CRM metadata. Currently only triggered on manual refresh, not on poll.
+
+**Key AI architecture notes:**
+- `ai-draft.js` and `analyze.js` use only `user` messages (no `system` message). `ai-ask.js` correctly uses `system` message.
+- All prompts hardcode "Tim Jarvis" persona — single-tenant assumption.
+- Email embedding only runs on manual refresh (`refreshGmailInbox()`), not on 60-second poll. New emails may not enter KB for hours.
+- Threads are only embedded once — new messages added to existing threads are NOT re-embedded.
+- AI analysis uses ~100-char snippets only, not full message bodies (cost/speed tradeoff).
 
 ### Key Functions (embeddings.js)
 
@@ -1029,6 +1067,17 @@ Each entity has standard CRUD helpers:
 16. **Contact email selector** — `.ces-wrap` for container, `.ces-cb` for checkboxes
 17. **Full-screen modals** — `detail-modal` container + `.full-detail` class (components.css:66-82)
 
+## Email Design Document
+
+A comprehensive living audit of all email-related issues lives at `docs/EMAIL_DESIGN_ISSUES.md`. It tracks 153 issues across 13 sections (A-M) with status checkboxes, severity ratings, file references, and fix suggestions. The document includes:
+
+- **Priority order** — 9 phases, 76 prioritized items (Phase 1: performance, Phase 2: perceived speed, Phase 3: AI bugs, Phase 4: AI quality, Phase 5: AI features, Phase 6: cross-feature, Phase 7: UI polish, Phase 8: performance tail, Phase 9: accessibility/enhancements)
+- **Quick wins** — 18 items that are each <30 min (many are 1-line fixes)
+- **Changelog** — tracks which issues are fixed with commit references
+- **Active plans** — CRM UUID fix plan at `.claude/plans/sequential-sparking-axolotl.md` (8 fixes for client_id name-vs-UUID corruption)
+
+When working on email issues, always check and update this document.
+
 ## Common Tasks
 
 ### Adding a new view
@@ -1094,6 +1143,10 @@ Each entity has standard CRUD helpers:
 - `closeModal()` checks for active compose and prompts "Save as draft?" — bypasses draft prompt when called after `sendEmail()` which handles cleanup directly
 - Scheduled emails only send when the TaskFlow tab is open (client-side polling, no server-side cron)
 - Email rules use AND logic for conditions, first matching rule wins based on priority
+- **CRM UUID resolution**: `threadCrmSave()` and `_applyRuleActionsToThread()` must resolve client name strings to UUIDs before writing to `client_id` column. `resolveClientId()` helper (mirrors `resolveEndClientId()`) handles this. See CRM fix plan at `.claude/plans/sequential-sparking-axolotl.md`.
+- **Email split view data sources**: Inbox tab uses live Gmail threads (`S._gmailLiveThreads`, camelCase fields). Smart inboxes and All Mail use Supabase threads (`S.gmailThreads`, snake_case fields). `_autoCategorizeFromContacts()` must handle both via the fallback pattern: `thread.from_email || thread.fromEmail`
+- **AI draft cache miss**: `S._gmailCache` is keyed by filter names (`'inbox'`, `'sent'`), NOT thread IDs. Code attempting `S._gmailCache[threadId]` always fails — use `S.gmailThread` instead
+- **Client-side rule To/CC fields**: `_applyRuleActionsToThread()` reads `thread.to`/`thread.cc` but Supabase threads use `to_emails`/`cc_emails` — must use fallback pattern `(thread.to_emails||thread.toEmails||thread.to||'')`
 - `setGmailFilter()` must be used for email view switches (not `subNav()` directly) to keep `S.subView` and `S.gmailFilter` in sync
 - Archiving from Inbox removes from live list; archiving from other views invalidates inbox cache only (All Mail keeps everything)
 - All Mail view uses `S.gmailThreads` (Supabase data), not live Gmail API fetch
@@ -1113,7 +1166,7 @@ Each entity has standard CRUD helpers:
 - `closeCampaignDashboard()` now calls `closeModal()` since campaign always renders in modal
 - `rCampaigns()` no longer checks `S.campaignDetailId` for in-page rendering
 
-## Current Status (as of 2026-03-08)
+## Current Status (as of 2026-03-09)
 
 ### Integrations
 - **Brex**: Connected, syncing ~308 transactions
@@ -1150,6 +1203,7 @@ Each entity has standard CRUD helpers:
 
 ### Email Features (Complete)
 - Gmail integration with full read/send/archive/trash/mark-read
+- **Gmail-style split view** — `.email-split-view` with left list panel + center detail panel + right CRM sidebar
 - Rich text compose with two-row formatting toolbar (font family, font size, bold/italic/underline/strikethrough, text color, highlight color, alignment, lists, indent/outdent, blockquote, link, emoji picker, inline image, clear formatting, undo/redo)
 - Contact autocomplete with avatar chips
 - Required categorization before sending (client, end client, campaign, opportunity)
@@ -1161,6 +1215,7 @@ Each entity has standard CRUD helpers:
 - Email rules engine (condition/action based, visual rule builder, server-side + client-side application)
 - Smart inboxes (Active Clients, Lapsed Clients, Prospects, By Campaign, By Opportunity, Other)
 - CRM context resolution (contact cascade → domain matching → stored categorization)
+- **Auto-categorization from contacts** — `_autoCategorizeFromContacts()` auto-fills client/end-client/campaign/opportunity on thread open using contact email matching, with fallback to live Gmail thread data for Inbox tab
 - Silent email time tracking (auto-logs reading time as completed tasks)
 - Real-time polling (60-second interval for new emails + scheduled email dispatch)
 - Keyboard shortcuts (email-specific shortcuts disabled during compose)
@@ -1176,6 +1231,8 @@ Each entity has standard CRUD helpers:
 - **Gmail archive syncs to Supabase** — archive updates `gmail_threads.labels` in Supabase too
 - **All Mail shows all synced threads** — uses Supabase data (not limited to one Gmail API page)
 - **Gmail sync pagination** — syncs up to 500 threads, never misses emails after long gaps
+- **AI Draft** — RAG-powered reply drafting with knowledge base context (inline + compose modal)
+- **Thread summarization** — on-demand Claude-powered summaries for long threads (10+ messages)
 
 ### Entity Dashboard Architecture
 
@@ -1244,6 +1301,64 @@ All five entity types (Client, End-Client, Prospect Company, Campaign, Opportuni
 **Key functions:** `loadEndClients()`, `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `discoverEcCandidates()`, `_crSubmit()`, `_crBatchDomain()`, `_crClientAc()`, `_crClientSelect()`, `_crPcAc()`, `_crPcSelect()`, `_crPcCreate()`, `syncRlProspectCompanies()`
 
 ### Recent Changes
+
+**Email Design Audit & AI Review (2026-03-09):**
+- Created `docs/EMAIL_DESIGN_ISSUES.md` — exhaustive living document tracking 153 issues across 13 sections:
+  - **A**: Compose/Reply/AI Draft formatting (6 issues — root cause of "weird font" bug: editor font-family mismatch + AI draft no font styling)
+  - **B**: Email list panel (12 issues — badge overflow, snippet guards, keyboard focus)
+  - **C**: Email detail panel (10 issues — iframe dark mode, collapse indicators, attachment truncation)
+  - **D**: CRM sidebar (10 issues — dropdown sorting, width, checkbox styling)
+  - **E**: Send pipeline (5 issues — loading state, undo, retry, attachment progress)
+  - **F**: Responsive/mobile (6 issues — hardcoded heights, sidebar collapse, touch targets)
+  - **G**: Visual polish (8 issues — icon sizes, color system, empty states)
+  - **H**: Accessibility (6 issues — keyboard nav, aria labels, screen reader support)
+  - **I**: Performance (16 issues — N+1 API problem in threads.js = 51 sequential calls, Gmail sync blocks UI 10-30s, full DOM rebuilds, CRM cache 195K string comparisons)
+  - **I-UX**: Perceived speed (12 issues — no optimistic UI, no loading progress, no undo)
+  - **J**: Screenshot-specific issues (7 issues)
+  - **K**: Cross-feature email integration (13 issues — inconsistent entity Emails tabs, prospect companies have no email, task-email link invisible, command palette doesn't search emails, 500-thread limit affects dashboards)
+  - **L**: AI email bugs (22 issues — draft cache always misses, batch analysis drops failures silently, rules read wrong field names, no streaming, no system messages, prompt injection risk)
+  - **M**: AI enhancement opportunities (14 features — smart inbox routing via AI, streaming drafts, tone/length controls, Smart Reply, semantic search, follow-up reminders, meeting/task extraction)
+- Priority order: 9 phases, 76 prioritized items. Phase 1 = parallelize threads API (5s→1s), background sync, optimistic UI
+- Quick wins section: 18 items, most are 1-line fixes
+
+**Email UI Fixes (2026-03-09, commit ea7f224):**
+- Fixed 16 email design issues from split view audit:
+  - Badge overflow control in compact mode (hide low-priority pills)
+  - Active row highlight softened with accent border instead of hard background
+  - +Contact pill differentiated with dashed outline
+  - Reply composer collapsed by default (42px, expands on focus)
+  - To/Cc address formatting with `_fmtRecipients()` helper (shows names, email on hover)
+  - Clear formatting button changed from X to strikethrough T
+  - CRM sidebar header consistency (`.crm-sb-header` class)
+  - Bigger + buttons (32px)
+  - End-client dropdown now has + button
+  - Opportunity dropdown shows stage in parentheses
+  - Timer widget reduced opacity when not hovered
+  - Sidebar nav tooltips (title attributes)
+  - Scroll cue gradient on detail panels
+  - Bottom padding for timer overlap clearance
+
+**Email Auto-Categorization (2026-03-09, commits f32ed3b, 67e231b, 181f593):**
+- `_autoCategorizeFromContacts()` — auto-fills CRM fields (client, end-client, campaign, opportunity) from contact email matching when a thread is opened
+- Fallback to live Gmail thread data for Inbox tab (where `S.gmailThreads` may not have the thread yet)
+- Handles both camelCase (live threads) and snake_case (Supabase threads) field names
+
+**Email CRM UUID Fix (2026-03-09, commit aa828d1):**
+- Fixed critical bug where `threadCrmSave()` wrote client NAME string to the `client_id` UUID column
+- Added `resolveClientId()` helper (mirrors existing `resolveEndClientId()`)
+- Fixed same bug in `_applyRuleActionsToThread()` for client-side rule application
+- Added backward-compat fallback in `getThreadCrmContext()` for already-corrupted rows (name-based lookup)
+- Fixed client dropdown to include `S.clientRecords` as source (newly created clients now appear)
+- Fixed end-client dropdown to include `S.endClients` as source
+- Fixed `threadCrmClientChange()` cascade to use same expanded sources
+- Full fix plan documented at `.claude/plans/sequential-sparking-axolotl.md`
+
+**Email Split View (2026-03-09, commits 00c7d95, e9bcdb7):**
+- Gmail-style three-panel split view: list panel (left) + detail panel (center) + CRM sidebar (right)
+- `rEmailListPanel()` — compact thread rows with avatars, badges, archive-on-hover
+- `rEmailThreadModal()` — full thread view with messages, inline reply, CRM categorization sidebar
+- Mark-read on thread open, sticky toolbar, entry animations
+- Detail panel uses flexbox split: `.detail-split-left` (messages) + `.detail-split-right` (CRM sidebar, 260px)
 
 **Client Views Overhaul (2026-03-08):**
 - Fixed End-Client detail tabs not working (UUID/name key mismatch in `setEndClientTab` lookup)

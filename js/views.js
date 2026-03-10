@@ -6995,6 +6995,16 @@ function rEmailThreadModal(threadId){
   /* AI Draft prompt */
   h+='<div class="ai-draft-prompt-wrap" id="inline-ai-draft-prompt">';
   h+='<input class="ai-draft-prompt-input" id="inline-ai-draft-input" placeholder="What should the reply focus on? (optional)">';
+  h+='<div class="ai-draft-controls">';
+  h+='<span class="ai-draft-ctrl-label">Tone:</span>';
+  h+='<button class="ai-draft-tone-btn" data-tone="brief" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Brief</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="friendly" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Friendly</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="formal" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Formal</button>';
+  h+='<span class="ai-draft-ctrl-label" style="margin-left:8px">Length:</span>';
+  h+='<button class="ai-draft-length-btn" data-length="short" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Short</button>';
+  h+='<button class="ai-draft-length-btn" data-length="medium" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Medium</button>';
+  h+='<button class="ai-draft-length-btn" data-length="long" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Long</button>';
+  h+='</div>';
   h+='<button class="ai-draft-prompt-go" id="inline-ai-draft-go" onclick="TF.inlineAiDraftGo()">'+icon('sparkle',10)+' Draft</button>';
   h+='</div>';
   /* Inline attachments bar */
@@ -7364,6 +7374,16 @@ function rEmailThread(){
   /* AI Draft prompt input (hidden by default) */
   h+='<div class="ai-draft-prompt-wrap" id="inline-ai-draft-prompt">';
   h+='<input class="ai-draft-prompt-input" id="inline-ai-draft-input" placeholder="What should the reply focus on? (optional)">';
+  h+='<div class="ai-draft-controls">';
+  h+='<span class="ai-draft-ctrl-label">Tone:</span>';
+  h+='<button class="ai-draft-tone-btn" data-tone="brief" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Brief</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="friendly" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Friendly</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="formal" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Formal</button>';
+  h+='<span class="ai-draft-ctrl-label" style="margin-left:8px">Length:</span>';
+  h+='<button class="ai-draft-length-btn" data-length="short" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Short</button>';
+  h+='<button class="ai-draft-length-btn" data-length="medium" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Medium</button>';
+  h+='<button class="ai-draft-length-btn" data-length="long" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Long</button>';
+  h+='</div>';
   h+='<button class="ai-draft-prompt-go" id="inline-ai-draft-go" onclick="TF.inlineAiDraftGo()">'+icon('sparkle',10)+' Draft</button>';
   h+='</div>';
   h+='<div class="email-inline-reply-actions">';
