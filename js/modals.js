@@ -270,9 +270,10 @@ function closeModal(){
     window._composeAttachments=[];
     var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
     inner.classList.remove('tf-modal-wide')}
-  /* Only close detail-modal if no email thread is currently open */
-  if(!S.gmailThreadId){var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail')}
-  var m=gel('modal');if(m)m.classList.remove('on')}
+  /* If email thread is open in detail-modal, close it properly; otherwise just dismiss */
+  if(S.gmailThreadId){closeEmailThread()}
+  else{var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail')}
+  var m=gel('modal');if(m)m.classList.remove('on','email-light')}
 
 async function saveDetail(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
@@ -413,7 +414,7 @@ function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHou
   if(S.templates.length){h+='<select class="per" id="f-tpl" onchange="TF.fillFromTemplate(this.value)"><option value="">Use Template...</option>';
     S.templates.forEach(function(t,i){h+='<option value="'+i+'">'+esc(t.name)+'</option>'});h+='</select>'}
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;var _am=gel('modal');_am.classList.add('on');if(S.view==='email')_am.classList.add('email-light');
   /* Pre-fill from context (e.g. adding task from project view) */
   if(prefill.project){var ptg=gel('mt-proj');if(ptg){ptg.checked=true;modalToggle('mt-proj-fields',true)}
     var ps=gel('f-project');if(ps){ps.value=prefill.project;refreshAddPhases();
@@ -3898,61 +3899,7 @@ function openComposeEmail(opts){
 
   /* ── Formatting toolbar + Editor ── */
   h+='<div class="compose-body-wrap">';
-  h+='<div class="compose-toolbar">';
-  /* Row 1: Font + Size + Text formatting + Color + Clear */
-  h+='<div class="compose-toolbar-row">';
-  h+='<select class="compose-font-select" onchange="TF.execComposeCmd(\'fontName\',this.value)" title="Font family">';
-  h+='<option value="">Font</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option>';
-  h+='<option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option>';
-  h+='<option value="Verdana">Verdana</option><option value="Trebuchet MS">Trebuchet MS</option></select>';
-  h+='<select class="compose-size-select" onchange="TF.execComposeCmd(\'fontSize\',this.value)" title="Font size">';
-  h+='<option value="">Size</option><option value="1">Small</option><option value="3" selected>Normal</option>';
-  h+='<option value="4">Large</option><option value="5">Huge</option></select>';
-  h+='<div class="compose-toolbar-sep"></div>';
-  var row1Btns=[
-    {cmd:'bold',icon:'bold',title:'Bold (Ctrl+B)'},
-    {cmd:'italic',icon:'italic',title:'Italic (Ctrl+I)'},
-    {cmd:'underline',icon:'underline',title:'Underline (Ctrl+U)'},
-    {cmd:'strikethrough',icon:'strikethrough',title:'Strikethrough'}
-  ];
-  row1Btns.forEach(function(b){
-    h+='<button class="compose-toolbar-btn" data-compose-cmd="'+b.cmd+'" title="'+b.title+'" onclick="event.preventDefault();TF.execComposeCmd(\''+b.cmd+'\')">'+icon(b.icon,12)+'</button>'});
-  h+='<div class="compose-toolbar-sep"></div>';
-  /* Color pickers */
-  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Text color" onclick="event.preventDefault();TF.toggleColorPicker(\'text\')"><span style="border-bottom:3px solid #e06666;display:flex">'+icon('type',12)+'</span></button>';
-  h+='<div class="compose-color-picker" id="compose-text-color-picker"></div></div>';
-  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Highlight color" onclick="event.preventDefault();TF.toggleColorPicker(\'bg\')">'+icon('highlighter',12)+'</button>';
-  h+='<div class="compose-color-picker" id="compose-bg-color-picker"></div></div>';
-  h+='<div class="compose-toolbar-sep"></div>';
-  h+='<button class="compose-toolbar-btn" title="Clear formatting" onclick="event.preventDefault();TF.execComposeCmd(\'removeFormat\')">'+icon('eraser',12)+'</button>';
-  h+='</div>';
-  /* Row 2: Alignment + Lists/Indent/Quote + Link/Emoji/Image + Undo/Redo */
-  h+='<div class="compose-toolbar-row">';
-  var row2Btns=[
-    {cmd:'justifyLeft',icon:'align_left',title:'Align left'},
-    {cmd:'justifyCenter',icon:'align_center',title:'Align center'},
-    {cmd:'justifyRight',icon:'align_right',title:'Align right'},
-    {sep:true},
-    {cmd:'insertUnorderedList',icon:'list_ul',title:'Bullet list'},
-    {cmd:'insertOrderedList',icon:'list_ol',title:'Numbered list'},
-    {cmd:'indent',icon:'indent',title:'Indent more'},
-    {cmd:'outdent',icon:'outdent',title:'Indent less'},
-    {cmd:'formatBlock_blockquote',icon:'quote',title:'Quote'},
-    {sep:true},
-    {cmd:'createLink',icon:'link',title:'Insert link'},
-  ];
-  row2Btns.forEach(function(b){
-    if(b.sep){h+='<div class="compose-toolbar-sep"></div>';return}
-    h+='<button class="compose-toolbar-btn" data-compose-cmd="'+b.cmd+'" title="'+b.title+'" onclick="event.preventDefault();TF.execComposeCmd(\''+(b.cmd==='formatBlock_blockquote'?'formatBlock\',\'blockquote':b.cmd+'\',\'')+'\')">'+icon(b.icon,12)+'</button>'});
-  /* Emoji picker */
-  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Insert emoji" onclick="event.preventDefault();TF.toggleEmojiPicker()">'+icon('smile',12)+'</button>';
-  h+='<div class="compose-emoji-picker" id="compose-emoji-picker"></div></div>';
-  h+='<button class="compose-toolbar-btn" title="Insert image" onclick="event.preventDefault();TF.execComposeCmd(\'insertImage\')">'+icon('image',12)+'</button>';
-  h+='<div class="compose-toolbar-sep"></div>';
-  h+='<button class="compose-toolbar-btn" title="Undo (Ctrl+Z)" onclick="event.preventDefault();TF.execComposeCmd(\'undo\')">'+icon('undo',12)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Redo (Ctrl+Y)" onclick="event.preventDefault();TF.execComposeCmd(\'redo\')">'+icon('redo',12)+'</button>';
-  h+='</div>';
-  h+='</div>';
+  h+=buildRichToolbar('compose');
 
   /* Contenteditable editor */
   var bodyContent=opts.body||'';
@@ -4022,6 +3969,8 @@ function openComposeEmail(opts){
   gel('m-body').innerHTML=h;
   /* Add wide class to modal */
   var modal=gel('modal');modal.classList.add('on');
+  /* Light theme for compose opened from email context */
+  if(S.view==='email')modal.classList.add('email-light');
   var inner=modal.querySelector('.tf-modal-inner')||modal;
   inner.classList.add('tf-modal-wide');
 
@@ -4381,7 +4330,7 @@ function openEmailRulesModal(){
       h+='<div class="rule-card-detail"><strong>When:</strong> '+condSummary+'</div>';
       h+='<div class="rule-card-detail"><strong>Then:</strong> '+actSummary+'</div>';
       h+='</div>'})}
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;var _rm=gel('modal');_rm.classList.add('on');if(S.view==='email')_rm.classList.add('email-light')}
 
 function _ruleCondLabel(type){
   var map={from_domain_equals:'From domain equals',from_email_contains:'From email contains',
@@ -4450,7 +4399,7 @@ function _renderRuleEditor(){
   h+='<button class="btn btn-p" onclick="TF.saveRule()" style="font-size:13px;padding:8px 20px">Save Rule</button>';
   h+='<button class="btn" onclick="TF.openEmailRulesModal()" style="font-size:12px;padding:7px 14px">Cancel</button>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;var _arm=gel('modal');_arm.classList.add('on');if(S.view==='email')_arm.classList.add('email-light')}
 
 function _ruleActionValueSelector(act,idx){
   if(act.type==='auto_archive')return'<span style="flex:1;font-size:11px;color:var(--t3);padding:5px">Automatically archive</span>';
@@ -4521,7 +4470,7 @@ function openSignatureEditor(){
   h+='<button class="btn btn-p" onclick="var e=gel(\'sig-editor\');saveEmailSignature(e?e.innerHTML:\'\');TF.closeModal()">Save Signature</button>';
   h+='<button class="btn" onclick="saveEmailSignature(\'\');TF.closeModal()" style="color:var(--red)">Clear Signature</button>';
   h+='</div></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;var _sm=gel('modal');_sm.classList.add('on');if(S.view==='email')_sm.classList.add('email-light')}
 
 /* ═══════════ CONTACT MODALS ═══════════ */
 

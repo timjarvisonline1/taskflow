@@ -25,13 +25,6 @@ function render(){
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
 
-  /* ── Protect email detail panel from full rebuild ── */
-  if(S.view==='email'&&S.gmailThreadId&&gel('email-detail-panel')){
-    _refreshEmailListPanel();
-    buildNav();startEmailPolling();
-    if(S.gmailThread)setTimeout(function(){initEmailIframes()},50);
-    renderSidebar();renderActiveWidget();return}
-
   switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
@@ -6319,18 +6312,25 @@ function _initSingleIframe(iframe){
   if(!encoded||iframe.getAttribute('data-loaded'))return;
   try{
     var html=decodeURIComponent(escape(atob(encoded)));
-    var doc='<!DOCTYPE html><html><head><style>body{font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;color:#e0e0e0;background:transparent;margin:0;padding:12px;word-wrap:break-word}a{color:#4da6ff}img{max-width:100%;height:auto}blockquote{border-left:3px solid #444;margin:8px 0;padding-left:12px;color:#aaa}</style></head><body>'+html+'</body></html>';
+    var doc='<!DOCTYPE html><html><head><style>body{font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;color:#202124;background:#ffffff;margin:0;padding:12px;word-wrap:break-word}a{color:#1a73e8}img{max-width:100%;height:auto}blockquote{border-left:3px solid #dadce0;margin:8px 0;padding-left:12px;color:#5f6368}</style></head><body>'+html+'</body></html>';
+    iframe.style.height='200px'; /* Immediate reasonable default */
     iframe.srcdoc=doc;iframe.setAttribute('data-loaded','1');
     iframe.onload=function(){
-      try{var h=iframe.contentDocument.body.scrollHeight;
-        iframe.style.height=Math.min(h+20,600)+'px';
-      }catch(e){iframe.style.height='300px'}}
+      requestAnimationFrame(function(){
+        try{var h=iframe.contentDocument.body.scrollHeight;
+          iframe.style.height=Math.min(h+20,800)+'px';
+        }catch(e){iframe.style.height='300px'}
+      })}
   }catch(e){console.error('Email iframe error:',e)}}
 
 function initEmailIframes(){
   /* Only init iframes in expanded (non-collapsed) messages — lazy load collapsed ones */
   var iframes=document.querySelectorAll('.email-message:not(.collapsed) .email-iframe[data-email-body]');
-  iframes.forEach(_initSingleIframe)}
+  iframes.forEach(function(iframe,idx){
+    /* Stagger iframe init to avoid blocking main thread */
+    if(idx===0)_initSingleIframe(iframe);
+    else setTimeout(function(){_initSingleIframe(iframe)},idx*50);
+  })}
 
 /* ═══════════ EMAIL VIEWS ═══════════ */
 var AVATAR_COLORS=['#EA4335','#4285F4','#34A853','#FBBC04','#FF6D01','#46BDC6','#7B1FA2','#C2185B','#00897B','#5C6BC0'];
@@ -6596,11 +6596,8 @@ function rEmail(){
   if(sub==='e-scheduled')return rEmailScheduledList();
   /* NOTE: Do NOT clear S.gmailThreadId here — that caused state loss on every render() */
 
-  /* N35: Flex column wrapper so split-view can use flex:1 */
-  var hasDetail=!!S.gmailThreadId;
+  /* N35: Flex column wrapper */
   var h='<div class="email-page-wrap">';
-  /* Hide page header when viewing a thread (full-screen thread view) */
-  if(!hasDetail){
   h+='<div class="pg-head"><h1>'+icon('mail',18)+' Email';
   if(S.gmailUnread>0)h+=' <span style="background:#EA4335;color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+S.gmailUnread+'</span>';
   h+='</h1>';
@@ -6610,31 +6607,13 @@ function rEmail(){
   if(!isSmartInbox)h+='<button class="btn'+(S.emailBulkMode?' btn-p':'')+'" onclick="TF.emailToggleBulk()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+(S.emailBulkMode?'Exit Bulk':'Bulk')+'</button>';
   h+='<button class="btn" onclick="TF.openEmailRulesModal()" style="font-size:12px;padding:7px 14px;border-radius:10px" title="Email Rules">'+icon('settings',12)+'</button>';
   h+='</div></div>';
-  }
 
-  /* ── Split view container ── */
-  h+='<div class="email-split-view'+(hasDetail?' has-detail':'')+'">';
-
-  /* ── Left: List Panel ── */
+  /* ── Email list (full width, threads open in modal) ── */
+  h+='<div class="email-split-view">';
   h+='<div id="email-list-panel" class="email-list-panel">';
   h+=rEmailListPanel();
   h+='</div>';
-
-  /* ── Right: Detail Panel ── */
-  h+='<div id="email-detail-panel" class="email-detail-panel">';
-  if(hasDetail&&S.gmailThread){
-    h+=rEmailDetailInline(S.gmailThreadId);
-  }else if(hasDetail){
-    /* Thread loading — skeleton */
-    h+='<div class="email-detail-inline-header"><div class="email-detail-inline-subject">Loading...</div>';
-    h+='<button class="email-detail-inline-close" onclick="TF.closeEmailThread()">&times;</button></div>';
-    h+='<div style="padding:20px 0">'+rEmailSkeleton()+'</div>';
-  }else{
-    h+=rEmailEmptyDetail();
-  }
   h+='</div>';
-
-  h+='</div>'; /* close email-split-view */
   h+='</div>'; /* close email-page-wrap */
   return h}
 
@@ -6984,6 +6963,65 @@ function _rThreadAiBanners(cached){
     h+='</div>'}
   return h}
 
+/* ═══════════ SHARED RICH TOOLBAR BUILDER ═══════════ */
+function buildRichToolbar(prefix){
+  var h='<div class="compose-toolbar">';
+  /* Row 1: Font + Size + Text formatting + Color + Clear */
+  h+='<div class="compose-toolbar-row">';
+  h+='<select class="compose-font-select" onchange="TF.execComposeCmd(\'fontName\',this.value)" title="Font family">';
+  h+='<option value="">Font</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option>';
+  h+='<option value="Times New Roman">Times New Roman</option><option value="Courier New">Courier New</option>';
+  h+='<option value="Verdana">Verdana</option><option value="Trebuchet MS">Trebuchet MS</option></select>';
+  h+='<select class="compose-size-select" onchange="TF.execComposeCmd(\'fontSize\',this.value)" title="Font size">';
+  h+='<option value="">Size</option><option value="1">Small</option><option value="3" selected>Normal</option>';
+  h+='<option value="4">Large</option><option value="5">Huge</option></select>';
+  h+='<div class="compose-toolbar-sep"></div>';
+  var row1Btns=[
+    {cmd:'bold',icon:'bold',title:'Bold (Ctrl+B)'},
+    {cmd:'italic',icon:'italic',title:'Italic (Ctrl+I)'},
+    {cmd:'underline',icon:'underline',title:'Underline (Ctrl+U)'},
+    {cmd:'strikethrough',icon:'strikethrough',title:'Strikethrough'}
+  ];
+  row1Btns.forEach(function(b){
+    h+='<button class="compose-toolbar-btn" data-compose-cmd="'+b.cmd+'" title="'+b.title+'" onclick="event.preventDefault();TF.execComposeCmd(\''+b.cmd+'\')">'+icon(b.icon,12)+'</button>'});
+  h+='<div class="compose-toolbar-sep"></div>';
+  /* Color pickers */
+  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Text color" onclick="event.preventDefault();TF.toggleColorPicker(\'text\',\''+prefix+'\')"><span style="border-bottom:3px solid #e06666;display:flex">'+icon('type',12)+'</span></button>';
+  h+='<div class="compose-color-picker" id="'+prefix+'-text-color-picker"></div></div>';
+  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Highlight color" onclick="event.preventDefault();TF.toggleColorPicker(\'bg\',\''+prefix+'\')">'+icon('highlighter',12)+'</button>';
+  h+='<div class="compose-color-picker" id="'+prefix+'-bg-color-picker"></div></div>';
+  h+='<div class="compose-toolbar-sep"></div>';
+  h+='<button class="compose-toolbar-btn" title="Clear formatting" onclick="event.preventDefault();TF.execComposeCmd(\'removeFormat\')">'+icon('eraser',12)+'</button>';
+  h+='</div>';
+  /* Row 2: Alignment + Lists/Indent/Quote + Link/Emoji/Image + Undo/Redo */
+  h+='<div class="compose-toolbar-row">';
+  var row2Btns=[
+    {cmd:'justifyLeft',icon:'align_left',title:'Align left'},
+    {cmd:'justifyCenter',icon:'align_center',title:'Align center'},
+    {cmd:'justifyRight',icon:'align_right',title:'Align right'},
+    {sep:true},
+    {cmd:'insertUnorderedList',icon:'list_ul',title:'Bullet list'},
+    {cmd:'insertOrderedList',icon:'list_ol',title:'Numbered list'},
+    {cmd:'indent',icon:'indent',title:'Indent more'},
+    {cmd:'outdent',icon:'outdent',title:'Indent less'},
+    {cmd:'formatBlock_blockquote',icon:'quote',title:'Quote'},
+    {sep:true},
+    {cmd:'createLink',icon:'link',title:'Insert link'},
+  ];
+  row2Btns.forEach(function(b){
+    if(b.sep){h+='<div class="compose-toolbar-sep"></div>';return}
+    h+='<button class="compose-toolbar-btn" data-compose-cmd="'+b.cmd+'" title="'+b.title+'" onclick="event.preventDefault();TF.execComposeCmd(\''+(b.cmd==='formatBlock_blockquote'?'formatBlock\',\'blockquote':b.cmd+'\',\'')+'\')">'+icon(b.icon,12)+'</button>'});
+  /* Emoji picker */
+  h+='<div class="compose-color-wrap"><button class="compose-toolbar-btn" title="Insert emoji" onclick="event.preventDefault();TF.toggleEmojiPicker(\''+prefix+'\')">'+icon('smile',12)+'</button>';
+  h+='<div class="compose-emoji-picker" id="'+prefix+'-emoji-picker"></div></div>';
+  h+='<button class="compose-toolbar-btn" title="Insert image" onclick="event.preventDefault();TF.execComposeCmd(\'insertImage\')">'+icon('image',12)+'</button>';
+  h+='<div class="compose-toolbar-sep"></div>';
+  h+='<button class="compose-toolbar-btn" title="Undo (Ctrl+Z)" onclick="event.preventDefault();TF.execComposeCmd(\'undo\')">'+icon('undo',12)+'</button>';
+  h+='<button class="compose-toolbar-btn" title="Redo (Ctrl+Y)" onclick="event.preventDefault();TF.execComposeCmd(\'redo\')">'+icon('redo',12)+'</button>';
+  h+='</div>';
+  h+='</div>';
+  return h}
+
 /* ═══════════ FULL-SCREEN EMAIL THREAD MODAL ═══════════ */
 function rEmailThreadModal(threadId){
   var h='';
@@ -7167,18 +7205,9 @@ function rEmailThreadModal(threadId){
   h+='</div>';
   /* Contenteditable editor — with draft auto-save */
   h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(threadId)+'\')"></div>';
-  /* Full formatting toolbar */
+  /* Full formatting toolbar (shared rich toolbar) */
+  h+=buildRichToolbar('inline');
   h+='<div class="email-inline-reply-toolbar">';
-  h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Italic" onclick="event.preventDefault();document.execCommand(\'italic\')">'+icon('italic',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Underline" onclick="event.preventDefault();document.execCommand(\'underline\')">'+icon('underline',11)+'</button>';
-  h+='<span class="email-toolbar-sep"></span>';
-  h+='<button class="compose-toolbar-btn" title="Bullet List" onclick="event.preventDefault();document.execCommand(\'insertUnorderedList\')">'+icon('list_ul',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Numbered List" onclick="event.preventDefault();document.execCommand(\'insertOrderedList\')">'+icon('list_ol',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Quote" onclick="event.preventDefault();document.execCommand(\'formatBlock\',false,\'blockquote\')">'+icon('quote',11)+'</button>';
-  h+='<span class="email-toolbar-sep"></span>';
-  h+='<button class="compose-toolbar-btn" title="Link" onclick="event.preventDefault();var u=prompt(\'URL:\');if(u)document.execCommand(\'createLink\',false,u)">'+icon('link',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Clear Formatting" onclick="event.preventDefault();document.execCommand(\'removeFormat\')" style="font-size:11px;text-decoration:line-through;font-weight:600;color:var(--t4)">T</button>';
   h+='<div style="flex:1"></div>';
   h+='<button class="email-inline-reply-btn ai-draft-inline" onclick="TF.inlineAiDraft()">'+icon('sparkle',11)+' AI Draft</button>';
   h+='</div>';
@@ -7585,10 +7614,8 @@ function rEmailThread(){
   /* N18: Full reply editor (hidden by default, shown on click) */
   h+='<div class="email-inline-reply collapsed" id="inline-reply-wrap">';
   h+='<div class="email-inline-reply-editor" contenteditable="true" id="email-inline-reply-editor" data-placeholder="Reply to '+esc(replyTo)+'..." oninput="TF.saveInlineDraft(\''+escAttr(S.gmailThreadId||'')+'\')"></div>';
+  h+=buildRichToolbar('inline');
   h+='<div class="email-inline-reply-toolbar">';
-  h+='<button class="compose-toolbar-btn" title="Bold" onclick="event.preventDefault();document.execCommand(\'bold\')">'+icon('bold',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Italic" onclick="event.preventDefault();document.execCommand(\'italic\')">'+icon('italic',11)+'</button>';
-  h+='<button class="compose-toolbar-btn" title="Link" onclick="event.preventDefault();var u=prompt(\'URL:\');if(u)document.execCommand(\'createLink\',false,u)">'+icon('link',11)+'</button>';
   h+='<div style="flex:1"></div>';
   h+='<button class="email-inline-reply-btn ai-draft-inline" onclick="TF.inlineAiDraft()">'+icon('sparkle',11)+' AI Draft</button>';
   h+='</div>';

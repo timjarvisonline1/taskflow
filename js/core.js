@@ -2519,20 +2519,10 @@ async function openEmailThread(threadId){
   var cachedDetail=S._gmailThreadDetailCache[threadId];
   if(cachedDetail)S.gmailThread=cachedDetail;
 
-  /* ── Inline split view mode ── */
-  var detailPanel=gel('email-detail-panel');
-  if(detailPanel){
-    var splitView=document.querySelector('.email-split-view');
-    if(splitView)splitView.classList.add('has-detail');
-    detailPanel.innerHTML=rEmailDetailInline(threadId);
-    _highlightActiveThread(threadId);
-    if(cachedDetail)initEmailIframes();
-  }else{
-    /* Fallback: modal mode */
-    gel('detail-body').innerHTML=rEmailThreadModal(threadId);
-    gel('detail-modal').classList.add('on','full-detail');
-    if(cachedDetail)initEmailIframes();
-  }
+  /* ── Always use full-screen modal ── */
+  gel('detail-body').innerHTML=rEmailThreadModal(threadId);
+  gel('detail-modal').classList.add('on','full-detail','email-light');
+  if(cachedDetail)initEmailIframes();
 
   try{
     var sess=await _sb.auth.getSession();
@@ -2578,13 +2568,7 @@ async function openEmailThread(threadId){
       _autoCategorizeFromContacts(threadId,cached)}
 
     /* Re-render with loaded data */
-    detailPanel=gel('email-detail-panel');
-    if(detailPanel){
-      detailPanel.innerHTML=rEmailDetailInline(threadId);
-      _highlightActiveThread(threadId);
-    }else{
-      gel('detail-body').innerHTML=rEmailThreadModal(threadId);
-    }
+    gel('detail-body').innerHTML=rEmailThreadModal(threadId);
     initEmailIframes();
     /* Restore draft if exists */
     _loadInlineDraft(threadId);
@@ -2614,23 +2598,9 @@ function _flushEmailTimer(){
 
 function closeEmailThread(){
   _flushEmailTimer();S.gmailThread=null;S.gmailThreadId='';
-
-  /* ── Inline split view: update panels without full render() ── */
-  var detailPanel=gel('email-detail-panel');
-  if(detailPanel){
-    detailPanel.innerHTML=rEmailEmptyDetail();
-    var splitView=document.querySelector('.email-split-view');
-    if(splitView)splitView.classList.remove('has-detail');
-    /* Remove active highlight from thread list */
-    document.querySelectorAll('.email-row.email-active').forEach(function(el){el.classList.remove('email-active')});
-    /* Update unread count in list */
-    _refreshEmailListPanel();
-    buildNav();
-  }else{
-    /* Fallback: modal mode */
-    gel('detail-modal').classList.remove('on','full-detail');
-    render();
-  }}
+  gel('detail-modal').classList.remove('on','full-detail','email-light');
+  render();
+}
 
 /* ── Highlight active thread in list panel ── */
 function _highlightActiveThread(threadId){
@@ -2954,7 +2924,9 @@ function expandReplyEditor(){
   if(prompt)prompt.style.display='none';
   if(editor){editor.classList.remove('collapsed');
     var ed=gel('email-inline-reply-editor');
-    if(ed)setTimeout(function(){ed.focus()},50)}}
+    if(ed)setTimeout(function(){ed.focus()},50);
+    /* Enable toolbar state tracking for inline reply */
+    document.addEventListener('selectionchange',updateComposeToolbar)}}
 
 /* N10: Toggle email star */
 function toggleEmailStar(threadId){
@@ -3959,7 +3931,11 @@ function replyAllEmail(msgIdx){
 
 /* ── Compose command helper ── */
 function execComposeCmd(cmd,val){
-  var editor=gel('compose-body');if(!editor)return;
+  /* Target whichever contenteditable editor is active */
+  var editor=document.activeElement;
+  if(!editor||editor.contentEditable!=='true')
+    editor=gel('compose-body')||gel('email-inline-reply-editor');
+  if(!editor)return;
   editor.focus();
   if(cmd==='createLink'){
     val=prompt('Enter URL:','https://');if(!val)return}
@@ -3985,8 +3961,9 @@ function updateComposeToolbar(){
 
 /* ── Color picker toggle ── */
 var _COLOR_PRESETS=['#000000','#434343','#666666','#999999','#cccccc','#e06666','#f6b26b','#ffd966','#93c47d','#76a5af','#6fa8dc','#8e7cc3','#c27ba0','#cc0000','#e69138','#f1c232','#6aa84f','#45818e','#3d85c6','#674ea7'];
-function toggleColorPicker(type){
-  var id=type==='text'?'compose-text-color-picker':'compose-bg-color-picker';
+function toggleColorPicker(type,prefix){
+  prefix=prefix||'compose';
+  var id=type==='text'?prefix+'-text-color-picker':prefix+'-bg-color-picker';
   var panel=gel(id);if(!panel)return;
   /* Close other pickers */
   document.querySelectorAll('.compose-color-picker,.compose-emoji-picker').forEach(function(p){if(p.id!==id)p.classList.remove('open')});
@@ -3999,7 +3976,10 @@ function toggleColorPicker(type){
     panel.innerHTML=h}
   panel.classList.add('open')}
 function selectColor(type,color){
-  var editor=gel('compose-body');if(!editor)return;
+  var editor=document.activeElement;
+  if(!editor||editor.contentEditable!=='true')
+    editor=gel('compose-body')||gel('email-inline-reply-editor');
+  if(!editor)return;
   editor.focus();
   var cmd=type==='text'?'foreColor':'hiliteColor';
   document.execCommand(cmd,false,color);
@@ -4009,10 +3989,12 @@ function selectColor(type,color){
 
 /* ── Emoji picker ── */
 var _EMOJIS=['😀','😂','🤣','😊','😍','🥰','😘','😎','🤩','🥳','😇','🤔','🤗','😏','😬','😱','😢','😭','😤','🤯','🙄','😴','🤮','🤡','💀','👻','👽','🤖','💩','👋','👍','👎','👏','🙌','🤝','✌️','🤞','🤙','💪','🙏','❤️','🧡','💛','💚','💙','💜','🖤','💯','💥','🔥','⭐','✨','🎉','🎊','🎯','💡','📌','📎','✅','❌','⚡','💬','👀','🚀','🏆','💰','📊','📈','🗓️','⏰','🔔','🔗','📧','💻','☕','🍕','🎵','🌟','🌈','🎨','📝','🔍'];
-function toggleEmojiPicker(){
-  var panel=gel('compose-emoji-picker');if(!panel)return;
+function toggleEmojiPicker(prefix){
+  prefix=prefix||'compose';
+  var panelId=prefix+'-emoji-picker';
+  var panel=gel(panelId);if(!panel)return;
   /* Close other pickers */
-  document.querySelectorAll('.compose-color-picker,.compose-emoji-picker').forEach(function(p){if(p.id!=='compose-emoji-picker')p.classList.remove('open')});
+  document.querySelectorAll('.compose-color-picker,.compose-emoji-picker').forEach(function(p){if(p.id!==panelId)p.classList.remove('open')});
   if(panel.classList.contains('open')){panel.classList.remove('open');return}
   /* Populate if empty */
   if(!panel.innerHTML){
@@ -4023,10 +4005,13 @@ function toggleEmojiPicker(){
     panel.innerHTML=h}
   panel.classList.add('open')}
 function insertEmoji(emoji){
-  var editor=gel('compose-body');if(!editor)return;
+  var editor=document.activeElement;
+  if(!editor||editor.contentEditable!=='true')
+    editor=gel('compose-body')||gel('email-inline-reply-editor');
+  if(!editor)return;
   editor.focus();
   document.execCommand('insertText',false,emoji);
-  var panel=gel('compose-emoji-picker');if(panel)panel.classList.remove('open')}
+  document.querySelectorAll('.compose-emoji-picker').forEach(function(p){p.classList.remove('open')})}
 
 /* ── Email Drafts (localStorage) ── */
 function _loadDrafts(){try{return JSON.parse(localStorage.getItem('tf_email_drafts')||'[]')}catch(e){return[]}}
@@ -5988,7 +5973,7 @@ function buildNav(){var h='';
     buildSubNav(sec);
   }else{
     sidebar.classList.remove('collapsed');
-    if(subNavEl){subNavEl.classList.remove('open');subNavEl.innerHTML=''}
+    if(subNavEl){subNavEl.classList.remove('open','email-light');subNavEl.innerHTML=''}
   }
   /* Sync bottom tab bar */
   var btmNav=gel('btm-nav');
@@ -6026,7 +6011,9 @@ function buildSubNav(sec){
       var _sc=_countSmartInbox(sub.id);
       if(_sc>0)h+='<span class="sub-badge">'+_sc+'</span>'}
     h+='</div>'});
-  el.innerHTML=h;el.classList.add('open')}
+  el.innerHTML=h;el.classList.add('open');
+  /* Light theme for email sub-nav */
+  el.classList.toggle('email-light',sec.id==='email')}
 
 function _countSmartInbox(subId){
   var threads=S.gmailThreads;if(!threads||!threads.length)return 0;
