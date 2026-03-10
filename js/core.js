@@ -2734,11 +2734,12 @@ async function searchGmail(query){
   var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,query);
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
-  render()}
+  _refreshEmailListPanel()}
 
 function setGmailFilter(filter){
   /* Exit bulk mode on view switch */
   if(S.emailBulkMode){S.emailBulkMode=false;S.emailBulkSelected={}}
+  var _prevFilter=S.gmailFilter||'';
   /* Save current view's live threads into per-filter cache */
   if(S.gmailFilter&&S._gmailLiveThreads){
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
@@ -2756,7 +2757,14 @@ function setGmailFilter(filter){
     S._gmailLiveThreads=stale.length?stale:null;S._gmailNextPage=null;
     S._gmailStaleView=!!stale.length}
   else{S._gmailLiveThreads=null;S._gmailNextPage=null}
-  save();_refreshEmailListPanel();buildNav();
+  save();
+  /* Full render needed when switching to/from special views (action, drafts, scheduled)
+     or between smart inboxes and standard views — layout changes completely */
+  var needsFullRender=filter==='e-action'||filter==='e-drafts'||filter==='e-scheduled'
+    ||_prevFilter==='e-action'||_prevFilter==='e-drafts'||_prevFilter==='e-scheduled'
+    ||(isSmartInbox!==(_prevFilter&&_prevFilter.indexOf('e-')===0));
+  if(needsFullRender){render()}else{_refreshEmailListPanel()}
+  buildNav();
   /* Re-query server-side filtered results if filters are active */
   if(emailHasActiveFilters())loadFilteredEmailThreads();
   /* Smart inboxes and All Mail use Supabase data, not live fetch */
