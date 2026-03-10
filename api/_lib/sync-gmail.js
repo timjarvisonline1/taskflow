@@ -1,6 +1,7 @@
 const { getServiceClient, getCredentials, updateSyncStatus } = require('./supabase');
 const { refreshGmailToken } = require('./gmail-auth');
 const { getOpenAIKey, embedTexts, chunkEmailThread, storeChunks, upsertSource } = require('./embeddings');
+const { matchEmailRules } = require('./email-rules');
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -182,48 +183,27 @@ async function syncGmail(userId) {
           }
         }
 
-        // Apply email rules if no client match found
+        // Apply email rules if no client match found (K10: uses shared matchEmailRules)
         let ruleEndClient = null;
         let ruleCampaignId = null;
         let ruleOpportunityId = null;
         let ruleAutoArchive = false;
         if (!clientId && activeRules.length) {
-          const threadData4Rules = {
+          const ruleActions = matchEmailRules(activeRules, {
             from_email: fromEmail,
             subject: subject || '',
             to: toRaw || '',
             cc: ccRaw || ''
-          };
-          for (const rule of activeRules) {
-            const conds = rule.conditions || [];
-            if (!conds.length) continue;
-            let allMatch = true;
-            for (const cond of conds) {
-              const val = (cond.value || '').toLowerCase();
-              if (!val) { allMatch = false; break; }
-              const from = fromEmail.toLowerCase();
-              const fromDomain = from.includes('@') ? from.split('@')[1] : '';
-              const subj = (subject || '').toLowerCase();
-              const toCc = ((toRaw || '') + ' ' + (ccRaw || '')).toLowerCase();
-              const allP = (from + ' ' + toCc).toLowerCase();
-              if (cond.type === 'from_domain_equals' && fromDomain !== val) { allMatch = false; break; }
-              else if (cond.type === 'from_email_contains' && !from.includes(val)) { allMatch = false; break; }
-              else if (cond.type === 'subject_contains' && !subj.includes(val)) { allMatch = false; break; }
-              else if (cond.type === 'to_or_cc_contains' && !toCc.includes(val)) { allMatch = false; break; }
-              else if (cond.type === 'any_participant_domain' && !allP.includes('@' + val)) { allMatch = false; break; }
-            }
-            if (allMatch) {
-              const acts = rule.actions || [];
-              for (const act of acts) {
-                if (act.type === 'assign_client') {
-                  const cr = (clientRecords || []).find(c => c.name === act.value);
-                  if (cr) clientId = cr.id;
-                } else if (act.type === 'assign_end_client') { ruleEndClient = act.value; }
-                else if (act.type === 'assign_campaign') ruleCampaignId = act.value;
-                else if (act.type === 'assign_opportunity') ruleOpportunityId = act.value;
-                else if (act.type === 'auto_archive') ruleAutoArchive = true;
-              }
-              break; // first matching rule wins
+          });
+          if (ruleActions) {
+            for (const act of ruleActions) {
+              if (act.type === 'assign_client') {
+                const cr = (clientRecords || []).find(c => c.name === act.value);
+                if (cr) clientId = cr.id;
+              } else if (act.type === 'assign_end_client') { ruleEndClient = act.value; }
+              else if (act.type === 'assign_campaign') ruleCampaignId = act.value;
+              else if (act.type === 'assign_opportunity') ruleOpportunityId = act.value;
+              else if (act.type === 'auto_archive') ruleAutoArchive = true;
             }
           }
         }

@@ -256,7 +256,12 @@ function cmdSearch(q){
     results.push({type:'opportunity',icon:icon('gem',14),label:o.name,sub:(o.client||'')+(o.endClient?' → '+o.endClient:''),action:'TF.openOpportunityDetail(\''+escAttr(o.id)+'\');TF.closeCmdPalette()'})});
   /* Templates */
   S.templates.forEach(function(t,i){if(t.name.toLowerCase().indexOf(q)>-1)
-    results.push({type:'tpl',icon:icon('file',14),label:'Use template: '+t.name,action:'TF.useTpl('+i+');TF.closeCmdPalette()'})})}
+    results.push({type:'tpl',icon:icon('file',14),label:'Use template: '+t.name,action:'TF.useTpl('+i+');TF.closeCmdPalette()'})});
+  /* K5: Email threads */
+  (S.gmailThreads||[]).forEach(function(t){
+    var subj=(t.subject||'').toLowerCase();var from=(t.from_name||t.from_email||'').toLowerCase();
+    if(subj.indexOf(q)>-1||from.indexOf(q)>-1)
+      results.push({type:'email',icon:icon('mail',14),label:t.subject||'(no subject)',sub:t.from_name||t.from_email||'',action:'TF.openEmailThread(\''+escAttr(t.thread_id||t.threadId)+'\');TF.closeCmdPalette()'})})}
   var h='';results.slice(0,12).forEach(function(res){
     h+='<div class="cmd-item" onclick="'+res.action+'">';
     h+='<span class="cmd-icon">'+res.icon+'</span>';

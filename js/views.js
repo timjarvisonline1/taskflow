@@ -427,7 +427,7 @@ function rDashboard(){
   // ALL active campaigns
   if(activeCampaigns.length){
     _aiLive+='\nACTIVE CAMPAIGNS ('+activeCampaigns.length+'):\n';
-    activeCampaigns.forEach(function(cp){_aiLive+='- '+cp.name+' ['+cp.client+']'+(cp.endClient?' ('+cp.endClient+')':'')+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+'\n'})}
+    activeCampaigns.forEach(function(cp){_aiLive+='- '+cp.name+' ['+cp.partner+']'+(cp.endClient?' ('+cp.endClient+')':'')+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+'\n'})}
   // ALL clients
   if(S.clientRecords&&S.clientRecords.length){
     _aiLive+='\nALL CLIENTS ('+S.clientRecords.length+'):\n';
@@ -1322,12 +1322,21 @@ function rEcTabEmails(ec,ecContacts,threads){
   var h='';
   var emailContacts=ecContacts.filter(function(cc){return cc.email});
   if(emailContacts.length){h+=rContactEmailSelector(emailContacts,'ec',ec.name)}
+  h+='<div id="entity-emails-ec" style="margin-top:8px">';
   if(threads.length){
-    h+='<div class="dash-section" style="margin-top:8px">'+icon('mail',13)+' Email Threads ('+threads.length+')</div>';
+    h+='<div class="dash-section">'+icon('mail',13)+' Email Threads ('+threads.length+')</div>';
     h+=rEmailList(threads.slice(0,15));
     if(threads.length>15){
-      h+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'endClient\',\''+escAttr(ec.name)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all threads →</a></div>'}}
+      h+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'endClient\',\''+escAttr(ec.name)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all '+threads.length+' threads →</a></div>'}}
   else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No email threads found</div>'}
+  h+='</div>';
+  /* K7: Async fetch historical emails */
+  if(ec.name){setTimeout(function(){TF.fetchEntityEmails('end_client',ec.name).then(function(all){
+    var el=gel('entity-emails-ec');if(!el||all.length<=threads.length)return;
+    var ih='<div class="dash-section">'+icon('mail',13)+' Email Threads ('+all.length+')</div>';
+    ih+=rEmailList(all.slice(0,15));
+    if(all.length>15){ih+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'endClient\',\''+escAttr(ec.name)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all '+all.length+' threads →</a></div>'}
+    el.innerHTML=ih})},50)}
   return h}
 
 /* ── End-Client Tab: Contacts ── */
@@ -1510,7 +1519,7 @@ function rClTabOverview(c,td_,contacts){
     var isOd=t.due&&t.due<td_;_cLive+='- '+(isOd?'[OVERDUE] ':'')+t.item+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+(t.notes?' — '+t.notes.substring(0,150):'')+'\n'})}
   var _cOpps=S.opportunities.filter(function(o){return o.client===c.name&&o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
   if(_cOpps.length){_cLive+='\nACTIVE DEALS ('+_cOpps.length+'):\n';_cOpps.forEach(function(o){var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);_cLive+='- '+o.name+' Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'%)':'')+(o.notes?' — '+o.notes.substring(0,150):'')+'\n'})}
-  var _cCamps=S.campaigns.filter(function(cp){return cp.client===c.name&&cp.status==='Active'});
+  var _cCamps=S.campaigns.filter(function(cp){return cp.partner===c.name&&cp.status==='Active'});
   if(_cCamps.length){_cLive+='\nACTIVE CAMPAIGNS ('+_cCamps.length+'):\n';_cCamps.forEach(function(cp){_cLive+='- '+cp.name+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+(cp.endClient?' EC: '+cp.endClient:'')+'\n'})}
   if(contacts.length){_cLive+='\nCONTACTS ('+contacts.length+'):\n';contacts.forEach(function(cc){var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();_cLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(cc.email?' '+cc.email:'')+(cc.phone?' '+cc.phone:'')+'\n'})}
   var _cDone=S.done.filter(function(d){return d.client===c.name}).slice(0,20);
@@ -1583,14 +1592,22 @@ function rClTabEmails(c,contacts,threads){
   if(emailContacts.length){
     h+=rContactEmailSelector(emailContacts,'client',c.name)}
   /* Email threads */
+  h+='<div id="entity-emails-client" style="margin-top:8px">';
   if(threads.length){
-    h+='<div class="dash-section" style="margin-top:8px">'+icon('mail',13)+' Recent Threads ('+threads.length+')</div>';
+    h+='<div class="dash-section">'+icon('mail',13)+' Email Threads ('+threads.length+')</div>';
     h+=rEmailList(threads.slice(0,15));
-    var allThreads=S.gmailThreads.filter(function(t){return t.client_id===c.clientId});
-    if(allThreads.length>15){
-      h+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'client\',\''+escAttr(c.name)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all '+allThreads.length+' threads →</a></div>'}}
+    if(threads.length>15){
+      h+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'client\',\''+escAttr(c.name)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all '+threads.length+' threads →</a></div>'}}
   else{
     h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No email threads found</div>'}
+  h+='</div>';
+  /* K7: Async fetch historical emails beyond 500-thread cache */
+  if(c.clientId){setTimeout(function(){TF.fetchEntityEmails('client',c.clientId).then(function(all){
+    var el=gel('entity-emails-client');if(!el||all.length<=threads.length)return;
+    var ih='<div class="dash-section">'+icon('mail',13)+' Email Threads ('+all.length+')</div>';
+    ih+=rEmailList(all.slice(0,15));
+    if(all.length>15){ih+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'client\',\''+escAttr(c.name)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all '+all.length+' threads →</a></div>'}
+    el.innerHTML=ih})},50)}
   return h}
 
 /* ── Client Tab: Contacts ── */
@@ -3436,10 +3453,21 @@ function rOpTabEmails(op,st,threads){
         h+='</label>'}
       h+='</div>'}
     h+=rContactEmailSelector(allContacts,'op',op.name)}
+  h+='<div id="entity-emails-op" style="margin-top:8px">';
   if(threads.length){
-    h+='<div class="dash-section" style="margin-top:8px">'+icon('mail',13)+' Email Threads ('+threads.length+')</div>';
-    h+=rEmailList(threads.slice(0,15))}
+    h+='<div class="dash-section">'+icon('mail',13)+' Email Threads ('+threads.length+')</div>';
+    h+=rEmailList(threads.slice(0,15));
+    if(threads.length>15){
+      h+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'opportunity\',\''+escAttr(op.id)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all '+threads.length+' threads →</a></div>'}}
   else{h+='<div style="padding:24px 0;text-align:center;color:var(--t4);font-size:13px">No email threads found</div>'}
+  h+='</div>';
+  /* K7: Async fetch historical emails */
+  if(op.id){setTimeout(function(){TF.fetchEntityEmails('opportunity',op.id).then(function(all){
+    var el=gel('entity-emails-op');if(!el||all.length<=threads.length)return;
+    var ih='<div class="dash-section">'+icon('mail',13)+' Email Threads ('+all.length+')</div>';
+    ih+=rEmailList(all.slice(0,15));
+    if(all.length>15){ih+='<div style="margin-top:8px"><a href="#" onclick="event.preventDefault();TF.setEmailFilter(\'opportunity\',\''+escAttr(op.id)+'\');TF.nav(\'email\')" style="font-size:11px;color:var(--accent)">View all '+all.length+' threads →</a></div>'}
+    el.innerHTML=ih})},50)}
   return h}
 
 /* ── Opportunity Tab: Contacts ── */
@@ -4439,8 +4467,8 @@ function rCpTabEmails(cp,st){
   /* Find client email from client record */
   var clientEmail='';
   var clientRec=null;
-  if(cp.client){
-    clientRec=S.clientRecords.find(function(c){return c.name===cp.client});
+  if(cp.partner){
+    clientRec=S.clientRecords.find(function(c){return c.name===cp.partner});
     if(clientRec)clientEmail=clientRec.email||'';
   }
 
@@ -4459,16 +4487,24 @@ function rCpTabEmails(cp,st){
     clientThreads=S.gmailThreads.filter(function(t){return t.client_id===clientRec.id&&!t.campaign_id&&campaignThreads.indexOf(t)===-1})}
   var threads=campaignThreads.concat(clientThreads);
 
+  h+='<div id="entity-emails-cp">';
   if(!threads.length){
     h+='<div class="email-empty" style="padding:30px">'+icon('inbox',24)+'<p style="font-size:12px">No email threads assigned to this campaign yet.</p>';
-    h+='<p style="font-size:11px;color:var(--t4)">Assign emails from the thread view, or let AI auto-categorize.</p></div>';
-    return h}
-
-  if(campaignThreads.length)h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);margin-bottom:6px">Campaign Emails ('+campaignThreads.length+')</div>';
-  h+=rEmailList(campaignThreads);
-  if(clientThreads.length){
-    h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t4);margin:12px 0 6px">Other Client Emails ('+clientThreads.length+')</div>';
-    h+=rEmailList(clientThreads)}
+    h+='<p style="font-size:11px;color:var(--t4)">Assign emails from the thread view, or let AI auto-categorize.</p></div>'}
+  else{
+    if(campaignThreads.length){h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);margin-bottom:6px">Campaign Emails ('+campaignThreads.length+')</div>';
+    h+=rEmailList(campaignThreads.slice(0,15))}
+    if(clientThreads.length){
+      h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t4);margin:12px 0 6px">Other Client Emails ('+clientThreads.length+')</div>';
+      h+=rEmailList(clientThreads.slice(0,15))}}
+  h+='</div>';
+  /* K7: Async fetch historical emails */
+  if(cp.id){setTimeout(function(){TF.fetchEntityEmails('campaign',cp.id).then(function(all){
+    var el=gel('entity-emails-cp');if(!el||all.length<=campaignThreads.length)return;
+    var ih='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);margin-bottom:6px">Campaign Emails ('+all.length+')</div>';
+    ih+=rEmailList(all.slice(0,15));
+    if(all.length>15){ih+='<div style="margin-top:8px;font-size:11px;color:var(--accent)">Showing 15 of '+all.length+' threads</div>'}
+    el.innerHTML=ih})},50)}
   return h}
 
 /* ── Campaign Tab: Details ── */

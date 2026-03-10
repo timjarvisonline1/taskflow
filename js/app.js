@@ -113,6 +113,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openDraft:openDraft,deleteDraft:deleteDraft,
   scheduleEmail:scheduleEmail,cancelScheduledEmail:cancelScheduledEmail,
   toggleScheduleMenu:toggleScheduleMenu,schedulePreset:schedulePreset,scheduleCustom:scheduleCustom,
+  fetchEntityEmails:fetchEntityEmails,
   openEmailRulesModal:openEmailRulesModal,openAddRuleModal:openAddRuleModal,openEditRuleModal:openEditRuleModal,
   saveRule:saveRule,deleteEmailRule:deleteEmailRule,toggleEmailRule:toggleEmailRule,
   addRuleCond:addRuleCond,removeRuleCond:removeRuleCond,ruleCondTypeChange:ruleCondTypeChange,ruleCondValueChange:ruleCondValueChange,

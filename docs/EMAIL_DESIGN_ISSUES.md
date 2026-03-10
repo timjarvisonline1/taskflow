@@ -755,7 +755,7 @@ Issues observed directly from the user's screenshot:
 > Issues found auditing how email data is used across Client, Campaign, Opportunity, End-Client, Prospect Company, Task, Meeting, Search, and Dashboard views.
 
 ### K1. Inconsistent Emails tab implementations across entity dashboards
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — All 4 entity email tabs now standardized: 15-thread limit, badge count, "View All" link, async historical fetch
 - **Severity:** HIGH
 - **Files:**
   - `js/views.js` `rClTabEmails()` line 1579 (Client)
@@ -775,7 +775,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Standardize all four Emails tabs: add badge count, enforce 15-thread limit, add "View All" link that opens the email section filtered to that entity.
 
 ### K2. Campaign email tab may use wrong client field
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Changed cp.client to cp.partner in rCpTabEmails and 2 other locations
 - **Severity:** HIGH (potential bug)
 - **File:** `js/views.js` line 4442 `rCpTabEmails()`
 - **Problem:** Campaign email filtering uses `cp.client` to match against thread CRM context, but campaign records use `cp.partner` as the client name field. If `cp.client` is undefined or different from `cp.partner`, campaign email tabs silently show wrong or no emails.
@@ -790,14 +790,14 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Add an Emails tab to Prospect Company dashboard. Filter threads by matching email addresses from the prospect company's contacts against thread from/to/cc addresses.
 
 ### K4. Task-email link stored but never displayed
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Linked email badge shown in task detail modal (desktop + mobile), clickable to open thread
 - **Severity:** MEDIUM
 - **Files:** `js/core.js` `createTaskFromEmail()`, `dbLinkEmailToTask()`, `js/views.js` task detail modal
 - **Problem:** When a task is created from an email, the `emailThreadId` is stored in the task record via `dbLinkEmailToTask()`. However, the task detail modal NEVER displays this linked email. The user has no way to navigate from a task back to its source email.
 - **Fix:** In the task detail modal, if `task.emailThreadId` exists, show a "Source Email" link/section that opens the linked email thread when clicked.
 
 ### K5. Command palette doesn't search emails
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Email thread search added to cmdSearch() in features.js, matches subject and sender
 - **Severity:** MEDIUM
 - **File:** `js/core.js` `cmdSearch()` handler
 - **Problem:** The command palette (`Cmd+K`) searches tasks, campaigns, opportunities, contacts, and templates, but does NOT search email threads. Users can't quickly find an email by subject or sender from anywhere in the app.
@@ -816,7 +816,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Show a subtle "tracking" indicator in the thread header. Let users opt out. Use finer granularity (30-second intervals). Show a brief toast when time is logged ("Logged 3 min reading email").
 
 ### K7. 500-thread Supabase limit affects all entity dashboards
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Added fetchEntityEmails() that queries Supabase directly; all 4 entity tabs async-fetch historical threads beyond cache
 - **Severity:** HIGH
 - **File:** `js/core.js` `loadGmailThreads()` line ~3000
 - **Problem:** `S.gmailThreads` is loaded from Supabase with a 500-row limit. ALL entity dashboard Emails tabs filter from this same array. If a client's emails are older than the most recent 500 threads, they won't appear in the client's Emails tab — even though the data exists in Supabase.
@@ -838,7 +838,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Add an "Email Highlights" widget showing: unread count, threads awaiting reply, oldest unanswered thread, and recent important emails.
 
 ### K10. Duplicate email rule engine (client-side + server-side)
-- **Status:** [ ]
+- **Status:** [x] ✅ Fixed — Extracted shared matchEmailRules() into api/_lib/email-rules.js, used by sync-gmail.js; client-side annotated with sync reference
 - **Severity:** MEDIUM
 - **Files:** `js/core.js` `applyEmailRules()` line ~3700, `api/_lib/sync-gmail.js` server-side rules
 - **Problem:** Email rules are applied in two places: client-side in `core.js` and server-side in `sync-gmail.js`. These implementations can diverge (as seen with the client_id name-vs-UUID bug in the CRM fix plan). Any rule logic change must be made in both places or behavior will be inconsistent.
@@ -859,7 +859,7 @@ Issues observed directly from the user's screenshot:
 - **Fix:** Add a search box to entity Emails tabs that pre-fills the search with the entity's email addresses or name. Or add a "Search emails for [Client Name]" button.
 
 ### K13. No email notifications or "needs attention" indicator
-- **Status:** [ ]
+- **Status:** [x] ✅ Already implemented — buildNav() already shows S.gmailUnread badge on email nav item
 - **Severity:** MEDIUM
 - **Problem:** The email section tab in the sidebar shows no badge for unread emails. Unlike a traditional email client, there's no persistent indicator that new emails have arrived or that threads need attention. The only notification is the 60-second poll toast.
 - **Fix:** Add an unread badge to the Email nav item in the sidebar. Optionally add a "Needs Reply" count for threads where the last message is from someone else.
@@ -1971,14 +1971,14 @@ For implementation reference, these are the key Gmail measurements and patterns 
 36. ~~**M12** - AI-powered follow-up reminders~~
 37. ~~**M8** - AI thread summary in list view (replace snippet with ai_summary)~~
 
-### Phase 6: Cross-Feature Data Integrity & Consistency
-38. **K7** - Entity dashboards query Supabase directly (stop silently missing historical emails beyond 500-thread cache)
-39. **K1** - Standardize Emails tab across all entity dashboards (badge, limit, "View All")
-40. **K2** - Fix campaign email tab client field mismatch (`cp.client` vs `cp.partner`)
-41. **K4** - Show linked email in task detail modal
-42. **K5** - Add email search to command palette
-43. **K13** - Unread badge on sidebar email nav item
-44. **K10** - Consolidate duplicate rule engines (client + server)
+### Phase 6: Cross-Feature Data Integrity & Consistency ✅
+38. **K7** ✅ Entity dashboards query Supabase directly (fetchEntityEmails() + async update)
+39. **K1** ✅ Standardize Emails tab across all entity dashboards (badge, 15-limit, "View All", async fetch)
+40. **K2** ✅ Fix campaign email tab client field mismatch (cp.client → cp.partner)
+41. **K4** ✅ Show linked email in task detail modal (badge in desktop + mobile)
+42. **K5** ✅ Add email search to command palette (subject + sender match)
+43. **K13** ✅ Unread badge on sidebar email nav item (already implemented)
+44. **K10** ✅ Consolidate duplicate rule engines (shared api/_lib/email-rules.js)
 
 ### Phase 7: Gmail UI Redesign — Foundation (the visual overhaul)
 45. **N1** - Row structure: remove card styling, use flat rows with bottom border
@@ -2129,6 +2129,7 @@ For implementation reference, these are the key Gmail measurements and patterns 
 
 | Date | Commit | Issues Fixed |
 |------|--------|--------------|
+| 2026-03-10 | (Phase 6) | K1 (standardize entity email tabs), K2 (fix cp.client→cp.partner), K4 (linked email in task detail), K5 (email search in command palette), K7 (async Supabase fetch for entity emails), K10 (shared rule engine module), K13 (already implemented) |
 | 2026-03-10 | (Phase 5) | M1 (AI urgency pinning + sort), M7 (quick-reply suggestions API + UI), M8 (AI summary replaces snippet), M10 (meeting/task banners in thread), M12 (follow-up reminder in thread), L14 (re-analysis on CRM change), L16 (embed on poll), L17 (re-embed updated threads) |
 | 2026-03-10 | (Phase 4) | L6 (strip HTML to plain text), L7 (recipient context in prompt), L8 (CRM context in prompt), L9 (SSE streaming), L21 (prompt injection defense), M4 (tone/length controls), M5 (regeneration + variant cycling) |
 | 2026-03-10 | (Phase 3) | A1 (editor font-family), A5 (editor CSS reset), A3 (AI draft font styling), L1 (AI draft cache fix), L3 (AI draft prepend not replace), L5 (system messages for AI endpoints), L11 (batch analysis parse recovery), L15 (rule To/CC field names) |

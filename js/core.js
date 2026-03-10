@@ -2433,6 +2433,30 @@ async function loadGmailThreads(){
     S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
   }catch(e){console.error('loadGmailThreads:',e)}}
 
+/* K7 — Fetch entity emails from Supabase (goes beyond in-memory 500 limit).
+   type: 'client'|'end_client'|'campaign'|'opportunity'
+   id: the entity UUID (client_id, campaign_id, etc.) or name (end_client).
+   Returns merged array: cached threads + historical DB threads, deduped. */
+async function fetchEntityEmails(type,id){
+  if(!id)return[];
+  var uid=await getUserId();if(!uid)return[];
+  /* Start with in-memory threads */
+  var cached=[];
+  if(type==='client')cached=S.gmailThreads.filter(function(t){return t.client_id===id});
+  else if(type==='end_client')cached=S.gmailThreads.filter(function(t){return t.end_client===id});
+  else if(type==='campaign')cached=S.gmailThreads.filter(function(t){return t.campaign_id===id});
+  else if(type==='opportunity')cached=S.gmailThreads.filter(function(t){return t.opportunity_id===id});
+  /* Query Supabase for full history */
+  try{
+    var col=type==='client'?'client_id':type==='end_client'?'end_client':type==='campaign'?'campaign_id':'opportunity_id';
+    var res=await _sb.from('gmail_threads').select('*').eq('user_id',uid).eq(col,id).order('last_message_at',{ascending:false}).limit(100);
+    if(res.error||!res.data)return cached;
+    /* Merge: DB threads that aren't already in cache */
+    var seenIds={};cached.forEach(function(t){seenIds[t.thread_id||t.threadId]=true});
+    var extra=res.data.filter(function(t){return!seenIds[t.thread_id]});
+    return cached.concat(extra);
+  }catch(e){console.warn('fetchEntityEmails:',e.message);return cached}}
+
 /* ═══════════ EMAIL FUNCTIONS ═══════════ */
 
 /* Fetch with timeout + retry (prevents infinite hangs on slow/failed requests) */
@@ -4074,6 +4098,8 @@ async function loadEmailRules(){
     id:r.id,name:r.name,conditions:r.conditions||[],actions:r.actions||[],
     isActive:r.is_active,priority:r.priority||0,createdAt:r.created_at}})}
 
+/* K10: Client-side rule matcher — must stay in sync with api/_lib/email-rules.js matchEmailRules().
+   Both support: from_domain_equals, from_email_contains, subject_contains, to_or_cc_contains, any_participant_domain */
 function applyEmailRules(thread){
   if(!S.emailRules||!S.emailRules.length)return null;
   var rules=S.emailRules.filter(function(r){return r.isActive}).sort(function(a,b){return(b.priority||0)-(a.priority||0)});

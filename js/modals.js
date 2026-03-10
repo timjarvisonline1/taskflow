@@ -55,6 +55,9 @@ function openDetail(id){
     if(task.client)h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
     if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
     if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
+    /* K4: Show linked email on mobile too */
+    if(task.emailThreadId){var _eThrM=S.gmailThreads.find(function(t){return(t.thread_id||t.threadId)===task.emailThreadId});
+      h+='<span class="bg" style="background:rgba(59,130,246,0.08);color:var(--blue);cursor:pointer" onclick="TF.openEmailThread(\''+escAttr(task.emailThreadId)+'\')">'+icon('mail',12)+' '+((_eThrM&&_eThrM.subject)?esc(_eThrM.subject.substring(0,30)):'Email')+'</span>'}
     h+='</div>';
 
     /* Notes (prominent) */
@@ -154,6 +157,9 @@ function openDetail(id){
     if(task.campaign){var _cpdet=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpdet)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',12)+' '+esc(_cpdet.name)+'</span>'}
     if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
     if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(255,0,153,0.08);color:var(--purple50)">'+icon('calendar',12)+' '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
+    /* K4: Show linked email thread */
+    if(task.emailThreadId){var _eThr=S.gmailThreads.find(function(t){return(t.thread_id||t.threadId)===task.emailThreadId});
+      h+='<span class="bg" style="background:rgba(59,130,246,0.08);color:var(--blue);cursor:pointer" onclick="TF.openEmailThread(\''+escAttr(task.emailThreadId)+'\')">'+icon('mail',12)+' '+((_eThr&&_eThr.subject)?esc(_eThr.subject.substring(0,40)):'Linked Email')+'</span>'}
     if(isPinned)h+='<span class="bg" style="background:rgba(255,176,48,0.1);color:var(--amber)">'+icon('pin',12)+' Pinned</span>';
     if(hasT){h+='<span class="ed-timer-badge"><span class="dot '+(running?'pulse':'pau')+'"></span><span class="'+(running?'go':'')+'" data-tmr="'+esc(id)+'">'+fmtT(elapsed)+'</span></span>'}
     h+='</div></div>';
