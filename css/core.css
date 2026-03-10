@@ -122,7 +122,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--f);font-size:14px;li
 .sub-nav-item.on{color:var(--accent);background:rgba(255,0,153,0.06);border-left-color:var(--accent);font-weight:600}
 .sub-nav-item .ico{width:18px;text-align:center;display:inline-flex;align-items:center;justify-content:center}
 .sub-nav-item .ico svg{width:14px;height:14px}
-.sub-badge{background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:auto;min-width:16px;text-align:center;line-height:1.4}
+.sub-badge{background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:0 6px;border-radius:10px;margin-left:auto;min-width:16px;text-align:center;line-height:16px;display:inline-flex;align-items:center;justify-content:center;height:16px}
 
 .mob{display:none;position:fixed;top:0;left:0;right:0;height:56px;background:var(--bg1);border-bottom:1px solid var(--gborder);z-index:150;padding:0 16px;align-items:center;justify-content:space-between;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 .mob-btn{background:none;border:none;color:var(--t1);font-size:24px;cursor:pointer;padding:6px;transition:opacity .2s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
