@@ -6674,7 +6674,7 @@ function rEmailListPanel(){
     h+='<span class="email-bulk-count">'+_bc+' selected</span>';
     h+='<button class="btn" onclick="TF.emailSelectAll()" style="font-size:11px;padding:4px 10px">Select All</button>';
     if(_bc>0)h+='<button class="btn" onclick="TF.emailDeselectAll()" style="font-size:11px;padding:4px 10px">Deselect</button>';
-    if(_bc>0)h+='<button class="btn btn-p" onclick="TF.bulkArchiveEmails()" style="font-size:11px;padding:4px 10px">'+icon('archive',11)+' Archive '+_bc+'</button>';
+    if(_bc>0)h+='<button class="btn btn-p" onclick="TF.bulkArchiveEmails()" style="font-size:11px;padding:4px 10px">'+icon('archive',11)+' Archive <span id="email-bulk-archive-count">'+_bc+'</span></button>';
     h+='</div>'}
 
   /* Thread list — smart inboxes ALWAYS use cached S.gmailThreads, never live */

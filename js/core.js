@@ -2922,16 +2922,20 @@ function emailToggleSel(threadId){
   if(row){row.classList.toggle('email-bulk-sel');
     var cb=row.querySelector('input[type="checkbox"]');if(cb)cb.checked=!!S.emailBulkSelected[threadId]}
   /* Update bulk action bar count */
-  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent=count+' selected'}
+  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent=count+' selected';
+  var archCnt=gel('email-bulk-archive-count');if(archCnt)archCnt.textContent=count}
 function emailSelectAll(){
   var rows=document.querySelectorAll('.email-row[data-tid]');
   rows.forEach(function(r){var tid=r.getAttribute('data-tid');if(tid){S.emailBulkSelected[tid]=true;
     r.classList.add('email-bulk-sel');var cb=r.querySelector('input[type="checkbox"]');if(cb)cb.checked=true}});
-  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent=emailBulkCount()+' selected'}
+  var _saCount=emailBulkCount();
+  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent=_saCount+' selected';
+  var archCnt2=gel('email-bulk-archive-count');if(archCnt2)archCnt2.textContent=_saCount}
 function emailDeselectAll(){S.emailBulkSelected={};
   document.querySelectorAll('.email-row.email-bulk-sel').forEach(function(r){r.classList.remove('email-bulk-sel');
     var cb=r.querySelector('input[type="checkbox"]');if(cb)cb.checked=false});
-  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent='0 selected'}
+  var countEl=document.querySelector('.email-bulk-count');if(countEl)countEl.textContent='0 selected';
+  var archCnt3=gel('email-bulk-archive-count');if(archCnt3)archCnt3.textContent='0'}
 function emailBulkCount(){return Object.keys(S.emailBulkSelected).length}
 
 /* N32: Toggle CRM sidebar visibility */
@@ -3474,7 +3478,7 @@ async function resummarizeThread(threadId){
   if(t)t.full_summary='';
   doSummarize(threadId)}
 
-async function createTaskFromSuggestion(threadId){
+function createTaskFromSuggestion(threadId){
   var t=S.gmailThreads.find(function(th){return th.thread_id===threadId});
   if(!t||!t.ai_suggested_task)return;
   var suggestion;
@@ -3483,28 +3487,19 @@ async function createTaskFromSuggestion(threadId){
   var ctx=getThreadCrmContext(t);
   var clientName=(ctx&&ctx.primaryClient)?ctx.primaryClient.clientName:'';
   var endClientName=(ctx&&ctx.primaryEndClient)?ctx.primaryEndClient:'';
-  var taskData={
+  /* Open modal for review instead of creating directly */
+  openAddModal({
     item:suggestion.item||'Email task',
     notes:suggestion.notes||'',
     importance:suggestion.importance||'Important',
     category:suggestion.category||t.ai_category||'',
-    client:clientName,endClient:endClientName,
-    type:'Business',est:suggestion.est||0,
-    status:'Planned'};
-  var result=await dbAddTask(taskData);
-  if(result){
-    /* Clear suggestion from thread */
-    t.ai_suggested_task='';
-    try{
-      var uid=await getUserId();if(uid)
-        await _sb.from('gmail_threads').update({ai_suggested_task:''}).eq('user_id',uid).eq('thread_id',threadId);
-    }catch(e){}
-    await loadData();
-    toast('Task created: '+suggestion.item,'ok');
-  }}
+    client:clientName,
+    endClient:endClientName,
+    emailThreadId:threadId
+  })}
 
 /* ═══════════ GLOBAL UNDO SYSTEM ═══════════ */
-var _undoState=null;var _undoTimer=null;var _UNDO_DELAY=5000;
+var _undoState=null;var _undoTimer=null;var _UNDO_DELAY=3000;
 function _showUndoBar(label){
   _hideUndoBar();
   var bar=document.createElement('div');bar.id='email-undo-bar';bar.className='email-undo-bar';

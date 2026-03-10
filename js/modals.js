@@ -464,7 +464,12 @@ async function addTask(){var item=(gel('f-item')||{}).value;if(!item||!item.trim
     var result=await dbAddTask(data);
     if(result){S.tasks.push({id:result.id,item:data.item,due:data.due?new Date(data.due):null,importance:data.importance,est:data.est,
       category:data.category,client:data.client,endClient:data.endClient,endClientId:data.endClientId,type:data.type,duration:0,notes:data.notes,status:data.status,flag:flagged,campaign:data.campaign,meetingKey:data.meetingKey,project:data.project,phase:data.phase,opportunity:data.opportunity,isInbox:isInbox});
-      var emailTid=gel('f-email-tid');if(emailTid&&emailTid.value)dbLinkEmailToTask(result.id,emailTid.value)}
+      var emailTid=gel('f-email-tid');if(emailTid&&emailTid.value){
+        dbLinkEmailToTask(result.id,emailTid.value);
+        /* Clear AI suggestion after task created from email */
+        var _et=S.gmailThreads.find(function(th){return th.thread_id===emailTid.value});
+        if(_et&&_et.ai_suggested_task){_et.ai_suggested_task='';
+          getUserId().then(function(uid){if(uid)_sb.from('gmail_threads').update({ai_suggested_task:''}).eq('user_id',uid).eq('thread_id',emailTid.value)})}}}
     toast('Added: '+data.item,'ok')}
   closeModal();render()}
 

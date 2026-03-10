@@ -970,8 +970,53 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 
 /* ── Gmail-style split view ── */
 /* N35: Flex column wrapper so split-view fills available height */
-.email-page-wrap{display:flex;flex-direction:column;height:calc(100vh - 90px);min-height:400px}
+.email-page-wrap{display:flex;flex-direction:column;height:calc(100vh - 90px);min-height:400px;
+  /* Gmail-style light theme scoped to email section */
+  --bg:#ffffff;--bg1:#f8f9fa;--bg2:#f1f3f4;--bg3:#e8eaed;--bg4:#dadce0;--bg5:#bdc1c6;
+  --glass:rgba(255,255,255,0.95);--gborder:rgba(0,0,0,0.12);--ghover:rgba(0,0,0,0.04);
+  --t1:#202124;--t2:#5f6368;--t3:#80868b;--t4:#9aa0a6;
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.1);--shadow-md:0 2px 6px rgba(0,0,0,0.12);
+  color:var(--t1);background:var(--bg);border-radius:12px}
 .email-page-wrap .pg-head{flex-shrink:0}
+/* Light theme overrides for hardcoded dark-mode rgba values */
+.email-page-wrap .btn{background:var(--bg2);color:var(--t1);border:1px solid var(--gborder)}
+.email-page-wrap .btn:hover{background:var(--bg3)}
+.email-page-wrap .btn-p{background:var(--accent);color:#fff;border-color:var(--accent)}
+.email-page-wrap .btn-p:hover{background:var(--accent-hover)}
+.email-page-wrap .btn-danger{color:#d93025}
+.email-page-wrap .btn-create{color:#1a73e8}
+.email-page-wrap .edf{background:var(--bg1);color:var(--t1);border-color:var(--gborder)}
+.email-page-wrap .edf:focus{border-color:#1a73e8;box-shadow:0 0 0 2px rgba(26,115,232,.15)}
+.email-page-wrap .email-search-bar{background:var(--bg2);border-color:var(--gborder)}
+.email-page-wrap .email-search-bar:focus-within{background:var(--bg1);border-color:#1a73e8;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.email-page-wrap .email-search-clear:hover{background:rgba(0,0,0,.06);color:var(--t1)}
+.email-page-wrap .email-row:hover{background:rgba(0,0,0,.04)}
+.email-page-wrap .email-row.email-unread:hover{background:rgba(0,0,0,.04)}
+.email-page-wrap .email-row.email-active{background:rgba(26,115,232,.08);border-left-color:#1a73e8}
+.email-page-wrap .email-row.email-active:hover{background:rgba(26,115,232,.12)}
+.email-page-wrap .email-row-actions{background:var(--bg1)}
+.email-page-wrap .email-row-action:hover{color:var(--t1);background:rgba(0,0,0,.06)}
+.email-page-wrap .email-toolbar-btn:hover{color:var(--t1);background:rgba(0,0,0,.06)}
+.email-page-wrap .email-msg-header:hover{background:rgba(0,0,0,.02)}
+.email-page-wrap .email-message.collapsed:hover{background:rgba(0,0,0,.03)}
+.email-page-wrap .email-msg-header-action:hover{color:var(--t1);background:rgba(0,0,0,.06)}
+.email-page-wrap .email-detail-inline-close:hover{background:rgba(0,0,0,.06);color:var(--t1)}
+.email-page-wrap .crm-toggle-btn:hover{background:rgba(0,0,0,.06);color:var(--t1)}
+.email-page-wrap .email-inline-reply{border-color:rgba(0,0,0,.12)}
+.email-page-wrap .email-inline-reply:focus-within{border-color:rgba(26,115,232,.4)}
+.email-page-wrap .reply-prompt{background:var(--bg1);border-color:var(--gborder)}
+.email-page-wrap .reply-prompt:hover{background:var(--bg2)}
+.email-page-wrap .email-skel-progress{background:rgba(0,0,0,.06)}
+.email-page-wrap .email-skel-dot{background:rgba(0,0,0,.06)}
+.email-page-wrap .ai-thread-banner{border-color:var(--gborder)}
+.email-page-wrap .email-bulk-bar{background:var(--bg2);border-color:var(--gborder)}
+.email-page-wrap .thread-crm-section{border-color:var(--gborder)}
+.email-page-wrap .thread-context-panel{background:var(--bg1);border-color:var(--gborder)}
+.email-page-wrap .email-list-panel::-webkit-scrollbar-thumb,.email-page-wrap .email-detail-panel::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15)}
+.email-page-wrap .email-list-panel::-webkit-scrollbar-thumb:hover,.email-page-wrap .email-detail-panel::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25)}
+.email-page-wrap .compose-toolbar-btn:hover{background:rgba(0,0,0,.06)}
+.email-page-wrap .inline-reply-toggle-btn:hover{background:rgba(0,0,0,.06);color:var(--t1)}
+.email-page-wrap .email-group-header{color:var(--t3)}
 .email-split-view{display:flex;gap:0;flex:1;min-height:0;overflow:hidden}
 .email-list-panel{width:100%;overflow-y:auto;overflow-x:hidden;padding-right:4px;transition:width .25s var(--ease)}
 .email-split-view.has-detail .email-list-panel{display:none}
@@ -1073,14 +1118,9 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 
 /* N10: Checkbox + star system (replaces unread dot) */
 .email-row-select{width:20px;height:20px;flex-shrink:0;margin:0 4px 0 0;display:flex;align-items:center;justify-content:center}
-.email-row-select input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:#1a73e8;opacity:0;transition:opacity .1s}
-.email-row:hover .email-row-select input[type="checkbox"]{opacity:1}
-.email-row-select input[type="checkbox"]:checked{opacity:1}
-/* Show unread dot when checkbox is hidden */
-.email-row-select .email-dot{position:absolute;width:8px;height:8px;border-radius:50%;pointer-events:none}
-.email-dot-on{background:#1a73e8;box-shadow:0 0 3px rgba(26,115,232,.3)}
-.email-dot-off{background:transparent}
-.email-row:hover .email-row-select .email-dot{display:none}
+.email-row-select input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:#1a73e8}
+/* Unread dot hidden — checkboxes always visible now */
+.email-row-select .email-dot{display:none}
 .email-row-star{width:20px;height:20px;flex-shrink:0;margin:0 2px 0 0;display:flex;align-items:center;justify-content:center;
   cursor:pointer;color:var(--t4);transition:color .1s;border:none;background:none;padding:0;font-size:14px}
 .email-row-star:hover{color:#f4b400}
