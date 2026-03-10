@@ -5665,7 +5665,7 @@ function nav(id,sub){
   save();
   document.querySelectorAll('.s-item').forEach(function(n){
     n.classList.toggle('on',n.dataset.v===id)});
-  render();closeMenu()}
+  render();buildNav();closeMenu()}
 function buildNav(){var h='';
   SECTIONS.forEach(function(sec){
     var badge='';
