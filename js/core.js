@@ -4460,10 +4460,11 @@ function inlineReply(msgIdx){
   var msg=typeof msgIdx==='number'?msgs[msgIdx]:msgs[msgs.length-1];
   if(!msg)return;
   window._inlineRecipients={to:[msg.fromEmail||''],cc:[],bcc:[]};
-  window._inlineAttachments=[];
   _showInlineRecipients();
+  expandReplyEditor();
   var editor=gel('email-inline-reply-editor');
-  if(editor){editor.innerHTML='';editor.focus()}}
+  /* Only clear editor if it has no real content (preserve AI drafts and typed text) */
+  if(editor){var _c=editor.innerHTML||'';if(!_c||_c==='<br>'||_c==='<div><br></div>')editor.innerHTML='';editor.focus()}}
 
 function inlineReplyAll(msgIdx){
   window._inlineReplyMode='replyAll';
@@ -4486,10 +4487,11 @@ function inlineReplyAll(msgIdx){
     if(to.indexOf(addr)!==-1)return;
     if(cc.indexOf(addr)===-1)cc.push(addr)});
   window._inlineRecipients={to:to,cc:cc,bcc:[]};
-  window._inlineAttachments=[];
   _showInlineRecipients();
+  expandReplyEditor();
   var editor=gel('email-inline-reply-editor');
-  if(editor){editor.innerHTML='';editor.focus()}}
+  /* Only clear editor if it has no real content (preserve AI drafts and typed text) */
+  if(editor){var _c=editor.innerHTML||'';if(!_c||_c==='<br>'||_c==='<div><br></div>')editor.innerHTML='';editor.focus()}}
 
 function inlineForward(msgIdx){
   window._inlineReplyMode='forward';
