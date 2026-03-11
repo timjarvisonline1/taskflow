@@ -1369,6 +1369,11 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   transition:opacity .15s}
 .compose-chip:hover .compose-chip-x{opacity:.7}
 .compose-chip-x:hover{opacity:1!important;color:#EA4335}
+/* Drag-and-drop for recipient chips */
+.compose-chip[draggable="true"]{cursor:grab}
+.compose-chip[draggable="true"]:active{cursor:grabbing}
+.compose-chip.chip-dragging{opacity:.4}
+.compose-recipient-wrap.chip-drop-target{background:rgba(26,115,232,.08);border-color:#1a73e8;box-shadow:inset 0 0 0 1px rgba(26,115,232,.2)}
 .compose-recipient-input{flex:1;min-width:120px;border:none;background:transparent;outline:none;
   font-size:13px;color:var(--t1);padding:4px 0}
 .compose-recipient-input::placeholder{color:var(--t4)}
@@ -1754,10 +1759,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .inline-reply-toggle-btn{font-size:10px;color:var(--t4);cursor:pointer;background:none;border:1px solid var(--gborder);
   padding:2px 8px;border-radius:4px;transition:all .15s}
 .inline-reply-toggle-btn:hover{color:var(--t1);border-color:rgba(255,255,255,.2)}
-.inline-recipients-section{padding:0 14px;border-bottom:1px solid var(--gborder)}
-.inline-recipient-row{display:flex;align-items:center;gap:6px;padding:4px 0;min-height:32px}
-.inline-recipient-label{font-size:11px;font-weight:600;color:var(--t3);width:30px;flex-shrink:0;text-align:right}
-.inline-recipient-wrap{flex:1;min-height:28px}
+.inline-recipients-section{padding:0 18px;border-bottom:1px solid var(--gborder)}
+.inline-recipient-row{display:flex;align-items:center;gap:8px;padding:5px 0;min-height:34px}
+.inline-recipient-label{font-size:12px;font-weight:600;color:var(--t3);width:32px;flex-shrink:0;text-align:right}
+.inline-recipient-wrap{flex:1;min-height:28px;padding:4px 8px}
 .inline-recipient-wrap .compose-recipient-input{min-width:60px}
 .inline-attachments-bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 14px;border-top:1px solid var(--gborder)}
 .inline-att-chip{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);

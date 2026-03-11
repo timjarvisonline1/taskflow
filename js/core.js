@@ -2668,8 +2668,17 @@ function _clearInlineDraft(threadId){
 }
 
 /* ═══════════ THREAD CRM CATEGORIZATION ═══════════ */
+var _threadCrmClientTimer=null;
 function threadCrmClientChange(){
+  /* Debounce to avoid excessive saves while typing */
+  if(_threadCrmClientTimer)clearTimeout(_threadCrmClientTimer);
+  _threadCrmClientTimer=setTimeout(_threadCrmClientChangeImpl,300)}
+function _threadCrmClientChangeImpl(){
   var client=(gel('thread-crm-client')||{}).value||'';
+  /* Save current selections to preserve them after rebuild */
+  var prevEc=(gel('thread-crm-ec')||{}).value||'';
+  var prevCamp=(gel('thread-crm-campaign')||{}).value||'';
+  var prevOpp=(gel('thread-crm-opportunity')||{}).value||'';
   /* Refresh end-client options */
   var ecSel=gel('thread-crm-ec');if(ecSel){
     var oh='<option value="">— Select —</option>';
@@ -2683,19 +2692,19 @@ function threadCrmClientChange(){
     S.tasks.concat(S.done).forEach(function(t){if(!client||t.client===client){if(t.endClient&&ecs.indexOf(t.endClient)===-1)ecs.push(t.endClient)}});
     S.opportunities.forEach(function(o){if(!client||o.client===client){if(o.endClient&&ecs.indexOf(o.endClient)===-1)ecs.push(o.endClient)}});
     ecs.sort().forEach(function(ec){oh+='<option value="'+esc(ec)+'">'+esc(ec)+'</option>'});
-    ecSel.innerHTML=oh}
+    ecSel.innerHTML=oh;if(prevEc)ecSel.value=prevEc}
   /* Refresh campaign options */
   var cpSel=gel('thread-crm-campaign');if(cpSel){
     var ch='<option value="">— Select —</option>';
     S.campaigns.filter(function(c){return!client||c.partner===client}).forEach(function(c){
       ch+='<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>'});
-    cpSel.innerHTML=ch}
+    cpSel.innerHTML=ch;if(prevCamp)cpSel.value=prevCamp}
   /* Refresh opportunity options */
   var opSel=gel('thread-crm-opportunity');if(opSel){
     var oph='<option value="">— Select —</option>';
     S.opportunities.filter(function(o){return!o.closedAt&&(!client||o.client===client)}).forEach(function(o){
       oph+='<option value="'+esc(o.id)+'">'+esc(o.name)+'</option>'});
-    opSel.innerHTML=oph}
+    opSel.innerHTML=oph;if(prevOpp)opSel.value=prevOpp}
   threadCrmSave()}
 
 async function threadCrmSave(){
@@ -4362,8 +4371,41 @@ function renderRecipientChips(field,prefix){
     var c=S.contacts.find(function(ct){return ct.email&&ct.email.toLowerCase()===email.toLowerCase()});
     var display=c?((c.firstName||'')+' '+(c.lastName||'')).trim():email;
     if(!display)display=email;
-    h+='<span class="compose-chip">'+esc(display)+' <span class="compose-chip-x" onclick="event.stopPropagation();TF.acRemoveChip(\''+field+'\','+i+',\''+p+'\')">&times;</span></span>'});
+    h+='<span class="compose-chip" draggable="true" data-email="'+escAttr(email)+'" data-field="'+field+'" data-prefix="'+p+'" data-idx="'+i+'" ondragstart="TF.chipDragStart(event)">'+esc(display)+' <span class="compose-chip-x" onclick="event.stopPropagation();TF.acRemoveChip(\''+field+'\','+i+',\''+p+'\')">&times;</span></span>'});
   wrap.innerHTML=h}
+
+/* ── Drag-and-drop recipients between To/CC/BCC ── */
+function chipDragStart(e){
+  var chip=e.target.closest('.compose-chip');if(!chip)return;
+  e.dataTransfer.setData('text/plain',JSON.stringify({
+    email:chip.dataset.email,field:chip.dataset.field,prefix:chip.dataset.prefix,idx:parseInt(chip.dataset.idx)}));
+  e.dataTransfer.effectAllowed='move';
+  chip.classList.add('chip-dragging')}
+
+function chipDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';
+  e.currentTarget.classList.add('chip-drop-target')}
+
+function chipDragLeave(e){e.currentTarget.classList.remove('chip-drop-target')}
+
+function chipDrop(e){
+  e.preventDefault();e.currentTarget.classList.remove('chip-drop-target');
+  try{
+    var data=JSON.parse(e.dataTransfer.getData('text/plain'));
+    var targetField=e.currentTarget.dataset.dropField;
+    var prefix=data.prefix;
+    if(!targetField||targetField===data.field)return;
+    var recs=prefix==='inline'?window._inlineRecipients:window._composeRecipients;
+    /* Remove from source */
+    recs[data.field].splice(data.idx,1);
+    /* Add to target */
+    if(recs[targetField].indexOf(data.email)===-1)recs[targetField].push(data.email);
+    /* Show target field if hidden (CC/BCC) */
+    var targetWrap=gel(prefix+'-'+targetField+'-wrap');if(targetWrap)targetWrap.style.display='block';
+    var toggleLink=gel(prefix+'-show-'+targetField);if(toggleLink)toggleLink.style.display='none';
+    /* Re-render both fields */
+    renderRecipientChips(data.field,prefix);
+    renderRecipientChips(targetField,prefix);
+  }catch(ex){}}
 
 function recipientKeydown(field,e,prefix){
   var p=prefix||'compose';

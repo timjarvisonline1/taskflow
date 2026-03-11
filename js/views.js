@@ -6911,7 +6911,7 @@ function _buildInlineRecipientField(field,label){
 
 function _buildInlineRecipientFieldInner(field,label){
   var h='<span class="inline-recipient-label">'+label+'</span>';
-  h+='<div class="compose-recipient-wrap inline-recipient-wrap">';
+  h+='<div class="compose-recipient-wrap inline-recipient-wrap" data-drop-field="'+field+'" ondragover="TF.chipDragOver(event)" ondragleave="TF.chipDragLeave(event)" ondrop="TF.chipDrop(event)">';
   h+='<span id="inline-'+field+'-chips" class="compose-chips"></span>';
   h+='<input class="compose-recipient-input" id="inline-'+field+'-input" oninput="TF.acRecipient(\''+field+'\',\'inline\')" onkeydown="TF.recipientKeydown(\''+field+'\',event,\'inline\')" placeholder="">';
   h+='<div class="compose-ac-dropdown" id="inline-'+field+'-ac"></div>';
@@ -7268,16 +7268,16 @@ function rEmailThreadModal(threadId){
   h+='<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);margin-bottom:10px;cursor:pointer">';
   h+='<input type="checkbox" id="thread-crm-none"'+(isNone?' checked':'')+' onchange="TF.threadCrmNoneChange()"> None / Internal</label>';
 
-  /* Client dropdown */
-  h+='<div class="thread-crm-row"><select class="edf" id="thread-crm-client" onchange="TF.threadCrmClientChange()"'+(isNone?' disabled':'')+'>';
-  h+='<option value="">— Client —</option>';
+  /* Client dropdown — searchable input with datalist */
+  h+='<div class="thread-crm-row"><input type="text" class="edf" id="thread-crm-client" list="thread-crm-client-list" placeholder="— Client —" value="'+escAttr(curClient)+'" onchange="TF.threadCrmClientChange()" oninput="TF.threadCrmClientChange()"'+(isNone?' disabled':'')+'>';
+  h+='<datalist id="thread-crm-client-list">';
   var _cliNames=[];
   S.clientRecords.forEach(function(r){if(r.name&&_cliNames.indexOf(r.name)===-1)_cliNames.push(r.name)});
   S.campaigns.forEach(function(c){if(c.partner&&_cliNames.indexOf(c.partner)===-1)_cliNames.push(c.partner)});
   S.tasks.concat(S.done).forEach(function(t){if(t.client&&_cliNames.indexOf(t.client)===-1)_cliNames.push(t.client)});
   S.opportunities.forEach(function(o){if(o.client&&_cliNames.indexOf(o.client)===-1)_cliNames.push(o.client)});
-  _cliNames.sort().forEach(function(cn){h+='<option value="'+esc(cn)+'"'+(cn===curClient?' selected':'')+'>'+esc(cn)+'</option>'});
-  h+='</select>';
+  _cliNames.sort().forEach(function(cn){h+='<option value="'+esc(cn)+'">'});
+  h+='</datalist>';
   h+='<button class="thread-crm-add" onclick="TF.openAddClientModal()" title="Add Client">'+icon('plus',12)+'</button></div>';
 
   /* End-Client dropdown */

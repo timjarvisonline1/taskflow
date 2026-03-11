@@ -119,7 +119,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   saveRule:saveRule,deleteEmailRule:deleteEmailRule,toggleEmailRule:toggleEmailRule,
   addRuleCond:addRuleCond,removeRuleCond:removeRuleCond,ruleCondTypeChange:ruleCondTypeChange,ruleCondValueChange:ruleCondValueChange,
   addRuleAct:addRuleAct,removeRuleAct:removeRuleAct,ruleActTypeChange:ruleActTypeChange,ruleActValueChange:ruleActValueChange,
-  acRecipient:acRecipient,acSelect:acSelect,acRemoveChip:acRemoveChip,recipientKeydown:recipientKeydown,
+  acRecipient:acRecipient,acSelect:acSelect,acRemoveChip:acRemoveChip,recipientKeydown:recipientKeydown,chipDragStart:chipDragStart,chipDragOver:chipDragOver,chipDragLeave:chipDragLeave,chipDrop:chipDrop,
   inlineReply:inlineReply,inlineReplyAll:inlineReplyAll,inlineForward:inlineForward,
   saveInlineDraft:_saveInlineDraft,
   addInlineAttachment:addInlineAttachment,removeInlineAttachment:removeInlineAttachment,toggleInlineCcBcc:toggleInlineCcBcc,

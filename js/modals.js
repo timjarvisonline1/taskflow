@@ -250,30 +250,37 @@ function openDetail(id){
   gel('detail-modal').classList.add('on','full-detail')}
 
 function closeModal(){
-  /* Check if compose is active — offer to save as draft */
-  var editor=gel('compose-body');
-  if(window._composeModalActive&&editor){
-    var to=window._composeRecipients.to||[];
-    var subject=(gel('compose-subject')||{}).value||'';
-    var body=editor.innerHTML||'';
-    var hasContent=to.length||subject||
-      (body&&body!=='<br>'&&body!=='<div><br></div>'&&!body.match(/^(<br\s*\/?>|<div><br><\/div>|\s)*(<br\s*\/?>)?<div class="email-signature">[\s\S]*<\/div>$/));
-    if(hasContent){
-      var saveDraft=confirm('Save this message as a draft?');
-      if(saveDraft){_saveDraft(window._composeDraftId);toast('Draft saved','ok')}
-      else if(window._composeDraftId){_deleteDraft(window._composeDraftId)}}
-    window._composeModalActive=false;
-    /* Clear timer + state */
-    if(window._composeDraftTimer){clearInterval(window._composeDraftTimer);window._composeDraftTimer=null}
-    window._composeDraftId=null;
-    document.removeEventListener('selectionchange',updateComposeToolbar);
-    window._composeAttachments=[];
-    var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
-    inner.classList.remove('tf-modal-wide')}
-  /* If email thread is open in detail-modal, close it properly; otherwise just dismiss */
+  var m=gel('modal');
+  var modalIsOpen=m&&m.classList.contains('on');
+
+  /* If #modal is open, handle closing it */
+  if(modalIsOpen){
+    /* Check if compose is active — offer to save as draft */
+    var editor=gel('compose-body');
+    if(window._composeModalActive&&editor){
+      var to=window._composeRecipients.to||[];
+      var subject=(gel('compose-subject')||{}).value||'';
+      var body=editor.innerHTML||'';
+      var hasContent=to.length||subject||
+        (body&&body!=='<br>'&&body!=='<div><br></div>'&&!body.match(/^(<br\s*\/?>|<div><br><\/div>|\s)*(<br\s*\/?>)?<div class="email-signature">[\s\S]*<\/div>$/));
+      if(hasContent){
+        var saveDraft=confirm('Save this message as a draft?');
+        if(saveDraft){_saveDraft(window._composeDraftId);toast('Draft saved','ok')}
+        else if(window._composeDraftId){_deleteDraft(window._composeDraftId)}}
+      window._composeModalActive=false;
+      if(window._composeDraftTimer){clearInterval(window._composeDraftTimer);window._composeDraftTimer=null}
+      window._composeDraftId=null;
+      document.removeEventListener('selectionchange',updateComposeToolbar);
+      window._composeAttachments=[];
+      var inner=m.querySelector('.tf-modal-inner')||m;
+      inner.classList.remove('tf-modal-wide')}
+    /* Close only #modal — leave #detail-modal (email thread) intact */
+    m.classList.remove('on','email-light');
+    return}
+
+  /* #modal was not open — close #detail-modal */
   if(S.gmailThreadId){closeEmailThread()}
-  else{var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail')}
-  var m=gel('modal');if(m)m.classList.remove('on','email-light')}
+  else{var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail')}}
 
 async function saveDetail(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
@@ -3873,7 +3880,7 @@ function openComposeEmail(opts){
   function recipientField(field,label,show){
     var s='<div class="ed-fld" id="compose-'+field+'-wrap" style="position:relative;'+(show?'':'display:none')+'">';
     s+='<span class="ed-lbl">'+label+'</span>';
-    s+='<div class="compose-recipient-wrap" onclick="var i=gel(\'compose-'+field+'-input\');if(i)i.focus()">';
+    s+='<div class="compose-recipient-wrap" data-drop-field="'+field+'" onclick="var i=gel(\'compose-'+field+'-input\');if(i)i.focus()" ondragover="TF.chipDragOver(event)" ondragleave="TF.chipDragLeave(event)" ondrop="TF.chipDrop(event)">';
     s+='<span id="compose-'+field+'-chips"></span>';
     s+='<input class="compose-recipient-input" id="compose-'+field+'-input" placeholder="Add recipients..."';
     s+=' oninput="TF.acRecipient(\''+field+'\')" onkeydown="TF.recipientKeydown(\''+field+'\',event)"';
@@ -3924,9 +3931,10 @@ function openComposeEmail(opts){
   h+='<div class="compose-cat-bar" id="compose-cat-bar">';
   h+='<div class="compose-cat-header">'+icon('tag',11)+' Categorize <span style="font-weight:400;color:var(--t4)">(required before sending)</span></div>';
   h+='<div class="compose-cat-grid">';
-  h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">Client</span><select class="edf" id="compose-cat-client" onchange="TF.composeCatClientChange()" style="font-size:11px;padding:5px 8px"><option value="">— Select —</option>';
-  S.clientRecords.forEach(function(cr){h+='<option value="'+esc(cr.name)+'">'+esc(cr.name)+'</option>'});
-  h+='</select></div>';
+  h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">Client</span><input type="text" class="edf" id="compose-cat-client" list="compose-cat-client-list" placeholder="— Select —" onchange="TF.composeCatClientChange()" oninput="TF.composeCatClientChange()" style="font-size:11px;padding:5px 8px">';
+  h+='<datalist id="compose-cat-client-list">';
+  S.clientRecords.forEach(function(cr){h+='<option value="'+esc(cr.name)+'">'});
+  h+='</datalist></div>';
   h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">End Client</span><select class="edf" id="compose-cat-ec" onchange="TF.composeCatValidate()" style="font-size:11px;padding:5px 8px"><option value="">— Select —</option></select></div>';
   h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">Campaign</span><select class="edf" id="compose-cat-campaign" onchange="TF.composeCatValidate()" style="font-size:11px;padding:5px 8px"><option value="">— Select —</option></select></div>';
   h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl" style="font-size:10px">Opportunity</span><select class="edf" id="compose-cat-opportunity" onchange="TF.composeCatValidate()" style="font-size:11px;padding:5px 8px"><option value="">— Select —</option></select></div>';
@@ -4035,6 +4043,10 @@ function _composeCatAutoDetect(){
 
 function composeCatClientChange(){
   var client=(gel('compose-cat-client')||{}).value||'';
+  /* Save current selections to preserve them after rebuild */
+  var prevEc=(gel('compose-cat-ec')||{}).value||'';
+  var prevCamp=(gel('compose-cat-campaign')||{}).value||'';
+  var prevOpp=(gel('compose-cat-opportunity')||{}).value||'';
   /* Refresh end-client options */
   var ecSel=gel('compose-cat-ec');if(ecSel){
     var oh='<option value="">— Select —</option>';
@@ -4043,19 +4055,19 @@ function composeCatClientChange(){
     S.tasks.concat(S.done).forEach(function(t){if(!client||t.client===client){if(t.endClient&&ecs.indexOf(t.endClient)===-1)ecs.push(t.endClient)}});
     S.opportunities.forEach(function(o){if(!client||o.client===client){if(o.endClient&&ecs.indexOf(o.endClient)===-1)ecs.push(o.endClient)}});
     ecs.sort().forEach(function(ec){oh+='<option value="'+esc(ec)+'">'+esc(ec)+'</option>'});
-    ecSel.innerHTML=oh}
+    ecSel.innerHTML=oh;if(prevEc)ecSel.value=prevEc}
   /* Refresh campaign options */
   var cpSel=gel('compose-cat-campaign');if(cpSel){
     var ch='<option value="">— Select —</option>';
     S.campaigns.filter(function(c){return!client||c.partner===client}).forEach(function(c){
       ch+='<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>'});
-    cpSel.innerHTML=ch}
+    cpSel.innerHTML=ch;if(prevCamp)cpSel.value=prevCamp}
   /* Refresh opportunity options */
   var opSel=gel('compose-cat-opportunity');if(opSel){
     var oph='<option value="">— Select —</option>';
     S.opportunities.filter(function(o){return!o.closedAt&&(!client||o.client===client)}).forEach(function(o){
       oph+='<option value="'+esc(o.id)+'">'+esc(o.name)+'</option>'});
-    opSel.innerHTML=oph}
+    opSel.innerHTML=oph;if(prevOpp)opSel.value=prevOpp}
   _composeCatValidate()}
 
 function composeCatNoneChange(){
@@ -4496,15 +4508,8 @@ function openAddContactModal(clientId,prefillOrEC){
 function _openAddContactModalImpl(clientId,prefill){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('contact',12)+' Add Contact</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  if(clientId){
-    h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId)+'">';
-  }else{
-    /* Client selector — shown when adding from email or global context */
-    h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="fc-client-id" onchange="TF.refreshContactEndClients()"><option value="">— No client —</option>';
-    (S.clientRecords||[]).forEach(function(cr){
-      h+='<option value="'+escAttr(cr.id)+'">'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
-    h+='</select></div>';
-  }
+
+  /* ── Contact Details ── */
   h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">First Name</span><input type="text" class="edf" id="fc-first-name" placeholder="First name" autofocus></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Last Name</span><input type="text" class="edf" id="fc-last-name" placeholder="Last name"></div>';
@@ -4517,11 +4522,32 @@ function _openAddContactModalImpl(clientId,prefill){
   h+='<div class="ed-fld"><span class="ed-lbl">Role / Title</span><input type="text" class="edf" id="fc-role" placeholder="e.g. Marketing Manager"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Phone</span><input type="tel" class="edf" id="fc-phone" placeholder="+1 (555) 000-0000"></div>';
   h+='</div>';
+
+  /* ── CRM Association (Client + End Client together) ── */
+  h+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gborder)">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em">'+icon('tag',10)+' CRM Association <span style="font-weight:400;font-size:10px;text-transform:none">(optional)</span></div>';
   var _fcFilterClient=clientId?(S.clientRecords.find(function(r){return r.id===clientId})||{}).name||'':'';
   var _fcPrefillEC=prefill&&prefill.endClient?prefill.endClient:'';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="fc-end-client" onchange="TF.ecAddNew(\'fc-end-client\')">';
-  h+=buildEndClientOptions(_fcPrefillEC,_fcFilterClient);
-  h+='</select></div>';
+  if(clientId){
+    h+='<input type="hidden" id="fc-client-id" value="'+escAttr(clientId)+'">';
+  }else{
+    h+='<div class="ed-grid ed-grid-2">';
+    h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl">Client</span><select class="edf" id="fc-client-id" onchange="TF.refreshContactEndClients()"><option value="">— No client —</option>';
+    (S.clientRecords||[]).forEach(function(cr){
+      h+='<option value="'+escAttr(cr.id)+'">'+esc(cr.name)+(cr.status==='lapsed'?' (lapsed)':'')+'</option>'});
+    h+='</select></div>';
+    h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl">End Client</span><select class="edf" id="fc-end-client" onchange="TF.ecAddNew(\'fc-end-client\')">';
+    h+=buildEndClientOptions(_fcPrefillEC,_fcFilterClient);
+    h+='</select></div>';
+    h+='</div>';
+  }
+  if(clientId){
+    h+='<div class="ed-fld" style="margin:0"><span class="ed-lbl">End Client</span><select class="edf" id="fc-end-client" onchange="TF.ecAddNew(\'fc-end-client\')">';
+    h+=buildEndClientOptions(_fcPrefillEC,_fcFilterClient);
+    h+='</select></div>';
+  }
+  h+='</div>';
+
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveContact()">Add Contact</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
   if(prefill){
