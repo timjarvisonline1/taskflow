@@ -280,7 +280,7 @@ function closeModal(){
 
   /* #modal was not open — close #detail-modal */
   if(S.gmailThreadId){closeEmailThread()}
-  else{var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail')}}
+  else{var dm=gel('detail-modal');dm.classList.remove('on','full-detail','email-light')}}
 
 async function saveDetail(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;

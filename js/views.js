@@ -27,6 +27,7 @@ function render(){
 
   switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break}
   m.classList.toggle('email-active',S.view==='email');
+  if(S.view!=='email'){var _dm=gel('detail-modal');if(_dm)_dm.classList.remove('email-light');if(S.gmailThreadId){S.gmailThreadId='';S.gmailThread=null;_dm&&_dm.classList.remove('on','full-detail')}}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
   if(S.view==='dashboard')initDashboardCharts();

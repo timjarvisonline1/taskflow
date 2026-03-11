@@ -2514,6 +2514,10 @@ async function openEmailThread(threadId){
   S._emailTimer={threadId:threadId,started:Date.now(),subject:'',categorization:null};
 
   S.gmailThreadId=threadId;S.gmailThread=null;
+  /* Reset inline reply state so stale recipients from previous thread don't persist */
+  window._inlineReplyMode='reply';
+  window._inlineRecipients={to:[],cc:[],bcc:[]};
+  window._inlineAttachments=[];
 
   /* Use cached thread detail if available (show instantly) */
   var cachedDetail=S._gmailThreadDetailCache[threadId];
@@ -2598,6 +2602,10 @@ function _flushEmailTimer(){
 
 function closeEmailThread(){
   _flushEmailTimer();S.gmailThread=null;S.gmailThreadId='';
+  /* Reset inline reply state */
+  window._inlineReplyMode='reply';
+  window._inlineRecipients={to:[],cc:[],bcc:[]};
+  window._inlineAttachments=[];
   gel('detail-modal').classList.remove('on','full-detail','email-light');
   render();
 }
