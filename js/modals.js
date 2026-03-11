@@ -3967,8 +3967,18 @@ function openComposeEmail(opts){
   h+='</div>';
   /* AI Draft prompt input for compose modal */
   h+='<div class="ai-draft-prompt-wrap" id="compose-ai-draft-prompt">';
-  h+='<input class="ai-draft-prompt-input" id="compose-ai-draft-input" placeholder="'+(isReply?'What should the reply focus on?':'Describe what this email should say')+' (press Enter or click Draft)"';
+  h+='<input class="ai-draft-prompt-input" id="compose-ai-draft-input" placeholder="'+(isReply?'What should the reply focus on?':'Describe what this email should say')+' (optional)"';
   h+=' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.aiDraft()}">';
+  h+='<div class="ai-draft-controls">';
+  h+='<span class="ai-draft-ctrl-label">Tone:</span>';
+  h+='<button class="ai-draft-tone-btn" data-tone="brief" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Brief</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="friendly" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Friendly</button>';
+  h+='<button class="ai-draft-tone-btn" data-tone="formal" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-tone-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Formal</button>';
+  h+='<span class="ai-draft-ctrl-label" style="margin-left:8px">Length:</span>';
+  h+='<button class="ai-draft-length-btn" data-length="short" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Short</button>';
+  h+='<button class="ai-draft-length-btn" data-length="medium" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Medium</button>';
+  h+='<button class="ai-draft-length-btn" data-length="long" onclick="this.classList.toggle(\'active\');this.parentNode.querySelectorAll(\'.ai-draft-length-btn\').forEach(function(b){if(b!==event.target)b.classList.remove(\'active\')})">Long</button>';
+  h+='</div>';
   h+='<button class="ai-draft-prompt-go" onclick="TF.aiDraft()">'+icon('sparkle',10)+' Draft</button>';
   h+='</div>';
   h+='</div>';
@@ -4124,6 +4134,7 @@ async function aiDraft(){
 
     var messages=[];
     var clientId=null;
+    var gmailThread=null;
     if(threadId){
       /* Get thread messages — use already-loaded S.gmailThread if it matches */
       var thread=(S.gmailThreadId===threadId&&S.gmailThread)?S.gmailThread:null;
@@ -4139,7 +4150,7 @@ async function aiDraft(){
         }
       }
       if(!messages.length){toast('Could not load email thread','warn');if(btn){btn.disabled=false;btn.innerHTML=icon('sparkle',12)+' AI Draft';btn.style.opacity='1'}return}
-      var gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId||t.thread_id===threadId});
+      gmailThread=S.gmailThreads.find(function(t){return t.threadId===threadId||t.thread_id===threadId});
       clientId=gmailThread?gmailThread.clientId||gmailThread.client_id:null;
       if(!subject)subject=messages[0].subject||'';
     }else{
@@ -4148,17 +4159,61 @@ async function aiDraft(){
       if(toRecips){
         var ctx=resolveThreadCrmContext('',toRecips,'');
         if(ctx&&ctx.primaryClient)clientId=ctx.primaryClient.id||null}
-      /* Build a pseudo-message from subject + prompt for context */
-      if(!customPrompt)customPrompt='Write a professional email about: '+subject;
     }
 
-    /* Build payload with optional custom prompt */
-    var payload={subject:subject,clientId:clientId};
+    /* Build payload */
+    var payload={subject:subject,clientId:clientId,stream:true};
     if(threadId){payload.threadId=threadId;payload.messages=messages}
     else{payload.newCompose=true;payload.to=(window._composeRecipients&&window._composeRecipients.to||[]).join(', ')}
     if(customPrompt)payload.customPrompt=customPrompt;
 
-    /* Call AI Draft endpoint */
+    /* Tone and length from UI controls */
+    var toneEl=document.querySelector('#compose-ai-draft-prompt .ai-draft-tone-btn.active');
+    var lengthEl=document.querySelector('#compose-ai-draft-prompt .ai-draft-length-btn.active');
+    if(toneEl&&toneEl.dataset.tone)payload.tone=toneEl.dataset.tone;
+    if(lengthEl&&lengthEl.dataset.length)payload.length=lengthEl.dataset.length;
+
+    /* Recipient context: look up contact info for first To recipient */
+    var firstTo=(window._composeRecipients&&window._composeRecipients.to||[])[0]||'';
+    if(firstTo&&S.contacts){
+      var contactMatch=S.contacts.find(function(c){return c.email&&c.email.toLowerCase()===firstTo.toLowerCase()});
+      if(contactMatch){
+        payload.recipientContext={name:((contactMatch.firstName||'')+' '+(contactMatch.lastName||'')).trim(),role:contactMatch.role||'',clientName:contactMatch.clientName||'',endClientName:contactMatch.endClient||'',relationship:contactMatch.relationship||''};
+      }
+    }
+
+    /* CRM context from compose categorization or detected client */
+    var crmClientVal=(gel('compose-cat-client')||{}).value||'';
+    if(crmClientVal||clientId){
+      var crm={};
+      if(crmClientVal&&S.clients){var cl=S.clients.find(function(c){return c.id===crmClientVal||c.name===crmClientVal});if(cl)crm.clientName=cl.name}
+      else if(clientId&&S.clients){var cl2=S.clients.find(function(c){return c.id===clientId});if(cl2)crm.clientName=cl2.name}
+      var ecVal=(gel('compose-cat-ec')||{}).value||'';if(ecVal)crm.endClientName=ecVal;
+      var campVal=(gel('compose-cat-campaign')||{}).value||'';
+      if(campVal&&S.campaigns){var camp=S.campaigns.find(function(c){return c.id===campVal});if(camp){crm.campaignName=camp.name;crm.campaignStatus=camp.status||''}}
+      var oppVal=(gel('compose-cat-opportunity')||{}).value||'';
+      if(oppVal&&S.opportunities){var opp=S.opportunities.find(function(o){return o.id===oppVal});if(opp){crm.opportunityName=opp.name;crm.opportunityStage=opp.stage||''}}
+      if(Object.keys(crm).length)payload.crmContext=crm;
+    }
+
+    /* SSE streaming — prepare editor */
+    var editor=gel('compose-body');
+    var sig=editor?editor.querySelector('.email-signature'):null;
+    var streamTarget=null;
+    if(editor){
+      streamTarget=document.createElement('div');
+      streamTarget.className='ai-draft-stream';
+      streamTarget.innerHTML='<span class="ai-draft-cursor"></span>';
+      if(sig){editor.insertBefore(streamTarget,sig)}
+      else{editor.innerHTML='';editor.appendChild(streamTarget)}
+    }
+
+    /* Hide prompt */
+    var promptWrap=gel('compose-ai-draft-prompt');
+    if(promptWrap)promptWrap.classList.remove('open');
+    if(promptInput)promptInput.value='';
+
+    /* Call AI Draft endpoint with SSE streaming */
     var draftResp=await fetch('/api/knowledge/ai-draft',{
       method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
@@ -4170,50 +4225,50 @@ async function aiDraft(){
       throw new Error(errData.error||'AI Draft failed (HTTP '+draftResp.status+')')
     }
 
-    var result=await draftResp.json();
-    var draft=result.draft||'';
+    /* Parse SSE stream */
+    var rawText='';var sourceCount=0;
+    var reader=draftResp.body.getReader();var decoder=new TextDecoder();var buf='';
+    while(true){
+      var chunk=await reader.read();
+      if(chunk.done)break;
+      buf+=decoder.decode(chunk.value,{stream:true});
+      var lines=buf.split('\n');buf=lines.pop()||'';
+      var evtType='';
+      for(var li=0;li<lines.length;li++){
+        var line=lines[li];
+        if(line.startsWith('event: ')){evtType=line.substring(7).trim();continue}
+        if(line.startsWith('data: ')){
+          var dStr=line.substring(6);
+          try{var dObj=JSON.parse(dStr);
+            if(evtType==='sources'){sourceCount=(dObj.sources||[]).length}
+            else if(evtType==='token'&&dObj.token){
+              rawText+=dObj.token;
+              if(streamTarget){var cursor=streamTarget.querySelector('.ai-draft-cursor');
+                if(cursor)cursor.insertAdjacentText('beforebegin',dObj.token);
+                else streamTarget.insertAdjacentText('beforeend',dObj.token)}
+            }
+          }catch(pe){}
+          evtType='';
+        }
+      }
+    }
+
+    /* Clean up streaming result */
+    var draft=rawText.trim();
+    draft=draft.replace(/^```html\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/g,'').trim();
+    if(draft&&!draft.includes('font-family')){
+      draft='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.6">'+draft+'</div>'}
+    if(streamTarget){streamTarget.outerHTML=draft}
     if(!draft){toast('AI could not generate a draft','warn');return}
 
-    /* Insert draft into editor (before signature if present) */
-    var editor=gel('compose-body');
-    if(editor){
-      var sig=editor.querySelector('.email-signature');
-      if(sig){
-        /* Insert before signature */
-        var draftDiv=document.createElement('div');
-        draftDiv.innerHTML=draft;
-        editor.insertBefore(draftDiv,sig);
-        /* Add spacing */
-        var br=document.createElement('br');
-        editor.insertBefore(br,sig)
-      }else{
-        editor.innerHTML=draft+editor.innerHTML
-      }
-    }
+    /* Track variant for cycling */
+    var variantKey=threadId||'_compose_'+Date.now();
+    if(!S._aiDraftVariants)S._aiDraftVariants={};
+    if(!S._aiDraftVariants[variantKey])S._aiDraftVariants[variantKey]={drafts:[],idx:0};
+    S._aiDraftVariants[variantKey].drafts.push(draft);
+    S._aiDraftVariants[variantKey].idx=S._aiDraftVariants[variantKey].drafts.length-1;
 
-    /* Hide prompt and clear */
-    var promptWrap=gel('compose-ai-draft-prompt');
-    if(promptWrap)promptWrap.classList.remove('open');
-    if(promptInput)promptInput.value='';
-
-    /* Show sources info */
-    var sources=result.sources||[];
-    if(sources.length>0){
-      var srcList=sources.slice(0,5).map(function(s){return s.source_type+': '+s.title+' ('+s.similarity+'%)'});
-      /* Show sources panel below editor */
-      var srcPanel=gel('ai-draft-sources');
-      if(!srcPanel){
-        srcPanel=document.createElement('div');
-        srcPanel.id='ai-draft-sources';
-        srcPanel.style.cssText='margin-top:8px;padding:8px 12px;background:rgba(16,163,127,.06);border:1px solid rgba(16,163,127,.15);border-radius:8px;font-size:11px;color:var(--t3)';
-        var editorWrap=editor.closest('.compose-body-wrap');
-        if(editorWrap)editorWrap.parentNode.insertBefore(srcPanel,editorWrap.nextSibling)
-      }
-      srcPanel.innerHTML='<div style="font-weight:600;color:#10A37F;margin-bottom:4px">'+icon('sparkle',10)+' Knowledge sources used ('+sources.length+')</div>'+
-        srcList.map(function(s){return '<div style="padding:1px 0">'+s+'</div>'}).join('')
-    }
-
-    toast('Draft generated from '+sources.length+' knowledge sources','ok')
+    toast('Draft generated from '+sourceCount+' knowledge sources','ok')
   }catch(e){
     console.error('aiDraft error:',e);
     toast(e.message||'AI Draft failed','err')
