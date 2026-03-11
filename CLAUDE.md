@@ -35,7 +35,7 @@ Browser (client JS)                   Vercel Serverless Functions
 - **Hosting**: Vercel (Pro plan — 300s max function timeout, no cron support)
 - **CDN libs**: Supabase JS v2 (UMD), Chart.js 4.4
 - **Email**: Gmail API (OAuth 2.0) — scopes: `gmail.readonly`, `gmail.send`, `gmail.modify`
-- **AI/Embeddings**: Anthropic Claude (email analysis, EC Review, KB RAG), OpenAI text-embedding-3-small (KB vectors)
+- **AI/Embeddings**: Anthropic Claude (email analysis, EC Review, KB RAG), OpenAI text-embedding-3-large (KB vectors, 1536 dims)
 
 ## Important URLs & IDs
 
@@ -160,10 +160,11 @@ taskflow/
 │   ├── add-end-clients.sql         # end_clients table (managed end-client entities)
 │   ├── add-knowledge-base.sql     # knowledge_chunks + knowledge_sources tables, pgvector, match_knowledge() fn
 │   ├── add-prospects.sql          # prospect_companies + prospects tables
-│   └── add-meeting-group-call.sql # is_group_call, group_call_type, kajabi_report_html columns on meetings
-│
-├── docs/
-│   └── EMAIL_DESIGN_ISSUES.md  # Living email audit: 153 issues across 13 sections (A-M), priority phases, quick wins, changelog
+│   ├── add-meeting-group-call.sql # is_group_call, group_call_type, kajabi_report_html columns on meetings
+│   ├── upgrade-knowledge-search.sql         # Combined hybrid search upgrade (all-in-one)
+│   ├── upgrade-knowledge-part1-column.sql   # Add content_tsv column + GIN index + auto-update trigger
+│   ├── upgrade-knowledge-part2-backfill.sql # Backfill content_tsv for existing rows
+│   └── upgrade-knowledge-part3-function.sql # Replace match_knowledge() with hybrid search fn
 │
 └── scripts/
     ├── run-migration.py        # Helper to run SQL migrations
@@ -854,8 +855,8 @@ TaskFlow includes a vector-based knowledge base powered by pgvector (Supabase) a
 ### Architecture
 
 ```
-Content Sources → Chunking → OpenAI Embedding → Supabase pgvector → Search/RAG
-                                (text-embedding-3-small, 1536 dims)
+Content Sources → Chunking → OpenAI Embedding → Supabase pgvector → Hybrid Search/RAG
+                                (text-embedding-3-large, 1536 dims)
 ```
 
 **Core library:** `api/_lib/embeddings.js` — shared functions for chunking, embedding, storing, searching, and deduplication.
@@ -907,9 +908,18 @@ Python CLI scripts for initial population of the knowledge base:
 
 ### Search & RAG
 
-**Vector search** (`searchKnowledge()`): Calls `match_knowledge()` SQL function with cosine distance, returns chunks above similarity threshold (default 0.3), ordered by relevance.
+**Hybrid search** (`searchKnowledge()`): Calls `match_knowledge()` SQL function which combines vector similarity (cosine distance) with full-text search (tsvector/tsquery). Features:
+- **Vector + keyword fusion**: `search_keywords` parameter enables tsvector matching alongside vector similarity
+- **Recency weighting**: newer content gets a boost (0-10% based on age, 365-day window)
+- **Source type diversity**: 50% cap per source type prevents any single type from dominating results
+- **Backward compatibility**: if the DB function hasn't been upgraded yet (missing `search_keywords` param), automatically falls back to vector-only search
+- Returns chunks above similarity threshold (default 0.3), ranked by combined score
 
-**AI Q&A** (`/api/knowledge/ai-ask`): Combines keyword search (SQL `ilike`) with vector similarity search, deduplicates results, sends top chunks as context to Claude for answer generation. Uses proper `system` message with persona. Supports multi-turn conversation history.
+**Database columns for hybrid search:**
+- `content_tsv` — `tsvector` column on `knowledge_chunks`, auto-populated by trigger from `content` column
+- GIN index on `content_tsv` for fast full-text search
+
+**AI Q&A** (`/api/knowledge/ai-ask`): Combines keyword search (SQL `ilike`) with hybrid vector+keyword search, deduplicates results, sends top chunks as context to Claude for answer generation. Uses proper `system` message with persona. Supports multi-turn conversation history.
 
 ### AI Email Analysis Pipeline
 
@@ -946,7 +956,8 @@ Six AI-powered email features, all using Claude Sonnet (configurable via `integr
 - `chunkWebPage(text, title, url)` — Web page → overlapping chunks
 - `storeChunks(client, userId, sourceType, sourceId, chunks)` — Upsert with dedup (returns {inserted, skipped, updated})
 - `upsertSource(client, userId, sourceType, sourceId, ...)` — Update ingestion tracking
-- `searchKnowledge(client, userId, queryEmbedding, opts)` — Vector similarity search
+- `searchKnowledge(client, userId, queryEmbedding, opts)` — Hybrid vector+keyword search (opts.keywords for tsvector matching)
+- `stripQuotedReply(text)` — Strips quoted reply content from email bodies before embedding (removes `>` prefixed lines, "On ... wrote:" blocks)
 - `cleanOrphans(client, userId, sourceType, validSourceIds)` — Remove embeddings for deleted records
 
 ## Database Tables
@@ -985,9 +996,9 @@ Six AI-powered email features, all using Claude Sonnet (configurable via `integr
 - `team_members` — payroll data
 
 ### Knowledge Base Tables
-- `knowledge_chunks` — vector-embedded content chunks (pgvector 1536-dim). Fields: source_type (meeting/email/webpage/youtube/document/task/client/campaign/contact/project/opportunity/activity/payment/scheduled/team), source_id, chunk_index, title, content, client_id FK, end_client, campaign_id FK, date, people[], tags[], embedding vector(1536), embedding_model, token_count, content_hash. HNSW index for cosine distance. Unique constraint on (user_id, source_type, source_id, chunk_index).
+- `knowledge_chunks` — vector-embedded content chunks (pgvector 1536-dim). Fields: source_type (meeting/email/webpage/youtube/document/task/client/campaign/contact/project/opportunity/activity/payment/scheduled/team), source_id, chunk_index, title, content, content_tsv (tsvector, auto-populated by trigger), client_id FK, end_client, campaign_id FK, date, people[], tags[], embedding vector(1536), embedding_model, token_count, content_hash. HNSW index for cosine distance, GIN index on content_tsv for full-text search. Unique constraint on (user_id, source_type, source_id, chunk_index).
 - `knowledge_sources` — ingestion tracking per source. Fields: source_type, source_id, name, url, status (pending/processing/complete/error), chunks_count, tokens_used, error_message, last_ingested_at. Unique constraint on (user_id, source_type, source_id).
-- `match_knowledge()` — SQL function for cosine similarity search with optional source_type and client_id filters, returns ranked chunks above threshold.
+- `match_knowledge()` — SQL function for hybrid search: cosine vector similarity + tsvector full-text matching + recency weighting. Accepts optional source_type, client_id, and search_keywords filters. Returns ranked chunks above threshold with source type diversity cap (50%).
 
 ### Email Tables
 - `gmail_threads` — thread metadata synced from Gmail (subject, from, to, cc, snippet, labels, is_unread, client_id, end_client, campaign_id, opportunity_id, last_message_from, last_message_at)
@@ -1031,7 +1042,7 @@ Each entity has standard CRUD helpers:
 - **Focus Mode** — full-screen single-task focus with Pomodoro-style timer (`openFocus`, `pauseFocus`, `resumeFocus`, `doneFocus`, `setFocusDur`)
 - **Command Palette** — searchable action launcher (`openCmdPalette`, `cmdSearch`, `closeCmdPalette`)
 - **Drag & Drop** — task reordering, schedule drag, project board drag
-- **Meeting Auto-Tracking** — 30-second poll for ended unlogged meetings from Google Calendar (`startMeetingCheck`, `completeMeetingEnd`, `dismissMeetingEnd`)
+- **Meeting Auto-Tracking** — 30-second poll for ended unlogged meetings from Google Calendar (`startMeetingCheck`, `completeMeetingEnd`, `dismissMeetingEnd`). Log Meeting modal has cascading dropdowns: Client → End Client → Campaign + Opportunity
 - **Scheduling Engine** — smart task-into-gap scheduling (`calcFreeSlots`, `scheduleTaskIntoSlot`)
 - **Daily Summary** — `openDailySummary()` modal + inline `rScheduleDaily()` view
 - **Client Reports** — `openClientReport()`, `genClientReport()` for client-specific reporting
@@ -1066,17 +1077,6 @@ Each entity has standard CRUD helpers:
 15. **Entity tabs** — `.cp-tabs` / `.cp-tab` / `.cp-tab.on` for tab bars; `.entity-tab-content` for tab body; `.cp-tab-badge` for badge counts
 16. **Contact email selector** — `.ces-wrap` for container, `.ces-cb` for checkboxes
 17. **Full-screen modals** — `detail-modal` container + `.full-detail` class (components.css:66-82)
-
-## Email Design Document
-
-A comprehensive living audit of all email-related issues lives at `docs/EMAIL_DESIGN_ISSUES.md`. It tracks 153 issues across 13 sections (A-M) with status checkboxes, severity ratings, file references, and fix suggestions. The document includes:
-
-- **Priority order** — 9 phases, 76 prioritized items (Phase 1: performance, Phase 2: perceived speed, Phase 3: AI bugs, Phase 4: AI quality, Phase 5: AI features, Phase 6: cross-feature, Phase 7: UI polish, Phase 8: performance tail, Phase 9: accessibility/enhancements)
-- **Quick wins** — 18 items that are each <30 min (many are 1-line fixes)
-- **Changelog** — tracks which issues are fixed with commit references
-- **Active plans** — CRM UUID fix plan at `.claude/plans/sequential-sparking-axolotl.md` (8 fixes for client_id name-vs-UUID corruption)
-
-When working on email issues, always check and update this document.
 
 ## Common Tasks
 
@@ -1165,8 +1165,10 @@ When working on email issues, always check and update this document.
 - Opportunity Details tab preserves same DOM element IDs (`op-name`, `op-stage`, `op-client`, etc.) for `saveOpportunity()` compatibility
 - `closeCampaignDashboard()` now calls `closeModal()` since campaign always renders in modal
 - `rCampaigns()` no longer checks `S.campaignDetailId` for in-page rendering
+- **Email light mode**: The email section uses light theme (dark text on white) via CSS variable overrides on `.email-page-wrap` and `.email-light`. Elements outside `.email-page-wrap` (meeting banner, modals, sub-nav) need the `email-light` class to inherit light-mode variables. `.main.email-active` also sets all light-theme CSS variables for child elements.
+- **Log Meeting modal cascading**: Client → End Client (`refreshLogMtgEC`) → Campaign (`refreshLogMtgCp`) + Opportunity (`refreshLogMtgOp`). Client change cascades to all downstream fields.
 
-## Current Status (as of 2026-03-09)
+## Current Status (as of 2026-03-11)
 
 ### Integrations
 - **Brex**: Connected, syncing ~308 transactions
@@ -1175,8 +1177,8 @@ When working on email issues, always check and update this document.
 - **Zoho Payments**: Connected, syncing ~69 records
 - **Gmail**: Connected via OAuth (readonly + send + modify scopes)
 - **Anthropic (Claude AI)**: API key stored in integration_credentials, powers email analysis + EC Review + KB RAG
-- **OpenAI**: API key stored in integration_credentials, powers KB embeddings (text-embedding-3-small)
-- **Knowledge Base**: pgvector in Supabase — 53,000+ emails embedded, meetings embedded, entities synced
+- **OpenAI**: API key stored in integration_credentials, powers KB embeddings (text-embedding-3-large, 1536 dims)
+- **Knowledge Base**: pgvector in Supabase — 53,000+ emails embedded, meetings embedded, entities synced. Hybrid search (vector + tsvector + recency weighting)
 
 ### What's Working
 - All four finance platforms sync via "Sync Now" buttons
@@ -1195,7 +1197,7 @@ When working on email issues, always check and update this document.
 - **Entity-specific charts** — Chart.js analytics on every entity Overview tab
 - **End-Client management** — CRUD for end-client entities with Supabase table
 - **EC Review** — AI-powered end-client candidate discovery from email/meeting data
-- **Knowledge Base (RAG)** — pgvector-backed semantic search across emails, meetings, and CRM entities
+- **Knowledge Base (RAG)** — pgvector-backed hybrid search (vector + full-text + recency) across emails, meetings, and CRM entities
 - **KB API endpoints** — search, AI Q&A, ingestion for emails/meetings/documents/URLs/YouTube
 - **Bulk email embedding** — 53,000+ emails embedded via `scripts/embed-emails.py`
 - Quick Add Queue with badge counts
@@ -1302,8 +1304,42 @@ All five entity types (Client, End-Client, Prospect Company, Campaign, Opportuni
 
 ### Recent Changes
 
-**Email Design Audit & AI Review (2026-03-09):**
-- Created `docs/EMAIL_DESIGN_ISSUES.md` — exhaustive living document tracking 153 issues across 13 sections:
+**Email Light Mode Fix (2026-03-11, commits 452a2de, 484c348):**
+- Fixed meeting prompt banner being unreadable in email section light mode (white text on white background)
+- Added full light-theme CSS variable overrides to `.main.email-active` in `features.css` (--bg, --t1, --t2, etc.)
+- Added `email-light` class directly to meeting banner element in `renderMeetingPromptBanner()` when `S.view === 'email'`
+- Banner sits outside `.email-page-wrap` in the DOM (`render()` places it before the section wrapper), so it doesn't inherit email light-theme variables — the `email-light` class solves this
+- Dismiss button gets inline light-mode styles when in email view
+
+**Meeting Completion Modal Fix (2026-03-11, commit 452a2de):**
+- Fixed cascading dropdowns: End Client now filters by selected Client (`buildEndClientOptions('', cli)`)
+- Fixed Campaign filter: corrected argument order from `buildCampaignOptions('', ec, cli)` to `buildCampaignOptions('', cli, ec)`
+- Added Opportunity dropdown (`<select id="lm-op">`) with `buildOpportunityOptions()` and `refreshLogMtgOp()` cascade function
+- Client change now cascades to End Client → Campaign and Opportunity
+- `logMeeting()` now saves opportunity value to meeting done records and linked task completions
+- `refreshLogMtgOp` registered on `window.TF` in `app.js`
+
+**AI Knowledge Search Upgrade (2026-03-11, commit fdf76d2):**
+- Upgraded embedding model from `text-embedding-3-small` to `text-embedding-3-large` (1536 dims preserved)
+- Added hybrid search: vector similarity + full-text search (tsvector/tsquery) with weighted scoring
+- Added recency weighting: newer content gets 0-10% boost (365-day decay window)
+- Added source type diversity: 50% cap prevents any single source type from dominating results
+- Added `content_tsv` tsvector column on `knowledge_chunks` with GIN index and auto-update trigger
+- `match_knowledge()` SQL function upgraded to accept `search_keywords` parameter for full-text matching
+- `searchKnowledge()` accepts `opts.keywords` with backward compatibility fallback for un-upgraded DBs
+- `stripQuotedReply()` strips quoted reply content (`>` prefixed lines, "On ... wrote:" blocks) before embedding emails
+- Email chunking now strips quoted replies to reduce noise in embeddings
+- SQL migrations: `upgrade-knowledge-part1-column.sql`, `upgrade-knowledge-part2-backfill.sql`, `upgrade-knowledge-part3-function.sql` (also combined in `upgrade-knowledge-search.sql`)
+
+**Email Usability Fixes (2026-03-10, multiple commits):**
+- 16 rounds of email UI/UX improvements covering compose, threading, CRM sidebar, smart inboxes, and more
+- Fixed compose editor font consistency, reply threading, attachment handling
+- Improved email list panel with better badges, date grouping, archive-on-hover
+- Enhanced CRM sidebar dropdowns and contact pills
+- Fixed smart inbox filtering and CRM context resolution edge cases
+
+**Email Design Audit & AI Review (2026-03-09):** *(audit doc removed — issues largely resolved)*
+- Created `docs/EMAIL_DESIGN_ISSUES.md` (since removed) — tracked 153 issues across 13 sections:
   - **A**: Compose/Reply/AI Draft formatting (6 issues — root cause of "weird font" bug: editor font-family mismatch + AI draft no font styling)
   - **B**: Email list panel (12 issues — badge overflow, snippet guards, keyboard focus)
   - **C**: Email detail panel (10 issues — iframe dark mode, collapse indicators, attachment truncation)
@@ -1383,7 +1419,7 @@ All five entity types (Client, End-Client, Prospect Company, Campaign, Opportuni
 - Prospect database tables: `prospect_companies` and `prospects` with full CRUD
 
 **Knowledge Base System (2026-03-07):**
-- pgvector-powered RAG system with OpenAI text-embedding-3-small (1536 dims)
+- pgvector-powered RAG system with OpenAI text-embedding-3-large (1536 dims)
 - `knowledge_chunks` and `knowledge_sources` tables with HNSW index
 - Core library: `api/_lib/embeddings.js` (chunk, embed, store, search, dedup)
 - 11 entity-type chunkers in `api/_lib/entity-chunkers.js`
