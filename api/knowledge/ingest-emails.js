@@ -14,7 +14,7 @@
  */
 
 const { getServiceClient, verifyUserToken, cors, getCredentials } = require('../_lib/supabase');
-const { getOpenAIKey, embedTexts, chunkEmailThread, storeChunks, upsertSource } = require('../_lib/embeddings');
+const { getOpenAIKey, embedTexts, chunkEmailThread, storeChunks, upsertSource, stripQuotedReply } = require('../_lib/embeddings');
 const { refreshGmailToken } = require('../_lib/gmail-auth');
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -201,22 +201,42 @@ module.exports = async function handler(req, res) {
 function extractTextBody(payload) {
   if (!payload) return '';
   if (payload.mimeType === 'text/plain' && payload.body && payload.body.data) {
-    return decodeBase64Url(payload.body.data);
+    return stripQuotedReply(decodeBase64Url(payload.body.data));
   }
   var parts = payload.parts || [];
   for (var i = 0; i < parts.length; i++) {
     if (parts[i].mimeType === 'text/plain' && parts[i].body && parts[i].body.data) {
-      return decodeBase64Url(parts[i].body.data);
+      return stripQuotedReply(decodeBase64Url(parts[i].body.data));
     }
     if (parts[i].parts) {
       var nested = extractTextBody(parts[i]);
       if (nested) return nested;
     }
   }
-  // Fallback: strip HTML
+  // Fallback: strip HTML more thoroughly
   for (var j = 0; j < parts.length; j++) {
     if (parts[j].mimeType === 'text/html' && parts[j].body && parts[j].body.data) {
-      return decodeBase64Url(parts[j].body.data).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      var html = decodeBase64Url(parts[j].body.data);
+      // Remove Gmail quoted sections wrapped in <div class="gmail_quote">
+      html = html.replace(/<div[^>]*class="gmail_quote"[^>]*>[\s\S]*$/i, '');
+      // Remove Outlook quoted blocks
+      html = html.replace(/<div[^>]*id="appendonsend"[^>]*>[\s\S]*$/i, '');
+      // Convert block elements to newlines
+      html = html.replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<\/li>/gi, '\n')
+        .replace(/<li[^>]*>/gi, '- ');
+      // Strip remaining tags and decode entities
+      html = html.replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/\s+/g, ' ').trim();
+      return stripQuotedReply(html);
     }
   }
   return '';

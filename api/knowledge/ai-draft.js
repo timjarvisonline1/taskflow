@@ -3,10 +3,10 @@
  * ==============================
  * Generates an AI-drafted email reply using RAG context.
  *
- * 1. Embeds the email context (latest message + subject)
- * 2. Vector-searches knowledge_chunks for relevant context
+ * 1. Embeds the email context (last 3 messages + subject, HTML-stripped)
+ * 2. Vector-searches knowledge_chunks (up to 25 chunks, source-diverse)
  * 3. Builds a Claude prompt with email thread + retrieved knowledge
- * 4. Returns the drafted reply
+ * 4. Returns the drafted reply (streaming or non-streaming)
  *
  * Body: {
  *   threadId: string,
@@ -63,52 +63,7 @@ module.exports = async function handler(req, res) {
 
     var client = getServiceClient();
 
-    // Build query text from latest message + subject (or from prompt/subject for new compositions)
-    var queryText;
-    if (messages.length) {
-      var latestMsg = messages[messages.length - 1];
-      queryText = subject + '\n\n' + (latestMsg.body || '').substring(0, 1500);
-    } else {
-      queryText = subject + (customPrompt ? '\n\n' + customPrompt : '') + (toRecipients ? '\n\nTo: ' + toRecipients : '');
-    }
-
-    // Embed query text
-    var queryEmbeddings = await embedTexts(openaiKey, [queryText]);
-    var queryEmbedding = queryEmbeddings[0].embedding;
-
-    // Search knowledge base
-    // First search with client filter if available, then broaden
-    var results = [];
-    if (clientId) {
-      results = await searchKnowledge(client, userId, queryEmbedding, {
-        clientId: clientId,
-        limit: 10,
-        threshold: 0.25
-      });
-    }
-
-    // If not enough results with client filter, search broadly
-    if (results.length < 8) {
-      var broadResults = await searchKnowledge(client, userId, queryEmbedding, {
-        limit: 15,
-        threshold: 0.3
-      });
-
-      // Merge, avoiding duplicates
-      var seenIds = {};
-      results.forEach(function(r) { seenIds[r.id] = true; });
-      broadResults.forEach(function(r) {
-        if (!seenIds[r.id]) {
-          results.push(r);
-          seenIds[r.id] = true;
-        }
-      });
-
-      // Cap at 15 total
-      results = results.slice(0, 15);
-    }
-
-    // Strip HTML to plain text (L6 — save tokens, reduce noise)
+    // Strip HTML to plain text (moved up — used for both query building and thread text)
     function stripHtml(html) {
       if (!html) return '';
       return html
@@ -127,6 +82,87 @@ module.exports = async function handler(req, res) {
         .replace(/\n{3,}/g, '\n\n')
         .trim();
     }
+
+    // Build query text from ALL messages + subject (not just latest)
+    // Strip HTML first so embedding vector is based on clean text
+    var queryText;
+    if (messages.length) {
+      // Use subject + last 3 messages for richer semantic search
+      var queryParts = [subject];
+      var startIdx = Math.max(0, messages.length - 3);
+      for (var qi = startIdx; qi < messages.length; qi++) {
+        var msgBody = stripHtml((messages[qi].body || '').substring(0, 2000));
+        if (msgBody) queryParts.push(msgBody);
+      }
+      queryText = queryParts.join('\n\n');
+      // Cap total query text to avoid embedding token limit
+      if (queryText.length > 6000) queryText = queryText.substring(0, 6000);
+    } else {
+      queryText = subject + (customPrompt ? '\n\n' + customPrompt : '') + (toRecipients ? '\n\nTo: ' + toRecipients : '');
+    }
+
+    // Embed query text
+    var queryEmbeddings = await embedTexts(openaiKey, [queryText]);
+    var queryEmbedding = queryEmbeddings[0].embedding;
+
+    // Extract keywords for hybrid search (subject + key nouns from prompt)
+    var keywords = subject;
+    if (customPrompt) keywords += ' ' + customPrompt;
+    if (toRecipients) keywords += ' ' + toRecipients;
+    // Strip common words and keep substantive terms
+    keywords = keywords.replace(/[^a-zA-Z0-9\s]/g, ' ').trim();
+
+    // Search knowledge base
+    // First search with client filter if available, then broaden
+    var results = [];
+    if (clientId) {
+      results = await searchKnowledge(client, userId, queryEmbedding, {
+        clientId: clientId,
+        limit: 20,
+        threshold: 0.2,
+        keywords: keywords
+      });
+    }
+
+    // If not enough results with client filter, search broadly
+    if (results.length < 15) {
+      var broadResults = await searchKnowledge(client, userId, queryEmbedding, {
+        limit: 30,
+        threshold: 0.25,
+        keywords: keywords
+      });
+
+      // Merge, avoiding duplicates
+      var seenIds = {};
+      results.forEach(function(r) { seenIds[r.id] = true; });
+      broadResults.forEach(function(r) {
+        if (!seenIds[r.id]) {
+          results.push(r);
+          seenIds[r.id] = true;
+        }
+      });
+    }
+
+    // Ensure source type diversity: no single type > 50% of results
+    // This prevents email chunks from drowning out meetings, tasks, etc.
+    var typeCounts = {};
+    results.forEach(function(r) {
+      typeCounts[r.source_type] = (typeCounts[r.source_type] || 0) + 1;
+    });
+    var maxPerType = Math.max(Math.ceil(results.length * 0.5), 8);
+    var diverseResults = [];
+    var typeUsed = {};
+    results.forEach(function(r) {
+      typeUsed[r.source_type] = (typeUsed[r.source_type] || 0);
+      if (typeUsed[r.source_type] < maxPerType) {
+        diverseResults.push(r);
+        typeUsed[r.source_type]++;
+      }
+    });
+    results = diverseResults;
+
+    // Cap at 25 total
+    results = results.slice(0, 25);
 
     // Build the email thread text (L21 — wrapped in delimiters for prompt injection defense)
     var threadText = '';
@@ -180,7 +216,7 @@ module.exports = async function handler(req, res) {
           scheduled_item: 'Recurring Item', team_member: 'Team'
         };
         var sourceLabel = sourceLabels[r.source_type] || 'Document';
-        return '(' + (i + 1) + ') [' + sourceLabel + '] ' + r.title + ' (relevance: ' + Math.round(r.similarity * 100) + '%)\n' + r.content.substring(0, 1500);
+        return '(' + (i + 1) + ') [' + sourceLabel + '] ' + r.title + ' (relevance: ' + Math.round(r.similarity * 100) + '%)\n' + r.content.substring(0, 3000);
       }).join('\n\n');
     }
 
@@ -242,7 +278,7 @@ Reply:`;
     }
 
     // Build sources list for display (needed for both stream and non-stream)
-    var sources = results.slice(0, 8).map(function(r) {
+    var sources = results.slice(0, 12).map(function(r) {
       var srcLabels = {
         meeting: 'Meeting', email: 'Email', webpage: 'Web Page',
         youtube: 'YouTube', document: 'Document', task: 'Task',
@@ -271,7 +307,7 @@ Reply:`;
 
       var streamResponse = anthropic.messages.stream({
         model: model,
-        max_tokens: 2048,
+        max_tokens: 4096,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }]
       });
@@ -289,7 +325,7 @@ Reply:`;
     // Non-streaming mode (original)
     var response = await anthropic.messages.create({
       model: model,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]
     });

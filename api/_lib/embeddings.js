@@ -4,15 +4,17 @@
  * Shared functions for chunking content, generating embeddings,
  * storing/searching vectors, and deduplication.
  *
- * Embedding model: OpenAI text-embedding-3-small (1536 dimensions)
+ * Embedding model: OpenAI text-embedding-3-large (truncated to 1536 dims)
+ * Using the large model with dimensions=1536 gives better quality embeddings
+ * than text-embedding-3-small while keeping the same vector size (no migration needed).
  */
 
 const crypto = require('crypto');
 const { getServiceClient, getCredentials } = require('./supabase');
 
 const OPENAI_EMBED_URL = 'https://api.openai.com/v1/embeddings';
-const EMBED_MODEL = 'text-embedding-3-small';
-const EMBED_DIMS = 1536;
+const EMBED_MODEL = 'text-embedding-3-large';
+const EMBED_DIMS = 1536;       // truncated via dimensions param — compatible with existing DB
 const MAX_BATCH_SIZE = 2048;   // OpenAI batch limit
 const CHUNK_SIZE = 2000;       // chars per chunk (default)
 const CHUNK_OVERLAP = 200;     // overlap between chunks
@@ -50,7 +52,8 @@ async function embedTexts(apiKey, texts) {
       },
       body: JSON.stringify({
         model: EMBED_MODEL,
-        input: batch
+        input: batch,
+        dimensions: EMBED_DIMS
       })
     });
 
@@ -78,6 +81,58 @@ async function embedTexts(apiKey, texts) {
 
   return results;
 }
+
+/* ═══════════ Email Cleanup ═══════════ */
+
+/**
+ * Strip quoted replies and email signatures from plain-text email bodies.
+ * Removes: "On [date], [person] wrote:" blocks, "> " quoted lines,
+ * Outlook "From: / Sent: / To:" blocks, and common signature delimiters.
+ */
+function stripQuotedReply(text) {
+  if (!text) return '';
+
+  var lines = text.split('\n');
+  var cleaned = [];
+  var hitQuote = false;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var trimmed = line.trim();
+
+    // Gmail-style quote delimiter: "On Mon, Jan 1, 2024 at 10:00 AM Name <email> wrote:"
+    if (/^On\s.+wrote:\s*$/i.test(trimmed)) { hitQuote = true; break; }
+
+    // Outlook-style delimiter: line starting with "From:" followed by "Sent:" within 3 lines
+    if (/^From:\s/i.test(trimmed) && i + 2 < lines.length) {
+      var next1 = lines[i + 1].trim();
+      var next2 = lines[i + 2].trim();
+      if (/^Sent:\s/i.test(next1) || /^To:\s/i.test(next1) ||
+          /^Sent:\s/i.test(next2) || /^Date:\s/i.test(next1)) {
+        hitQuote = true; break;
+      }
+    }
+
+    // Common signature delimiters
+    if (trimmed === '--' || trimmed === '-- ' || /^_{5,}$/.test(trimmed) ||
+        /^-{5,}$/.test(trimmed) || /^={5,}$/.test(trimmed)) {
+      // Check if rest is short (signature-like, < 10 lines)
+      var remaining = lines.slice(i + 1).filter(function(l) { return l.trim().length > 0; });
+      if (remaining.length <= 10) break;
+    }
+
+    // Consecutive quoted lines (> prefix) — skip them but don't break (may resume)
+    if (/^>/.test(trimmed)) continue;
+
+    // "---------- Forwarded message ----------"
+    if (/^-{5,}\s*Forwarded message\s*-{5,}$/i.test(trimmed)) { hitQuote = true; break; }
+
+    cleaned.push(line);
+  }
+
+  return cleaned.join('\n').trim();
+}
+
 
 /* ═══════════ Chunking ═══════════ */
 
@@ -240,7 +295,7 @@ function chunkEmailThread(threadId, subject, messages, crmMetadata) {
   messages.forEach(function(msg) {
     var fromLabel = msg.fromName || msg.from || 'Unknown';
     var dateStr = msg.date ? new Date(msg.date).toISOString().split('T')[0] : '';
-    var body = (msg.body || '');
+    var body = stripQuotedReply(msg.body || '');
     if (!body.trim()) return;
 
     var header = 'From: ' + fromLabel + '\nDate: ' + (dateStr || 'unknown') + '\nSubject: ' + (subject || '') + '\n\n';
@@ -448,22 +503,32 @@ async function upsertSource(client, userId, sourceType, sourceId, name, status, 
 /* ═══════════ Search ═══════════ */
 
 /**
- * Search knowledge base via vector similarity.
- * Returns ranked chunks with similarity scores.
+ * Search knowledge base via vector similarity + recency + keyword boost.
+ * Returns ranked chunks with composite similarity scores.
  *
- * opts: { sourceType, clientId, limit, threshold }
+ * opts: { sourceType, clientId, limit, threshold, keywords }
  */
 async function searchKnowledge(client, userId, queryEmbedding, opts) {
   opts = opts || {};
 
-  var res = await client.rpc('match_knowledge', {
+  var params = {
     query_embedding: '[' + queryEmbedding.join(',') + ']',
     match_user_id: userId,
     match_count: opts.limit || 15,
     match_threshold: opts.threshold || 0.3,
     filter_source_type: opts.sourceType || null,
-    filter_client_id: opts.clientId || null
-  });
+    filter_client_id: opts.clientId || null,
+    search_keywords: opts.keywords || null
+  };
+
+  var res = await client.rpc('match_knowledge', params);
+
+  // If the DB function hasn't been upgraded yet (missing search_keywords param),
+  // retry without it for backward compatibility
+  if (res.error && res.error.message && res.error.message.indexOf('search_keywords') !== -1) {
+    delete params.search_keywords;
+    res = await client.rpc('match_knowledge', params);
+  }
 
   if (res.error) throw new Error('Knowledge search error: ' + res.error.message);
   return res.data || [];
@@ -524,6 +589,7 @@ module.exports = {
   upsertSource: upsertSource,
   cleanOrphans: cleanOrphans,
   searchKnowledge: searchKnowledge,
+  stripQuotedReply: stripQuotedReply,
   EMBED_MODEL: EMBED_MODEL,
   EMBED_DIMS: EMBED_DIMS
 };
