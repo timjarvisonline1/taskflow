@@ -4223,9 +4223,9 @@ async function aiDraft(){
 }
 
 async function sendEmail(){
-  var to=window._composeRecipients.to.join(', ');
-  var cc=window._composeRecipients.cc.join(', ');
-  var bcc=window._composeRecipients.bcc.join(', ');
+  var to=_fmtRecipients(window._composeRecipients.to);
+  var cc=_fmtRecipients(window._composeRecipients.cc);
+  var bcc=_fmtRecipients(window._composeRecipients.bcc);
   var subject=(gel('compose-subject')||{}).value||'';
   var editor=gel('compose-body');
   var body=editor?editor.innerHTML:'';

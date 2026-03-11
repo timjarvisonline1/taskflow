@@ -3636,6 +3636,27 @@ async function trashEmail(threadId){
       _refreshEmailListPanel();buildNav()},
     'Email moved to trash')}
 
+/* Format an array of bare email addresses into RFC 5322 "Name" <email> strings using S.contacts */
+function _fmtRecipients(emails){
+  return emails.map(function(e){
+    e=e.trim();if(!e)return e;
+    /* Already formatted as "Name <email>" — leave as-is */
+    if(e.indexOf('<')!==-1)return e;
+    var c=S.contacts?S.contacts.find(function(ct){return ct.email&&ct.email.toLowerCase()===e.toLowerCase()}):null;
+    if(c){var nm=((c.firstName||'')+' '+(c.lastName||'')).trim();if(nm)return'"'+nm+'" <'+e+'>'}
+    return e}).join(', ')}
+
+/* Format a single email address with an optional name fallback */
+function _fmtAddr(email,name){
+  if(!email)return'';
+  if(email.indexOf('<')!==-1)return email;
+  /* Try contacts first */
+  var c=S.contacts?S.contacts.find(function(ct){return ct.email&&ct.email.toLowerCase()===email.toLowerCase()}):null;
+  if(c){var nm=((c.firstName||'')+' '+(c.lastName||'')).trim();if(nm)return'"'+nm+'" <'+email+'>'}
+  /* Fall back to provided name (e.g. fromName on the message) */
+  if(name)return'"'+name+'" <'+email+'>';
+  return email}
+
 async function quickReplyEmail(){
   /* Support both old textarea and new contenteditable inline reply */
   var editor=gel('email-inline-reply-editor');
@@ -3659,21 +3680,21 @@ async function quickReplyEmail(){
   if(mode==='forward'){
     /* Forward: use inline recipients, Fwd: prefix, NO threadId */
     if(!window._inlineRecipients.to.length){toast('Add at least one recipient','warn');return}
-    payload.to=window._inlineRecipients.to.join(',');
-    if(window._inlineRecipients.cc.length)payload.cc=window._inlineRecipients.cc.join(',');
-    if(window._inlineRecipients.bcc.length)payload.bcc=window._inlineRecipients.bcc.join(',');
+    payload.to=_fmtRecipients(window._inlineRecipients.to);
+    if(window._inlineRecipients.cc.length)payload.cc=_fmtRecipients(window._inlineRecipients.cc);
+    if(window._inlineRecipients.bcc.length)payload.bcc=_fmtRecipients(window._inlineRecipients.bcc);
     payload.subject=subject.indexOf('Fwd:')===0?subject:'Fwd: '+subject;
   }else if(mode==='replyAll'){
     /* Reply All: use inline recipients, Re: prefix, include threadId */
-    payload.to=window._inlineRecipients.to.join(',')||lastMsg.fromEmail||'';
-    if(window._inlineRecipients.cc.length)payload.cc=window._inlineRecipients.cc.join(',');
-    if(window._inlineRecipients.bcc.length)payload.bcc=window._inlineRecipients.bcc.join(',');
+    payload.to=_fmtRecipients(window._inlineRecipients.to)||_fmtAddr(lastMsg.fromEmail,lastMsg.fromName);
+    if(window._inlineRecipients.cc.length)payload.cc=_fmtRecipients(window._inlineRecipients.cc);
+    if(window._inlineRecipients.bcc.length)payload.bcc=_fmtRecipients(window._inlineRecipients.bcc);
     payload.subject=subject.indexOf('Re:')===0?subject:'Re: '+subject;
     payload.threadId=S.gmailThreadId;
     payload.messageId=lastMsg.messageId||lastMsg.id||'';
   }else{
     /* Simple reply */
-    payload.to=lastMsg.fromEmail||'';
+    payload.to=_fmtAddr(lastMsg.fromEmail,lastMsg.fromName);
     payload.subject=subject.indexOf('Re:')===0?subject:'Re: '+subject;
     payload.threadId=S.gmailThreadId;
     payload.messageId=lastMsg.messageId||lastMsg.id||'';
@@ -4112,9 +4133,9 @@ async function loadScheduledEmails(){
 
 async function scheduleEmail(scheduledAt){
   var editor=gel('compose-body');if(!editor)return;
-  var to=window._composeRecipients.to.join(', ');
-  var cc=window._composeRecipients.cc.join(', ');
-  var bcc=window._composeRecipients.bcc.join(', ');
+  var to=_fmtRecipients(window._composeRecipients.to);
+  var cc=_fmtRecipients(window._composeRecipients.cc);
+  var bcc=_fmtRecipients(window._composeRecipients.bcc);
   var subject=(gel('compose-subject')||{}).value||'';
   var body=editor.innerHTML||'';
   if(!to){toast('Add at least one recipient','warn');return}
