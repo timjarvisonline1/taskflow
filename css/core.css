@@ -129,7 +129,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--f);font-size:14px;li
 .mob-btn:hover{opacity:0.8}
 .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:190;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .mob-overlay.on{display:block}
-.main{flex:1;margin-left:var(--side-w);padding:30px 36px;min-height:100vh;position:relative;transition:margin-left var(--side-collapse-speed) var(--ease-out)}
+.main{flex:1;margin-left:var(--side-w);padding:30px 36px;min-height:100vh;position:relative;transition:margin-left var(--side-collapse-speed) var(--ease-out);overflow-x:hidden;min-width:0}
 /* ── BOTTOM NAV (mobile) ── */
 .btm-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--bg1);border-top:1px solid var(--gborder);z-index:160;padding:0 4px;align-items:stretch;justify-content:space-around;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding-bottom:env(safe-area-inset-bottom)}
 .btm-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1;background:none;border:none;color:var(--t4);cursor:pointer;padding:6px 0;min-height:48px;min-width:48px;transition:color .2s var(--ease);position:relative;-webkit-tap-highlight-color:transparent;touch-action:manipulation;font-family:var(--f)}
@@ -173,7 +173,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--f);font-size:14px;li
   .fab{display:none!important}
   .vt{flex-wrap:nowrap}.vt-btn{padding:8px 12px;font-size:11px;min-height:36px}
 }
-.vw{display:none;animation:vwIn .45s var(--ease-out)}.vw.on{display:block}
+.vw{display:none;animation:vwIn .45s var(--ease-out);min-width:0;overflow:hidden}.vw.on{display:block}
 @keyframes vwIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ── TOASTS ── */

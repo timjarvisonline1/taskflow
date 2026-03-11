@@ -972,7 +972,7 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 /* N35: Flex column wrapper so split-view fills available height */
 /* When email view is active, the .main container gets light background so no dark edges bleed through */
 .main.email-active{background:#ffffff;padding-top:20px;padding-bottom:20px}
-.email-page-wrap{display:flex;flex-direction:column;height:calc(100vh - 90px);min-height:400px;
+.email-page-wrap{display:flex;flex-direction:column;height:calc(100vh - 90px);min-height:400px;min-width:0;overflow:hidden;
   /* Gmail-style light theme scoped to email section */
   --bg:#ffffff;--bg1:#f8f9fa;--bg2:#f1f3f4;--bg3:#e8eaed;--bg4:#dadce0;--bg5:#bdc1c6;
   --glass:rgba(255,255,255,0.95);--gborder:rgba(0,0,0,0.12);--ghover:rgba(0,0,0,0.04);
