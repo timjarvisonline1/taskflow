@@ -569,6 +569,7 @@ function openLogMeetingModal(){
   h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="lm-cli" onchange="TF.refreshLogMtgEC()">'+cliOpts+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="lm-ec" onchange="TF.refreshLogMtgCp()">'+buildEndClientOptions('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="lm-cp">'+buildCampaignOptions('','','')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="lm-op">'+buildOpportunityOptions('')+'</select></div>';
   h+='</div>';
 
   /* Notes */
@@ -601,12 +602,16 @@ function openLogMeetingModal(){
 function refreshLogMtgEC(){
   var cli=(gel('lm-cli')||{}).value||'';
   var ecSel=gel('lm-ec');if(!ecSel)return;
-  ecSel.innerHTML=buildEndClientOptions('');refreshLogMtgCp()}
+  ecSel.innerHTML=buildEndClientOptions('',cli);refreshLogMtgCp();refreshLogMtgOp()}
 function refreshLogMtgCp(){
   var cli=(gel('lm-cli')||{}).value||'';
   var ec=(gel('lm-ec')||{}).value||'';
   var cpSel=gel('lm-cp');if(!cpSel)return;
-  cpSel.innerHTML=buildCampaignOptions('',ec,cli)}
+  cpSel.innerHTML=buildCampaignOptions('',cli,ec)}
+function refreshLogMtgOp(){
+  var cli=(gel('lm-cli')||{}).value||'';
+  var sel=gel('lm-op');if(!sel)return;
+  sel.innerHTML=buildOpportunityOptions('',cli)}
 
 async function logMeeting(){
   var e=_logMtgEvent;if(!e)return;
@@ -617,6 +622,7 @@ async function logMeeting(){
   var cli=(gel('lm-cli')||{}).value||'';
   var ec=(gel('lm-ec')||{}).value||'';
   var cpVal=(gel('lm-cp')||{}).value||'';
+  var opVal=(gel('lm-op')||{}).value||'';
   var notes=(gel('lm-notes')||{}).value||'';
   var calDur=Math.round((e.end-e.start)/60000);
   var pk=e.title+'|'+e.start.toISOString();
@@ -624,7 +630,7 @@ async function logMeeting(){
   /* Check if a pre-created task exists */
   var existingTask=findMtgTask(e.title,e.start);
   var doneData={item:item,due:e.start,importance:'Meeting',category:cat,
-    client:cli,endClient:ec,type:type,duration:mins,est:calDur,notes:notes,campaign:cpVal};
+    client:cli,endClient:ec,type:type,duration:mins,est:calDur,notes:notes,campaign:cpVal,opportunity:opVal};
   var result=await dbCompleteTask(doneData);
   if(result){
     if(existingTask){
@@ -633,7 +639,7 @@ async function logMeeting(){
       delete S.timers[existingTask.id]}
     S.done.unshift({id:result.id,item:item,completed:new Date(),due:e.start,
       importance:'Meeting',category:cat,client:cli,endClient:ec,type:type,
-      duration:mins,est:calDur,notes:notes,campaign:cpVal})}
+      duration:mins,est:calDur,notes:notes,campaign:cpVal,opportunity:opVal})}
 
   /* Complete linked tasks that are checked */
   var linkedChecks=document.querySelectorAll('[id^="lm-lt-"]');
@@ -645,7 +651,7 @@ async function logMeeting(){
       if(!lt)continue;
       var ltDone={item:lt.item,due:lt.due||null,importance:lt.importance,
         category:lt.category||cat,client:lt.client||cli,endClient:lt.endClient||ec,
-        type:lt.type||type,duration:0,est:lt.est,notes:lt.notes,campaign:lt.campaign||cpVal};
+        type:lt.type||type,duration:0,est:lt.est,notes:lt.notes,campaign:lt.campaign||cpVal,opportunity:lt.opportunity||opVal};
       var ltResult=await dbCompleteTask(ltDone);
       if(ltResult){
         await dbDeleteTask(ltId);
@@ -654,7 +660,7 @@ async function logMeeting(){
         S.done.unshift({id:ltResult.id,item:lt.item,completed:new Date(),due:lt.due||null,
           importance:lt.importance,category:lt.category||cat,client:lt.client||cli,
           endClient:lt.endClient||ec,type:lt.type||type,duration:0,est:lt.est,
-          notes:lt.notes,campaign:lt.campaign||cpVal})}}}
+          notes:lt.notes,campaign:lt.campaign||cpVal,opportunity:lt.opportunity||opVal})}}}
 
   mtgPrompted[pk]='confirmed';saveMtgPrompted();save();
   toast('Logged: '+item+' ('+fmtM(mins)+')','ok');
