@@ -2993,8 +2993,9 @@ function renderMeetingPromptBanner(){
   var e=ended[0];
   var dur=Math.round((e.end-e.start)/60000);
   var queueCount=ended.length;
-  var h='<div class="mtg-prompt" id="mtg-prompt">';
-  h+='<div class="mtg-prompt-icon">'+icon('mic',14)+'</div>';
+  var _isEmail=S.view==='email';
+  var h='<div class="mtg-prompt'+(_isEmail?' email-light':'')+'" id="mtg-prompt">';
+  h+='<div class="mtg-prompt-icon"'+(_isEmail?' style="color:var(--t1)"':'')+'>'+icon('mic',14)+'</div>';
   h+='<div class="mtg-prompt-body">';
   h+='<div class="mtg-prompt-title">Meeting ended: '+esc(e.title)+'</div>';
   h+='<div class="mtg-prompt-meta">';
@@ -3003,7 +3004,7 @@ function renderMeetingPromptBanner(){
   h+='</div></div>';
   h+='<div class="mtg-prompt-actions">';
   h+='<button class="btn btn-go mtg-prompt-btn" onclick="TF.completeMeetingEnd()">'+CK_S+' Complete</button>';
-  h+='<button class="btn mtg-prompt-skip" onclick="TF.dismissMeetingEnd()">&times; Dismiss</button>';
+  h+='<button class="btn mtg-prompt-skip" onclick="TF.dismissMeetingEnd()"'+(_isEmail?' style="background:#dadce0!important;color:#5f6368!important"':'')+'>'+icon('x',10)+' Dismiss</button>';
   if(queueCount>1)h+='<span class="mtg-prompt-queue">+'+(queueCount-1)+' more</span>';
   h+='</div></div>';
   return h;
