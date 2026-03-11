@@ -1015,6 +1015,8 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 :is(.email-page-wrap,.email-light) .email-inline-reply:focus-within{border-color:rgba(26,115,232,.4)}
 :is(.email-page-wrap,.email-light) .reply-prompt{background:var(--bg1);border-color:var(--gborder)}
 :is(.email-page-wrap,.email-light) .reply-prompt:hover{background:var(--bg2)}
+:is(.email-page-wrap,.email-light) .email-row.has-client{background:rgba(26,115,232,.04)}
+:is(.email-page-wrap,.email-light) .email-row.has-client:hover{background:rgba(26,115,232,.08)}
 :is(.email-page-wrap,.email-light) .email-skel-progress{background:rgba(0,0,0,.06)}
 :is(.email-page-wrap,.email-light) .email-skel-dot{background:rgba(0,0,0,.06)}
 :is(.email-page-wrap,.email-light) .ai-thread-banner{border-color:var(--gborder)}
@@ -1184,6 +1186,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-row-star:hover{color:#f4b400}
 .email-row-star.starred{color:#f4b400}
 
+/* Left click zone — generous hit area for checkbox toggle, prevents accidental email opens */
+.email-row-left{display:flex;align-items:center;gap:0;flex-shrink:0;padding:0 4px 0 0;cursor:pointer;
+  height:100%;align-self:stretch}
+
 /* Avatar — compact */
 .email-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
   justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;
@@ -1205,8 +1211,10 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .email-row-date{font-size:11px;color:var(--t4);font-weight:500;width:60px;text-align:right}
 /* N5: CRM badges hidden by default in rows — context lives in detail panel */
 .email-client-badge,.email-ec-pill,.email-camp-pill,.email-opp-pill{display:none}
-/* N5: Subtle left-border color for client association */
-.email-row.has-client{border-left:3px solid rgba(77,166,255,.3)}
+/* N5: Known contact highlight — visible indicator for emails from/to known clients */
+.email-row.has-client{border-left:3px solid #1a73e8;background:rgba(26,115,232,.03)}
+.email-row.has-client:hover{background:rgba(26,115,232,.06)}
+.email-row.has-client .email-row-from{color:var(--t1);font-weight:500}
 
 /* N9: Hover action icons — replace date on hover */
 .email-row-actions{display:none;align-items:center;gap:2px;position:absolute;right:0;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.04);border-radius:4px;padding:0 2px}

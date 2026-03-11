@@ -6856,13 +6856,15 @@ function rEmailList(threads){
     var _hasClient=!!(crmCtx&&crmCtx.primaryClient);
     var _isStarred=t.is_starred||false;
     h+='<div class="email-row'+(isUnread?' email-unread':'')+(_isBulkSel?' email-bulk-sel':'')+(_hasClient?' has-client':'')+'" data-tid="'+esc(threadId)+'" onclick="TF.openEmailThread(\''+esc(threadId)+'\')">';
-    /* N10: Checkbox (visible on hover or when selected) */
-    h+='<div class="email-row-select" style="position:relative">';
+    /* N10: Left zone — clicking anywhere here toggles checkbox, NOT opens email */
+    h+='<div class="email-row-left" onclick="event.stopPropagation();TF.emailToggleSel(\''+esc(threadId)+'\')">';
+    h+='<div class="email-row-select">';
     h+='<input type="checkbox" '+(_isBulkSel?'checked':'')+' onclick="event.stopPropagation();TF.emailToggleSel(\''+esc(threadId)+'\')">';
     if(isUnread&&!_isBulkSel)h+='<span class="email-dot email-dot-on"></span>';
     h+='</div>';
     /* N10: Star toggle */
     h+='<button class="email-row-star'+(_isStarred?' starred':'')+'" onclick="event.stopPropagation();TF.toggleEmailStar(\''+esc(threadId)+'\')" title="Star">'+(_isStarred?'★':'☆')+'</button>';
+    h+='</div>';
     h+='<div class="email-avatar" style="background:'+avatarBg+'">'+initial+'</div>';
     h+='<div class="email-row-main">';
     /* From section (fixed width) */
