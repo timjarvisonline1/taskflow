@@ -6920,7 +6920,7 @@ function _buildInlineRecipientFieldInner(field,label){
   return h}
 
 /* ── Format recipient addresses for clean display ── */
-function _fmtRecipients(raw){
+function _fmtRecipientsHtml(raw){
   if(!raw)return'';
   return raw.split(',').map(function(a){
     a=a.trim();if(!a)return'';
@@ -7154,8 +7154,8 @@ function rEmailThreadModal(threadId){
     h+='<button class="email-msg-header-action" title="Reply" onclick="event.stopPropagation();TF.inlineReply('+idx+')">'+icon('reply',14)+'</button>';
     h+='</div>';
     h+='</div>';
-    if(msg.to){h+='<div class="email-msg-to">To: '+_fmtRecipients(msg.to)+'</div>'}
-    if(msg.cc){h+='<div class="email-msg-to">Cc: '+_fmtRecipients(msg.cc)+'</div>'}
+    if(msg.to){h+='<div class="email-msg-to">To: '+_fmtRecipientsHtml(msg.to)+'</div>'}
+    if(msg.cc){h+='<div class="email-msg-to">Cc: '+_fmtRecipientsHtml(msg.cc)+'</div>'}
     h+='<div class="email-msg-body">';
     if(msg.body){
       var encoded=btoa(unescape(encodeURIComponent(msg.body)));
@@ -7580,8 +7580,8 @@ function rEmailThread(){
     h+='<button class="email-msg-header-action" title="Reply" onclick="event.stopPropagation();TF.openReplyEmail('+idx+')">'+icon('reply',14)+'</button>';
     h+='</div>';
     h+='</div>';
-    if(msg.to){h+='<div class="email-msg-to">To: '+_fmtRecipients(msg.to)+'</div>'}
-    if(msg.cc){h+='<div class="email-msg-to">Cc: '+_fmtRecipients(msg.cc)+'</div>'}
+    if(msg.to){h+='<div class="email-msg-to">To: '+_fmtRecipientsHtml(msg.to)+'</div>'}
+    if(msg.cc){h+='<div class="email-msg-to">Cc: '+_fmtRecipientsHtml(msg.cc)+'</div>'}
 
     h+='<div class="email-msg-body">';
     if(msg.body){
