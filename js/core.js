@@ -3527,7 +3527,7 @@ async function archiveEmail(threadId){
   if(wasOpen){S.gmailThread=null;S.gmailThreadId='';
     var _dp=gel('email-detail-panel');
     if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
-    else{gel('detail-modal').classList.remove('on','full-detail')}}
+    else{gel('detail-modal').classList.remove('on','full-detail','email-light')}}
   _refreshEmailListPanel();buildNav();
   /* Action Required / Drafts / Scheduled don't use #email-list-panel — full render needed */
   if(S.subView&&S.subView.indexOf('e-')===0)render();
@@ -3577,7 +3577,7 @@ async function toggleEmailRead(threadId,markUnread){
   if(markUnread){S.gmailThread=null;S.gmailThreadId='';
     var _dp=gel('email-detail-panel');
     if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
-    else{gel('detail-modal').classList.remove('on','full-detail')}}
+    else{gel('detail-modal').classList.remove('on','full-detail','email-light')}}
   _refreshEmailListPanel();buildNav();
   /* Undo system: delay API call */
   var label=markUnread?'Marked as unread':'Marked as read';
@@ -3613,7 +3613,7 @@ async function trashEmail(threadId){
   S.gmailThread=null;S.gmailThreadId='';
   var _dp=gel('email-detail-panel');
   if(_dp){_dp.innerHTML=rEmailEmptyDetail();var _sv=document.querySelector('.email-split-view');if(_sv)_sv.classList.remove('has-detail')}
-  else{gel('detail-modal').classList.remove('on','full-detail')}
+  else{gel('detail-modal').classList.remove('on','full-detail','email-light')}
   _refreshEmailListPanel();buildNav();
   /* Undo system: delay API call, allow undo within 5 seconds */
   _scheduleUndoCommit(
@@ -4167,7 +4167,7 @@ async function scheduleEmail(scheduledAt){
   window._composeAttachments=[];
   var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
   inner.classList.remove('tf-modal-wide');
-  var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail');var m=gel('modal');if(m)m.classList.remove('on');
+  var dm=gel('detail-modal');dm.classList.remove('on','full-detail','email-light');var m=gel('modal');if(m)m.classList.remove('on','email-light');
 
   var dt=new Date(scheduledAt);
   var lbl=(dt.getMonth()+1)+'/'+dt.getDate()+' at '+(dt.getHours()%12||12)+':'+String(dt.getMinutes()).padStart(2,'0')+(dt.getHours()<12?' AM':' PM');

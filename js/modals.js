@@ -247,7 +247,7 @@ function openDetail(id){
   }
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail')}
 
 function closeModal(){
   var m=gel('modal');
@@ -783,7 +783,7 @@ function openDoneDetail(id){
   h+='</div><div id="del-zone"></div>';
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on')}
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on')}
 
 async function saveDoneDetail(){
   var id=gel('d-id').value;var d=S.done.find(function(t){return t.id===id});if(!d)return;
@@ -913,7 +913,7 @@ function openReviewDetail(id){
   h+='</div>';
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on')}
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on')}
 
 async function approveReview(id){
   var r=S.review.find(function(t){return t.id===id});if(!r)return;
@@ -1294,7 +1294,7 @@ function openCampaignDetail(id){
   S.campaignTab='overview';
   var st=getCampaignStats(cp);
   gel('detail-body').innerHTML=rCampaignDashboard(cp,st);
-  gel('detail-modal').classList.add('on','full-detail');
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
   setTimeout(function(){initEntityCharts('campaign')},50)}
 function _openCampaignDetail_LEGACY(id){
   /* Legacy campaign detail - kept for reference, no longer called */
@@ -1599,7 +1599,7 @@ function _openCampaignDetail_LEGACY(id){
   }/* end desktop else */
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail')}
 
 async function saveCampaign(){
   var id=gel('cp-id').value;var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
@@ -1838,7 +1838,7 @@ function openOpportunityDetail(id){
   S.opportunityTab='overview';
   var st=getOpportunityStats(op);
   gel('detail-body').innerHTML=rOpportunityDashboard(op,st);
-  gel('detail-modal').classList.add('on','full-detail');
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
   setTimeout(function(){initEntityCharts('opportunity')},50)}
 
 async function saveOpportunity(){
@@ -2296,7 +2296,7 @@ function openProjectDetail(id){
   h+='</div></div>';
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail');
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
 
   /* Initialize charts after render */
   setTimeout(function(){
@@ -2670,7 +2670,7 @@ function openFinancePaymentDetail(id){
   h+='</div>';
   h+='</div>';
 
-  gel('detail-body').innerHTML=h;gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-body').innerHTML=h;gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail')}
 
 function fpCatChange(){
   var cat=(gel('fp-category')||{}).value||'';
@@ -4294,7 +4294,7 @@ async function sendEmail(){
     var inner=gel('modal').querySelector('.tf-modal-inner')||gel('modal');
     inner.classList.remove('tf-modal-wide');
     /* Close without draft prompt — we already handled it */
-    var dm=gel('detail-modal');dm.classList.remove('on');dm.classList.remove('full-detail');var m=gel('modal');if(m)m.classList.remove('on');
+    var dm=gel('detail-modal');dm.classList.remove('on','full-detail','email-light');var m=gel('modal');if(m)m.classList.remove('on','email-light');
 
     /* Auto-archive replies/forwards */
     if(threadId){archiveEmail(threadId)}

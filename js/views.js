@@ -987,7 +987,7 @@ function openProspectCompanyDetailModal(id){
   S._lastProspectCompanyId=id;
   S.prospectCompanyTab='overview';
   gel('detail-body').innerHTML=rProspectCompanyDashboard(pc);
-  gel('detail-modal').classList.add('on','full-detail');
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
   setTimeout(function(){initEntityCharts('prospectCompany')},50)}
 
 function closeProspectCompanyDashboard(){S._lastProspectCompanyId='';closeModal()}
@@ -1177,7 +1177,7 @@ function openEndClientDetailModal(name){
   S.endClientTab='overview';
   var h=rEndClientDashboard(ec);
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail');
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
   setTimeout(function(){initEntityCharts('endClient')},50)}
 
 function closeEndClientDashboard(){S._lastEndClientDash='';S._lastEndClientName='';closeModal()}
@@ -1432,7 +1432,7 @@ function openClientDetailModal(name){
   S.clientTab='overview';
   var h=rClientDashboard(c);
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail');
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
   setTimeout(function(){initEntityCharts('client')},50)}
 
 function rClientDashboard(c){
