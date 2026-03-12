@@ -5345,3 +5345,68 @@ function rLeadTabVariables(lead){
   keys.forEach(function(k){h+='<tr><td style="font-weight:600">'+esc(k)+'</td><td>'+esc(String(vars[k]||''))+'</td></tr>'});
   h+='</tbody></table>';
   return h}
+
+/* ═══════════ INSTANTLY ACCOUNT DETAIL MODAL ═══════════ */
+
+function openInstantlyAccountDetail(accountId){
+  var acct=(S.instantlyAccounts||[]).find(function(a){return a.id===accountId});
+  if(!acct)return;
+  var meta=acct.metadata||{};
+
+  var h='<div class="modal-inner" style="max-width:600px;width:100%">';
+  /* Header */
+  h+='<div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">';
+  h+='<div>';
+  h+='<h2 style="margin:0;font-size:16px">'+icon('activity',16)+' '+esc(acct.email)+'</h2>';
+  h+='<div style="font-size:11px;color:var(--t3);margin-top:2px">';
+  if(acct.firstName||acct.lastName)h+=esc(((acct.firstName||'')+' '+(acct.lastName||'')).trim())+' · ';
+  h+='Status: '+esc(acct.status||'unknown');
+  h+='</div></div>';
+  h+='<button class="modal-x" onclick="closeModal()">×</button>';
+  h+='</div>';
+
+  h+='<div style="padding:16px;max-height:60vh;overflow-y:auto">';
+
+  /* Health + Metrics */
+  h+='<div class="ic-section-label">Performance</div>';
+  var healthPct=acct.healthScore||0;
+  var healthColor=healthPct>=80?'var(--green)':(healthPct>=50?'var(--amber)':'var(--red)');
+  h+='<div class="outreach-metrics-row" style="margin-bottom:14px">';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:'+healthColor+';font-size:22px">'+healthPct+'</span><span class="outreach-metric-lbl">Health Score</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+acct.sentToday+'</span><span class="outreach-metric-lbl">Sent Today</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+acct.repliesToday+'</span><span class="outreach-metric-lbl">Replies Today</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+acct.bouncedToday+'</span><span class="outreach-metric-lbl">Bounced</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+acct.dailyLimit+'</span><span class="outreach-metric-lbl">Daily Limit</span></div>';
+  h+='</div>';
+
+  /* Warmup */
+  h+='<div class="ic-section-label">Warmup</div>';
+  var warmupOn=acct.warmupStatus==='active';
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">';
+  h+='<span class="outreach-status '+(warmupOn?'outreach-warmup-on':'outreach-warmup-off')+'">'+icon('activity',10)+' '+(warmupOn?'Active':'Off')+'</span>';
+  h+='<button class="btn btn-xs'+(warmupOn?'':' btn-go')+'" onclick="TF.toggleAccountWarmup(\''+acct.id+'\');closeModal()">'+
+    (warmupOn?'Disable Warmup':'Enable Warmup')+'</button>';
+  h+='</div>';
+
+  /* Account controls */
+  h+='<div class="ic-section-label">Controls</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">';
+  var isActive=acct.status==='active';
+  h+='<button class="btn btn-xs'+(isActive?' btn-warn':' btn-go')+'" onclick="TF.toggleAccountStatus(\''+acct.id+'\');closeModal()">';
+  h+=icon(isActive?'pause':'play',10)+' '+(isActive?'Pause Account':'Resume Account')+'</button>';
+  if(acct.status==='error'){
+    h+='<button class="btn btn-xs btn-go" onclick="TF.accountAction(\''+acct.id+'\',\'mark_fixed\');closeModal()">'+icon('check',10)+' Mark as Fixed</button>'}
+  h+='<button class="btn btn-xs" onclick="TF.accountAction(\''+acct.id+'\',\'test_vitals\');closeModal()">'+icon('activity',10)+' Test Vitals</button>';
+  h+='</div>';
+
+  /* Provider info */
+  if(meta.provider||meta.domain||meta.sending_gap){
+    h+='<div class="ic-section-label">Configuration</div>';
+    h+='<div class="ic-config-grid" style="gap:6px;margin-bottom:14px">';
+    if(meta.provider)h+='<div class="ic-config-item"><div class="ic-config-lbl">Provider</div><div class="ic-config-val">'+esc(meta.provider)+'</div></div>';
+    if(meta.domain)h+='<div class="ic-config-item"><div class="ic-config-lbl">Tracking Domain</div><div class="ic-config-val">'+esc(meta.domain)+'</div></div>';
+    if(meta.sending_gap)h+='<div class="ic-config-item"><div class="ic-config-lbl">Sending Gap</div><div class="ic-config-val">'+meta.sending_gap+'s</div></div>';
+    h+='</div>'}
+
+  h+='</div></div>';
+  openModalRaw(h)}

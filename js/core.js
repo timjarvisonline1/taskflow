@@ -1597,6 +1597,47 @@ function openLeadDetail(leadId){
   S._leadDetailId=leadId;
   openInstantlyLeadDetail(leadId)}
 
+/* ═══════════ INSTANTLY: ACCOUNT CONTROL ═══════════ */
+
+async function accountAction(accountId,action){
+  var acct=(S.instantlyAccounts||[]).find(function(a){return a.id===accountId});
+  if(!acct){toast('Account not found','warn');return}
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    toast('Processing...','info');
+    var resp=await fetch('/api/instantly/account-action',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({email:acct.email,action:action})});
+    var result=await resp.json();
+    if(result.ok){
+      /* Update local state based on action */
+      if(action==='pause')acct.status='paused';
+      if(action==='resume')acct.status='active';
+      if(action==='warmup_enable')acct.warmupStatus='active';
+      if(action==='warmup_disable')acct.warmupStatus='paused';
+      if(action==='mark_fixed')acct.status='active';
+      render();
+      var actionLabel={warmup_enable:'Warmup enabled',warmup_disable:'Warmup disabled',pause:'Account paused',
+        resume:'Account resumed',mark_fixed:'Account marked as fixed',test_vitals:'Vitals test started'}[action]||action;
+      toast(actionLabel,'ok')}
+    else{toast('Error: '+(result.error||'Unknown'),'warn')}
+  }catch(e){toast('Error: '+e.message,'warn')}}
+
+function toggleAccountStatus(accountId){
+  var acct=(S.instantlyAccounts||[]).find(function(a){return a.id===accountId});
+  if(!acct)return;
+  accountAction(accountId,acct.status==='active'?'pause':'resume')}
+
+function toggleAccountWarmup(accountId){
+  var acct=(S.instantlyAccounts||[]).find(function(a){return a.id===accountId});
+  if(!acct)return;
+  accountAction(accountId,acct.warmupStatus==='active'?'warmup_disable':'warmup_enable')}
+
+function openAccountDetail(accountId){
+  S._accountDetailId=accountId;
+  openInstantlyAccountDetail(accountId)}
+
 /* ═══════════ INSTANTLY: ANALYZE REPLIES ═══════════ */
 async function analyzeOutreachReplies(){
   if(S._outreachAnalyzing)return;

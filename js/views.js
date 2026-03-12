@@ -8627,6 +8627,14 @@ function rOutreachLeads(){
 /* ── Accounts ── */
 function rOutreachAccounts(){
   var accts=S.instantlyAccounts||[];
+
+  /* Summary stats */
+  var activeCount=accts.filter(function(a){return a.status==='active'}).length;
+  var pausedCount=accts.filter(function(a){return a.status==='paused'}).length;
+  var errorCount=accts.filter(function(a){return a.status==='error'}).length;
+  var avgHealth=accts.length?Math.round(accts.reduce(function(s,a){return s+(a.healthScore||0)},0)/accts.length):0;
+  var totalSentToday=accts.reduce(function(s,a){return s+(a.sentToday||0)},0);
+
   var h='<div class="pg-head"><h1>'+icon('activity',18)+' Sending Accounts';
   h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+accts.length+' accounts</span>';
   h+='</h1></div>';
@@ -8637,14 +8645,24 @@ function rOutreachAccounts(){
     h+='</div>';
     return h}
 
+  /* Summary strip */
+  h+='<div class="outreach-metrics-dash" style="margin-bottom:16px">';
+  h+=dashMet('Active',activeCount,'#10B981');
+  h+=dashMet('Paused',pausedCount,'#F59E0B');
+  if(errorCount)h+=dashMet('Errors',errorCount,'#EF4444');
+  h+=dashMet('Avg Health',avgHealth+'%',avgHealth>=80?'#10B981':(avgHealth>=50?'#F59E0B':'#EF4444'));
+  h+=dashMet('Sent Today',totalSentToday,'#6366F1');
+  h+='</div>';
+
   h+='<div class="outreach-card-grid">';
   accts.forEach(function(a){
-    var statusCls=a.status==='active'?'outreach-status-active':(a.status==='paused'?'outreach-status-paused':'outreach-status-draft');
-    var warmupCls=a.warmupStatus==='active'?'outreach-warmup-on':'outreach-warmup-off';
+    var statusCls=a.status==='active'?'outreach-status-active':(a.status==='paused'?'outreach-status-paused':(a.status==='error'?'outreach-status-error':'outreach-status-draft'));
     var healthPct=a.healthScore||0;
     var healthColor=healthPct>=80?'var(--green)':(healthPct>=50?'var(--amber)':'var(--red)');
+    var meta=a.metadata||{};
+    var hasError=a.status==='error';
 
-    h+='<div class="outreach-card outreach-acct-card">';
+    h+='<div class="outreach-card outreach-acct-card'+(hasError?' acct-card-error':'')+'" onclick="TF.openAccountDetail(\''+a.id+'\')" style="cursor:pointer">';
     h+='<div class="outreach-card-head">';
     h+='<span class="outreach-card-name" style="font-size:13px">'+esc(a.email)+'</span>';
     h+='<span class="outreach-status '+statusCls+'">'+esc(a.status||'unknown')+'</span>';
@@ -8657,9 +8675,22 @@ function rOutreachAccounts(){
     h+='<div class="outreach-metric"><span class="outreach-metric-val">'+a.dailyLimit+'</span><span class="outreach-metric-lbl">Daily Limit</span></div>';
     h+='</div>';
 
-    h+='<div class="outreach-card-foot">';
-    h+='<span class="'+warmupCls+'">'+icon('activity',10)+' Warmup: '+(a.warmupStatus||'off')+'</span>';
+    /* Controls row */
+    h+='<div class="outreach-card-foot" style="display:flex;align-items:center;justify-content:space-between">';
+    var warmupOn=a.warmupStatus==='active';
+    h+='<button class="btn btn-xs'+(warmupOn?' btn-go':'')+'" onclick="event.stopPropagation();TF.toggleAccountWarmup(\''+a.id+'\')">';
+    h+=icon('activity',10)+' Warmup: '+(warmupOn?'On':'Off')+'</button>';
+    var isActive=a.status==='active';
+    h+='<button class="btn btn-xs'+(isActive?' btn-warn':' btn-go')+'" onclick="event.stopPropagation();TF.toggleAccountStatus(\''+a.id+'\')">';
+    h+=icon(isActive?'pause':'play',10)+' '+(isActive?'Pause':'Resume')+'</button>';
     h+='</div>';
+
+    /* Provider/domain pills */
+    if(meta.provider||meta.domain){
+      h+='<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">';
+      if(meta.domain)h+='<span class="outreach-pill" style="font-size:9px">'+icon('activity',8)+' '+esc(meta.domain)+'</span>';
+      if(meta.provider)h+='<span class="outreach-pill" style="font-size:9px">'+esc(meta.provider)+'</span>';
+      h+='</div>'}
     h+='</div>'});
   h+='</div>';
   return h}

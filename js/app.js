@@ -139,6 +139,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openThread:openThread,closeThread:closeThread,setInboxFilter:setInboxFilter,
   updateLeadInterestStatus:updateLeadInterestStatus,setLeadSort:setLeadSort,openLeadDetail:openLeadDetail,
   openInstantlyLeadDetail:openInstantlyLeadDetail,setLeadDetailTab:setLeadDetailTab,
+  accountAction:accountAction,toggleAccountStatus:toggleAccountStatus,toggleAccountWarmup:toggleAccountWarmup,
+  openAccountDetail:openAccountDetail,openInstantlyAccountDetail:openInstantlyAccountDetail,
   /* Meetings */
   openMeeting:openMeeting,closeMeeting:closeMeeting,setMeetingSearch:setMeetingSearch,setMeetingsPage:setMeetingsPage,
   setMeetingCrm:setMeetingCrm,createTaskFromMeetingAction:createTaskFromMeetingAction,
