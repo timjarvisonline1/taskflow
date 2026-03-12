@@ -87,7 +87,8 @@ async function syncInstantly(userId) {
       allCampaigns.forEach(function(c) { campaignMap[c.instantly_id] = c.id; });
     }
 
-    // ═══════════ 2. SYNC CAMPAIGN ANALYTICS ═══════════
+    // ═══════════ 2. SYNC CAMPAIGN ANALYTICS (all metrics) ═══════════
+    // Instantly API V2 field names: reply_count (not replies_count), open_count, link_click_count
     try {
       const campaignIds = Object.keys(campaignMap);
       if (campaignIds.length) {
@@ -96,17 +97,25 @@ async function syncInstantly(userId) {
           INSTANTLY_BASE + '/campaigns/analytics?' + idsParam,
           { headers: headers }
         );
-        // Response may be array, or {items:[...]}, or {data:[...]}
+        // Response is a flat array (not wrapped in items)
         const entries = Array.isArray(analyticsData) ? analyticsData : (analyticsData.items || analyticsData.data || []);
+        console.log('Campaign analytics: got ' + entries.length + ' entries');
         for (const a of entries) {
           const cId = a.campaign_id || a.id;
           const supaId = campaignMap[cId];
           if (!supaId) continue;
 
-          const leadsCount = a.leads_count || a.total_leads || 0;
-          const contactedCount = a.contacted_count || a.contacted || 0;
-          const repliesCount = a.replies_count || a.replies || 0;
-          const bouncedCount = a.bounced_count || a.bounced || 0;
+          // Correct field names per Instantly API V2 docs
+          const leadsCount = a.leads_count || 0;
+          const contactedCount = a.contacted_count || 0;
+          const repliesCount = a.reply_count || 0;  // API uses reply_count (singular)
+          const bouncedCount = a.bounced_count || 0;
+          const openCount = a.open_count || 0;
+          const clickCount = a.link_click_count || 0;
+          const unsubCount = a.unsubscribed_count || 0;
+          const completedCount = a.completed_count || 0;
+          const emailsSent = a.emails_sent_count || 0;
+          const newLeads = a.new_leads_contacted_count || 0;
           const total = contactedCount || leadsCount || 1;
 
           await client.from('instantly_campaigns').update({
@@ -114,8 +123,14 @@ async function syncInstantly(userId) {
             contacted_count: contactedCount,
             replies_count: repliesCount,
             bounced_count: bouncedCount,
-            open_rate: a.open_rate || (a.opens ? a.opens / total : 0),
-            reply_rate: a.reply_rate || (repliesCount ? repliesCount / total : 0),
+            open_rate: openCount ? openCount / total : 0,
+            reply_rate: repliesCount ? repliesCount / total : 0,
+            open_count: openCount,
+            click_count: clickCount,
+            unsubscribed_count: unsubCount,
+            completed_count: completedCount,
+            total_opportunities: a.total_opportunities || 0,
+            total_opportunity_value: a.total_opportunity_value || 0,
             synced_at: new Date().toISOString()
           }).eq('id', supaId);
           stats.updated++;
@@ -123,39 +138,37 @@ async function syncInstantly(userId) {
       }
     } catch (e) { console.error('Campaign analytics sync error:', e.message); }
 
-    // ═══════════ 2b. SYNC CAMPAIGN ANALYTICS OVERVIEW (pipeline data) ═══════════
+    // ═══════════ 2b. SYNC CAMPAIGN ANALYTICS OVERVIEW (pipeline/CRM data) ═══════════
     try {
       const campaignIds = Object.keys(campaignMap);
       if (campaignIds.length) {
-        const idsParam = campaignIds.map(function(id) { return 'ids=' + encodeURIComponent(id); }).join('&');
-        const overviewData = await apiFetch(
-          INSTANTLY_BASE + '/campaigns/analytics/overview?' + idsParam,
-          { headers: headers }
-        );
-        // Overview returns aggregate or per-campaign data
-        const overviewEntries = Array.isArray(overviewData) ? overviewData : (overviewData.items || overviewData.data || [overviewData]);
-        for (const o of overviewEntries) {
-          const cId = o.campaign_id || o.id;
-          const supaId = cId ? campaignMap[cId] : null;
-          // If overview is aggregate (no campaign_id), update all campaigns proportionally
-          // If per-campaign, update individually
-          const updateData = {
-            open_count: o.open_count || o.open_count_unique || 0,
-            click_count: o.link_click_count || o.link_click_count_unique || 0,
-            unsubscribed_count: o.unsubscribed_count || 0,
-            completed_count: o.completed_count || 0,
-            total_opportunities: o.total_opportunities || 0,
-            total_opportunity_value: o.total_opportunity_value || 0,
-            total_interested: o.total_interested || 0,
-            total_meeting_booked: o.total_meeting_booked || 0,
-            total_meeting_completed: o.total_meeting_completed || 0,
-            total_closed: o.total_closed || 0,
-            synced_at: new Date().toISOString()
-          };
-          if (supaId) {
+        // Fetch per-campaign by iterating, since aggregate response lacks campaign_id
+        for (const instantlyCampaignId of campaignIds) {
+          const supaId = campaignMap[instantlyCampaignId];
+          try {
+            const overviewData = await apiFetch(
+              INSTANTLY_BASE + '/campaigns/analytics/overview?id=' + encodeURIComponent(instantlyCampaignId),
+              { headers: headers }
+            );
+            // May be object or array with single entry
+            const o = Array.isArray(overviewData) ? overviewData[0] : overviewData;
+            if (!o) continue;
+
+            const updateData = {
+              total_interested: o.total_interested || 0,
+              total_meeting_booked: o.total_meeting_booked || 0,
+              total_meeting_completed: o.total_meeting_completed || 0,
+              total_closed: o.total_closed || 0,
+              synced_at: new Date().toISOString()
+            };
+            // Also update open/reply/click from overview if the basic analytics didn't populate them
+            if (o.open_count) updateData.open_count = o.open_count;
+            if (o.reply_count) updateData.replies_count = o.reply_count;
+            if (o.link_click_count) updateData.click_count = o.link_click_count;
+
             await client.from('instantly_campaigns').update(updateData).eq('id', supaId);
             stats.updated++;
-          }
+          } catch (e) { console.error('Overview sync error for campaign ' + instantlyCampaignId + ':', e.message); }
         }
       }
     } catch (e) { console.error('Campaign overview analytics sync error:', e.message); }
@@ -207,7 +220,76 @@ async function syncInstantly(userId) {
       }
     } catch (e) { console.error('Daily analytics sync error:', e.message); }
 
-    // ═══════════ 2d. SYNC CAMPAIGN DETAILS (sequences, schedule, accounts) ═══════════
+    // ═══════════ 3. SYNC ACCOUNTS (sending accounts) — early, before heavy per-campaign calls ═══════════
+    try {
+      let acctCursor = null;
+      let acctHasMore = true;
+
+      while (acctHasMore) {
+        const params = ['limit=100'];
+        if (acctCursor) params.push('starting_after=' + encodeURIComponent(acctCursor));
+        const url = INSTANTLY_BASE + '/accounts?' + params.join('&');
+
+        const data = await apiFetch(url, { headers });
+        const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
+        stats.fetched += items.length;
+        console.log('Accounts: got ' + items.length + ' items');
+
+        for (const acct of items) {
+          const acctId = acct.id || acct.email;
+          if (!acctId) continue;
+
+          // warmup_status may be numeric or nested in acct.warmup object
+          let warmupStatus = '';
+          if (acct.warmup_status !== undefined && acct.warmup_status !== null) {
+            warmupStatus = String(acct.warmup_status);
+          } else if (acct.warmup && typeof acct.warmup === 'object') {
+            warmupStatus = acct.warmup.status !== undefined ? String(acct.warmup.status) : '';
+          }
+          // Map numeric warmup status
+          const warmupMap = { '1': 'active', '0': 'paused', '-1': 'disabled' };
+          if (warmupMap[warmupStatus]) warmupStatus = warmupMap[warmupStatus];
+
+          // Map numeric account status to readable string
+          const statusMap = { '1': 'active', '-1': 'paused', '-2': 'error', '0': 'pending' };
+          let acctStatus = acct.status;
+          if (typeof acctStatus === 'number') acctStatus = statusMap[String(acctStatus)] || String(acctStatus);
+          if (!acctStatus) acctStatus = acct.setup_pending ? 'pending' : '';
+
+          const row = {
+            user_id: userId,
+            instantly_id: acctId,
+            email: acct.email || '',
+            first_name: acct.first_name || '',
+            last_name: acct.last_name || '',
+            status: acctStatus,
+            warmup_status: warmupStatus,
+            daily_limit: acct.daily_limit || acct.sending_limit || 0,
+            health_score: acct.stat_warmup_score || acct.health_score || 0,
+            sent_today: acct.sent_today || acct.today_sent || 0,
+            replies_today: acct.replies_today || 0,
+            bounced_today: acct.bounced_today || 0,
+            metadata: JSON.stringify({
+              provider: acct.provider_code || acct.provider || '',
+              domain: acct.tracking_domain_name || acct.domain || '',
+              sending_gap: acct.sending_gap || 0
+            }),
+            synced_at: new Date().toISOString()
+          };
+
+          const { error } = await client
+            .from('instantly_accounts')
+            .upsert(row, { onConflict: 'user_id,instantly_id' });
+
+          if (error) { console.error('Account upsert error:', acctId, error.message); stats.skipped++; } else { stats.inserted++; }
+        }
+
+        acctCursor = data.next_starting_after || null;
+        acctHasMore = !!acctCursor && items.length > 0;
+      }
+    } catch (e) { console.error('Accounts sync error:', e.message); }
+
+    // ═══════════ 4. SYNC CAMPAIGN DETAILS (sequences, schedule, accounts) ═══════════
     try {
       const campaignIds = Object.keys(campaignMap);
       for (const instantlyCampaignId of campaignIds) {
@@ -232,7 +314,7 @@ async function syncInstantly(userId) {
       }
     } catch (e) { console.error('Campaign details sync error:', e.message); }
 
-    // ═══════════ 2e. SYNC CAMPAIGN STEP ANALYTICS ═══════════
+    // ═══════════ 5. SYNC CAMPAIGN STEP ANALYTICS ═══════════
     try {
       const campaignIds = Object.keys(campaignMap);
       for (const instantlyCampaignId of campaignIds) {
@@ -270,209 +352,148 @@ async function syncInstantly(userId) {
       }
     } catch (e) { console.error('Step analytics sync error:', e.message); }
 
-    // ═══════════ 3. SYNC LEADS (per campaign) ═══════════
-    for (const instantlyCampaignId of Object.keys(campaignMap)) {
-      const supabaseCampaignId = campaignMap[instantlyCampaignId];
-      let leadCursor = null;
-      let leadHasMore = true;
+    // ═══════════ 6. SYNC LEADS (per campaign) ═══════════
+    try {
+      for (const instantlyCampaignId of Object.keys(campaignMap)) {
+        const supabaseCampaignId = campaignMap[instantlyCampaignId];
+        let leadCursor = null;
+        let leadHasMore = true;
 
-      try {
-        while (leadHasMore) {
-          const reqBody = { campaign_id: instantlyCampaignId, limit: 100 };
-          if (leadCursor) reqBody.starting_after = leadCursor;
+        try {
+          while (leadHasMore) {
+            const reqBody = { campaign_id: instantlyCampaignId, limit: 100 };
+            if (leadCursor) reqBody.starting_after = leadCursor;
 
-          const data = await apiFetch(INSTANTLY_BASE + '/leads/list', {
-            method: 'POST', headers: headers, body: JSON.stringify(reqBody)
-          });
-          const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
-          stats.fetched += items.length;
+            const data = await apiFetch(INSTANTLY_BASE + '/leads/list', {
+              method: 'POST', headers: headers, body: JSON.stringify(reqBody)
+            });
+            const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
+            stats.fetched += items.length;
 
-          for (const lead of items) {
-            const leadId = lead.id || lead.lead_id;
-            if (!leadId) continue;
+            for (const lead of items) {
+              const leadId = lead.id || lead.lead_id;
+              if (!leadId) continue;
 
-            const row = {
-              user_id: userId,
-              instantly_id: leadId,
-              campaign_id: supabaseCampaignId,
-              email: lead.email || '',
-              first_name: lead.first_name || '',
-              last_name: lead.last_name || '',
-              company_name: lead.company_name || lead.company || '',
-              phone: lead.phone || lead.phone_number || '',
-              website: lead.website || '',
-              title: lead.title || '',
-              interest_status: lead.interest_status || lead.lead_interest_status || '',
-              lead_status: lead.status || lead.lead_status || '',
-              custom_variables: JSON.stringify(lead.custom_variables || lead.variables || {}),
-              metadata: JSON.stringify({ campaign_instantly_id: instantlyCampaignId }),
-              synced_at: new Date().toISOString()
-            };
+              const row = {
+                user_id: userId,
+                instantly_id: leadId,
+                campaign_id: supabaseCampaignId,
+                email: lead.email || '',
+                first_name: lead.first_name || '',
+                last_name: lead.last_name || '',
+                company_name: lead.company_name || lead.company || '',
+                phone: lead.phone || lead.phone_number || '',
+                website: lead.website || '',
+                title: lead.title || '',
+                interest_status: lead.interest_status || lead.lead_interest_status || '',
+                lead_status: lead.status || lead.lead_status || '',
+                custom_variables: JSON.stringify(lead.custom_variables || lead.variables || {}),
+                metadata: JSON.stringify({ campaign_instantly_id: instantlyCampaignId }),
+                synced_at: new Date().toISOString()
+              };
 
-            const { error } = await client
-              .from('instantly_leads')
-              .upsert(row, { onConflict: 'user_id,instantly_id' });
+              const { error } = await client
+                .from('instantly_leads')
+                .upsert(row, { onConflict: 'user_id,instantly_id' });
 
-            if (error) { stats.skipped++; } else { stats.inserted++; }
-          }
-
-          leadCursor = data.next_starting_after || null;
-          leadHasMore = !!leadCursor && items.length > 0;
-        }
-      } catch (e) { console.error('Leads sync error for campaign ' + instantlyCampaignId + ':', e.message); }
-    }
-
-    // ═══════════ 4. SYNC EMAILS (replies + recent outbound) ═══════════
-    // Build lead lookup: instantly_id → supabase uuid
-    const leadMap = {};
-    const { data: allLeads } = await client
-      .from('instantly_leads')
-      .select('id, instantly_id')
-      .eq('user_id', userId);
-    if (allLeads) {
-      allLeads.forEach(function(l) { leadMap[l.instantly_id] = l.id; });
-    }
-
-    // Fetch emails per campaign
-    for (const instantlyCampaignId of Object.keys(campaignMap)) {
-      const supabaseCampaignId = campaignMap[instantlyCampaignId];
-      let emailCursor = null;
-      let emailHasMore = true;
-
-      try {
-        while (emailHasMore) {
-          const params = ['campaign_id=' + encodeURIComponent(instantlyCampaignId), 'limit=100'];
-          if (emailCursor) params.push('starting_after=' + encodeURIComponent(emailCursor));
-          const url = INSTANTLY_BASE + '/emails?' + params.join('&');
-
-          const data = await apiFetch(url, { headers });
-          const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
-          stats.fetched += items.length;
-
-          for (const email of items) {
-            const emailId = email.id || email.email_id;
-            if (!emailId) continue;
-
-            // Determine if this is a reply (inbound) or outbound
-            const isReply = email.is_reply === true || email.is_reply === 1 ||
-                            email.type === 'reply' || email.direction === 'inbound';
-            const direction = isReply ? 'inbound' : 'outbound';
-
-            // Try to link to a lead via lead email
-            const leadEmail = email.lead || '';
-            const leadInstantlyId = email.lead_id || '';
-            const supaLeadId = leadMap[leadInstantlyId] || null;
-
-            // Extract body — Instantly may nest body as {html, text} or give flat string
-            let bodyHtml = '';
-            let bodyText = '';
-            if (email.body && typeof email.body === 'object') {
-              bodyHtml = email.body.html || '';
-              bodyText = email.body.text || '';
-            } else {
-              bodyHtml = email.body || email.html_body || '';
-              bodyText = email.text_body || email.body_text || '';
+              if (error) { stats.skipped++; } else { stats.inserted++; }
             }
 
-            const row = {
-              user_id: userId,
-              instantly_id: emailId,
-              lead_id: supaLeadId,
-              campaign_id: supabaseCampaignId,
-              from_email: email.from_address_email || email.from_address || email.from_email || email.from || '',
-              from_name: email.from_address_name || email.from_name || '',
-              to_email: email.to_address_email || email.to_address || email.to_email || email.to || '',
-              subject: email.subject || '',
-              body: bodyHtml,
-              body_text: bodyText,
-              timestamp_ext: email.timestamp_email || email.timestamp_created || email.timestamp || null,
-              is_reply: isReply,
-              direction: direction,
-              metadata: JSON.stringify({
-                campaign_instantly_id: instantlyCampaignId,
-                thread_id: email.thread_id || '',
-                message_id: email.message_id || '',
-                lead_email: leadEmail
-              }),
-              synced_at: new Date().toISOString()
-            };
-
-            const { error } = await client
-              .from('instantly_emails')
-              .upsert(row, { onConflict: 'user_id,instantly_id' });
-
-            if (error) { stats.skipped++; } else { stats.inserted++; }
+            leadCursor = data.next_starting_after || null;
+            leadHasMore = !!leadCursor && items.length > 0;
           }
-
-          emailCursor = data.next_starting_after || null;
-          emailHasMore = !!emailCursor && items.length > 0;
-        }
-      } catch (e) { console.error('Emails sync error for campaign ' + instantlyCampaignId + ':', e.message); }
-    }
-
-    // ═══════════ 5. SYNC ACCOUNTS (sending accounts) ═══════════
-    try {
-      let acctCursor = null;
-      let acctHasMore = true;
-
-      while (acctHasMore) {
-        const params = ['limit=100'];
-        if (acctCursor) params.push('starting_after=' + encodeURIComponent(acctCursor));
-        const url = INSTANTLY_BASE + '/accounts?' + params.join('&');
-
-        const data = await apiFetch(url, { headers });
-        const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
-        stats.fetched += items.length;
-
-        for (const acct of items) {
-          const acctId = acct.id || acct.email;
-          if (!acctId) continue;
-
-          // warmup_status may be nested in acct.warmup object
-          let warmupStatus = acct.warmup_status || '';
-          if (!warmupStatus && acct.warmup && typeof acct.warmup === 'object') {
-            warmupStatus = acct.warmup.status || '';
-          }
-
-          // Map numeric status to readable string
-          // Instantly uses: 1=active, -1=paused, -2=error, 0=setup_pending
-          const statusMap = { '1': 'active', '-1': 'paused', '-2': 'error', '0': 'pending' };
-          let acctStatus = acct.status;
-          if (typeof acctStatus === 'number') acctStatus = statusMap[String(acctStatus)] || String(acctStatus);
-          if (!acctStatus) acctStatus = acct.setup_pending ? 'pending' : '';
-
-          const row = {
-            user_id: userId,
-            instantly_id: acctId,
-            email: acct.email || '',
-            first_name: acct.first_name || '',
-            last_name: acct.last_name || '',
-            status: acctStatus,
-            warmup_status: warmupStatus,
-            daily_limit: acct.daily_limit || acct.sending_limit || 0,
-            health_score: acct.stat_warmup_score || acct.health_score || 0,
-            sent_today: acct.sent_today || acct.today_sent || 0,
-            replies_today: acct.replies_today || 0,
-            bounced_today: acct.bounced_today || 0,
-            metadata: JSON.stringify({
-              provider: acct.provider_code || acct.provider || '',
-              domain: acct.tracking_domain_name || acct.domain || '',
-              sending_gap: acct.sending_gap || 0
-            }),
-            synced_at: new Date().toISOString()
-          };
-
-          const { error } = await client
-            .from('instantly_accounts')
-            .upsert(row, { onConflict: 'user_id,instantly_id' });
-
-          if (error) { stats.skipped++; } else { stats.inserted++; }
-        }
-
-        acctCursor = data.next_starting_after || null;
-        acctHasMore = !!acctCursor && items.length > 0;
+        } catch (e) { console.error('Leads sync error for campaign ' + instantlyCampaignId + ':', e.message); }
       }
-    } catch (e) { console.error('Accounts sync error:', e.message); }
+    } catch (e) { console.error('Leads sync error:', e.message); }
+
+    // ═══════════ 7. SYNC EMAILS (replies + recent outbound) ═══════════
+    try {
+      // Build lead lookup: instantly_id → supabase uuid
+      const leadMap = {};
+      try {
+        const { data: allLeads } = await client
+          .from('instantly_leads')
+          .select('id, instantly_id')
+          .eq('user_id', userId);
+        if (allLeads) {
+          allLeads.forEach(function(l) { leadMap[l.instantly_id] = l.id; });
+        }
+      } catch (e) { console.error('Lead map query error:', e.message); }
+
+      // Fetch emails per campaign
+      for (const instantlyCampaignId of Object.keys(campaignMap)) {
+        const supabaseCampaignId = campaignMap[instantlyCampaignId];
+        let emailCursor = null;
+        let emailHasMore = true;
+
+        try {
+          while (emailHasMore) {
+            const params = ['campaign_id=' + encodeURIComponent(instantlyCampaignId), 'limit=100'];
+            if (emailCursor) params.push('starting_after=' + encodeURIComponent(emailCursor));
+            const url = INSTANTLY_BASE + '/emails?' + params.join('&');
+
+            const data = await apiFetch(url, { headers });
+            const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
+            stats.fetched += items.length;
+
+            for (const email of items) {
+              const emailId = email.id || email.email_id;
+              if (!emailId) continue;
+
+              const isReply = email.is_reply === true || email.is_reply === 1 ||
+                              email.type === 'reply' || email.direction === 'inbound';
+              const direction = isReply ? 'inbound' : 'outbound';
+
+              const leadEmail = email.lead || '';
+              const leadInstantlyId = email.lead_id || '';
+              const supaLeadId = leadMap[leadInstantlyId] || null;
+
+              let bodyHtml = '';
+              let bodyText = '';
+              if (email.body && typeof email.body === 'object') {
+                bodyHtml = email.body.html || '';
+                bodyText = email.body.text || '';
+              } else {
+                bodyHtml = email.body || email.html_body || '';
+                bodyText = email.text_body || email.body_text || '';
+              }
+
+              const row = {
+                user_id: userId,
+                instantly_id: emailId,
+                lead_id: supaLeadId,
+                campaign_id: supabaseCampaignId,
+                from_email: email.from_address_email || email.from_address || email.from_email || email.from || '',
+                from_name: email.from_address_name || email.from_name || '',
+                to_email: email.to_address_email || email.to_address || email.to_email || email.to || '',
+                subject: email.subject || '',
+                body: bodyHtml,
+                body_text: bodyText,
+                timestamp_ext: email.timestamp_email || email.timestamp_created || email.timestamp || null,
+                is_reply: isReply,
+                direction: direction,
+                metadata: JSON.stringify({
+                  campaign_instantly_id: instantlyCampaignId,
+                  thread_id: email.thread_id || '',
+                  message_id: email.message_id || '',
+                  lead_email: leadEmail
+                }),
+                synced_at: new Date().toISOString()
+              };
+
+              const { error } = await client
+                .from('instantly_emails')
+                .upsert(row, { onConflict: 'user_id,instantly_id' });
+
+              if (error) { stats.skipped++; } else { stats.inserted++; }
+            }
+
+            emailCursor = data.next_starting_after || null;
+            emailHasMore = !!emailCursor && items.length > 0;
+          }
+        } catch (e) { console.error('Emails sync error for campaign ' + instantlyCampaignId + ':', e.message); }
+      }
+    } catch (e) { console.error('Emails sync error:', e.message); }
 
     await updateSyncStatus(userId, 'instantly', 'ok', stats.inserted + ' synced' + (stats.skipped ? ', ' + stats.skipped + ' skipped' : ''));
     await logSync(userId, 'instantly', 'poll', stats);
