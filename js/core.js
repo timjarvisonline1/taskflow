@@ -135,7 +135,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   prospectCompanies:[],prospects:[],pcSort:'name',pSort:'name',
   _ecCandidates:[],
   clientTab:'overview',endClientTab:'overview',opportunityTab:'overview',
-  instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],instantlyAnalyticsDaily:[],instantlyCampaignSteps:[],
+  instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],instantlyAnalyticsDaily:[],instantlyCampaignSteps:[],instantlyEvents:[],
   outreachSub:'campaigns',outreachFilter:'',outreachBulkMode:false,outreachBulkSelected:{},_outreachAnalyzing:false,
   _outreachAnalyticsDays:30,instantlyCampaignTab:'overview',
   outreachThreadView:null,outreachInboxFilter:'all',outreachInboxCampaign:'',outreachInboxSentiment:'',outreachInboxUnreadOnly:false};
@@ -210,7 +210,8 @@ var SECTIONS=[
     {id:'replies',label:'Replies',icon:'mail'},
     {id:'leads',label:'Leads',icon:'users'},
     {id:'accounts',label:'Accounts',icon:'activity'},
-    {id:'analytics',label:'Analytics',icon:'bar_chart'}
+    {id:'analytics',label:'Analytics',icon:'bar_chart'},
+    {id:'activity',label:'Activity',icon:'clock'}
   ]},
   {id:'meetings',icon:'mic',label:'Meetings'}
 ];
@@ -1429,8 +1430,19 @@ async function loadInstantlyCampaignSteps(){
         opportunities:r.opportunities||0}});
   }catch(e){console.error('loadInstantlyCampaignSteps:',e)}}
 
+async function loadInstantlyEvents(){
+  try{
+    var res=await _sb.from('instantly_events').select('*').order('timestamp',{ascending:false}).limit(200);
+    if(res.error){/* Table may not exist yet */return}
+    S.instantlyEvents=(res.data||[]).map(function(r){
+      var camp=(S.instantlyCampaigns||[]).find(function(c){return c.id===r.campaign_id})||{};
+      return{id:r.id,eventType:r.event_type||'',campaignId:r.campaign_id||'',campaignName:camp.name||'',
+        leadEmail:r.lead_email||'',emailAccount:r.email_account||'',
+        data:r.data||{},timestamp:r.timestamp?new Date(r.timestamp):null,createdAt:r.created_at}});
+  }catch(e){/* Table may not exist */}}
+
 async function loadInstantlyData(){
-  await Promise.all([loadInstantlyCampaigns(),loadInstantlyLeads(),loadInstantlyEmails(),loadInstantlyAccounts(),loadInstantlyAnalyticsDaily(),loadInstantlyCampaignSteps()])}
+  await Promise.all([loadInstantlyCampaigns(),loadInstantlyLeads(),loadInstantlyEmails(),loadInstantlyAccounts(),loadInstantlyAnalyticsDaily(),loadInstantlyCampaignSteps(),loadInstantlyEvents()])}
 
 async function dbEditInstantlyCampaign(id,data){
   var upd={};
@@ -1637,6 +1649,11 @@ function toggleAccountWarmup(accountId){
 function openAccountDetail(accountId){
   S._accountDetailId=accountId;
   openInstantlyAccountDetail(accountId)}
+
+async function refreshActivity(){
+  toast('Refreshing activity...','info');
+  await loadInstantlyEvents();
+  render();toast('Activity refreshed','ok')}
 
 /* ═══════════ INSTANTLY: ANALYZE REPLIES ═══════════ */
 async function analyzeOutreachReplies(){

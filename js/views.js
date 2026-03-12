@@ -8281,6 +8281,7 @@ function rOutreach(){
     case'leads':return rOutreachLeads();
     case'accounts':return rOutreachAccounts();
     case'analytics':return rOutreachAnalytics();
+    case'activity':return rOutreachActivity();
     default:return rOutreachCampaigns()}}
 
 /* ── Campaigns ── */
@@ -8694,6 +8695,59 @@ function rOutreachAccounts(){
     h+='</div>'});
   h+='</div>';
   return h}
+
+/* ── Activity Feed ── */
+function rOutreachActivity(){
+  var events=S.instantlyEvents||[];
+  var h='<div class="pg-head"><h1>'+icon('clock',18)+' Activity Feed';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+events.length+' events</span>';
+  h+='</h1>';
+  h+='<button class="btn" onclick="TF.refreshActivity()" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Refresh</button>';
+  h+='</div>';
+
+  if(!events.length){
+    h+='<div class="empty-state" style="text-align:center;padding:60px 20px;color:var(--t3)">';
+    h+='<div style="font-size:40px;margin-bottom:12px">'+icon('clock',40)+'</div>';
+    h+='<p style="font-size:14px">No activity events yet.</p>';
+    h+='<p style="font-size:12px;margin-top:8px">Events will appear here when webhooks are configured, or after running the SQL migration <code>enhance-instantly-events.sql</code>.</p>';
+    h+='</div>';
+    return h}
+
+  h+='<div class="activity-feed">';
+  events.forEach(function(ev){
+    var typeInfo=getEventTypeInfo(ev.eventType);
+    h+='<div class="activity-event">';
+    h+='<div class="activity-event-icon" style="color:'+typeInfo.color+'">'+icon(typeInfo.icon,14)+'</div>';
+    h+='<div class="activity-event-content">';
+    h+='<div class="activity-event-head">';
+    h+='<span class="activity-event-type" style="color:'+typeInfo.color+'">'+esc(typeInfo.label)+'</span>';
+    h+='<span class="activity-event-time">'+(ev.timestamp?timeAgo(ev.timestamp):'')+'</span>';
+    h+='</div>';
+    h+='<div class="activity-event-detail">';
+    if(ev.leadEmail)h+='<span class="activity-event-lead">'+esc(ev.leadEmail)+'</span>';
+    if(ev.campaignName)h+=' <span class="outreach-pill" style="font-size:9px">'+esc(ev.campaignName)+'</span>';
+    if(ev.emailAccount)h+=' <span style="font-size:10px;color:var(--t4)">via '+esc(ev.emailAccount)+'</span>';
+    h+='</div>';
+    h+='</div></div>'});
+  h+='</div>';
+  return h}
+
+function getEventTypeInfo(type){
+  var map={
+    'reply_received':{icon:'mail',color:'var(--green)',label:'Reply Received'},
+    'email.replied':{icon:'mail',color:'var(--green)',label:'Reply Received'},
+    'email_sent':{icon:'send',color:'var(--t3)',label:'Email Sent'},
+    'email_opened':{icon:'eye',color:'var(--blue)',label:'Email Opened'},
+    'link_clicked':{icon:'link',color:'var(--blue)',label:'Link Clicked'},
+    'email_bounced':{icon:'alert',color:'var(--red)',label:'Bounced'},
+    'lead_interested':{icon:'thumbs_up',color:'var(--green)',label:'Lead Interested'},
+    'lead_not_interested':{icon:'thumbs_down',color:'var(--red)',label:'Not Interested'},
+    'lead_meeting_booked':{icon:'calendar',color:'var(--amber)',label:'Meeting Booked'},
+    'lead_meeting_completed':{icon:'check',color:'var(--green)',label:'Meeting Done'},
+    'lead_closed':{icon:'gem',color:'var(--pink)',label:'Deal Closed'},
+    'account_error':{icon:'alert',color:'var(--red)',label:'Account Error'}
+  };
+  return map[type]||{icon:'clock',color:'var(--t3)',label:type||'Event'}}
 
 /* ── Analytics ── */
 function rOutreachAnalytics(){

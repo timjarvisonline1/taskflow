@@ -2118,6 +2118,18 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .outreach-warmup-on{color:#10B981;font-size:11px;font-weight:600}
 .outreach-warmup-off{color:var(--t3);font-size:11px}
 
+/* ── ACTIVITY FEED ── */
+.activity-feed{display:flex;flex-direction:column;gap:2px}
+.activity-event{display:flex;gap:12px;padding:10px 14px;border-radius:6px;transition:background 0.12s}
+.activity-event:hover{background:var(--bg3)}
+.activity-event-icon{width:28px;height:28px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.activity-event-content{flex:1;min-width:0}
+.activity-event-head{display:flex;align-items:center;gap:8px}
+.activity-event-type{font-size:12px;font-weight:600}
+.activity-event-time{font-size:10px;color:var(--t4);margin-left:auto}
+.activity-event-detail{font-size:11px;color:var(--t3);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.activity-event-lead{font-weight:500;color:var(--t2)}
+
 @media(max-width:860px){
   .outreach-card-grid{grid-template-columns:1fr}
   .outreach-charts-grid{grid-template-columns:1fr}
