@@ -55,7 +55,9 @@ async function syncInstantly(userId) {
           user_id: userId,
           instantly_id: instantlyId,
           name: c.name || '',
-          status: (typeof c.status === 'number') ? String(c.status) : (c.status || ''),
+          status: (typeof c.status === 'number')
+            ? ({ '0': 'draft', '1': 'active', '-1': 'paused', '2': 'completed' }[String(c.status)] || String(c.status))
+            : (c.status || ''),
           created_at_ext: c.timestamp_created || c.timestamp || c.created_at || null,
           metadata: JSON.stringify(c || {}),
           synced_at: new Date().toISOString()
@@ -285,13 +287,20 @@ async function syncInstantly(userId) {
             warmupStatus = acct.warmup.status || '';
           }
 
+          // Map numeric status to readable string
+          // Instantly uses: 1=active, -1=paused, -2=error, 0=setup_pending
+          const statusMap = { '1': 'active', '-1': 'paused', '-2': 'error', '0': 'pending' };
+          let acctStatus = acct.status;
+          if (typeof acctStatus === 'number') acctStatus = statusMap[String(acctStatus)] || String(acctStatus);
+          if (!acctStatus) acctStatus = acct.setup_pending ? 'pending' : '';
+
           const row = {
             user_id: userId,
             instantly_id: acctId,
             email: acct.email || '',
             first_name: acct.first_name || '',
             last_name: acct.last_name || '',
-            status: (typeof acct.status === 'number') ? String(acct.status) : (acct.status || ''),
+            status: acctStatus,
             warmup_status: warmupStatus,
             daily_limit: acct.daily_limit || acct.sending_limit || 0,
             health_score: acct.stat_warmup_score || acct.health_score || 0,
