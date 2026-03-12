@@ -5000,6 +5000,13 @@ async function triggerSync(platform){
     var platId=platform.replace(/-/g,'_');
     var resp=await fetch('/api/sync/'+platform,{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
+    if(!resp.ok){
+      var errText='';try{errText=await resp.text()}catch(x){}
+      console.error(platform+' sync HTTP '+resp.status+':',errText);
+      toast(platform+' sync failed (HTTP '+resp.status+'). Check console for details.','warn');
+      var el2=gel('intg-result-'+platId);
+      if(el2)el2.innerHTML='<span style="color:var(--red);white-space:pre-wrap;word-break:break-all">Sync failed (HTTP '+resp.status+'): '+esc(errText.substring(0,300))+'</span>';
+      return}
     var result=await resp.json();
     if(result.success){
       toast(platform+' synced: '+result.inserted+' new, '+result.updated+' updated'+(result.skipped?' ('+result.skipped+' skipped)':''),'ok');
