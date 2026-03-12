@@ -137,7 +137,8 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   clientTab:'overview',endClientTab:'overview',opportunityTab:'overview',
   instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],instantlyAnalyticsDaily:[],instantlyCampaignSteps:[],
   outreachSub:'campaigns',outreachFilter:'',outreachBulkMode:false,outreachBulkSelected:{},_outreachAnalyzing:false,
-  _outreachAnalyticsDays:30,instantlyCampaignTab:'overview'};
+  _outreachAnalyticsDays:30,instantlyCampaignTab:'overview',
+  outreachThreadView:null,outreachInboxFilter:'all',outreachInboxCampaign:'',outreachInboxSentiment:'',outreachInboxUnreadOnly:false};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1363,11 +1364,16 @@ async function loadInstantlyEmails(){
       if(batch.length<pageSize)break;
       from+=pageSize}
     S.instantlyEmails=allRows.map(function(r){
+      // thread_id: prefer column, fall back to metadata
+      var tid=r.thread_id||'';
+      if(!tid&&r.metadata&&r.metadata.thread_id)tid=r.metadata.thread_id;
       return{id:r.id,instantlyId:r.instantly_id,leadId:r.lead_id||'',campaignId:r.campaign_id||'',
         fromEmail:r.from_email||'',fromName:r.from_name||'',toEmail:r.to_email||'',
         subject:r.subject||'',body:r.body||'',bodyText:r.body_text||'',
         timestampExt:r.timestamp_ext?new Date(r.timestamp_ext):null,
         isReply:!!r.is_reply,direction:r.direction||'outbound',
+        threadId:tid,isUnread:!!r.is_unread,iStatus:r.i_status||0,
+        contentPreview:r.content_preview||'',eaccount:r.eaccount||'',
         aiSentiment:r.ai_sentiment||'',aiSummary:r.ai_summary||'',
         aiInterest:r.ai_interest||'',aiSuggestedAction:r.ai_suggested_action||'',
         aiKeyInfo:r.ai_key_info||'',aiAnalyzedAt:r.ai_analyzed_at?new Date(r.ai_analyzed_at):null,
@@ -1470,6 +1476,90 @@ async function dbEditInstantlyLead(id,data){
   if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
   return true}
 
+/* ═══════════ INSTANTLY: THREAD MANAGEMENT ═══════════ */
+
+function getThreads(){
+  /* Group emails by threadId into conversation objects, sorted by most recent message */
+  var emails=S.instantlyEmails||[];
+  var threadMap={};
+  emails.forEach(function(e){
+    // Use threadId, or fall back to grouping by lead+campaign
+    var tid=e.threadId||(e.leadId+'_'+e.campaignId);
+    if(!tid||tid==='_')tid='solo_'+e.id;
+    if(!threadMap[tid])threadMap[tid]={threadId:tid,emails:[],lastTs:null,hasUnread:false,
+      leadId:'',campaignId:'',subject:'',leadName:'',companyName:'',sentiment:'',preview:''};
+    threadMap[tid].emails.push(e);
+    var ts=e.timestampExt;
+    if(ts&&(!threadMap[tid].lastTs||ts>threadMap[tid].lastTs))threadMap[tid].lastTs=ts;
+    if(e.isUnread)threadMap[tid].hasUnread=true;
+    if(!threadMap[tid].leadId&&e.leadId)threadMap[tid].leadId=e.leadId;
+    if(!threadMap[tid].campaignId&&e.campaignId)threadMap[tid].campaignId=e.campaignId;
+    if(!threadMap[tid].subject&&e.subject)threadMap[tid].subject=e.subject;
+    // Keep most recent reply's sentiment
+    if(e.isReply&&e.direction==='inbound'&&e.aiSentiment)threadMap[tid].sentiment=e.aiSentiment;
+  });
+  // Enrich with lead/campaign names and build preview
+  var threads=Object.values(threadMap);
+  threads.forEach(function(t){
+    var lead=(S.instantlyLeads||[]).find(function(l){return l.id===t.leadId})||{};
+    t.leadName=((lead.firstName||'')+' '+(lead.lastName||'')).trim()||lead.email||'';
+    t.companyName=lead.companyName||'';
+    var camp=(S.instantlyCampaigns||[]).find(function(c){return c.id===t.campaignId})||{};
+    t.campaignName=camp.name||'';
+    // Sort emails chronologically
+    t.emails.sort(function(a,b){return(a.timestampExt||0)-(b.timestampExt||0)});
+    // Preview from last email
+    var last=t.emails[t.emails.length-1];
+    t.preview=last.contentPreview||(last.bodyText||last.body||'').replace(/<[^>]*>/g,'').substring(0,120);
+    t.hasInbound=t.emails.some(function(e){return e.isReply&&e.direction==='inbound'});
+    // Reply status from latest inbound
+    var lastInbound=null;
+    for(var i=t.emails.length-1;i>=0;i--){if(t.emails[i].isReply&&t.emails[i].direction==='inbound'){lastInbound=t.emails[i];break}}
+    t.replyStatus=lastInbound?lastInbound.replyStatus:'';
+    t.aiSummary=lastInbound?lastInbound.aiSummary:'';
+  });
+  // Sort by most recent first
+  threads.sort(function(a,b){return(b.lastTs||0)-(a.lastTs||0)});
+  return threads}
+
+function getFilteredThreads(){
+  var threads=getThreads();
+  // Only show threads that have at least one inbound reply
+  threads=threads.filter(function(t){return t.hasInbound});
+  // Apply filters
+  if(S.outreachInboxCampaign){
+    threads=threads.filter(function(t){return t.campaignId===S.outreachInboxCampaign})}
+  if(S.outreachInboxSentiment){
+    threads=threads.filter(function(t){return t.sentiment===S.outreachInboxSentiment})}
+  if(S.outreachInboxUnreadOnly){
+    threads=threads.filter(function(t){return t.hasUnread||t.replyStatus==='pending'})}
+  return threads}
+
+function getUnreadReplyCount(){
+  return(S.instantlyEmails||[]).filter(function(e){
+    return e.isReply&&e.direction==='inbound'&&(e.isUnread||e.replyStatus==='pending')}).length}
+
+function openThread(threadId){
+  S.outreachThreadView=threadId;
+  render()}
+
+function closeThread(){
+  S.outreachThreadView=null;
+  render()}
+
+async function markThreadRead(threadId){
+  var emails=(S.instantlyEmails||[]).filter(function(e){return e.threadId===threadId&&e.isUnread});
+  for(var i=0;i<emails.length;i++){
+    emails[i].isUnread=false;
+    await _sb.from('instantly_emails').update({is_unread:false}).eq('id',emails[i].id)}
+  render()}
+
+function setInboxFilter(key,val){
+  if(key==='campaign')S.outreachInboxCampaign=val;
+  else if(key==='sentiment')S.outreachInboxSentiment=val;
+  else if(key==='unread')S.outreachInboxUnreadOnly=val==='true';
+  render()}
+
 /* ═══════════ INSTANTLY: ANALYZE REPLIES ═══════════ */
 async function analyzeOutreachReplies(){
   if(S._outreachAnalyzing)return;
@@ -1528,7 +1618,8 @@ async function openOutreachReply(emailId){
   gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
 
 async function sendOutreachReply(emailId){
-  var body=(gel('outreach-reply-body')||{}).value;
+  /* Check both thread composer and old modal textarea */
+  var body=(gel('thread-reply-body')||gel('outreach-reply-body')||{}).value;
   if(!body||!body.trim()){toast('Please type a reply','warn');return}
   var email=(S.instantlyEmails||[]).find(function(e){return e.id===emailId});
   if(!email){toast('Email not found','warn');return}
@@ -1561,7 +1652,7 @@ async function draftOutreachReply(emailId){
     return{from:e.fromEmail,to:e.toEmail,subject:e.subject,body:e.body||e.bodyText,
       direction:e.direction,timestamp:e.timestampExt?e.timestampExt.toISOString():''}});
 
-  var textarea=gel('outreach-reply-body');
+  var textarea=gel('thread-reply-body')||gel('outreach-reply-body');
   if(textarea)textarea.placeholder='Generating AI draft...';
   toast('Generating AI draft...','info');
   try{
@@ -6376,6 +6467,7 @@ function buildNav(){var h='';
     var badge='';
     if(sec.id==='tasks'){var _ib=S.tasks.filter(function(t){return t.isInbox}).length+S.review.length;if(_ib)badge='<span class="nav-badge">'+_ib+'</span>'}
     if(sec.id==='email'&&S.gmailUnread>0){badge='<span class="nav-badge" style="background:#EA4335">'+S.gmailUnread+'</span>'}
+    if(sec.id==='outreach'){var _orc=getUnreadReplyCount();if(_orc>0)badge='<span class="nav-badge" style="background:var(--blue)">'+_orc+'</span>'}
     var isOn=sec.id===S.view;
     if(sec.soon){
       h+='<div class="s-item s-item-soon" data-v="'+sec.id+'">';
@@ -6437,6 +6529,7 @@ function buildSubNav(sec){
     if(sub.id==='e-drafts'){var _dc=getDraftCount();if(_dc>0)h+='<span class="sub-badge">'+_dc+'</span>'}
     if(sub.id==='e-scheduled'){var _sc2=(S.scheduledEmails||[]).filter(function(e){return e.status==='pending'}).length;if(_sc2>0)h+='<span class="sub-badge">'+_sc2+'</span>'}
     if(sub.id==='ec_review'){var _ecrc=(S._ecCandidates||[]).length;if(_ecrc>0)h+='<span class="sub-badge">'+_ecrc+'</span>'}
+    if(sub.id==='replies'){var _urc=getUnreadReplyCount();if(_urc>0)h+='<span class="sub-badge" style="background:var(--blue);color:#fff">'+_urc+'</span>'}
     /* Smart inbox badges */
     if(sub.smart&&sec.id==='email'){
       var _sc=_countSmartInbox(sub.id);

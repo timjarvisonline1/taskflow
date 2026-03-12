@@ -8361,81 +8361,164 @@ function rOutreachCampaigns(){
 
 /* ── Replies ── */
 function rOutreachReplies(){
-  var emails=S.instantlyEmails||[];
-  var replies=emails.filter(function(e){return e.isReply&&e.direction==='inbound'});
+  /* Thread detail view */
+  if(S.outreachThreadView)return rOutreachThreadDetail(S.outreachThreadView);
 
-  /* Group by sentiment */
-  var groups={positive:[],question:[],pending:[],negative:[],other:[]};
-  replies.forEach(function(r){
-    var s=r.aiSentiment||'';
-    if(s==='positive'||s==='referral')groups.positive.push(r);
-    else if(s==='question')groups.question.push(r);
-    else if(s==='negative'||s==='not_interested')groups.negative.push(r);
-    else if(s==='ooo'||s==='bounce')groups.other.push(r);
-    else groups.pending.push(r)});
+  /* Inbox view */
+  var threads=getFilteredThreads();
+  var allThreads=getThreads().filter(function(t){return t.hasInbound});
+  var unreadCount=getUnreadReplyCount();
 
-  /* Count unhandled */
-  var pendingCount=replies.filter(function(r){return r.replyStatus==='pending'}).length;
-
-  var h='<div class="pg-head"><h1>'+icon('mail',18)+' Replies';
-  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+replies.length+' replies';
-  if(pendingCount)h+=' <span style="color:var(--amber);font-weight:600">('+pendingCount+' pending)</span>';
+  var h='<div class="pg-head"><h1>'+icon('mail',18)+' Inbox';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+allThreads.length+' conversations';
+  if(unreadCount)h+=' <span style="color:var(--blue);font-weight:600">('+unreadCount+' pending)</span>';
   h+='</span></h1>';
-  h+='<button class="btn btn-go" onclick="TF.analyzeOutreachReplies()" style="font-size:12px;padding:6px 14px">'+icon('sparkle',11)+' Analyze Replies</button>';
+  h+='<div style="display:flex;gap:8px">';
+  h+='<button class="btn btn-go" onclick="TF.analyzeOutreachReplies()" style="font-size:12px;padding:6px 14px">'+icon('sparkle',11)+' Analyze</button>';
+  h+='</div></div>';
+
+  /* Filter bar */
+  h+='<div class="inbox-filters">';
+  /* Campaign filter */
+  var camps=S.instantlyCampaigns||[];
+  h+='<select class="edf inbox-filter-select" onchange="TF.setInboxFilter(\'campaign\',this.value)">';
+  h+='<option value="">All Campaigns</option>';
+  camps.forEach(function(c){h+='<option value="'+esc(c.id)+'"'+(S.outreachInboxCampaign===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='</select>';
+  /* Sentiment filter */
+  h+='<select class="edf inbox-filter-select" onchange="TF.setInboxFilter(\'sentiment\',this.value)">';
+  h+='<option value="">All Sentiments</option>';
+  ['positive','question','negative','not_interested','ooo','bounce','referral'].forEach(function(s){
+    h+='<option value="'+s+'"'+(S.outreachInboxSentiment===s?' selected':'')+'>'+s.charAt(0).toUpperCase()+s.slice(1).replace('_',' ')+'</option>'});
+  h+='</select>';
+  /* Unread toggle */
+  h+='<button class="btn btn-xs'+(S.outreachInboxUnreadOnly?' btn-p':'')+'" onclick="TF.setInboxFilter(\'unread\',\''+(!S.outreachInboxUnreadOnly)+'\')">'+icon('mail',10)+' Pending Only</button>';
   h+='</div>';
 
-  if(!replies.length){
+  if(!threads.length){
     h+='<div class="empty-state" style="text-align:center;padding:60px 20px;color:var(--t3)">';
     h+='<div style="font-size:40px;margin-bottom:12px">'+icon('mail',40)+'</div>';
-    h+='<p style="font-size:14px">No replies yet.</p>';
-    h+='<p style="font-size:12px;margin-top:8px">Replies will appear here after syncing your Instantly campaigns.</p>';
+    h+='<p style="font-size:14px">No conversations found.</p>';
+    if(S.outreachInboxCampaign||S.outreachInboxSentiment||S.outreachInboxUnreadOnly){
+      h+='<p style="font-size:12px;margin-top:8px">Try adjusting your filters.</p>'}
+    else{h+='<p style="font-size:12px;margin-top:8px">Replies will appear here after syncing your Instantly campaigns.</p>'}
     h+='</div>';
     return h}
 
-  function renderReplyGroup(title,items,color,collapsed){
-    if(!items.length)return'';
-    var gh='<div class="outreach-reply-group">';
-    gh+='<div class="outreach-reply-group-head" style="border-left:3px solid '+color+'">';
-    gh+='<strong>'+title+'</strong> <span style="color:var(--t3);font-size:12px">('+items.length+')</span>';
-    gh+='</div>';
-    if(!collapsed){
-      items.forEach(function(r){
-        var lead=S.instantlyLeads.find(function(l){return l.id===r.leadId})||{};
-        var camp=S.instantlyCampaigns.find(function(c){return c.id===r.campaignId})||{};
-        var leadName=(lead.firstName||'')+' '+(lead.lastName||'');
-        if(!leadName.trim())leadName=r.fromEmail||'Unknown';
-        var snippet=(r.bodyText||r.body||'').substring(0,120).replace(/<[^>]*>/g,'');
-        var ts=r.timestampExt?timeAgo(r.timestampExt):'';
-        var statusCls=r.replyStatus==='replied'?'outreach-replied':(r.replyStatus==='dismissed'?'outreach-dismissed':'');
+  /* Thread list */
+  h+='<div class="inbox-thread-list">';
+  threads.forEach(function(t){
+    var isPending=t.replyStatus==='pending';
+    var isDismissed=t.replyStatus==='dismissed';
+    var isReplied=t.replyStatus==='replied';
+    var rowCls='inbox-thread-row';
+    if(isPending||t.hasUnread)rowCls+=' inbox-unread';
+    if(isDismissed)rowCls+=' inbox-dismissed';
 
-        gh+='<div class="outreach-reply-card '+statusCls+'">';
-        gh+='<div class="outreach-reply-head">';
-        gh+='<span class="outreach-reply-name">'+esc(leadName.trim())+'</span>';
-        if(lead.companyName)gh+=' <span class="outreach-reply-company">'+esc(lead.companyName)+'</span>';
-        if(camp.name)gh+=' <span class="outreach-pill" style="font-size:10px">'+esc(camp.name)+'</span>';
-        gh+='<span class="outreach-reply-time">'+ts+'</span>';
-        gh+='</div>';
-        if(r.aiSummary)gh+='<div class="outreach-reply-summary">'+esc(r.aiSummary)+'</div>';
-        else gh+='<div class="outreach-reply-snippet">'+esc(snippet)+'</div>';
-        if(r.aiSentiment)gh+='<span class="outreach-sentiment outreach-sentiment-'+esc(r.aiSentiment)+'">'+esc(r.aiSentiment)+'</span>';
+    h+='<div class="'+rowCls+'" onclick="TF.openThread(\''+esc(t.threadId)+'\')">';
+    /* Left: avatar + indicator */
+    h+='<div class="inbox-thread-left">';
+    var initials=(t.leadName||'?').charAt(0).toUpperCase();
+    var sentColor=t.sentiment==='positive'?'var(--green)':(t.sentiment==='negative'||t.sentiment==='not_interested'?'var(--red)':(t.sentiment==='question'?'var(--amber)':'var(--t3)'));
+    h+='<div class="inbox-avatar" style="border-color:'+sentColor+'">'+initials+'</div>';
+    if(isPending||t.hasUnread)h+='<div class="inbox-unread-dot"></div>';
+    h+='</div>';
+    /* Center: name, company, preview */
+    h+='<div class="inbox-thread-center">';
+    h+='<div class="inbox-thread-top">';
+    h+='<span class="inbox-thread-name">'+esc(t.leadName||'Unknown')+'</span>';
+    if(t.companyName)h+=' <span class="inbox-thread-company">'+esc(t.companyName)+'</span>';
+    h+='</div>';
+    if(t.subject)h+='<div class="inbox-thread-subject">'+esc(t.subject)+'</div>';
+    h+='<div class="inbox-thread-preview">';
+    if(t.aiSummary)h+=esc(t.aiSummary);
+    else h+=esc(t.preview);
+    h+='</div>';
+    h+='</div>';
+    /* Right: meta */
+    h+='<div class="inbox-thread-right">';
+    h+='<span class="inbox-thread-time">'+(t.lastTs?timeAgo(t.lastTs):'')+'</span>';
+    if(t.campaignName)h+='<span class="outreach-pill" style="font-size:9px">'+esc(t.campaignName)+'</span>';
+    if(t.sentiment)h+='<span class="outreach-sentiment outreach-sentiment-'+esc(t.sentiment)+'" style="font-size:9px">'+esc(t.sentiment)+'</span>';
+    if(isReplied)h+='<span class="inbox-status-badge inbox-status-replied">Replied</span>';
+    h+='<span class="inbox-thread-count">'+t.emails.length+' '+icon('mail',10)+'</span>';
+    h+='</div>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
 
-        gh+='<div class="outreach-reply-actions">';
-        gh+='<button class="btn" onclick="event.stopPropagation();TF.openOutreachReply(\''+r.id+'\')" style="font-size:11px;padding:4px 10px">'+icon('mail',10)+' Reply</button>';
-        gh+='<button class="btn" onclick="event.stopPropagation();TF.draftOutreachReply(\''+r.id+'\')" style="font-size:11px;padding:4px 10px">'+icon('sparkle',10)+' AI Draft</button>';
-        if(r.aiSentiment==='positive'||r.aiSuggestedAction==='create_opportunity'){
-          gh+='<button class="btn btn-go" onclick="event.stopPropagation();TF.createOppFromReply(\''+r.id+'\')" style="font-size:11px;padding:4px 10px">'+icon('gem',10)+' Create Opp</button>'}
-        gh+='<button class="btn" onclick="event.stopPropagation();TF.dismissOutreachReply(\''+r.id+'\')" style="font-size:11px;padding:4px 10px;color:var(--t3)">Dismiss</button>';
-        gh+='</div>';
-        gh+='</div>'});
-    }
-    gh+='</div>';
-    return gh}
+/* ── Thread Detail ── */
+function rOutreachThreadDetail(threadId){
+  var allThreads=getThreads();
+  var thread=allThreads.find(function(t){return t.threadId===threadId});
+  if(!thread){S.outreachThreadView=null;return rOutreachReplies()}
 
-  h+=renderReplyGroup('Positive',groups.positive,'var(--green)',false);
-  h+=renderReplyGroup('Questions',groups.question,'var(--amber)',false);
-  h+=renderReplyGroup('Needs Response',groups.pending,'var(--blue)',false);
-  h+=renderReplyGroup('Not Interested',groups.negative,'var(--red)',true);
-  h+=renderReplyGroup('Out of Office / Bounce',groups.other,'var(--t3)',true);
+  var lead=(S.instantlyLeads||[]).find(function(l){return l.id===thread.leadId})||{};
+  var camp=(S.instantlyCampaigns||[]).find(function(c){return c.id===thread.campaignId})||{};
+
+  /* Mark as read */
+  if(thread.hasUnread)markThreadRead(threadId);
+
+  var h='<div class="pg-head" style="border-bottom:1px solid var(--bd)">';
+  h+='<div style="display:flex;align-items:center;gap:12px;flex:1">';
+  h+='<button class="btn btn-xs" onclick="TF.closeThread()" style="font-size:12px;padding:6px 10px">'+icon('arrow_left',12)+' Back</button>';
+  h+='<div>';
+  h+='<h1 style="font-size:16px;margin:0">'+esc(thread.leadName||'Unknown');
+  if(thread.companyName)h+=' <span style="font-size:13px;color:var(--t3);font-weight:400">'+esc(thread.companyName)+'</span>';
+  h+='</h1>';
+  h+='<div style="font-size:11px;color:var(--t3);margin-top:2px">';
+  if(lead.email)h+=esc(lead.email)+' ';
+  if(camp.name)h+='<span class="outreach-pill" style="font-size:9px">'+esc(camp.name)+'</span> ';
+  if(thread.sentiment)h+='<span class="outreach-sentiment outreach-sentiment-'+esc(thread.sentiment)+'" style="font-size:9px">'+esc(thread.sentiment)+'</span>';
+  h+='</div></div></div>';
+  /* Actions */
+  h+='<div style="display:flex;gap:6px;align-items:center">';
+  var lastInbound=null;
+  for(var k=thread.emails.length-1;k>=0;k--){if(thread.emails[k].isReply&&thread.emails[k].direction==='inbound'){lastInbound=thread.emails[k];break}}
+  if(lastInbound&&(lastInbound.aiSentiment==='positive'||lastInbound.aiSuggestedAction==='create_opportunity')){
+    h+='<button class="btn btn-go btn-xs" onclick="TF.createOppFromReply(\''+lastInbound.id+'\')">'+icon('gem',10)+' Create Opp</button>'}
+  if(lastInbound)h+='<button class="btn btn-xs" onclick="TF.dismissOutreachReply(\''+lastInbound.id+'\')">Dismiss</button>';
+  h+='</div></div>';
+
+  /* AI Summary box */
+  if(thread.aiSummary){
+    h+='<div class="thread-ai-summary">';
+    h+='<span style="font-weight:600;font-size:11px;color:var(--blue)">'+icon('sparkle',10)+' AI Summary</span>';
+    h+='<div style="font-size:12px;color:var(--t2);margin-top:4px">'+esc(thread.aiSummary)+'</div>';
+    h+='</div>'}
+
+  /* Email thread — chat bubbles */
+  h+='<div class="thread-messages">';
+  thread.emails.forEach(function(e){
+    var isOutbound=e.direction==='outbound'||!e.isReply;
+    var bubbleCls=isOutbound?'thread-bubble thread-bubble-out':'thread-bubble thread-bubble-in';
+    var senderName=isOutbound?(e.fromName||e.fromEmail||'You'):(thread.leadName||e.fromEmail||'Lead');
+
+    h+='<div class="'+bubbleCls+'">';
+    h+='<div class="thread-bubble-head">';
+    h+='<span class="thread-bubble-sender">'+esc(senderName)+'</span>';
+    h+='<span class="thread-bubble-time">'+(e.timestampExt?timeAgo(e.timestampExt):'')+'</span>';
+    h+='</div>';
+    if(e.subject)h+='<div class="thread-bubble-subject">'+esc(e.subject)+'</div>';
+    h+='<div class="thread-bubble-body">';
+    /* Show body text preferring plain text, falling back to html-stripped */
+    var bodyContent=e.bodyText||(e.body||'').replace(/<[^>]*>/g,'');
+    h+=esc(bodyContent).replace(/\n/g,'<br>');
+    h+='</div>';
+    if(e.isReply&&e.direction==='inbound'&&e.aiSentiment){
+      h+='<span class="outreach-sentiment outreach-sentiment-'+esc(e.aiSentiment)+'" style="font-size:9px;margin-top:6px;display:inline-block">'+esc(e.aiSentiment)+'</span>'}
+    h+='</div>'});
+  h+='</div>';
+
+  /* Reply composer */
+  h+='<div class="thread-composer">';
+  h+='<div class="thread-composer-head"><strong style="font-size:12px">Reply</strong></div>';
+  h+='<textarea id="thread-reply-body" class="edf thread-reply-textarea" placeholder="Type your reply..." rows="4"></textarea>';
+  h+='<div class="thread-composer-actions">';
+  var replyEmailId=lastInbound?lastInbound.id:(thread.emails.length?thread.emails[thread.emails.length-1].id:'');
+  h+='<button class="btn btn-go" onclick="TF.sendOutreachReply(\''+replyEmailId+'\')" style="font-size:12px;padding:6px 14px">'+icon('send',11)+' Send</button>';
+  h+='<button class="btn" onclick="TF.draftOutreachReply(\''+replyEmailId+'\')" style="font-size:12px;padding:6px 14px">'+icon('sparkle',11)+' AI Draft</button>';
+  h+='</div></div>';
   return h}
 
 /* ── Leads ── */
@@ -8727,9 +8810,8 @@ function dismissOutreachReply(emailId){
     if(e)e.replyStatus='dismissed';
     render();toast('Reply dismissed','ok')})}
 
-/* Helper: outreach reply count for badges */
-function getOutreachReplyCount(){
-  return(S.instantlyEmails||[]).filter(function(e){return e.isReply&&e.direction==='inbound'&&e.replyStatus==='pending'}).length}
+/* Helper: outreach reply count for badges — delegates to core.js getUnreadReplyCount */
+function getOutreachReplyCount(){return getUnreadReplyCount()}
 
 function setOutreachAnalyticsDays(days){S._outreachAnalyticsDays=days;render()}
 

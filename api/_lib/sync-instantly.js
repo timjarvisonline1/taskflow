@@ -404,6 +404,10 @@ async function syncInstantly(userId) {
 
     // ═══════════ 9. SYNC EMAILS (N paginated API calls — limited to 1 page per campaign) ═══════════
     try {
+      // Check if enhanced email columns exist (thread_id, is_unread, etc.)
+      const { error: emailColTest } = await client.from('instantly_emails').select('thread_id').eq('user_id', userId).limit(1);
+      const hasEmailEnhanced = !emailColTest;
+
       // Build lead lookup
       const leadMap = {};
       try {
@@ -445,6 +449,9 @@ async function syncInstantly(userId) {
               bodyText = email.text_body || email.body_text || '';
             }
 
+            // Build content preview (first 150 chars of plain text)
+            const previewText = (bodyText || bodyHtml || '').replace(/<[^>]*>/g, '').substring(0, 150);
+
             const row = {
               user_id: userId,
               instantly_id: emailId,
@@ -467,6 +474,15 @@ async function syncInstantly(userId) {
               }),
               synced_at: new Date().toISOString()
             };
+
+            // Add enhanced fields if columns exist
+            if (hasEmailEnhanced) {
+              row.thread_id = email.thread_id || '';
+              row.is_unread = email.is_unread === true || email.is_unread === 1 || false;
+              row.i_status = typeof email.i_status === 'number' ? email.i_status : (email.interest_status || 0);
+              row.content_preview = previewText;
+              row.eaccount = email.eaccount || email.from_address_email || email.from_email || '';
+            }
 
             const { error } = await client
               .from('instantly_emails')
