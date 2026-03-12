@@ -91,7 +91,8 @@ taskflow/
 │   │   ├── sync-zoho-books.js    # Zoho Books sync
 │   │   ├── sync-zoho-payments.js # Zoho Payments sync
 │   │   ├── embeddings.js         # KB: core embedding library (chunk, embed, store, search, dedup)
-│   │   └── entity-chunkers.js    # KB: 11 entity type chunkers (task, client, campaign, contact, etc.)
+│   │   ├── entity-chunkers.js    # KB: 11 entity type chunkers (task, client, campaign, contact, etc.)
+│   │   └── sync-instantly.js     # Instantly.ai sync (parallelized, 9 sections, time-budgeted)
 │   ├── gmail/
 │   │   ├── threads.js      # GET — fetch thread list from Gmail API
 │   │   ├── thread.js       # GET — fetch single thread with messages
@@ -129,10 +130,18 @@ taskflow/
 │   │   └── sync-all.js     # Periodic sync for all active integrations
 │   ├── meetings/
 │   │   └── generate-report.js # POST — AI Kajabi report generation (SSE streaming, Claude Sonnet)
+│   ├── instantly/
+│   │   ├── analyze.js        # POST — AI reply analysis via Claude
+│   │   ├── reply.js          # POST — send reply via Instantly API
+│   │   ├── draft.js          # POST — AI draft reply using RAG
+│   │   ├── unread.js         # GET — unread email count from Instantly
+│   │   ├── lead-action.js    # POST — update lead interest status
+│   │   └── account-action.js # POST — account actions (warmup, pause, resume, test, mark_fixed)
 │   └── webhook/
-│       ├── mercury.js      # Mercury webhook (HMAC-SHA256 verified)
-│       ├── zoho-payments.js # Zoho Payments webhook
-│       └── readai.js       # Read.ai webhook (meeting data ingestion)
+│       ├── mercury.js        # Mercury webhook (HMAC-SHA256 verified)
+│       ├── zoho-payments.js  # Zoho Payments webhook
+│       ├── readai.js         # Read.ai webhook (meeting data ingestion)
+│       └── instantly.js      # Instantly webhook (all event types: reply, sent, opened, clicked, bounced, interest, errors)
 │
 ├── supabase/
 │   ├── schema.sql                  # Core schema (tasks, done, review, clients, campaigns, etc.)
@@ -164,7 +173,15 @@ taskflow/
 │   ├── upgrade-knowledge-search.sql         # Combined hybrid search upgrade (all-in-one)
 │   ├── upgrade-knowledge-part1-column.sql   # Add content_tsv column + GIN index + auto-update trigger
 │   ├── upgrade-knowledge-part2-backfill.sql # Backfill content_tsv for existing rows
-│   └── upgrade-knowledge-part3-function.sql # Replace match_knowledge() with hybrid search fn
+│   ├── upgrade-knowledge-part3-function.sql # Replace match_knowledge() with hybrid search fn
+│   ├── add-end-client-id.sql               # Add end_client_id UUID FK column to all entity tables
+│   ├── add-instantly.sql                    # Base Instantly tables (campaigns, leads, emails, accounts)
+│   ├── enhance-instantly-analytics.sql      # Phase 1: instantly_analytics_daily table + pipeline fields on campaigns
+│   ├── enhance-instantly-campaigns.sql      # Phase 2: sequences/schedule/email_list columns + campaign_steps table
+│   ├── enhance-instantly-emails.sql         # Phase 3: thread_id, is_unread, content_preview, eaccount columns
+│   ├── enhance-instantly-leads.sql          # Phase 4: engagement metric columns on leads
+│   ├── enhance-instantly-accounts.sql       # Phase 5: instantly_warmup_daily table
+│   └── enhance-instantly-events.sql         # Phase 6: instantly_events table for activity feed
 │
 └── scripts/
     ├── run-migration.py        # Helper to run SQL migrations
@@ -196,6 +213,7 @@ The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered 
 | 7 | `clients` | Clients | 7 | Active, Lapsed, End Clients, Prospects, People, Contact Review |
 | 8 | `finance` | Finance | 8 | Overview, Transactions, Invoices, Upcoming, Recurring, Forecast, Team |
 | 9 | `email` | Email | 9 | Action Required (with badge), Inbox, Sent, All Mail, Drafts (with badge), Scheduled (with badge), then Smart Inboxes: Clients (Active), Clients (Lapsed), Prospects, By Campaign, By Opportunity, Other |
+| 10 | `outreach` | Outreach | 0 | Campaigns, Replies (with unread badge), Leads, Accounts, Activity |
 
 **Mobile bottom tabs** (`MOB_VIEWS`): Add, Tasks, Review, Opps
 
@@ -334,6 +352,21 @@ S = {
   // Forecast
   forecastHorizon: 90,    // Forecast lookout period (days)
   forecastScenario: 'expected', // 'expected' | 'conservative'
+
+  // Outreach (Instantly.ai) state
+  instantlyCampaigns: [],   // Synced Instantly campaigns
+  instantlyLeads: [],       // Synced leads
+  instantlyEmails: [],      // Synced emails
+  instantlyAccounts: [],    // Synced sending accounts
+  instantlyEvents: [],      // Webhook event feed
+  outreachSub: 'campaigns', // Current outreach sub-view
+  outreachFilter: 'all',    // Reply filter
+  outreachThreadView: null, // Thread ID for inbox thread detail view
+  outreachInboxFilter: 'all',   // Inbox filter: 'all' | 'positive' | 'question' | 'negative' | 'neutral'
+  outreachInboxCampaign: '',    // Inbox campaign filter
+  outreachInboxSentiment: '',   // Inbox sentiment filter
+  outreachInboxUnreadOnly: false, // Show only unread threads
+  leadDetailTab: 'overview',    // Active tab in lead detail modal
 }
 ```
 
@@ -342,7 +375,7 @@ S = {
 All views are rendered by calling `render()`, which calls the appropriate `rXxx()` function based on `S.view`. Views build HTML strings and inject via `innerHTML`. No virtual DOM.
 
 ```
-render() → rDashboard() | rToday() | rTasks() | rFinance() | rCampaigns() | rProjects() | rOpportunities() | rClients() | rEmail()
+render() → rDashboard() | rToday() | rTasks() | rFinance() | rCampaigns() | rProjects() | rOpportunities() | rClients() | rEmail() | rOutreach()
 
 Dashboard:
   rDashboard()             — Comprehensive overview: today's focus, productivity, sales pipeline,
@@ -457,6 +490,26 @@ Email sub-views (via rEmail() dispatcher):
   rThreadCrmContext()      — CRM context info panels (client badges, people section)
   (inbox/sent/all)         — Thread list with filter toggle + search + CRM filter bar + bulk mode
   (smart inboxes)          — Filtered by CRM context: e-active, e-lapsed, e-prospects, e-campaigns, e-opportunities, e-other
+
+Outreach sub-views (via rOutreach() dispatcher):
+  rOutreachCampaigns()     — Card grid with metrics, per-campaign config (default opp type, mapped client)
+  rOutreachReplies()       — Dual-mode: inbox list (filter bar + thread rows) or thread detail (chat bubbles)
+  rOutreachThreadDetail()  — Full conversation view: AI summary, chat bubbles (outbound right, inbound left),
+                             sentiment badges, reply composer at bottom
+  rOutreachLeads()         — Sortable table: name, company, opens, replies, clicks, lastActivity.
+                             Engagement heat colors (green/amber/red), inline interest status dropdown,
+                             click opens lead detail modal
+  rOutreachAccounts()      — Summary strip (active/paused/errors/avg health/sent today),
+                             account cards with pause/resume and warmup toggles, provider/domain pills
+  rOutreachActivity()      — Color-coded activity event feed from webhooks (reply, sent, opened, clicked,
+                             bounced, interest changes, account errors)
+  rOutreachAnalytics()     — Metrics row + 4 charts (reply rate, sentiment, volume, funnel)
+
+Outreach entity modals (modals.js):
+  openInstantlyLeadDetail(id)    — 3-tab modal: Overview (contact info, engagement, interest status,
+                                   linked records), Activity (email timeline), Variables (key-value table)
+  openInstantlyAccountDetail(id) — Account detail modal: health score, warmup toggle, pause/resume,
+                                   test vitals, mark fixed, provider config
 
 Mobile views:
   rMobAdd()                — Quick add task
@@ -1013,6 +1066,16 @@ Six AI-powered email features, all using Claude Sonnet (configurable via `integr
   - `kajabi_report_html` — cached AI-generated HTML report for Kajabi (inline styles, no classes)
   - Transcript format varies: webhook transcripts have wall-clock timestamps `[16:01:30] Speaker:`, manually added transcripts use `[Speaker Name]:` without timestamps
 
+### Instantly.ai Tables (Outreach)
+- `instantly_campaigns` — synced campaigns (instantly_id, name, status, leads_count, contacted_count, replies_count, bounced_count, open_rate, reply_rate, open_count, click_count, unsubscribed_count, completed_count, total_opportunities, total_opportunity_value, total_interested, total_meeting_booked, total_meeting_completed, total_closed, sequences JSONB, campaign_schedule JSONB, email_list JSONB, daily_limit, stop_on_reply, metadata JSONB). Unique on (user_id, instantly_id)
+- `instantly_leads` — synced leads (instantly_id, campaign_id FK, email, first_name, last_name, company_name, phone, website, title, interest_status, lead_status, custom_variables JSONB, email_open_count, email_reply_count, email_click_count, timestamp_last_open, timestamp_last_reply, timestamp_last_click, timestamp_last_interest_change, lead_score, is_website_visitor, last_step_id, last_step_from, verification_status). Unique on (user_id, instantly_id)
+- `instantly_emails` — synced emails (instantly_id, lead_id FK, campaign_id FK, from_email, from_name, to_email, subject, body, body_text, timestamp_ext, is_reply, direction, thread_id, is_unread, i_status, content_preview, eaccount, metadata JSONB). Unique on (user_id, instantly_id)
+- `instantly_accounts` — sending accounts (instantly_id, email, first_name, last_name, status, warmup_status, daily_limit, health_score, sent_today, replies_today, bounced_today, metadata JSONB). Unique on (user_id, instantly_id)
+- `instantly_analytics_daily` — daily time-series per campaign (campaign_id FK, date, sent, contacted, new_leads_contacted, opened, unique_opened, replies, unique_replies, clicks, unique_clicks, bounced, opportunities). Unique on (user_id, campaign_id, date)
+- `instantly_campaign_steps` — step-level analytics per campaign (campaign_id FK, step int, variant text, sent, opened, unique_opened, replies, unique_replies, clicks, unique_clicks, opportunities). Unique on (user_id, campaign_id, step, variant)
+- `instantly_warmup_daily` — warmup analytics per account per day (account_id FK, date, sent, landed_inbox, landed_spam, received, health_score). Unique on (user_id, account_id, date)
+- `instantly_events` — webhook event log (event_type, campaign_id FK, lead_email, email_account, data JSONB, timestamp). Indexed on (user_id, timestamp DESC) and (user_id, event_type)
+
 All tables have RLS policies: users can only read/write their own data.
 
 ## DB Helper Functions (core.js)
@@ -1036,6 +1099,8 @@ Each entity has standard CRUD helpers:
 - **Email Drafts** (localStorage): `_loadDrafts()`, `_saveDraft(id)`, `_deleteDraft(id)`, `openDraft(id)`, `deleteDraft(id)`, `getDraftCount()`
 - **Scheduled Emails**: `loadScheduledEmails()`, `scheduleEmail(scheduledAt)`, `cancelScheduledEmail(id)`, `_checkScheduledEmails()`
 - **Email Rules**: `loadEmailRules()`, `applyEmailRules(thread)`, `_applyRuleActionsToThread(threadId, actions)`, `saveEmailRule(data)`, `deleteEmailRule(id)`, `toggleEmailRule(id, active)`
+- **Outreach (Instantly)**: `loadInstantlyCampaigns()`, `loadInstantlyLeads()`, `loadInstantlyEmails()`, `loadInstantlyAccounts()`, `loadInstantlyData()`, `loadInstantlyEvents()`, `dbEditInstantlyCampaign()`, `dbEditInstantlyEmail()`, `dbEditInstantlyLead()`, `getThreads()`, `getFilteredThreads()`, `getUnreadReplyCount()`, `openThread()`, `closeThread()`, `markThreadRead()`, `setInboxFilter()`, `updateLeadInterestStatus()`, `setLeadSort()`, `openLeadDetail()`, `accountAction()`, `toggleAccountStatus()`, `toggleAccountWarmup()`, `openAccountDetail()`, `refreshActivity()`
+- **Backfill**: `backfillEndClientIds()` — probes tables for `end_client_id` column existence before attempting updates, silently skips tables missing the column
 
 ## Features (features.js)
 
@@ -1167,8 +1232,14 @@ Each entity has standard CRUD helpers:
 - `rCampaigns()` no longer checks `S.campaignDetailId` for in-page rendering
 - **Email light mode**: The email section uses light theme (dark text on white) via CSS variable overrides on `.email-page-wrap` and `.email-light`. Elements outside `.email-page-wrap` (meeting banner, modals, sub-nav) need the `email-light` class to inherit light-mode variables. `.main.email-active` also sets all light-theme CSS variables for child elements.
 - **Log Meeting modal cascading**: Client → End Client (`refreshLogMtgEC`) → Campaign (`refreshLogMtgCp`) + Opportunity (`refreshLogMtgOp`). Client change cascades to all downstream fields.
+- **Instantly API field names**: `reply_count` (NOT `replies_count`), `link_click_count` (NOT `click_count`), `open_count` — inconsistent with other Instantly fields
+- **Instantly sync timeout**: With many campaigns, sync can exceed Vercel 60s limit. Parallelized with concurrency 5 and 40s time budget. Only active/paused campaigns get expensive per-campaign API calls (daily, details, steps, leads, emails). Draft/completed campaigns only get base sync (campaign list + analytics)
+- **Instantly thread grouping**: Emails without `threadId` fall back to `leadId_campaignId` grouping. Both approaches produce conversation objects in `getThreads()`
+- **Instantly reply composer**: Works in both old modal context and new thread view — checks `thread-reply-body` textarea ID first, falls back to `outreach-reply-body`
+- **`backfillEndClientIds()` column probing**: Function probes each table with `SELECT end_client_id LIMIT 0` before attempting updates. Tables without the column are silently excluded. This prevents 500 errors on tables that haven't had the `add-end-client-id.sql` migration run
+- **Instantly sync graceful degradation**: Sync checks for table/column existence before using enhanced features (Phases 1-6). App works regardless of which migrations have been run — features degrade gracefully when tables/columns don't exist
 
-## Current Status (as of 2026-03-11)
+## Current Status (as of 2026-03-12)
 
 ### Integrations
 - **Brex**: Connected, syncing ~308 transactions
@@ -1179,6 +1250,7 @@ Each entity has standard CRUD helpers:
 - **Anthropic (Claude AI)**: API key stored in integration_credentials, powers email analysis + EC Review + KB RAG
 - **OpenAI**: API key stored in integration_credentials, powers KB embeddings (text-embedding-3-large, 1536 dims)
 - **Knowledge Base**: pgvector in Supabase — 53,000+ emails embedded, meetings embedded, entities synced. Hybrid search (vector + tsvector + recency weighting)
+- **Instantly.ai**: Connected, full 6-phase integration complete — campaigns, leads, emails, accounts, analytics, activity feed, webhooks. Parallelized sync with 40s time budget. 8 Supabase tables + 10 API endpoints
 
 ### What's Working
 - All four finance platforms sync via "Sync Now" buttons
@@ -1202,6 +1274,14 @@ Each entity has standard CRUD helpers:
 - **Bulk email embedding** — 53,000+ emails embedded via `scripts/embed-emails.py`
 - Quick Add Queue with badge counts
 - Mobile bottom tabs: Add, Tasks, Review, Opps
+- **Outreach (Instantly.ai)** — Complete 6-phase integration:
+  - Phase 1: Rich analytics dashboard with daily time-series, pipeline metrics
+  - Phase 2: Campaign detail modal with sequences, step analytics, 4 charts
+  - Phase 3: Unibox with inbox list, thread detail chat bubbles, unread badges, reply composer
+  - Phase 4: Enhanced leads table with engagement heat, sortable columns, 3-tab detail modal, interest status management
+  - Phase 5: Account control with pause/resume, warmup toggles, summary strip, account detail modal
+  - Phase 6: Activity feed from webhooks, color-coded events, full event type handling
+  - Parallelized sync (5 concurrent campaigns, batch upserts, 40s time budget)
 
 ### Email Features (Complete)
 - Gmail integration with full read/send/archive/trash/mark-read
@@ -1304,47 +1384,150 @@ All five entity types (Client, End-Client, Prospect Company, Campaign, Opportuni
 
 ### Outreach Section (Instantly.ai Integration)
 
-**New top-level section** for cold email outreach via Instantly.ai. Accessible from sidebar as "Outreach" with 5 sub-views.
+**Full replacement for the Instantly.ai web interface**, implemented in 6 phases. Accessible from sidebar as "Outreach" with 5 sub-views and unread badge on both sub-nav Replies tab and main nav Outreach item.
+
+**Instantly.ai API V2:**
+- Base URL: `https://api.instantly.ai/api/v2`
+- Auth: `Authorization: Bearer {api_key}` (stored in `integration_credentials`)
+- Cursor-based pagination via `starting_after` parameter
+- Critical field names: `reply_count` (NOT `replies_count`), `open_count`, `link_click_count` (NOT `click_count`)
 
 **Sub-views:**
-- **Campaigns** — Card grid of synced Instantly campaigns with metrics (leads, contacted, replies, reply rate), per-campaign config (default opp type, mapped client)
-- **Replies** — AI-analyzed reply inbox grouped by sentiment (positive, question, needs response, not interested, OOO/bounce). Each card shows lead name, company, campaign, AI summary, quick actions (Reply, AI Draft, Create Opportunity, Dismiss)
-- **Leads** — Filterable table (by campaign, interest status, search) showing all synced leads with linked prospect/opportunity badges
-- **Accounts** — Sending account health cards (status, warmup, daily limit, today's stats)
-- **Analytics** — Metrics row + 4 charts: Reply Rate by Campaign, Sentiment Distribution, Campaign Volume, Conversion Funnel
+- **Campaigns** — Card grid with metrics (leads, contacted, opens, replies, clicks, reply rate). Click opens campaign detail modal with Overview tab (4 charts: daily volume, step analytics, reply rate trend, engagement funnel), sequences viewer, schedule config, email account list, step analytics table
+- **Replies** — Dual-mode inbox: filter bar (campaign, sentiment, unread toggle) + thread list rows with avatars, unread dots, preview text. Click thread opens chat bubble detail view with AI summary, outbound (right-aligned) and inbound (left-aligned) messages with sentiment badges, and reply composer. Unread threads auto-marked read on open
+- **Leads** — Sortable table (name, company, opens, replies, clicks, lastActivity) with engagement heat colors (green <7d, amber <30d, red >30d). Inline interest status dropdown. Click row opens 3-tab lead detail modal (Overview, Activity, Variables)
+- **Accounts** — Summary strip (active/paused/errors/avg health/sent today), account cards with pause/resume toggles, warmup enable/disable toggles, provider/domain pills. Click opens account detail modal with health score, warmup toggle, test vitals, mark fixed
+- **Activity** — Real-time event feed from webhooks, color-coded by event type (reply, sent, opened, clicked, bounced, interest changes, account errors). Refresh button to reload
 
-**Backend (4 new tables + 7 new API endpoints):**
-- SQL: `instantly_campaigns`, `instantly_leads`, `instantly_emails`, `instantly_accounts` (all with RLS, indexes, unique constraints on `user_id, instantly_id`)
-- `api/_lib/sync-instantly.js` — Sync library: campaigns, campaign analytics, leads (per campaign), emails (per campaign), accounts. Cursor-based pagination via `starting_after`
+**Backend (8 tables + 10 API endpoints):**
+- Base tables: `instantly_campaigns`, `instantly_leads`, `instantly_emails`, `instantly_accounts` (all with RLS, indexes, unique constraint on `user_id, instantly_id`)
+- Phase 1: `instantly_analytics_daily` (time-series per campaign per day) + pipeline columns on campaigns
+- Phase 2: `instantly_campaign_steps` (step-level analytics) + sequences/schedule/email_list columns on campaigns
+- Phase 3: thread_id, is_unread, content_preview, eaccount columns on emails
+- Phase 4: engagement metric columns on leads (open/reply/click counts, timestamps, lead_score, verification_status)
+- Phase 5: `instantly_warmup_daily` (warmup analytics per account per day)
+- Phase 6: `instantly_events` (webhook event log with event_type, campaign_id, lead_email, email_account, data jsonb)
+- `api/_lib/sync-instantly.js` — Parallelized sync with 9 sections, time budget (40s), batch upserts, concurrency limit of 5
 - `api/sync/instantly.js` — HTTP handler (POST, verifyUserToken)
-- `api/instantly/analyze.js` — AI reply analysis via Claude. Returns sentiment, summary, interest, suggested_action, key_info per email. Updates DB.
+- `api/instantly/analyze.js` — AI reply analysis via Claude (sentiment, summary, interest, suggested_action, key_info)
 - `api/instantly/reply.js` — Send reply via Instantly API (`POST /emails/reply`)
 - `api/instantly/draft.js` — AI draft reply using RAG (knowledge base search + thread context)
-- `api/webhook/instantly.js` — Webhook handler for real-time reply ingestion
+- `api/instantly/unread.js` — GET unread email count from Instantly API
+- `api/instantly/lead-action.js` — POST update lead interest status via Instantly API
+- `api/instantly/account-action.js` — POST account actions: warmup_enable, warmup_disable, pause, resume, mark_fixed, test_vitals
+- `api/webhook/instantly.js` — All event types: reply_received, email_sent, email_opened, link_clicked, email_bounced, lead_interested, lead_not_interested, lead_meeting_booked, lead_meeting_completed, lead_closed, account_error. Logs to `instantly_events`, updates relevant entities
+
+**Sync architecture (`sync-instantly.js`):**
+- 9 ordered sections: campaigns(1) → accounts(2) → bulk analytics(3) → overview(4) → daily analytics(5) → campaign details(6) → step analytics(7) → leads 1 page(8) → emails 1 page(9)
+- Sections 5-9 run in parallel per campaign (max concurrency 5) to avoid Vercel 60s timeout
+- `tableExists()` helper checks for tables before writing to optional tables (analytics_daily, campaign_steps, warmup_daily, events)
+- Column existence probes before using enhanced fields (lead engagement columns, email thread columns, campaign sequence columns)
+- Only active/paused campaigns get expensive per-campaign API calls (draft/completed are skipped)
+- Batch upserts (all rows collected then upserted in one DB call) instead of row-by-row
+- 40s time budget with bail-out to prevent Vercel timeouts
+- Extensive debug logging: every API call logs URL, timing, response size; every DB operation logs success/failure
+
+**Thread grouping:** Emails grouped by `threadId` (or fallback `leadId_campaignId`). `getThreads()` builds conversation objects. `getFilteredThreads()` applies campaign/sentiment/unread filters.
 
 **Frontend functions:**
-- State: `S.instantlyCampaigns`, `S.instantlyLeads`, `S.instantlyEmails`, `S.instantlyAccounts`, `S.outreachSub`, `S.outreachFilter`
-- Loaders: `loadInstantlyCampaigns()`, `loadInstantlyLeads()`, `loadInstantlyEmails()`, `loadInstantlyAccounts()`, `loadInstantlyData()`
+- State: `S.instantlyCampaigns`, `S.instantlyLeads`, `S.instantlyEmails`, `S.instantlyAccounts`, `S.instantlyEvents`, `S.outreachSub`, `S.outreachFilter`, `S.outreachThreadView`, `S.outreachInboxFilter`, `S.outreachInboxCampaign`, `S.outreachInboxSentiment`, `S.outreachInboxUnreadOnly`, `S.leadDetailTab`
+- Loaders: `loadInstantlyCampaigns()`, `loadInstantlyLeads()`, `loadInstantlyEmails()`, `loadInstantlyAccounts()`, `loadInstantlyData()`, `loadInstantlyEvents()`
 - CRUD: `dbEditInstantlyCampaign()`, `dbEditInstantlyEmail()`, `dbEditInstantlyLead()`
+- Thread management: `getThreads()`, `getFilteredThreads()`, `getUnreadReplyCount()`, `openThread()`, `closeThread()`, `markThreadRead()`, `setInboxFilter()`
+- Lead management: `updateLeadInterestStatus()`, `setLeadSort()`, `openLeadDetail()`
+- Account control: `accountAction()`, `toggleAccountStatus()`, `toggleAccountWarmup()`, `openAccountDetail()`
+- Event feed: `loadInstantlyEvents()`, `refreshActivity()`
 - Actions: `analyzeOutreachReplies()`, `openOutreachReply()`, `sendOutreachReply()`, `draftOutreachReply()`, `createOppFromReply()`, `dismissOutreachReply()`
-- Views: `rOutreach()`, `rOutreachCampaigns()`, `rOutreachReplies()`, `rOutreachLeads()`, `rOutreachAccounts()`, `rOutreachAnalytics()`, `initOutreachCharts()`
-- Modals: `openInstantlyCampaignConfig()`, `saveInstantlyCampaignConfig()`
+- Views: `rOutreach()`, `rOutreachCampaigns()`, `rOutreachReplies()`, `rOutreachThreadDetail()`, `rOutreachLeads()`, `rOutreachAccounts()`, `rOutreachActivity()`, `rOutreachAnalytics()`, `initOutreachCharts()`, `getEventTypeInfo()`
+- Modals: `openInstantlyCampaignConfig()`, `saveInstantlyCampaignConfig()`, `openInstantlyLeadDetail()`, `openInstantlyAccountDetail()`
 - Platform registration: `instantly` in `INTG_PLATFORMS` (modals.js) + `testInstantly()` in test-connection.js
+- Unread badge: `buildSubNav()` shows badge on Replies tab via `getUnreadReplyCount()`, `buildNav()` shows badge on Outreach main nav
 
 **Opportunity creation flow** (`createOppFromReply`): Auto-creates Prospect Company (via `ensureProspectCompanyExists`), Prospect contact (via `dbAddProspect`), and Opportunity (via `dbAddOpportunity`) from a positive reply, then links back to the Instantly lead.
 
+**CSS classes:** `.inbox-*` (inbox filters, thread list, thread rows, avatars, unread dots), `.thread-*` (AI summary, messages, bubbles, composer), `.lead-*` (sort headers, heat colors, score badges, timeline), `.outreach-*` (status badges, warmup toggles, account cards), `.activity-*` (feed, events, icons, type labels), `.acct-*` (account cards, error messages)
+
 ### Recent Changes
 
-**Instantly.ai Integration (2026-03-12):**
-- Full Outreach section with 5 sub-views (Campaigns, Replies, Leads, Accounts, Analytics)
-- Sync engine for campaigns, leads, emails, accounts with cursor-based pagination
-- AI reply analysis (sentiment, summary, interest, suggested action)
+**Backfill Column Probe Fix (2026-03-12, commit 1910091):**
+- `backfillEndClientIds()` now probes each table for `end_client_id` column existence before attempting updates
+- Tables missing the column are silently excluded, eliminating 500 errors in browser console
+- Fixes knowledge_chunks PATCH 500 errors that appeared on every page load
+
+**Instantly Sync Parallelization + Debugging (2026-03-12, commit 6984e3e):**
+- Per-campaign sections (daily/details/steps/leads/emails) now run in parallel with concurrency limit of 5
+- Batch upserts (all rows per section collected then upserted in one DB call) instead of row-by-row
+- 40s time budget with bail-out to prevent Vercel 60s timeout
+- Only active/paused campaigns get expensive per-campaign API calls
+- Extensive debug logging: every API call logs URL, timing, response size; every DB operation logs success/failure
+- `parallelLimit()` utility for concurrency-limited parallel async execution
+
+**Instantly Phase 6: Real-time Event Feed & Webhooks (2026-03-12, commit 883d684):**
+- New Activity sub-nav in Outreach section
+- `instantly_events` table for webhook event logging
+- Rewrote `api/webhook/instantly.js` to handle all event types: reply_received, email_sent, email_opened, link_clicked, email_bounced, lead_interested, lead_not_interested, lead_meeting_booked, lead_meeting_completed, lead_closed, account_error
+- Activity feed view (`rOutreachActivity()`) with color-coded events via `getEventTypeInfo()`
+- Webhook updates relevant entities (leads, accounts, emails) based on event type
+- `loadInstantlyEvents()` and `refreshActivity()` functions
+
+**Instantly Phase 5: Account Control & Deliverability (2026-03-12, commit 452eb94):**
+- Rewrote accounts view with summary strip (active/paused/errors/avg health/sent today)
+- Pause/resume toggles and warmup enable/disable toggles on account cards
+- Account detail modal with health score, provider config, action buttons
+- `api/instantly/account-action.js` — warmup_enable, warmup_disable, pause, resume, mark_fixed, test_vitals
+- `instantly_warmup_daily` table for warmup analytics (via `enhance-instantly-accounts.sql`)
+- CSS: `.acct-card-error`, `.outreach-warmup-on/off`, `.acct-error-msg`
+
+**Instantly Phase 4: Enhanced Lead Management (2026-03-12, commit ad917bd):**
+- Sortable leads table with engagement heat colors (green <7d, amber <30d, red >30d)
+- Inline interest status dropdown for quick updates via `updateLeadInterestStatus()`
+- Lead detail modal with 3 tabs: Overview (contact info, engagement metrics, linked records), Activity (email timeline), Variables (key-value table)
+- `api/instantly/lead-action.js` — update interest status via Instantly API
+- Enhanced lead sync with engagement fields (open/reply/click counts, timestamps, lead_score, verification_status)
+- CSS: `.lead-sort-th`, `.lead-heat-hot/warm/cold`, `.lead-score-badge`, `.lead-timeline`
+
+**Instantly Phase 3: Unibox & Thread Management (2026-03-12, commit 65923d3):**
+- Rewrote `rOutreachReplies()` — dual-mode: inbox list or thread detail
+- Inbox view: filter bar (campaign, sentiment, unread toggle) + thread list with avatars, unread dots, previews
+- Thread detail view (`rOutreachThreadDetail`): AI summary, chat bubbles (outbound right-aligned, inbound left-aligned), sentiment badges, reply composer
+- Thread grouping: emails grouped by `threadId` (fallback `leadId_campaignId`), managed by `getThreads()`, `getFilteredThreads()`
+- Unread badge on Replies sub-nav and Outreach main nav via `getUnreadReplyCount()`
+- `markThreadRead()` auto-marks threads as read on open
+- `api/instantly/unread.js` — GET unread count from Instantly API
+- Enhanced email sync with thread fields (thread_id, is_unread, content_preview, eaccount)
+- CSS: `.inbox-*`, `.thread-*` styles
+
+**Instantly Phase 2: Campaign Detail Dashboard (2026-03-12, commit 73a5065):**
+- Enhanced campaigns table with sortable columns and full pipeline metrics
+- Campaign detail modal with Overview tab: 4 charts (daily volume, step analytics, reply rate, funnel), sequences viewer, schedule config, email account list
+- `instantly_campaign_steps` table for step-level analytics
+- Campaign sync enhanced with sequences, schedule, email_list, daily_limit, stop_on_reply columns
+- Step analytics sync per campaign
+
+**Instantly Phase 1: Rich Analytics Dashboard (previous session):**
+- `instantly_analytics_daily` table for time-series data
+- Pipeline fields on campaigns (open_count, click_count, unsubscribed, completed, opportunities, interested, meetings, closed)
+- Daily analytics sync (90-day window per campaign)
+- Analytics overview bulk API call for pipeline metrics
+
+**Instantly Sync Timeout Fix (2026-03-12, commits 0db4779, 567994b):**
+- Fixed reply_count (not replies_count) and link_click_count (not click_count) field names
+- Reordered sync sections for reliability: campaigns → accounts → analytics → overview → daily → details → steps → leads → emails
+- Added `tableExists()` helper to skip sync sections for tables that don't exist yet
+- Column existence checks before using enhanced fields
+- Limited leads/emails to 1 page (100 items) per campaign to stay within timeout
+
+**Instantly.ai Base Integration (2026-03-12):**
+- Full Outreach section with base sub-views (Campaigns, Replies, Leads, Accounts, Analytics)
+- 4 base tables: instantly_campaigns, instantly_leads, instantly_emails, instantly_accounts
+- Sync engine with cursor-based pagination
+- AI reply analysis (sentiment, summary, interest, suggested action) via Claude
 - Reply via Instantly API with inline composer
 - AI-drafted replies using RAG pipeline (knowledge base + thread context)
 - One-click opportunity creation from positive replies (auto-creates prospect company + contact)
 - Per-campaign config: default opportunity type, mapped client
 - Webhook handler for real-time reply ingestion
-- CSS: `.outreach-*` styles in features.css
+- Platform registration in INTG_PLATFORMS
 
 **Knowledge Base Timeout Fix (2026-03-12):**
 - Rewrote `match_knowledge()` SQL function with two-phase CTE approach for 50K+ row performance
