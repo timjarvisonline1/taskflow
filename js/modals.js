@@ -4939,27 +4939,221 @@ function deleteProspect(id){
   if(!confirm('Delete this prospect?'))return;
   dbDeleteProspect(id);closeModal()}
 
-/* ═══════════ INSTANTLY CAMPAIGN CONFIG MODAL ═══════════ */
+/* ═══════════ INSTANTLY CAMPAIGN DASHBOARD MODAL ═══════════ */
 function openInstantlyCampaignConfig(id){
   var camp=S.instantlyCampaigns.find(function(c){return c.id===id});
   if(!camp)return;
+  S._lastInstantlyCampaignId=id;
+  S.instantlyCampaignTab=S.instantlyCampaignTab||'overview';
 
-  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('target',14)+' Campaign Config</span>';
-  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  h+='<div class="edf-body" style="padding:16px">';
+  var statusCls=camp.status==='active'?'outreach-status-active':(camp.status==='paused'?'outreach-status-paused':'outreach-status-draft');
+  var toggleAction=camp.status==='active'?'Pause':'Activate';
+  var toggleIcon=camp.status==='active'?'pause':'play';
 
-  h+='<div style="margin-bottom:16px">';
-  h+='<div style="font-size:16px;font-weight:700;color:var(--t1)">'+esc(camp.name)+'</div>';
-  h+='<div style="font-size:12px;color:var(--t3);margin-top:4px">Status: <span class="outreach-status outreach-status-'+(camp.status==='active'?'active':'paused')+'">'+esc(camp.status)+'</span></div>';
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('target',14)+' '+esc(camp.name)+'</span>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<span class="outreach-status '+statusCls+'">'+esc(camp.status||'unknown')+'</span>';
+  h+='<button class="btn btn-sm '+(camp.status==='active'?'btn-warn':'btn-go')+'" onclick="TF.toggleCampaignStatus(\''+id+'\');return false" style="font-size:11px;padding:4px 10px">'+icon(toggleIcon,10)+' '+toggleAction+'</button>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button>';
+  h+='</div></div>';
+
+  /* Tab bar */
+  h+=rEntityTabs([
+    ['overview','Overview','dashboard'],
+    ['sequences','Sequences','mail'],
+    ['schedule','Schedule','calendar'],
+    ['analytics','Analytics','bar_chart'],
+    ['config','Config','settings']
+  ],S.instantlyCampaignTab,'setInstantlyCampaignTab');
+
+  h+='<div class="edf-body" style="padding:16px" id="ic-dashboard-body">';
+  h+=rInstantlyCampaignTabContent(id);
   h+='</div>';
 
-  h+='<div class="outreach-metrics-row" style="margin-bottom:16px">';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){initInstantlyCampaignCharts()},80)}
+
+function rInstantlyCampaignTabContent(id){
+  var camp=S.instantlyCampaigns.find(function(c){return c.id===id});
+  if(!camp)return'<p style="color:var(--t3)">Campaign not found.</p>';
+  var tab=S.instantlyCampaignTab||'overview';
+  switch(tab){
+    case'sequences':return rIcTabSequences(camp);
+    case'schedule':return rIcTabSchedule(camp);
+    case'analytics':return rIcTabAnalytics(camp);
+    case'config':return rIcTabConfig(camp);
+    default:return rIcTabOverview(camp)}}
+
+/* ── Tab: Overview ── */
+function rIcTabOverview(camp){
+  var h='';
+  var replyPct=camp.contactedCount>0?((camp.repliesCount/camp.contactedCount)*100).toFixed(1):'0';
+  var openPct=camp.contactedCount>0?((camp.openCount/camp.contactedCount)*100).toFixed(1):'0';
+  var clickPct=camp.contactedCount>0?((camp.clickCount/camp.contactedCount)*100).toFixed(1):'0';
+
+  /* Delivery metrics */
+  h+='<div class="ic-section-label">Delivery</div>';
+  h+='<div class="outreach-metrics-row" style="margin-bottom:14px">';
   h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.leadsCount+'</span><span class="outreach-metric-lbl">Leads</span></div>';
   h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.contactedCount+'</span><span class="outreach-metric-lbl">Contacted</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.openCount+'</span><span class="outreach-metric-lbl">Opens</span></div>';
   h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.repliesCount+'</span><span class="outreach-metric-lbl">Replies</span></div>';
-  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+(camp.contactedCount>0?((camp.repliesCount/camp.contactedCount)*100).toFixed(1):'0')+'%</span><span class="outreach-metric-lbl">Reply Rate</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.bouncedCount+'</span><span class="outreach-metric-lbl">Bounced</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.clickCount+'</span><span class="outreach-metric-lbl">Clicks</span></div>';
   h+='</div>';
 
+  /* Rates */
+  h+='<div class="outreach-metrics-row" style="margin-bottom:14px">';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#10B981">'+openPct+'%</span><span class="outreach-metric-lbl">Open Rate</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#6366F1">'+replyPct+'%</span><span class="outreach-metric-lbl">Reply Rate</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#F59E0B">'+clickPct+'%</span><span class="outreach-metric-lbl">Click Rate</span></div>';
+  h+='</div>';
+
+  /* Pipeline metrics */
+  h+='<div class="ic-section-label">Pipeline</div>';
+  h+='<div class="outreach-metrics-row" style="margin-bottom:14px">';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#10B981">'+camp.totalInterested+'</span><span class="outreach-metric-lbl">Interested</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#6366F1">'+camp.totalMeetingBooked+'</span><span class="outreach-metric-lbl">Meeting Booked</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#8B5CF6">'+camp.totalMeetingCompleted+'</span><span class="outreach-metric-lbl">Meeting Done</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#F59E0B">'+camp.totalClosed+'</span><span class="outreach-metric-lbl">Closed</span></div>';
+  var pipVal=camp.totalOpportunityValue||0;
+  h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#10B981">$'+(pipVal>=1000?(pipVal/1000).toFixed(1)+'k':pipVal.toFixed(0))+'</span><span class="outreach-metric-lbl">Pipeline Value</span></div>';
+  h+='</div>';
+
+  /* Config summary */
+  var oppType=OPP_TYPES[camp.defaultOppType];
+  var oppLabel=oppType?oppType.short:camp.defaultOppType;
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">';
+  if(oppLabel)h+='<span class="outreach-pill">'+esc(oppLabel)+'</span>';
+  if(camp.mappedClient)h+='<span class="outreach-pill outreach-pill-client">'+esc(camp.mappedClient)+'</span>';
+  if(camp.dailyLimit)h+='<span class="outreach-pill" style="background:rgba(245,158,11,0.1);color:#D97706">'+camp.dailyLimit+'/day</span>';
+  if(camp.stopOnReply)h+='<span class="outreach-pill" style="background:rgba(16,185,129,0.1);color:#10B981">Stop on reply</span>';
+  h+='</div>';
+  return h}
+
+/* ── Tab: Sequences ── */
+function rIcTabSequences(camp){
+  var seqs=camp.sequences;
+  if(!seqs||!seqs.length)return'<div style="text-align:center;padding:40px 20px;color:var(--t3)"><p>No sequence data synced yet.</p><p style="font-size:12px;margin-top:6px">Re-sync to fetch email sequences.</p></div>';
+
+  var steps=(S.instantlyCampaignSteps||[]).filter(function(s){return s.campaignId===camp.id});
+
+  var h='';
+  seqs.forEach(function(seq,idx){
+    var variants=Array.isArray(seq) ? seq : (seq.variants || [seq]);
+    h+='<div class="ic-step-card">';
+    h+='<div class="ic-step-num">Step '+(idx+1)+'</div>';
+
+    variants.forEach(function(v,vi){
+      var variantLabel=variants.length>1?String.fromCharCode(65+vi):'';
+      var subject=v.subject||v.email_subject||'(no subject)';
+      var body=v.body||v.email_body||v.text||'';
+      var preview=body.replace(/<[^>]*>/g,'').substring(0,200);
+      var delay=v.delay||v.wait_days||0;
+
+      // Find step analytics for this step + variant
+      var stepStats=steps.find(function(s){return s.step===idx&&(variants.length<=1||s.variant===variantLabel)});
+
+      h+='<div class="ic-variant'+(variants.length>1?' ic-variant-multi':'')+'">';
+      if(variantLabel)h+='<div class="ic-variant-label">Variant '+variantLabel+'</div>';
+      h+='<div class="ic-seq-subject">'+icon('mail',11)+' '+esc(subject)+'</div>';
+      if(preview)h+='<div class="ic-seq-preview">'+esc(preview)+(body.length>200?'...':'')+'</div>';
+      if(delay)h+='<div class="ic-seq-delay">'+icon('clock',10)+' Wait '+delay+' day'+(delay!==1?'s':'')+'</div>';
+
+      if(stepStats){
+        h+='<div class="outreach-metrics-row" style="margin-top:8px;font-size:11px">';
+        h+='<div class="outreach-metric" style="padding:4px 2px"><span class="outreach-metric-val" style="font-size:14px">'+stepStats.sent+'</span><span class="outreach-metric-lbl">Sent</span></div>';
+        h+='<div class="outreach-metric" style="padding:4px 2px"><span class="outreach-metric-val" style="font-size:14px">'+stepStats.opened+'</span><span class="outreach-metric-lbl">Opened</span></div>';
+        h+='<div class="outreach-metric" style="padding:4px 2px"><span class="outreach-metric-val" style="font-size:14px">'+stepStats.replies+'</span><span class="outreach-metric-lbl">Replies</span></div>';
+        h+='<div class="outreach-metric" style="padding:4px 2px"><span class="outreach-metric-val" style="font-size:14px">'+stepStats.clicks+'</span><span class="outreach-metric-lbl">Clicks</span></div>';
+        var stepOpenRate=stepStats.sent>0?((stepStats.opened/stepStats.sent)*100).toFixed(1):'0';
+        h+='<div class="outreach-metric" style="padding:4px 2px"><span class="outreach-metric-val" style="font-size:14px;color:#10B981">'+stepOpenRate+'%</span><span class="outreach-metric-lbl">Open Rate</span></div>';
+        h+='</div>'}
+
+      h+='</div>'});
+    h+='</div>'});
+  return h}
+
+/* ── Tab: Schedule ── */
+function rIcTabSchedule(camp){
+  var h='';
+  var sched=camp.campaignSchedule||{};
+  var accounts=camp.emailList||[];
+
+  /* Schedule info */
+  h+='<div class="ic-section-label">Sending Schedule</div>';
+  if(sched.schedules&&sched.schedules.length){
+    sched.schedules.forEach(function(s){
+      h+='<div class="ic-schedule-block">';
+      var days=(s.days||[]).map(function(d){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d]||d}).join(', ');
+      h+='<div style="font-weight:600;color:var(--t1);font-size:13px">'+icon('calendar',11)+' '+days+'</div>';
+      var startTime=s.startHour!==undefined?(String(s.startHour).padStart(2,'0')+':'+String(s.startMinute||0).padStart(2,'0')):'';
+      var endTime=s.endHour!==undefined?(String(s.endHour).padStart(2,'0')+':'+String(s.endMinute||0).padStart(2,'0')):'';
+      if(startTime||endTime)h+='<div style="font-size:12px;color:var(--t3);margin-top:2px">'+icon('clock',10)+' '+(startTime||'?')+' — '+(endTime||'?')+'</div>';
+      if(s.timezone)h+='<div style="font-size:11px;color:var(--t4);margin-top:2px">'+esc(s.timezone)+'</div>';
+      h+='</div>'});
+  }else{
+    h+='<div style="color:var(--t3);font-size:13px;padding:12px 0">No schedule data synced.</div>'}
+
+  /* Sending config */
+  h+='<div class="ic-section-label" style="margin-top:20px">Sending Config</div>';
+  h+='<div class="ic-config-grid">';
+  h+='<div class="ic-config-item"><span class="ic-config-lbl">Daily Limit</span><span class="ic-config-val">'+(camp.dailyLimit||'—')+'</span></div>';
+  h+='<div class="ic-config-item"><span class="ic-config-lbl">Stop on Reply</span><span class="ic-config-val">'+(camp.stopOnReply?'<span style="color:#10B981">Yes</span>':'<span style="color:var(--t4)">No</span>')+'</span></div>';
+  h+='</div>';
+
+  /* Assigned accounts */
+  h+='<div class="ic-section-label" style="margin-top:20px">Sending Accounts ('+accounts.length+')</div>';
+  if(accounts.length){
+    h+='<div class="ic-accounts-list">';
+    accounts.forEach(function(email){
+      // Find matching account in synced accounts
+      var acct=(S.instantlyAccounts||[]).find(function(a){return a.email===email||a.instantlyId===email});
+      var statusBadge='';
+      if(acct){
+        var sCls=acct.status==='active'?'outreach-status-active':(acct.status==='paused'?'outreach-status-paused':'outreach-status-draft');
+        statusBadge='<span class="outreach-status '+sCls+'" style="margin-left:8px">'+esc(acct.status)+'</span>'}
+      h+='<div class="ic-account-row">'+icon('mail',11)+' <span style="color:var(--t1);font-size:13px">'+esc(typeof email==='string'?email:(email.email||email.name||''))+'</span>'+statusBadge+'</div>'});
+    h+='</div>';
+  }else{
+    h+='<div style="color:var(--t3);font-size:13px;padding:8px 0">No sending accounts assigned.</div>'}
+  return h}
+
+/* ── Tab: Analytics ── */
+function rIcTabAnalytics(camp){
+  var h='';
+  var daily=(S.instantlyAnalyticsDaily||[]).filter(function(d){return d.campaignId===camp.id});
+  var steps=(S.instantlyCampaignSteps||[]).filter(function(s){return s.campaignId===camp.id});
+
+  /* Per-campaign daily chart */
+  h+='<div class="ic-section-label">Daily Performance</div>';
+  if(daily.length){
+    h+='<div class="outreach-chart-card" style="margin-bottom:16px"><h3>'+icon('bar_chart',13)+' Daily Send &amp; Reply Trend</h3>';
+    h+='<canvas id="ic-daily-chart" height="180"></canvas></div>';
+  }else{
+    h+='<div style="color:var(--t3);font-size:13px;padding:12px 0">No daily analytics data. Re-sync to fetch.</div>'}
+
+  /* Step performance table */
+  h+='<div class="ic-section-label" style="margin-top:16px">Step Performance</div>';
+  if(steps.length){
+    h+='<div class="outreach-table-wrap"><table class="outreach-table">';
+    h+='<thead><tr><th>Step</th><th>Variant</th><th>Sent</th><th>Opened</th><th>Open%</th><th>Replies</th><th>Reply%</th><th>Clicks</th></tr></thead>';
+    h+='<tbody>';
+    steps.sort(function(a,b){return a.step-b.step||a.variant.localeCompare(b.variant)});
+    steps.forEach(function(s){
+      var openPct=s.sent>0?((s.opened/s.sent)*100).toFixed(1):'0';
+      var replyPct=s.sent>0?((s.replies/s.sent)*100).toFixed(1):'0';
+      h+='<tr><td>Step '+(s.step+1)+'</td><td>'+esc(s.variant)+'</td>';
+      h+='<td>'+s.sent+'</td><td>'+s.opened+'</td><td style="color:#10B981">'+openPct+'%</td>';
+      h+='<td>'+s.replies+'</td><td style="color:#6366F1">'+replyPct+'%</td><td>'+s.clicks+'</td></tr>'});
+    h+='</tbody></table></div>';
+  }else{
+    h+='<div style="color:var(--t3);font-size:13px;padding:8px 0">No step analytics data. Re-sync to fetch.</div>'}
+  return h}
+
+/* ── Tab: Config ── */
+function rIcTabConfig(camp){
+  var h='';
   h+='<div class="ed-grid">';
   h+='<div class="ed-fld"><span class="ed-lbl">Default Opportunity Type</span>';
   h+='<select id="ic-opp-type" class="edf">';
@@ -4975,14 +5169,41 @@ function openInstantlyCampaignConfig(id){
   h+='</div>';
 
   h+='<div class="edf-actions" style="margin-top:16px">';
-  h+='<button class="btn btn-p" onclick="TF.saveInstantlyCampaignConfig(\''+id+'\')">'+icon('save',12)+' Save</button>';
+  h+='<button class="btn btn-p" onclick="TF.saveInstantlyCampaignConfig(\''+camp.id+'\')">'+icon('save',12)+' Save Config</button>';
   h+='</div>';
-  h+='</div>';
+  return h}
 
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+/* ── Campaign chart init ── */
+function initInstantlyCampaignCharts(){
+  var el=gel('ic-daily-chart');
+  if(!el)return;
+  var id=S._lastInstantlyCampaignId;
+  if(!id)return;
+  var daily=(S.instantlyAnalyticsDaily||[]).filter(function(d){return d.campaignId===id});
+  if(!daily.length)return;
+
+  killChart('ic-daily-chart');
+
+  // Sort by date ascending
+  daily.sort(function(a,b){return a.date<b.date?-1:1});
+  var fmtD=function(d){var p=d.split('-');return p[1]+'/'+p[2]};
+  var labels=daily.map(function(d){return fmtD(d.date)});
+  var sentData=daily.map(function(d){return d.sent});
+  var openedData=daily.map(function(d){return d.opened});
+  var repliedData=daily.map(function(d){return d.replies});
+
+  charts['ic-daily-chart']=new Chart(el.getContext('2d'),{type:'line',data:{
+    labels:labels,
+    datasets:[
+      {label:'Sent',data:sentData,borderColor:'rgba(99,102,241,0.9)',backgroundColor:'rgba(99,102,241,0.1)',tension:0.3,fill:true},
+      {label:'Opened',data:openedData,borderColor:'rgba(16,185,129,0.9)',backgroundColor:'rgba(16,185,129,0.05)',tension:0.3,fill:false},
+      {label:'Replied',data:repliedData,borderColor:'rgba(245,158,11,0.9)',backgroundColor:'rgba(245,158,11,0.05)',tension:0.3,fill:false}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#aaa',font:{size:11}}}},
+      scales:{x:{ticks:{color:'#888',font:{size:10},maxRotation:0,maxTicksLimit:15}},y:{ticks:{color:'#888'},beginAtZero:true}}}})}
 
 async function saveInstantlyCampaignConfig(id){
   var oppType=(gel('ic-opp-type')||{}).value||'retain_live';
   var client=(gel('ic-client')||{}).value||'';
   var ok=await dbEditInstantlyCampaign(id,{defaultOppType:oppType,mappedClient:client});
-  if(ok){closeModal();toast('Campaign config saved','ok')}}
+  if(ok){toast('Campaign config saved','ok');openInstantlyCampaignConfig(id)}}

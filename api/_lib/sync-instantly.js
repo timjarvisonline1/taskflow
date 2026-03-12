@@ -207,6 +207,69 @@ async function syncInstantly(userId) {
       }
     } catch (e) { console.error('Daily analytics sync error:', e.message); }
 
+    // ═══════════ 2d. SYNC CAMPAIGN DETAILS (sequences, schedule, accounts) ═══════════
+    try {
+      const campaignIds = Object.keys(campaignMap);
+      for (const instantlyCampaignId of campaignIds) {
+        const supaId = campaignMap[instantlyCampaignId];
+        try {
+          const detail = await apiFetch(
+            INSTANTLY_BASE + '/campaigns/' + encodeURIComponent(instantlyCampaignId),
+            { headers: headers }
+          );
+          const updateData = {};
+          if (detail.sequences) updateData.sequences = JSON.stringify(detail.sequences);
+          if (detail.campaign_schedule) updateData.campaign_schedule = JSON.stringify(detail.campaign_schedule);
+          if (detail.email_list) updateData.email_list = JSON.stringify(detail.email_list);
+          if (detail.daily_limit !== undefined) updateData.daily_limit = detail.daily_limit || 0;
+          if (detail.stop_on_reply !== undefined) updateData.stop_on_reply = !!detail.stop_on_reply;
+          if (Object.keys(updateData).length) {
+            updateData.synced_at = new Date().toISOString();
+            await client.from('instantly_campaigns').update(updateData).eq('id', supaId);
+            stats.updated++;
+          }
+        } catch (e) { console.error('Campaign detail sync error for ' + instantlyCampaignId + ':', e.message); }
+      }
+    } catch (e) { console.error('Campaign details sync error:', e.message); }
+
+    // ═══════════ 2e. SYNC CAMPAIGN STEP ANALYTICS ═══════════
+    try {
+      const campaignIds = Object.keys(campaignMap);
+      for (const instantlyCampaignId of campaignIds) {
+        const supaId = campaignMap[instantlyCampaignId];
+        try {
+          const stepData = await apiFetch(
+            INSTANTLY_BASE + '/campaigns/analytics/steps?campaign_id=' + encodeURIComponent(instantlyCampaignId),
+            { headers: headers }
+          );
+          const stepEntries = Array.isArray(stepData) ? stepData : (stepData.items || stepData.data || []);
+          for (const s of stepEntries) {
+            const stepNum = s.step !== undefined ? s.step : (s.step_number || 0);
+            const variant = s.variant || s.variant_label || 'A';
+            const row = {
+              user_id: userId,
+              campaign_id: supaId,
+              step: stepNum,
+              variant: variant,
+              sent: s.sent || 0,
+              opened: s.opened || 0,
+              unique_opened: s.unique_opened || 0,
+              replies: s.replies || 0,
+              unique_replies: s.unique_replies || 0,
+              clicks: s.clicks || 0,
+              unique_clicks: s.unique_clicks || 0,
+              opportunities: s.opportunities || 0,
+              synced_at: new Date().toISOString()
+            };
+            const { error } = await client
+              .from('instantly_campaign_steps')
+              .upsert(row, { onConflict: 'user_id,campaign_id,step,variant' });
+            if (error) { stats.skipped++; } else { stats.updated++; }
+          }
+        } catch (e) { console.error('Step analytics sync error for ' + instantlyCampaignId + ':', e.message); }
+      }
+    } catch (e) { console.error('Step analytics sync error:', e.message); }
+
     // ═══════════ 3. SYNC LEADS (per campaign) ═══════════
     for (const instantlyCampaignId of Object.keys(campaignMap)) {
       const supabaseCampaignId = campaignMap[instantlyCampaignId];

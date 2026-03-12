@@ -8286,6 +8286,11 @@ function rOutreach(){
 /* ── Campaigns ── */
 function rOutreachCampaigns(){
   var camps=S.instantlyCampaigns||[];
+  var activeCount=camps.filter(function(c){return c.status==='active'}).length;
+  var pausedCount=camps.filter(function(c){return c.status==='paused'}).length;
+  var totalLeads=camps.reduce(function(s,c){return s+c.leadsCount},0);
+  var totalReplies=camps.reduce(function(s,c){return s+c.repliesCount},0);
+
   var h='<div class="pg-head"><h1>'+icon('target',18)+' Campaigns';
   h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+camps.length+' campaigns</span>';
   h+='</h1>';
@@ -8300,29 +8305,55 @@ function rOutreachCampaigns(){
     h+='</div>';
     return h}
 
+  /* Summary strip */
+  h+='<div class="outreach-metrics-dash" style="margin-bottom:16px">';
+  h+=dashMet('Active',activeCount,'#10B981');
+  h+=dashMet('Paused',pausedCount,'#F59E0B');
+  h+=dashMet('Total Leads',totalLeads,'#6366F1');
+  h+=dashMet('Total Replies',totalReplies,'#8B5CF6');
+  h+='</div>';
+
   h+='<div class="outreach-card-grid">';
   camps.forEach(function(c){
     var statusCls=c.status==='active'?'outreach-status-active':(c.status==='paused'?'outreach-status-paused':'outreach-status-draft');
     var replyPct=c.contactedCount>0?((c.repliesCount/c.contactedCount)*100).toFixed(1):'0';
+    var openPct=c.contactedCount>0?((c.openCount/c.contactedCount)*100).toFixed(1):'0';
+    var clickPct=c.contactedCount>0?((c.clickCount/c.contactedCount)*100).toFixed(1):'0';
     var oppType=OPP_TYPES[c.defaultOppType];
     var oppLabel=oppType?oppType.short:c.defaultOppType;
+    var toggleAction=c.status==='active'?'pause':'activate';
+    var toggleIcon=c.status==='active'?'pause':'play';
+    var toggleTip=c.status==='active'?'Pause':'Activate';
 
     h+='<div class="outreach-card" onclick="TF.openInstantlyCampaignConfig(\''+c.id+'\')">';
     h+='<div class="outreach-card-head">';
     h+='<span class="outreach-card-name">'+esc(c.name||'Unnamed Campaign')+'</span>';
+    h+='<div style="display:flex;align-items:center;gap:6px">';
     h+='<span class="outreach-status '+statusCls+'">'+esc(c.status||'unknown')+'</span>';
-    h+='</div>';
+    h+='<button class="btn btn-xs '+(c.status==='active'?'btn-warn':'btn-go')+'" onclick="event.stopPropagation();TF.toggleCampaignStatus(\''+c.id+'\')" title="'+toggleTip+'" style="padding:3px 7px;font-size:10px;line-height:1">'+icon(toggleIcon,9)+'</button>';
+    h+='</div></div>';
 
     h+='<div class="outreach-metrics-row">';
     h+='<div class="outreach-metric"><span class="outreach-metric-val">'+c.leadsCount+'</span><span class="outreach-metric-lbl">Leads</span></div>';
     h+='<div class="outreach-metric"><span class="outreach-metric-val">'+c.contactedCount+'</span><span class="outreach-metric-lbl">Contacted</span></div>';
     h+='<div class="outreach-metric"><span class="outreach-metric-val">'+c.repliesCount+'</span><span class="outreach-metric-lbl">Replies</span></div>';
-    h+='<div class="outreach-metric"><span class="outreach-metric-val">'+replyPct+'%</span><span class="outreach-metric-lbl">Reply Rate</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#6366F1">'+replyPct+'%</span><span class="outreach-metric-lbl">Reply Rate</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#10B981">'+openPct+'%</span><span class="outreach-metric-lbl">Open Rate</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:#F59E0B">'+clickPct+'%</span><span class="outreach-metric-lbl">Click Rate</span></div>';
     h+='</div>';
+
+    /* Pipeline summary row */
+    if(c.totalInterested||c.totalMeetingBooked||c.totalClosed){
+      h+='<div class="outreach-metrics-row" style="margin-top:6px">';
+      h+='<div class="outreach-metric"><span class="outreach-metric-val" style="font-size:14px;color:#10B981">'+c.totalInterested+'</span><span class="outreach-metric-lbl">Interested</span></div>';
+      h+='<div class="outreach-metric"><span class="outreach-metric-val" style="font-size:14px;color:#6366F1">'+c.totalMeetingBooked+'</span><span class="outreach-metric-lbl">Meetings</span></div>';
+      h+='<div class="outreach-metric"><span class="outreach-metric-val" style="font-size:14px;color:#F59E0B">'+c.totalClosed+'</span><span class="outreach-metric-lbl">Closed</span></div>';
+      h+='</div>'}
 
     h+='<div class="outreach-card-foot">';
     if(oppLabel)h+='<span class="outreach-pill">'+esc(oppLabel)+'</span>';
     if(c.mappedClient)h+='<span class="outreach-pill outreach-pill-client">'+esc(c.mappedClient)+'</span>';
+    if(c.dailyLimit)h+='<span class="outreach-pill" style="background:rgba(245,158,11,0.1);color:#D97706;font-size:10px">'+c.dailyLimit+'/day</span>';
     h+='</div>';
     h+='</div>'});
   h+='</div>';

@@ -135,9 +135,9 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   prospectCompanies:[],prospects:[],pcSort:'name',pSort:'name',
   _ecCandidates:[],
   clientTab:'overview',endClientTab:'overview',opportunityTab:'overview',
-  instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],instantlyAnalyticsDaily:[],
+  instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],instantlyAnalyticsDaily:[],instantlyCampaignSteps:[],
   outreachSub:'campaigns',outreachFilter:'',outreachBulkMode:false,outreachBulkSelected:{},_outreachAnalyzing:false,
-  _outreachAnalyticsDays:30};
+  _outreachAnalyticsDays:30,instantlyCampaignTab:'overview'};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1327,6 +1327,8 @@ async function loadInstantlyCampaigns(){
         totalOpportunities:r.total_opportunities||0,totalOpportunityValue:r.total_opportunity_value||0,
         totalInterested:r.total_interested||0,totalMeetingBooked:r.total_meeting_booked||0,
         totalMeetingCompleted:r.total_meeting_completed||0,totalClosed:r.total_closed||0,
+        sequences:r.sequences||[],campaignSchedule:r.campaign_schedule||{},emailList:r.email_list||[],
+        dailyLimit:r.daily_limit||0,stopOnReply:r.stop_on_reply!==false,
         metadata:r.metadata||{},syncedAt:r.synced_at,createdAt:r.created_at}});
   }catch(e){console.error('loadInstantlyCampaigns:',e)}}
 
@@ -1402,8 +1404,20 @@ async function loadInstantlyAnalyticsDaily(){
         bounced:r.bounced||0,opportunities:r.opportunities||0}});
   }catch(e){console.error('loadInstantlyAnalyticsDaily:',e)}}
 
+async function loadInstantlyCampaignSteps(){
+  try{
+    var res=await _sb.from('instantly_campaign_steps').select('*').order('step',{ascending:true});
+    if(res.error){console.error('loadInstantlyCampaignSteps:',res.error);return}
+    S.instantlyCampaignSteps=(res.data||[]).map(function(r){
+      return{id:r.id,campaignId:r.campaign_id,step:r.step,variant:r.variant||'A',
+        sent:r.sent||0,opened:r.opened||0,uniqueOpened:r.unique_opened||0,
+        replies:r.replies||0,uniqueReplies:r.unique_replies||0,
+        clicks:r.clicks||0,uniqueClicks:r.unique_clicks||0,
+        opportunities:r.opportunities||0}});
+  }catch(e){console.error('loadInstantlyCampaignSteps:',e)}}
+
 async function loadInstantlyData(){
-  await Promise.all([loadInstantlyCampaigns(),loadInstantlyLeads(),loadInstantlyEmails(),loadInstantlyAccounts(),loadInstantlyAnalyticsDaily()])}
+  await Promise.all([loadInstantlyCampaigns(),loadInstantlyLeads(),loadInstantlyEmails(),loadInstantlyAccounts(),loadInstantlyAnalyticsDaily(),loadInstantlyCampaignSteps()])}
 
 async function dbEditInstantlyCampaign(id,data){
   var upd={};
@@ -1412,6 +1426,26 @@ async function dbEditInstantlyCampaign(id,data){
   var res=await _sb.from('instantly_campaigns').update(upd).eq('id',id);
   if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
   await loadInstantlyCampaigns();render();return true}
+
+async function toggleCampaignStatus(supabaseId){
+  var camp=S.instantlyCampaigns.find(function(c){return c.id===supabaseId});
+  if(!camp)return;
+  var action=camp.status==='active'?'pause':'activate';
+  toast(action==='activate'?'Activating campaign...':'Pausing campaign...','info');
+  try{
+    var resp=await fetch('/api/instantly/campaign-action',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(await _sb.auth.getSession()).data.session.access_token},body:JSON.stringify({campaignId:camp.instantlyId,action:action})});
+    var data=await resp.json();
+    if(!resp.ok||!data.ok){toast('Failed: '+(data.error||'Unknown error'),'warn');return}
+    // Update local status
+    await _sb.from('instantly_campaigns').update({status:action==='activate'?'active':'paused',synced_at:new Date().toISOString()}).eq('id',supabaseId);
+    await loadInstantlyCampaigns();render();
+    toast('Campaign '+(action==='activate'?'activated':'paused'),'ok');
+  }catch(e){toast('Error: '+e.message,'warn')}}
+
+function setInstantlyCampaignTab(tab){
+  S.instantlyCampaignTab=tab;
+  var el=gel('ic-dashboard-body');
+  if(el){el.innerHTML=rInstantlyCampaignTabContent(S._lastInstantlyCampaignId);initInstantlyCampaignCharts()}}
 
 async function dbEditInstantlyEmail(id,data){
   var upd={};
