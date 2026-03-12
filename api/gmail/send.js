@@ -1,7 +1,13 @@
-const { verifyUserToken, cors, getCredentials } = require('../_lib/supabase');
+const { verifyUserToken, cors, getCredentials, getServiceClient } = require('../_lib/supabase');
 const { refreshGmailToken } = require('../_lib/gmail-auth');
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
+
+/* RFC 2047 encode a MIME header value when it contains non-ASCII characters */
+function mimeEncode(value) {
+  if (!value || !/[^\x00-\x7F]/.test(value)) return value;
+  return '=?UTF-8?B?' + Buffer.from(value, 'utf-8').toString('base64') + '?=';
+}
 
 /**
  * POST /api/gmail/send
@@ -45,8 +51,20 @@ module.exports = async function handler(req, res) {
         });
         if (primary && primary.displayName) fromName = primary.displayName;
       }
-    } catch (e) { /* non-fatal: fall back to bare email */ }
-    const fromHeader = fromName ? fromName + ' <' + fromEmail + '>' : fromEmail;
+    } catch (e) { /* non-fatal: fall back to other sources */ }
+
+    /* Fallback: get display name from Supabase auth user metadata */
+    if (!fromName) {
+      try {
+        const client = getServiceClient();
+        const { data: { user } } = await client.auth.admin.getUserById(userId);
+        if (user && user.user_metadata) {
+          fromName = user.user_metadata.full_name || user.user_metadata.name || '';
+        }
+      } catch (e) { /* non-fatal: fall back to bare email */ }
+    }
+
+    const fromHeader = fromName ? mimeEncode(fromName) + ' <' + fromEmail + '>' : fromEmail;
 
     let rawEmail;
     const hasAttachments = attachments && attachments.length > 0;
@@ -57,7 +75,7 @@ module.exports = async function handler(req, res) {
       const mimeHeaders = ['From: ' + fromHeader, 'To: ' + to];
       if (cc) mimeHeaders.push('Cc: ' + cc);
       if (bcc) mimeHeaders.push('Bcc: ' + bcc);
-      mimeHeaders.push('Subject: ' + (subject || ''));
+      mimeHeaders.push('Subject: ' + mimeEncode(subject || ''));
       mimeHeaders.push('MIME-Version: 1.0');
       mimeHeaders.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
       if (messageId) {
@@ -86,7 +104,7 @@ module.exports = async function handler(req, res) {
       const headers = ['From: ' + fromHeader, 'To: ' + to];
       if (cc) headers.push('Cc: ' + cc);
       if (bcc) headers.push('Bcc: ' + bcc);
-      headers.push('Subject: ' + (subject || ''));
+      headers.push('Subject: ' + mimeEncode(subject || ''));
       headers.push('Content-Type: text/html; charset=utf-8');
       headers.push('MIME-Version: 1.0');
       if (messageId) {
