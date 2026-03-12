@@ -5833,13 +5833,21 @@ async function syncEndClientRecords(){
 
 /* Backfill: set end_client_id on any rows that have end_client text but null end_client_id */
 async function backfillEndClientIds(){
-  var tables=['tasks','done','review','campaigns','opportunities','contacts','finance_payments','finance_payment_splits','knowledge_chunks','meetings','gmail_threads'];
+  var allTables=['tasks','done','review','campaigns','opportunities','contacts','finance_payments','finance_payment_splits','knowledge_chunks','meetings','gmail_threads'];
+  /* Probe which tables actually have the end_client_id column before doing any updates */
+  var tables=[];
+  for(var t=0;t<allTables.length;t++){
+    var probe=await _sb.from(allTables[t]).select('end_client_id').limit(0);
+    if(!probe.error)tables.push(allTables[t])}
+  if(!tables.length)return;
   var updated=false;
   for(var i=0;i<(S.endClients||[]).length;i++){
     var ec=S.endClients[i];
     for(var j=0;j<tables.length;j++){
-      var res=await _sb.from(tables[j]).update({end_client_id:ec.id}).eq('end_client',ec.name).is('end_client_id',null).select('id');
-      if(res.data&&res.data.length>0)updated=true}}
+      try{
+        var res=await _sb.from(tables[j]).update({end_client_id:ec.id}).eq('end_client',ec.name).is('end_client_id',null).select('id');
+        if(res.data&&res.data.length>0)updated=true;
+      }catch(e){/* skip */}}}
   /* Refresh in-memory campaign endClientIds so filters work immediately */
   if(updated){
     S.campaigns.forEach(function(c){
