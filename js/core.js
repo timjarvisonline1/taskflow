@@ -1546,7 +1546,7 @@ async function createOppFromReply(emailId){
       if(existing){pcId=existing.id}
       else{
         var pcRes=await ensureProspectCompanyExists(lead.companyName,lead.website||'');
-        if(pcRes)pcId=pcRes}}
+        if(pcRes)pcId=pcRes.id}}
 
     /* 2. Auto-create Prospect contact */
     var prospId=lead.prospectId;

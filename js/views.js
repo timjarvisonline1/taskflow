@@ -8526,12 +8526,12 @@ function rOutreachAnalytics(){
 
   /* Metrics row */
   h+='<div class="outreach-metrics-dash">';
-  h+=dashMet('Total Leads',totalLeads,'users');
-  h+=dashMet('Contacted',totalContacted,'send');
-  h+=dashMet('Replies',totalReplies,'mail');
-  h+=dashMet('Reply Rate',overallReplyRate+'%','activity');
-  h+=dashMet('Opps Created',oppsCreated,'gem');
-  h+=dashMet('Bounced',totalBounced,'alert');
+  h+=dashMet('Total Leads',totalLeads,'var(--blue)');
+  h+=dashMet('Contacted',totalContacted,'var(--purple50)');
+  h+=dashMet('Replies',totalReplies,'var(--green)');
+  h+=dashMet('Reply Rate',overallReplyRate+'%','var(--amber)');
+  h+=dashMet('Opps Created',oppsCreated,'var(--pink)');
+  h+=dashMet('Bounced',totalBounced,totalBounced?'var(--red)':'var(--t4)');
   h+='</div>';
 
   /* Charts */
