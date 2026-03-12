@@ -39,6 +39,8 @@ module.exports = async function handler(req, res) {
       return await testZohoPayments(res, userId, mergedCreds, mergedConfig);
     } else if (platform === 'gmail') {
       return await testGmail(res, userId, mergedCreds);
+    } else if (platform === 'instantly') {
+      return await testInstantly(res, mergedCreds);
     } else if (platform === 'anthropic') {
       return await testAnthropic(res, mergedCreds, mergedConfig);
     } else {
@@ -208,6 +210,21 @@ async function testAnthropic(res, creds, config) {
   return res.status(200).json({
     success: true,
     details: 'Connected — model: ' + resp.model
+  });
+}
+
+async function testInstantly(res, creds) {
+  const apiKey = creds.api_key;
+  if (!apiKey) throw new Error('API Key is required');
+  const resp = await fetch('https://api.instantly.ai/api/v2/campaigns?limit=1', {
+    headers: { 'Authorization': 'Bearer ' + apiKey }
+  });
+  if (!resp.ok) throw new Error('Instantly API returned ' + resp.status);
+  const data = await resp.json();
+  const items = data.items || data || [];
+  return res.status(200).json({
+    success: true,
+    details: 'Connected — ' + items.length + '+ campaign(s) found'
   });
 }
 

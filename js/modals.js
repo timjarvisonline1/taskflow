@@ -3432,6 +3432,9 @@ var INTG_PLATFORMS=[
   {id:'readai',label:'Read.ai',color:'#6366F1',desc:'Meeting transcripts and recordings',
     fields:[],
     configFields:[{key:'webhook_secret',label:'Webhook Secret',type:'text'}]},
+  {id:'instantly',label:'Instantly.ai',color:'#4F46E5',desc:'Cold email outreach campaigns',
+    fields:[{key:'api_key',label:'API Key',type:'password'}],
+    configFields:[]},
 ];
 
 /* ═══════════ SCHEDULED ITEM MODALS ═══════════ */
@@ -4935,3 +4938,51 @@ async function saveEditProspect(){
 function deleteProspect(id){
   if(!confirm('Delete this prospect?'))return;
   dbDeleteProspect(id);closeModal()}
+
+/* ═══════════ INSTANTLY CAMPAIGN CONFIG MODAL ═══════════ */
+function openInstantlyCampaignConfig(id){
+  var camp=S.instantlyCampaigns.find(function(c){return c.id===id});
+  if(!camp)return;
+
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('target',14)+' Campaign Config</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="edf-body" style="padding:16px">';
+
+  h+='<div style="margin-bottom:16px">';
+  h+='<div style="font-size:16px;font-weight:700;color:var(--t1)">'+esc(camp.name)+'</div>';
+  h+='<div style="font-size:12px;color:var(--t3);margin-top:4px">Status: <span class="outreach-status outreach-status-'+(camp.status==='active'?'active':'paused')+'">'+esc(camp.status)+'</span></div>';
+  h+='</div>';
+
+  h+='<div class="outreach-metrics-row" style="margin-bottom:16px">';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.leadsCount+'</span><span class="outreach-metric-lbl">Leads</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.contactedCount+'</span><span class="outreach-metric-lbl">Contacted</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+camp.repliesCount+'</span><span class="outreach-metric-lbl">Replies</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+(camp.contactedCount>0?((camp.repliesCount/camp.contactedCount)*100).toFixed(1):'0')+'%</span><span class="outreach-metric-lbl">Reply Rate</span></div>';
+  h+='</div>';
+
+  h+='<div class="ed-grid">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Default Opportunity Type</span>';
+  h+='<select id="ic-opp-type" class="edf">';
+  Object.keys(OPP_TYPES).forEach(function(k){
+    h+='<option value="'+k+'"'+(camp.defaultOppType===k?' selected':'')+'>'+OPP_TYPES[k].label+'</option>'});
+  h+='</select></div>';
+
+  h+='<div class="ed-fld"><span class="ed-lbl">Mapped Client</span>';
+  h+='<select id="ic-client" class="edf"><option value="">— None —</option>';
+  S.clients.forEach(function(c){
+    h+='<option value="'+esc(c.name)+'"'+(camp.mappedClient===c.name?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='</select></div>';
+  h+='</div>';
+
+  h+='<div class="edf-actions" style="margin-top:16px">';
+  h+='<button class="btn btn-p" onclick="TF.saveInstantlyCampaignConfig(\''+id+'\')">'+icon('save',12)+' Save</button>';
+  h+='</div>';
+  h+='</div>';
+
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function saveInstantlyCampaignConfig(id){
+  var oppType=(gel('ic-opp-type')||{}).value||'retain_live';
+  var client=(gel('ic-client')||{}).value||'';
+  var ok=await dbEditInstantlyCampaign(id,{defaultOppType:oppType,mappedClient:client});
+  if(ok){closeModal();toast('Campaign config saved','ok')}}

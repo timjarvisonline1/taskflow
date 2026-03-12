@@ -9,6 +9,12 @@
     "api/knowledge/*.js": {
       "maxDuration": 60
     },
+    "api/instantly/*.js": {
+      "maxDuration": 60
+    },
+    "api/webhook/instantly.js": {
+      "maxDuration": 60
+    },
     "api/meetings/*.js": {
       "maxDuration": 300
     }

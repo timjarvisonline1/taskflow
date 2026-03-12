@@ -34,7 +34,7 @@ Browser (client JS)                   Vercel Serverless Functions
 - **Backend**: Supabase (PostgreSQL with RLS, Auth, REST API via PostgREST, pgvector for KB embeddings)
 - **Hosting**: Vercel (Pro plan — 300s max function timeout, no cron support)
 - **CDN libs**: Supabase JS v2 (UMD), Chart.js 4.4
-- **Email**: Gmail API (OAuth 2.0) — scopes: `gmail.readonly`, `gmail.send`, `gmail.modify`
+- **Email**: Gmail API (OAuth 2.0) — scopes: `gmail.readonly`, `gmail.send`, `gmail.modify`, `gmail.settings.basic`, `gmail.labels`, `gmail.compose`
 - **AI/Embeddings**: Anthropic Claude (email analysis, EC Review, KB RAG), OpenAI text-embedding-3-large (KB vectors, 1536 dims)
 
 ## Important URLs & IDs
@@ -1302,7 +1302,62 @@ All five entity types (Client, End-Client, Prospect Company, Campaign, Opportuni
 
 **Key functions:** `loadEndClients()`, `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `discoverEcCandidates()`, `_crSubmit()`, `_crBatchDomain()`, `_crClientAc()`, `_crClientSelect()`, `_crPcAc()`, `_crPcSelect()`, `_crPcCreate()`, `syncRlProspectCompanies()`
 
+### Outreach Section (Instantly.ai Integration)
+
+**New top-level section** for cold email outreach via Instantly.ai. Accessible from sidebar as "Outreach" with 5 sub-views.
+
+**Sub-views:**
+- **Campaigns** — Card grid of synced Instantly campaigns with metrics (leads, contacted, replies, reply rate), per-campaign config (default opp type, mapped client)
+- **Replies** — AI-analyzed reply inbox grouped by sentiment (positive, question, needs response, not interested, OOO/bounce). Each card shows lead name, company, campaign, AI summary, quick actions (Reply, AI Draft, Create Opportunity, Dismiss)
+- **Leads** — Filterable table (by campaign, interest status, search) showing all synced leads with linked prospect/opportunity badges
+- **Accounts** — Sending account health cards (status, warmup, daily limit, today's stats)
+- **Analytics** — Metrics row + 4 charts: Reply Rate by Campaign, Sentiment Distribution, Campaign Volume, Conversion Funnel
+
+**Backend (4 new tables + 7 new API endpoints):**
+- SQL: `instantly_campaigns`, `instantly_leads`, `instantly_emails`, `instantly_accounts` (all with RLS, indexes, unique constraints on `user_id, instantly_id`)
+- `api/_lib/sync-instantly.js` — Sync library: campaigns, campaign analytics, leads (per campaign), emails (per campaign), accounts. Cursor-based pagination via `starting_after`
+- `api/sync/instantly.js` — HTTP handler (POST, verifyUserToken)
+- `api/instantly/analyze.js` — AI reply analysis via Claude. Returns sentiment, summary, interest, suggested_action, key_info per email. Updates DB.
+- `api/instantly/reply.js` — Send reply via Instantly API (`POST /emails/reply`)
+- `api/instantly/draft.js` — AI draft reply using RAG (knowledge base search + thread context)
+- `api/webhook/instantly.js` — Webhook handler for real-time reply ingestion
+
+**Frontend functions:**
+- State: `S.instantlyCampaigns`, `S.instantlyLeads`, `S.instantlyEmails`, `S.instantlyAccounts`, `S.outreachSub`, `S.outreachFilter`
+- Loaders: `loadInstantlyCampaigns()`, `loadInstantlyLeads()`, `loadInstantlyEmails()`, `loadInstantlyAccounts()`, `loadInstantlyData()`
+- CRUD: `dbEditInstantlyCampaign()`, `dbEditInstantlyEmail()`, `dbEditInstantlyLead()`
+- Actions: `analyzeOutreachReplies()`, `openOutreachReply()`, `sendOutreachReply()`, `draftOutreachReply()`, `createOppFromReply()`, `dismissOutreachReply()`
+- Views: `rOutreach()`, `rOutreachCampaigns()`, `rOutreachReplies()`, `rOutreachLeads()`, `rOutreachAccounts()`, `rOutreachAnalytics()`, `initOutreachCharts()`
+- Modals: `openInstantlyCampaignConfig()`, `saveInstantlyCampaignConfig()`
+- Platform registration: `instantly` in `INTG_PLATFORMS` (modals.js) + `testInstantly()` in test-connection.js
+
+**Opportunity creation flow** (`createOppFromReply`): Auto-creates Prospect Company (via `ensureProspectCompanyExists`), Prospect contact (via `dbAddProspect`), and Opportunity (via `dbAddOpportunity`) from a positive reply, then links back to the Instantly lead.
+
 ### Recent Changes
+
+**Instantly.ai Integration (2026-03-12):**
+- Full Outreach section with 5 sub-views (Campaigns, Replies, Leads, Accounts, Analytics)
+- Sync engine for campaigns, leads, emails, accounts with cursor-based pagination
+- AI reply analysis (sentiment, summary, interest, suggested action)
+- Reply via Instantly API with inline composer
+- AI-drafted replies using RAG pipeline (knowledge base + thread context)
+- One-click opportunity creation from positive replies (auto-creates prospect company + contact)
+- Per-campaign config: default opportunity type, mapped client
+- Webhook handler for real-time reply ingestion
+- CSS: `.outreach-*` styles in features.css
+
+**Knowledge Base Timeout Fix (2026-03-12):**
+- Rewrote `match_knowledge()` SQL function with two-phase CTE approach for 50K+ row performance
+- Phase 1: HNSW index scan (`ORDER BY embedding <=> query LIMIT N*4`)
+- Phase 2: Apply recency + keyword boosts to small candidate set (~40-80 rows)
+- Added missing composite index: `idx_kc_user_client ON knowledge_chunks(user_id, client_id)`
+
+**Email Send Fixes & Gmail Scope Expansion (2026-03-12, commit 01e2a16):**
+- Fixed subject line encoding: non-ASCII characters (em-dashes, smart quotes) now RFC 2047 encoded via `mimeEncode()` helper in `send.js`
+- Fixed sender name showing as bare email: added Supabase auth user metadata fallback when Gmail `sendAs` API unavailable
+- From header display name also `mimeEncode()`'d for non-ASCII safety
+- Expanded Gmail OAuth scopes: added `gmail.settings.basic` (sendAs display name), `gmail.labels` (label management), `gmail.compose` (Gmail-native drafts)
+- OAuth scopes now: `readonly`, `send`, `modify`, `settings.basic`, `labels`, `compose`
 
 **Email Light Mode Fix (2026-03-11, commits 452a2de, 484c348):**
 - Fixed meeting prompt banner being unreadable in email section light mode (white text on white background)

@@ -134,7 +134,9 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   endClients:[],ecSort:'name',
   prospectCompanies:[],prospects:[],pcSort:'name',pSort:'name',
   _ecCandidates:[],
-  clientTab:'overview',endClientTab:'overview',opportunityTab:'overview'};
+  clientTab:'overview',endClientTab:'overview',opportunityTab:'overview',
+  instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],
+  outreachSub:'campaigns',outreachFilter:'',outreachBulkMode:false,outreachBulkSelected:{},_outreachAnalyzing:false};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -201,7 +203,14 @@ var SECTIONS=[
     {id:'e-opportunities',label:'By Opportunity',icon:'trending_up',smart:true},
     {id:'e-other',label:'Other',icon:'mail',smart:true}
   ]},
-  {id:'meetings',icon:'mic',label:'Meetings',kbd:'0'}
+  {id:'outreach',icon:'send',label:'Outreach',kbd:'0',subs:[
+    {id:'campaigns',label:'Campaigns',icon:'target'},
+    {id:'replies',label:'Replies',icon:'mail'},
+    {id:'leads',label:'Leads',icon:'users'},
+    {id:'accounts',label:'Accounts',icon:'activity'},
+    {id:'analytics',label:'Analytics',icon:'bar_chart'}
+  ]},
+  {id:'meetings',icon:'mic',label:'Meetings'}
 ];
 var VIEWS_FLAT=[];
 SECTIONS.forEach(function(sec){
@@ -1300,6 +1309,289 @@ async function loadMeetings(){
       isGroupCall:!!r.is_group_call,groupCallType:r.group_call_type||'',kajabiReportHtml:'',createdAt:r.created_at}});
     S.meetingsPage=1;
   }catch(e){console.error('loadMeetings:',e)}}
+
+/* ═══════════ INSTANTLY DATA LOADERS ═══════════ */
+async function loadInstantlyCampaigns(){
+  try{
+    var res=await _sb.from('instantly_campaigns').select('*').order('name');
+    if(res.error){console.error('loadInstantlyCampaigns:',res.error);return}
+    S.instantlyCampaigns=(res.data||[]).map(function(r){
+      return{id:r.id,instantlyId:r.instantly_id,name:r.name||'',status:r.status||'',
+        defaultOppType:r.default_opp_type||'retain_live',mappedClient:r.mapped_client||'',
+        leadsCount:r.leads_count||0,contactedCount:r.contacted_count||0,
+        repliesCount:r.replies_count||0,bouncedCount:r.bounced_count||0,
+        openRate:r.open_rate||0,replyRate:r.reply_rate||0,
+        metadata:r.metadata||{},syncedAt:r.synced_at,createdAt:r.created_at}});
+  }catch(e){console.error('loadInstantlyCampaigns:',e)}}
+
+async function loadInstantlyLeads(){
+  try{
+    var allRows=[],pageSize=1000,from=0;
+    while(true){
+      var res=await _sb.from('instantly_leads').select('*').order('created_at',{ascending:false}).range(from,from+pageSize-1);
+      if(res.error)throw res.error;
+      var batch=res.data||[];
+      allRows=allRows.concat(batch);
+      if(batch.length<pageSize)break;
+      from+=pageSize}
+    S.instantlyLeads=allRows.map(function(r){
+      return{id:r.id,instantlyId:r.instantly_id,campaignId:r.campaign_id||'',
+        email:r.email||'',firstName:r.first_name||'',lastName:r.last_name||'',
+        companyName:r.company_name||'',phone:r.phone||'',website:r.website||'',
+        title:r.title||'',interestStatus:r.interest_status||'',leadStatus:r.lead_status||'',
+        prospectCompanyId:r.prospect_company_id||'',prospectId:r.prospect_id||'',
+        opportunityId:r.opportunity_id||'',customVariables:r.custom_variables||{},
+        metadata:r.metadata||{},syncedAt:r.synced_at,createdAt:r.created_at}});
+  }catch(e){console.error('loadInstantlyLeads:',e)}}
+
+async function loadInstantlyEmails(){
+  try{
+    var allRows=[],pageSize=1000,from=0;
+    while(true){
+      var res=await _sb.from('instantly_emails').select('*').order('timestamp_ext',{ascending:false}).range(from,from+pageSize-1);
+      if(res.error)throw res.error;
+      var batch=res.data||[];
+      allRows=allRows.concat(batch);
+      if(batch.length<pageSize)break;
+      from+=pageSize}
+    S.instantlyEmails=allRows.map(function(r){
+      return{id:r.id,instantlyId:r.instantly_id,leadId:r.lead_id||'',campaignId:r.campaign_id||'',
+        fromEmail:r.from_email||'',fromName:r.from_name||'',toEmail:r.to_email||'',
+        subject:r.subject||'',body:r.body||'',bodyText:r.body_text||'',
+        timestampExt:r.timestamp_ext?new Date(r.timestamp_ext):null,
+        isReply:!!r.is_reply,direction:r.direction||'outbound',
+        aiSentiment:r.ai_sentiment||'',aiSummary:r.ai_summary||'',
+        aiInterest:r.ai_interest||'',aiSuggestedAction:r.ai_suggested_action||'',
+        aiKeyInfo:r.ai_key_info||'',aiAnalyzedAt:r.ai_analyzed_at?new Date(r.ai_analyzed_at):null,
+        replyStatus:r.reply_status||'pending',snoozedUntil:r.snoozed_until?new Date(r.snoozed_until):null,
+        metadata:r.metadata||{},syncedAt:r.synced_at,createdAt:r.created_at}});
+  }catch(e){console.error('loadInstantlyEmails:',e)}}
+
+async function loadInstantlyAccounts(){
+  try{
+    var res=await _sb.from('instantly_accounts').select('*').order('email');
+    if(res.error){console.error('loadInstantlyAccounts:',res.error);return}
+    S.instantlyAccounts=(res.data||[]).map(function(r){
+      return{id:r.id,instantlyId:r.instantly_id,email:r.email||'',
+        firstName:r.first_name||'',lastName:r.last_name||'',
+        status:r.status||'',warmupStatus:r.warmup_status||'',
+        dailyLimit:r.daily_limit||0,healthScore:r.health_score||0,
+        sentToday:r.sent_today||0,repliesToday:r.replies_today||0,
+        bouncedToday:r.bounced_today||0,metadata:r.metadata||{},
+        syncedAt:r.synced_at,createdAt:r.created_at}});
+  }catch(e){console.error('loadInstantlyAccounts:',e)}}
+
+async function loadInstantlyData(){
+  await Promise.all([loadInstantlyCampaigns(),loadInstantlyLeads(),loadInstantlyEmails(),loadInstantlyAccounts()])}
+
+async function dbEditInstantlyCampaign(id,data){
+  var upd={};
+  if(data.defaultOppType!==undefined)upd.default_opp_type=data.defaultOppType;
+  if(data.mappedClient!==undefined)upd.mapped_client=data.mappedClient;
+  var res=await _sb.from('instantly_campaigns').update(upd).eq('id',id);
+  if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
+  await loadInstantlyCampaigns();render();return true}
+
+async function dbEditInstantlyEmail(id,data){
+  var upd={};
+  if(data.replyStatus!==undefined)upd.reply_status=data.replyStatus;
+  if(data.snoozedUntil!==undefined)upd.snoozed_until=data.snoozedUntil;
+  if(data.aiSentiment!==undefined)upd.ai_sentiment=data.aiSentiment;
+  if(data.aiSummary!==undefined)upd.ai_summary=data.aiSummary;
+  if(data.aiInterest!==undefined)upd.ai_interest=data.aiInterest;
+  if(data.aiSuggestedAction!==undefined)upd.ai_suggested_action=data.aiSuggestedAction;
+  if(data.aiKeyInfo!==undefined)upd.ai_key_info=data.aiKeyInfo;
+  if(data.aiAnalyzedAt!==undefined)upd.ai_analyzed_at=data.aiAnalyzedAt;
+  var res=await _sb.from('instantly_emails').update(upd).eq('id',id);
+  if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
+  return true}
+
+async function dbEditInstantlyLead(id,data){
+  var upd={};
+  if(data.prospectCompanyId!==undefined)upd.prospect_company_id=data.prospectCompanyId||null;
+  if(data.prospectId!==undefined)upd.prospect_id=data.prospectId||null;
+  if(data.opportunityId!==undefined)upd.opportunity_id=data.opportunityId||null;
+  var res=await _sb.from('instantly_leads').update(upd).eq('id',id);
+  if(res.error){toast('Update failed: '+res.error.message,'warn');return false}
+  return true}
+
+/* ═══════════ INSTANTLY: ANALYZE REPLIES ═══════════ */
+async function analyzeOutreachReplies(){
+  if(S._outreachAnalyzing)return;
+  var unanalyzed=(S.instantlyEmails||[]).filter(function(e){
+    return e.isReply&&e.direction==='inbound'&&!e.aiAnalyzedAt});
+  if(!unanalyzed.length){toast('All replies already analyzed','ok');return}
+  S._outreachAnalyzing=true;
+  toast('Analyzing '+unanalyzed.length+' replies...','info');
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session){S._outreachAnalyzing=false;return}
+    var token=sess.data.session.access_token;
+    var batch=unanalyzed.slice(0,30).map(function(e){
+      var lead=(S.instantlyLeads||[]).find(function(l){return l.id===e.leadId})||{};
+      var camp=(S.instantlyCampaigns||[]).find(function(c){return c.id===e.campaignId})||{};
+      return{id:e.id,fromEmail:e.fromEmail,toEmail:e.toEmail,subject:e.subject,
+        body:e.body,bodyText:e.bodyText,
+        leadName:((lead.firstName||'')+' '+(lead.lastName||'')).trim(),
+        companyName:lead.companyName||'',campaignName:camp.name||''}});
+    var resp=await fetch('/api/instantly/analyze',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({emails:batch})});
+    var result=await resp.json();
+    if(result.success&&result.results){
+      result.results.forEach(function(r){
+        var local=S.instantlyEmails.find(function(e){return e.id===r.email_id});
+        if(local){
+          local.aiSentiment=r.sentiment||'';local.aiSummary=r.summary||'';
+          local.aiInterest=r.interest||'';local.aiSuggestedAction=r.suggested_action||'';
+          local.aiKeyInfo=r.key_info||'';local.aiAnalyzedAt=new Date()}});
+      toast(result.analyzed+' replies analyzed','ok');render()}
+    else{toast('Analysis failed: '+(result.error||'Unknown'),'warn')}
+  }catch(e){console.error('analyzeOutreachReplies:',e);toast('Analysis error: '+e.message,'warn')}
+  finally{S._outreachAnalyzing=false}}
+
+/* ═══════════ INSTANTLY: REPLY VIA INSTANTLY API ═══════════ */
+async function openOutreachReply(emailId){
+  var email=(S.instantlyEmails||[]).find(function(e){return e.id===emailId});
+  if(!email)return;
+  var lead=(S.instantlyLeads||[]).find(function(l){return l.id===email.leadId})||{};
+  var leadName=((lead.firstName||'')+' '+(lead.lastName||'')).trim()||email.fromEmail;
+
+  /* Build inline reply composer in the reply card */
+  var card=document.querySelector('.outreach-reply-card[data-id="'+emailId+'"]');
+  /* Fallback: open in modal */
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('mail',14)+' Reply to '+esc(leadName)+'</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="edf-body" style="padding:16px">';
+  h+='<div style="font-size:12px;color:var(--t3);margin-bottom:12px"><strong>From:</strong> '+esc(email.fromEmail)+' <strong>Subject:</strong> '+esc(email.subject)+'</div>';
+  if(email.aiSummary)h+='<div style="font-size:12px;color:var(--t2);margin-bottom:12px;padding:8px;background:var(--bg1);border-radius:6px"><strong>AI Summary:</strong> '+esc(email.aiSummary)+'</div>';
+  h+='<div class="outreach-composer">';
+  h+='<textarea id="outreach-reply-body" placeholder="Type your reply..."></textarea>';
+  h+='<div class="outreach-composer-actions">';
+  h+='<button class="btn" onclick="TF.draftOutreachReply(\''+emailId+'\')">'+icon('sparkle',11)+' AI Draft</button>';
+  h+='<button class="btn btn-p" onclick="TF.sendOutreachReply(\''+emailId+'\')">'+icon('send',11)+' Send via Instantly</button>';
+  h+='</div></div></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function sendOutreachReply(emailId){
+  var body=(gel('outreach-reply-body')||{}).value;
+  if(!body||!body.trim()){toast('Please type a reply','warn');return}
+  var email=(S.instantlyEmails||[]).find(function(e){return e.id===emailId});
+  if(!email){toast('Email not found','warn');return}
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    toast('Sending reply...','info');
+    var resp=await fetch('/api/instantly/reply',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({emailInstantlyId:email.instantlyId,replyBody:'<p>'+body.replace(/\n/g,'</p><p>')+'</p>',subject:'Re: '+email.subject})});
+    var result=await resp.json();
+    if(result.success){
+      await dbEditInstantlyEmail(emailId,{replyStatus:'replied'});
+      email.replyStatus='replied';
+      closeModal();render();toast('Reply sent successfully','ok')}
+    else{toast('Send failed: '+(result.error||'Unknown'),'warn')}
+  }catch(e){toast('Send error: '+e.message,'warn')}}
+
+/* ═══════════ INSTANTLY: AI DRAFT ═══════════ */
+async function draftOutreachReply(emailId){
+  var email=(S.instantlyEmails||[]).find(function(e){return e.id===emailId});
+  if(!email)return;
+  var lead=(S.instantlyLeads||[]).find(function(l){return l.id===email.leadId})||{};
+  var camp=(S.instantlyCampaigns||[]).find(function(c){return c.id===email.campaignId})||{};
+
+  /* Gather thread emails for this lead */
+  var threadEmails=(S.instantlyEmails||[]).filter(function(e){
+    return e.leadId===email.leadId&&e.campaignId===email.campaignId
+  }).sort(function(a,b){return(a.timestampExt||0)-(b.timestampExt||0)}).map(function(e){
+    return{from:e.fromEmail,to:e.toEmail,subject:e.subject,body:e.body||e.bodyText,
+      direction:e.direction,timestamp:e.timestampExt?e.timestampExt.toISOString():''}});
+
+  var textarea=gel('outreach-reply-body');
+  if(textarea)textarea.placeholder='Generating AI draft...';
+  toast('Generating AI draft...','info');
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    var resp=await fetch('/api/instantly/draft',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({emailId:emailId,threadEmails:threadEmails,
+        leadName:((lead.firstName||'')+' '+(lead.lastName||'')).trim(),
+        companyName:lead.companyName||'',campaignName:camp.name||'',
+        clientId:camp.mappedClient?null:null})});
+    var result=await resp.json();
+    if(result.success&&result.draft){
+      /* Strip HTML tags for textarea, preserve paragraphs as newlines */
+      var text=result.draft.replace(/<\/p>/gi,'\n\n').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'').trim();
+      if(textarea){textarea.value=text;textarea.placeholder='Type your reply...';}
+      else{toast('Draft ready — open reply first','info')}
+    }else{toast('Draft failed: '+(result.error||'Unknown'),'warn')}
+  }catch(e){toast('Draft error: '+e.message,'warn')}}
+
+/* ═══════════ INSTANTLY: CREATE OPPORTUNITY FROM REPLY ═══════════ */
+async function createOppFromReply(emailId){
+  var email=(S.instantlyEmails||[]).find(function(e){return e.id===emailId});
+  if(!email){toast('Email not found','warn');return}
+  var lead=(S.instantlyLeads||[]).find(function(l){return l.id===email.leadId});
+  if(!lead){toast('Lead not found','warn');return}
+  var camp=(S.instantlyCampaigns||[]).find(function(c){return c.id===email.campaignId})||{};
+  var oppType=camp.defaultOppType||'retain_live';
+  var typeConf=OPP_TYPES[oppType]||OPP_TYPES.retain_live;
+
+  toast('Creating opportunity...','info');
+  try{
+    /* 1. Auto-create or find Prospect Company */
+    var pcId=lead.prospectCompanyId;
+    if(!pcId&&lead.companyName){
+      var existing=S.prospectCompanies.find(function(pc){return pc.name.toLowerCase()===lead.companyName.toLowerCase()});
+      if(existing){pcId=existing.id}
+      else{
+        var pcRes=await ensureProspectCompanyExists(lead.companyName,lead.website||'');
+        if(pcRes)pcId=pcRes}}
+
+    /* 2. Auto-create Prospect contact */
+    var prospId=lead.prospectId;
+    if(!prospId&&lead.email){
+      var existingP=(S.prospects||[]).find(function(p){return p.email.toLowerCase()===lead.email.toLowerCase()});
+      if(existingP){prospId=existingP.id}
+      else{
+        var pRes=await dbAddProspect({firstName:lead.firstName,lastName:lead.lastName,
+          email:lead.email,phone:lead.phone||'',role:lead.title||'',
+          prospectCompanyId:pcId||'',source:'instantly',status:'active'});
+        if(pRes)prospId=pRes.id}}
+
+    /* 3. Create Opportunity */
+    var oppName=(lead.companyName||lead.firstName+' '+lead.lastName).trim()+' — '+typeConf.label;
+    var oppData={
+      type:oppType,stage:typeConf.stages[0],
+      name:oppName,contactName:((lead.firstName||'')+' '+(lead.lastName||'')).trim(),
+      contactEmail:lead.email,contactPhone:lead.phone||'',
+      prospectCompanyId:pcId||null,
+      source:'instantly',notes:'Auto-created from Instantly reply. Campaign: '+(camp.name||'')};
+    var oppRes=await dbAddOpportunity(oppData);
+    var oppId=oppRes?oppRes.id:null;
+
+    /* 4. Link back to lead */
+    if(oppId||pcId||prospId){
+      await dbEditInstantlyLead(lead.id,{
+        prospectCompanyId:pcId||lead.prospectCompanyId||null,
+        prospectId:prospId||lead.prospectId||null,
+        opportunityId:oppId||lead.opportunityId||null});
+      /* Update local state */
+      if(pcId)lead.prospectCompanyId=pcId;
+      if(prospId)lead.prospectId=prospId;
+      if(oppId)lead.opportunityId=oppId}
+
+    /* 5. Mark reply as handled */
+    await dbEditInstantlyEmail(emailId,{replyStatus:'replied'});
+    email.replyStatus='replied';
+
+    await loadOpportunities();await loadProspectCompanies();await loadProspects();
+    render();
+    toast('Opportunity created: '+oppName,'ok');
+
+    /* Offer to open the opportunity */
+    if(oppId)setTimeout(function(){openOpportunityDetail(oppId)},300);
+  }catch(e){console.error('createOppFromReply:',e);toast('Error: '+e.message,'warn')}}
 
 async function dbEditMeeting(id,data){
   var upd={updated_at:new Date().toISOString()};
@@ -4717,7 +5009,9 @@ async function triggerSync(platform){
         console.log('Summary:',{fetched:result.fetched,inserted:result.inserted,updated:result.updated,skipped:result.skipped});
         result.debug.forEach(function(d){console.log(d)});
         console.groupEnd()}
-      await loadFinancePayments();await loadAccountBalances();await loadIntegrations();render();
+      await loadFinancePayments();await loadAccountBalances();await loadIntegrations();
+      if(platform==='instantly')await loadInstantlyData();
+      render();
     }else{
       var errMsg=result.error||'Unknown error';
       console.error(platform+' sync error:',errMsg);
@@ -4735,7 +5029,7 @@ function checkStaleBalances(){
     syncAllIntegrations(true).finally(function(){S._balanceSyncPending=false})}}
 
 async function syncAllIntegrations(silent){
-  var platformMap={brex:'brex',mercury:'mercury',zoho_books:'zoho-books',zoho_payments:'zoho-payments'};
+  var platformMap={brex:'brex',mercury:'mercury',zoho_books:'zoho-books',zoho_payments:'zoho-payments',instantly:'instantly'};
   var active=S.integrations.filter(function(i){return i.is_active});
   if(!active.length){console.warn('[sync] No active integrations found. S.integrations:',S.integrations.map(function(i){return{platform:i.platform,is_active:i.is_active}}));return}
   try{
@@ -4846,7 +5140,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities(),loadEndClients(),loadProspectCompanies()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings(),loadProspects()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings(),loadProspects(),loadInstantlyData()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){

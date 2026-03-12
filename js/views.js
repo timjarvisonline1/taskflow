@@ -25,7 +25,7 @@ function render(){
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
 
-  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break}
+  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break;case'outreach':html=rOutreach();break}
   m.classList.toggle('email-active',S.view==='email');
   if(S.view!=='email'){var _dm=gel('detail-modal');if(_dm)_dm.classList.remove('email-light');if(S.gmailThreadId){S.gmailThreadId='';S.gmailThread=null;_dm&&_dm.classList.remove('on','full-detail')}}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
@@ -36,6 +36,7 @@ function render(){
   if(S.view==='clients')initClientsCharts();
   if(S.view==='finance'){initFinanceCharts();if(typeof checkStaleBalances==='function')checkStaleBalances()}
   if(S.view==='campaigns'&&S.subView==='performance')initCampaignPerformanceCharts();
+  if(S.view==='outreach'&&S.subView==='analytics')setTimeout(function(){initOutreachCharts()},80);
   if(S.view==='email'){initEmailIframes();startEmailPolling();
     /* N19: Auto-scroll to newest message (now at bottom in chronological order) */
     if(S.gmailThreadId&&S.gmailThread)setTimeout(function(){var lm=document.querySelector('.email-message-last');if(lm)lm.scrollIntoView({behavior:'auto',block:'nearest'})},120)}else{stopEmailPolling()}
@@ -8257,4 +8258,351 @@ function rMeetingCrmBar(m){
 
   h+='</div>';
   return h}
+
+/* ═══════════════════════════════════════════════════════
+   OUTREACH SECTION — Instantly.ai Integration
+   ═══════════════════════════════════════════════════════ */
+
+function timeAgo(date){
+  if(!date)return'';
+  var d=date instanceof Date?date:new Date(date);
+  var s=Math.floor((Date.now()-d.getTime())/1000);
+  if(s<60)return'just now';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  if(s<604800)return Math.floor(s/86400)+'d ago';
+  return d.toLocaleDateString()}
+
+function rOutreach(){
+  var sub=S.subView||'campaigns';
+  switch(sub){
+    case'campaigns':return rOutreachCampaigns();
+    case'replies':return rOutreachReplies();
+    case'leads':return rOutreachLeads();
+    case'accounts':return rOutreachAccounts();
+    case'analytics':return rOutreachAnalytics();
+    default:return rOutreachCampaigns()}}
+
+/* ── Campaigns ── */
+function rOutreachCampaigns(){
+  var camps=S.instantlyCampaigns||[];
+  var h='<div class="pg-head"><h1>'+icon('target',18)+' Campaigns';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+camps.length+' campaigns</span>';
+  h+='</h1>';
+  h+='<button class="btn btn-go" onclick="TF.triggerSync(\'instantly\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Instantly</button>';
+  h+='</div>';
+
+  if(!camps.length){
+    h+='<div class="empty-state" style="text-align:center;padding:60px 20px;color:var(--t3)">';
+    h+='<div style="font-size:40px;margin-bottom:12px">'+icon('target',40)+'</div>';
+    h+='<p style="font-size:14px">No campaigns synced yet.</p>';
+    h+='<p style="font-size:12px;margin-top:8px">Connect Instantly.ai in <a href="#" onclick="TF.openIntegrationsModal();return false">Integrations</a> and click "Sync Now".</p>';
+    h+='</div>';
+    return h}
+
+  h+='<div class="outreach-card-grid">';
+  camps.forEach(function(c){
+    var statusCls=c.status==='active'?'outreach-status-active':(c.status==='paused'?'outreach-status-paused':'outreach-status-draft');
+    var replyPct=c.contactedCount>0?((c.repliesCount/c.contactedCount)*100).toFixed(1):'0';
+    var oppType=OPP_TYPES[c.defaultOppType];
+    var oppLabel=oppType?oppType.short:c.defaultOppType;
+
+    h+='<div class="outreach-card" onclick="TF.openInstantlyCampaignConfig(\''+c.id+'\')">';
+    h+='<div class="outreach-card-head">';
+    h+='<span class="outreach-card-name">'+esc(c.name||'Unnamed Campaign')+'</span>';
+    h+='<span class="outreach-status '+statusCls+'">'+esc(c.status||'unknown')+'</span>';
+    h+='</div>';
+
+    h+='<div class="outreach-metrics-row">';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val">'+c.leadsCount+'</span><span class="outreach-metric-lbl">Leads</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val">'+c.contactedCount+'</span><span class="outreach-metric-lbl">Contacted</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val">'+c.repliesCount+'</span><span class="outreach-metric-lbl">Replies</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val">'+replyPct+'%</span><span class="outreach-metric-lbl">Reply Rate</span></div>';
+    h+='</div>';
+
+    h+='<div class="outreach-card-foot">';
+    if(oppLabel)h+='<span class="outreach-pill">'+esc(oppLabel)+'</span>';
+    if(c.mappedClient)h+='<span class="outreach-pill outreach-pill-client">'+esc(c.mappedClient)+'</span>';
+    h+='</div>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+/* ── Replies ── */
+function rOutreachReplies(){
+  var emails=S.instantlyEmails||[];
+  var replies=emails.filter(function(e){return e.isReply&&e.direction==='inbound'});
+
+  /* Group by sentiment */
+  var groups={positive:[],question:[],pending:[],negative:[],other:[]};
+  replies.forEach(function(r){
+    var s=r.aiSentiment||'';
+    if(s==='positive'||s==='referral')groups.positive.push(r);
+    else if(s==='question')groups.question.push(r);
+    else if(s==='negative'||s==='not_interested')groups.negative.push(r);
+    else if(s==='ooo'||s==='bounce')groups.other.push(r);
+    else groups.pending.push(r)});
+
+  /* Count unhandled */
+  var pendingCount=replies.filter(function(r){return r.replyStatus==='pending'}).length;
+
+  var h='<div class="pg-head"><h1>'+icon('mail',18)+' Replies';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+replies.length+' replies';
+  if(pendingCount)h+=' <span style="color:var(--amber);font-weight:600">('+pendingCount+' pending)</span>';
+  h+='</span></h1>';
+  h+='<button class="btn btn-go" onclick="TF.analyzeOutreachReplies()" style="font-size:12px;padding:6px 14px">'+icon('sparkle',11)+' Analyze Replies</button>';
+  h+='</div>';
+
+  if(!replies.length){
+    h+='<div class="empty-state" style="text-align:center;padding:60px 20px;color:var(--t3)">';
+    h+='<div style="font-size:40px;margin-bottom:12px">'+icon('mail',40)+'</div>';
+    h+='<p style="font-size:14px">No replies yet.</p>';
+    h+='<p style="font-size:12px;margin-top:8px">Replies will appear here after syncing your Instantly campaigns.</p>';
+    h+='</div>';
+    return h}
+
+  function renderReplyGroup(title,items,color,collapsed){
+    if(!items.length)return'';
+    var gh='<div class="outreach-reply-group">';
+    gh+='<div class="outreach-reply-group-head" style="border-left:3px solid '+color+'">';
+    gh+='<strong>'+title+'</strong> <span style="color:var(--t3);font-size:12px">('+items.length+')</span>';
+    gh+='</div>';
+    if(!collapsed){
+      items.forEach(function(r){
+        var lead=S.instantlyLeads.find(function(l){return l.id===r.leadId})||{};
+        var camp=S.instantlyCampaigns.find(function(c){return c.id===r.campaignId})||{};
+        var leadName=(lead.firstName||'')+' '+(lead.lastName||'');
+        if(!leadName.trim())leadName=r.fromEmail||'Unknown';
+        var snippet=(r.bodyText||r.body||'').substring(0,120).replace(/<[^>]*>/g,'');
+        var ts=r.timestampExt?timeAgo(r.timestampExt):'';
+        var statusCls=r.replyStatus==='replied'?'outreach-replied':(r.replyStatus==='dismissed'?'outreach-dismissed':'');
+
+        gh+='<div class="outreach-reply-card '+statusCls+'">';
+        gh+='<div class="outreach-reply-head">';
+        gh+='<span class="outreach-reply-name">'+esc(leadName.trim())+'</span>';
+        if(lead.companyName)gh+=' <span class="outreach-reply-company">'+esc(lead.companyName)+'</span>';
+        if(camp.name)gh+=' <span class="outreach-pill" style="font-size:10px">'+esc(camp.name)+'</span>';
+        gh+='<span class="outreach-reply-time">'+ts+'</span>';
+        gh+='</div>';
+        if(r.aiSummary)gh+='<div class="outreach-reply-summary">'+esc(r.aiSummary)+'</div>';
+        else gh+='<div class="outreach-reply-snippet">'+esc(snippet)+'</div>';
+        if(r.aiSentiment)gh+='<span class="outreach-sentiment outreach-sentiment-'+esc(r.aiSentiment)+'">'+esc(r.aiSentiment)+'</span>';
+
+        gh+='<div class="outreach-reply-actions">';
+        gh+='<button class="btn" onclick="event.stopPropagation();TF.openOutreachReply(\''+r.id+'\')" style="font-size:11px;padding:4px 10px">'+icon('mail',10)+' Reply</button>';
+        gh+='<button class="btn" onclick="event.stopPropagation();TF.draftOutreachReply(\''+r.id+'\')" style="font-size:11px;padding:4px 10px">'+icon('sparkle',10)+' AI Draft</button>';
+        if(r.aiSentiment==='positive'||r.aiSuggestedAction==='create_opportunity'){
+          gh+='<button class="btn btn-go" onclick="event.stopPropagation();TF.createOppFromReply(\''+r.id+'\')" style="font-size:11px;padding:4px 10px">'+icon('gem',10)+' Create Opp</button>'}
+        gh+='<button class="btn" onclick="event.stopPropagation();TF.dismissOutreachReply(\''+r.id+'\')" style="font-size:11px;padding:4px 10px;color:var(--t3)">Dismiss</button>';
+        gh+='</div>';
+        gh+='</div>'});
+    }
+    gh+='</div>';
+    return gh}
+
+  h+=renderReplyGroup('Positive',groups.positive,'var(--green)',false);
+  h+=renderReplyGroup('Questions',groups.question,'var(--amber)',false);
+  h+=renderReplyGroup('Needs Response',groups.pending,'var(--blue)',false);
+  h+=renderReplyGroup('Not Interested',groups.negative,'var(--red)',true);
+  h+=renderReplyGroup('Out of Office / Bounce',groups.other,'var(--t3)',true);
+  return h}
+
+/* ── Leads ── */
+function rOutreachLeads(){
+  var leads=S.instantlyLeads||[];
+  var filter=S.outreachFilter||'';
+
+  var h='<div class="pg-head"><h1>'+icon('users',18)+' Leads';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+leads.length+' leads</span>';
+  h+='</h1></div>';
+
+  /* Filter bar */
+  h+='<div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+  h+='<input type="text" class="edf" value="'+esc(filter)+'" placeholder="Search leads..." style="max-width:300px;font-size:12px" oninput="S.outreachFilter=this.value;render()">';
+  h+='<select class="edf" style="font-size:12px;padding:4px 8px" onchange="S._outreachCampaignFilter=this.value;render()">';
+  h+='<option value="">All Campaigns</option>';
+  (S.instantlyCampaigns||[]).forEach(function(c){
+    h+='<option value="'+c.id+'"'+(S._outreachCampaignFilter===c.id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='</select>';
+  h+='<select class="edf" style="font-size:12px;padding:4px 8px" onchange="S._outreachInterestFilter=this.value;render()">';
+  h+='<option value="">All Interest</option>';
+  ['positive','neutral','negative','not_interested'].forEach(function(s){
+    h+='<option value="'+s+'"'+(S._outreachInterestFilter===s?' selected':'')+'>'+s+'</option>'});
+  h+='</select>';
+  h+='</div>';
+
+  /* Filter leads */
+  var filtered=leads;
+  if(filter){
+    var q=filter.toLowerCase();
+    filtered=filtered.filter(function(l){
+      return(l.email+' '+l.firstName+' '+l.lastName+' '+l.companyName).toLowerCase().indexOf(q)!==-1})}
+  if(S._outreachCampaignFilter){
+    filtered=filtered.filter(function(l){return l.campaignId===S._outreachCampaignFilter})}
+  if(S._outreachInterestFilter){
+    filtered=filtered.filter(function(l){return l.interestStatus===S._outreachInterestFilter})}
+
+  if(!filtered.length){
+    h+='<div style="text-align:center;padding:40px;color:var(--t3)">No leads match filters.</div>';
+    return h}
+
+  h+='<div class="outreach-table-wrap"><table class="outreach-table">';
+  h+='<thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Campaign</th><th>Interest</th><th>Status</th><th>Links</th></tr></thead>';
+  h+='<tbody>';
+  filtered.slice(0,200).forEach(function(l){
+    var camp=S.instantlyCampaigns.find(function(c){return c.id===l.campaignId})||{};
+    var name=(l.firstName+' '+l.lastName).trim()||l.email;
+    var intCls=l.interestStatus==='positive'?'outreach-int-pos':(l.interestStatus==='negative'?'outreach-int-neg':'');
+
+    h+='<tr>';
+    h+='<td>'+esc(name)+'</td>';
+    h+='<td>'+esc(l.companyName)+'</td>';
+    h+='<td style="font-size:11px">'+esc(l.email)+'</td>';
+    h+='<td><span class="outreach-pill" style="font-size:10px">'+esc(camp.name||'—')+'</span></td>';
+    h+='<td><span class="'+intCls+'">'+esc(l.interestStatus||'—')+'</span></td>';
+    h+='<td>'+esc(l.leadStatus||'—')+'</td>';
+    h+='<td>';
+    if(l.opportunityId)h+='<span class="outreach-pill outreach-pill-linked" title="Linked to opportunity">'+icon('gem',10)+' Opp</span> ';
+    if(l.prospectCompanyId)h+='<span class="outreach-pill outreach-pill-linked" title="Linked to prospect">'+icon('users',10)+' Prospect</span>';
+    h+='</td>';
+    h+='</tr>'});
+  h+='</tbody></table></div>';
+  if(filtered.length>200)h+='<div style="text-align:center;padding:12px;color:var(--t3);font-size:12px">Showing 200 of '+filtered.length+' leads</div>';
+  return h}
+
+/* ── Accounts ── */
+function rOutreachAccounts(){
+  var accts=S.instantlyAccounts||[];
+  var h='<div class="pg-head"><h1>'+icon('activity',18)+' Sending Accounts';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+accts.length+' accounts</span>';
+  h+='</h1></div>';
+
+  if(!accts.length){
+    h+='<div class="empty-state" style="text-align:center;padding:60px 20px;color:var(--t3)">';
+    h+='<p style="font-size:14px">No sending accounts synced yet.</p>';
+    h+='</div>';
+    return h}
+
+  h+='<div class="outreach-card-grid">';
+  accts.forEach(function(a){
+    var statusCls=a.status==='active'?'outreach-status-active':(a.status==='paused'?'outreach-status-paused':'outreach-status-draft');
+    var warmupCls=a.warmupStatus==='active'?'outreach-warmup-on':'outreach-warmup-off';
+    var healthPct=a.healthScore||0;
+    var healthColor=healthPct>=80?'var(--green)':(healthPct>=50?'var(--amber)':'var(--red)');
+
+    h+='<div class="outreach-card outreach-acct-card">';
+    h+='<div class="outreach-card-head">';
+    h+='<span class="outreach-card-name" style="font-size:13px">'+esc(a.email)+'</span>';
+    h+='<span class="outreach-status '+statusCls+'">'+esc(a.status||'unknown')+'</span>';
+    h+='</div>';
+
+    h+='<div class="outreach-metrics-row">';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val" style="color:'+healthColor+'">'+healthPct+'</span><span class="outreach-metric-lbl">Health</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val">'+a.sentToday+'</span><span class="outreach-metric-lbl">Sent Today</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val">'+a.repliesToday+'</span><span class="outreach-metric-lbl">Replies</span></div>';
+    h+='<div class="outreach-metric"><span class="outreach-metric-val">'+a.dailyLimit+'</span><span class="outreach-metric-lbl">Daily Limit</span></div>';
+    h+='</div>';
+
+    h+='<div class="outreach-card-foot">';
+    h+='<span class="'+warmupCls+'">'+icon('activity',10)+' Warmup: '+(a.warmupStatus||'off')+'</span>';
+    h+='</div>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+/* ── Analytics ── */
+function rOutreachAnalytics(){
+  var camps=S.instantlyCampaigns||[];
+  var leads=S.instantlyLeads||[];
+  var emails=S.instantlyEmails||[];
+  var replies=emails.filter(function(e){return e.isReply&&e.direction==='inbound'});
+
+  var totalLeads=0,totalContacted=0,totalReplies=0,totalBounced=0;
+  camps.forEach(function(c){totalLeads+=c.leadsCount;totalContacted+=c.contactedCount;totalReplies+=c.repliesCount;totalBounced+=c.bouncedCount});
+  var overallReplyRate=totalContacted>0?((totalReplies/totalContacted)*100).toFixed(1):'0';
+  var oppsCreated=leads.filter(function(l){return!!l.opportunityId}).length;
+
+  var h='<div class="pg-head"><h1>'+icon('bar_chart',18)+' Outreach Analytics</h1></div>';
+
+  /* Metrics row */
+  h+='<div class="outreach-metrics-dash">';
+  h+=dashMet('Total Leads',totalLeads,'users');
+  h+=dashMet('Contacted',totalContacted,'send');
+  h+=dashMet('Replies',totalReplies,'mail');
+  h+=dashMet('Reply Rate',overallReplyRate+'%','activity');
+  h+=dashMet('Opps Created',oppsCreated,'gem');
+  h+=dashMet('Bounced',totalBounced,'alert');
+  h+='</div>';
+
+  /* Charts */
+  h+='<div class="outreach-charts-grid">';
+  h+='<div class="outreach-chart-card"><h3>Reply Rate by Campaign</h3><div style="height:250px"><canvas id="outreach-chart-reply-rate"></canvas></div></div>';
+  h+='<div class="outreach-chart-card"><h3>Sentiment Distribution</h3><div style="height:250px"><canvas id="outreach-chart-sentiment"></canvas></div></div>';
+  h+='<div class="outreach-chart-card"><h3>Campaign Volume</h3><div style="height:250px"><canvas id="outreach-chart-volume"></canvas></div></div>';
+  h+='<div class="outreach-chart-card"><h3>Conversion Funnel</h3><div style="height:250px"><canvas id="outreach-chart-funnel"></canvas></div></div>';
+  h+='</div>';
+  return h}
+
+function initOutreachCharts(){
+  var camps=S.instantlyCampaigns||[];
+  var emails=S.instantlyEmails||[];
+  var replies=emails.filter(function(e){return e.isReply&&e.direction==='inbound'});
+
+  /* Reply Rate by Campaign (horizontal bar) */
+  var rrEl=document.getElementById('outreach-chart-reply-rate');
+  if(rrEl&&camps.length){
+    var labels=camps.map(function(c){return c.name||'?'});
+    var rates=camps.map(function(c){return c.contactedCount>0?((c.repliesCount/c.contactedCount)*100):0});
+    killChart('outreach-chart-reply-rate');
+    mkHBar('outreach-chart-reply-rate',labels,rates,'Reply Rate %','rgba(79,70,229,0.7)')}
+
+  /* Sentiment Distribution (donut) */
+  var sEl=document.getElementById('outreach-chart-sentiment');
+  if(sEl&&replies.length){
+    var sentCounts={};
+    replies.forEach(function(r){var s=r.aiSentiment||'unanalyzed';sentCounts[s]=(sentCounts[s]||0)+1});
+    var sLabels=Object.keys(sentCounts);
+    var sVals=sLabels.map(function(k){return sentCounts[k]});
+    var sColors=sLabels.map(function(k){
+      if(k==='positive')return'rgba(16,185,129,0.8)';
+      if(k==='negative'||k==='not_interested')return'rgba(239,68,68,0.8)';
+      if(k==='question')return'rgba(245,158,11,0.8)';
+      if(k==='ooo'||k==='bounce')return'rgba(156,163,175,0.6)';
+      return'rgba(99,102,241,0.6)'});
+    killChart('outreach-chart-sentiment');
+    mkDonut('outreach-chart-sentiment',sLabels,sVals,sColors)}
+
+  /* Campaign Volume (bar) */
+  var vEl=document.getElementById('outreach-chart-volume');
+  if(vEl&&camps.length){
+    var vLabels=camps.map(function(c){return c.name||'?'});
+    var vLeads=camps.map(function(c){return c.leadsCount});
+    var vContacted=camps.map(function(c){return c.contactedCount});
+    killChart('outreach-chart-volume');
+    var ctx=vEl.getContext('2d');
+    new Chart(ctx,{type:'bar',data:{labels:vLabels,datasets:[
+      {label:'Leads',data:vLeads,backgroundColor:'rgba(99,102,241,0.5)'},
+      {label:'Contacted',data:vContacted,backgroundColor:'rgba(16,185,129,0.5)'}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#aaa',font:{size:11}}}},scales:{x:{ticks:{color:'#888',font:{size:10}}},y:{ticks:{color:'#888'}}}}})}
+
+  /* Conversion Funnel (horizontal bar) */
+  var fEl=document.getElementById('outreach-chart-funnel');
+  if(fEl){
+    var totalLeads=0,totalContacted=0,totalReplies=0,totalPositive=0,totalOpps=0;
+    camps.forEach(function(c){totalLeads+=c.leadsCount;totalContacted+=c.contactedCount;totalReplies+=c.repliesCount});
+    totalPositive=replies.filter(function(r){return r.aiSentiment==='positive'||r.aiSentiment==='referral'}).length;
+    totalOpps=(S.instantlyLeads||[]).filter(function(l){return!!l.opportunityId}).length;
+    killChart('outreach-chart-funnel');
+    mkHBar('outreach-chart-funnel',['Leads','Contacted','Replies','Positive','Opportunities'],[totalLeads,totalContacted,totalReplies,totalPositive,totalOpps],'Conversion Funnel','rgba(79,70,229,0.7)')}}
+
+/* Helper: dismiss outreach reply */
+function dismissOutreachReply(emailId){
+  dbEditInstantlyEmail(emailId,{replyStatus:'dismissed'}).then(function(){
+    var e=S.instantlyEmails.find(function(x){return x.id===emailId});
+    if(e)e.replyStatus='dismissed';
+    render();toast('Reply dismissed','ok')})}
+
+/* Helper: outreach reply count for badges */
+function getOutreachReplyCount(){
+  return(S.instantlyEmails||[]).filter(function(e){return e.isReply&&e.direction==='inbound'&&e.replyStatus==='pending'}).length}
 
