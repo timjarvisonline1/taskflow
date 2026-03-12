@@ -5207,3 +5207,141 @@ async function saveInstantlyCampaignConfig(id){
   var client=(gel('ic-client')||{}).value||'';
   var ok=await dbEditInstantlyCampaign(id,{defaultOppType:oppType,mappedClient:client});
   if(ok){toast('Campaign config saved','ok');openInstantlyCampaignConfig(id)}}
+
+/* ═══════════ INSTANTLY LEAD DETAIL MODAL ═══════════ */
+
+function openInstantlyLeadDetail(leadId){
+  var lead=(S.instantlyLeads||[]).find(function(l){return l.id===leadId});
+  if(!lead)return;
+  S._leadDetailTab=S._leadDetailTab||'overview';
+  var camp=(S.instantlyCampaigns||[]).find(function(c){return c.id===lead.campaignId})||{};
+  var name=((lead.firstName||'')+' '+(lead.lastName||'')).trim()||lead.email;
+
+  var h='<div class="modal-inner" style="max-width:700px;width:100%">';
+  /* Header */
+  h+='<div class="modal-head" style="display:flex;align-items:center;justify-content:space-between">';
+  h+='<div>';
+  h+='<h2 style="margin:0;font-size:16px">'+icon('users',16)+' '+esc(name)+'</h2>';
+  h+='<div style="font-size:11px;color:var(--t3);margin-top:2px">';
+  if(lead.email)h+=esc(lead.email);
+  if(lead.companyName)h+=' · '+esc(lead.companyName);
+  if(lead.title)h+=' · '+esc(lead.title);
+  h+='</div></div>';
+  h+='<button class="modal-x" onclick="closeModal()">×</button>';
+  h+='</div>';
+
+  /* Tabs */
+  var tabs=[['overview','Overview'],['activity','Activity'],['variables','Variables']];
+  h+=rEntityTabs(tabs,S._leadDetailTab,'setLeadDetailTab');
+
+  /* Tab content */
+  h+='<div id="lead-detail-body" style="padding:16px;max-height:60vh;overflow-y:auto">';
+  h+=rLeadDetailTabContent(lead,camp);
+  h+='</div></div>';
+  openModalRaw(h)}
+
+function setLeadDetailTab(tab){
+  S._leadDetailTab=tab;
+  var el=gel('lead-detail-body');
+  if(el)el.innerHTML=rLeadDetailTabContent(
+    (S.instantlyLeads||[]).find(function(l){return l.id===S._leadDetailId})||{},
+    (S.instantlyCampaigns||[]).find(function(c){return c.id===(S.instantlyLeads.find(function(l){return l.id===S._leadDetailId})||{}).campaignId})||{})}
+
+function rLeadDetailTabContent(lead,camp){
+  var tab=S._leadDetailTab||'overview';
+  if(tab==='overview')return rLeadTabOverview(lead,camp);
+  if(tab==='activity')return rLeadTabActivity(lead);
+  if(tab==='variables')return rLeadTabVariables(lead);
+  return''}
+
+function rLeadTabOverview(lead,camp){
+  var h='';
+  /* Contact info */
+  h+='<div class="ic-section-label">Contact Information</div>';
+  h+='<div class="ic-config-grid" style="gap:8px">';
+  var fields=[['Name',((lead.firstName||'')+' '+(lead.lastName||'')).trim()],['Email',lead.email],['Company',lead.companyName],
+    ['Title',lead.title],['Phone',lead.phone],['Website',lead.website]];
+  fields.forEach(function(f){
+    if(f[1])h+='<div class="ic-config-item"><div class="ic-config-lbl">'+f[0]+'</div><div class="ic-config-val">'+esc(f[1])+'</div></div>'});
+  h+='</div>';
+
+  /* Engagement metrics */
+  h+='<div class="ic-section-label" style="margin-top:16px">Engagement</div>';
+  h+='<div class="outreach-metrics-row" style="margin-bottom:12px">';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+(lead.emailOpenCount||0)+'</span><span class="outreach-metric-lbl">Opens</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+(lead.emailReplyCount||0)+'</span><span class="outreach-metric-lbl">Replies</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+(lead.emailClickCount||0)+'</span><span class="outreach-metric-lbl">Clicks</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+(lead.lastOpen?timeAgo(lead.lastOpen):'—')+'</span><span class="outreach-metric-lbl">Last Open</span></div>';
+  h+='<div class="outreach-metric"><span class="outreach-metric-val">'+(lead.lastReply?timeAgo(lead.lastReply):'—')+'</span><span class="outreach-metric-lbl">Last Reply</span></div>';
+  h+='</div>';
+
+  /* Status row */
+  h+='<div class="ic-section-label" style="margin-top:16px">Status</div>';
+  h+='<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px">';
+  /* Interest status dropdown */
+  h+='<div><span style="font-size:11px;color:var(--t3)">Interest: </span>';
+  h+='<select class="edf" style="font-size:11px;padding:3px 6px" onchange="TF.updateLeadInterestStatus(\''+lead.id+'\',this.value)">';
+  ['','positive','neutral','negative','not_interested'].forEach(function(s){
+    h+='<option value="'+s+'"'+(lead.interestStatus===s?' selected':'')+'>'+(s||'None')+'</option>'});
+  h+='</select></div>';
+  if(lead.leadScore)h+='<span class="lead-score-badge lead-score-'+lead.leadScore.toLowerCase()+'">Score: '+esc(lead.leadScore)+'</span>';
+  if(lead.verificationStatus)h+='<span class="outreach-pill" style="font-size:10px">Verified: '+esc(lead.verificationStatus)+'</span>';
+  if(lead.isWebsiteVisitor)h+='<span class="outreach-pill" style="font-size:10px;background:rgba(99,102,241,0.1);color:var(--blue)">'+icon('activity',8)+' Website Visitor</span>';
+  if(lead.leadStatus)h+='<span class="outreach-pill" style="font-size:10px">'+esc(lead.leadStatus)+'</span>';
+  h+='</div>';
+
+  /* Campaign */
+  h+='<div class="ic-section-label" style="margin-top:16px">Campaign</div>';
+  h+='<div style="font-size:12px;color:var(--t2)"><span class="outreach-pill">'+esc(camp.name||'—')+'</span></div>';
+
+  /* Linked records */
+  h+='<div class="ic-section-label" style="margin-top:16px">Linked Records</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  if(lead.opportunityId)h+='<button class="btn btn-xs btn-go" onclick="closeModal();TF.openDetail(\''+lead.opportunityId+'\')">'+icon('gem',10)+' View Opportunity</button>';
+  if(lead.prospectCompanyId)h+='<button class="btn btn-xs" onclick="closeModal();TF.openProspectCompany(\''+lead.prospectCompanyId+'\')">'+icon('users',10)+' View Prospect</button>';
+  if(!lead.opportunityId&&!lead.prospectCompanyId)h+='<span style="font-size:11px;color:var(--t3)">No linked records yet</span>';
+  h+='</div>';
+  return h}
+
+function rLeadTabActivity(lead){
+  /* Show all emails for this lead, chronologically */
+  var emails=(S.instantlyEmails||[]).filter(function(e){return e.leadId===lead.id});
+  emails.sort(function(a,b){return(a.timestampExt||0)-(b.timestampExt||0)});
+
+  var h='<div class="ic-section-label">Email Activity ('+emails.length+')</div>';
+  if(!emails.length){
+    h+='<div style="padding:20px;text-align:center;color:var(--t3);font-size:12px">No email activity found</div>';
+    return h}
+
+  h+='<div class="lead-timeline">';
+  emails.forEach(function(e){
+    var isOut=e.direction==='outbound'||!e.isReply;
+    var dirIcon=isOut?'send':'mail';
+    var dirLabel=isOut?'Sent':'Received';
+    var snippet=(e.bodyText||e.body||'').replace(/<[^>]*>/g,'').substring(0,150);
+
+    h+='<div class="lead-timeline-item">';
+    h+='<div class="lead-timeline-icon lead-timeline-icon-'+(isOut?'out':'in')+'">'+icon(dirIcon,12)+'</div>';
+    h+='<div class="lead-timeline-content">';
+    h+='<div class="lead-timeline-head">';
+    h+='<span style="font-weight:600;font-size:11px">'+dirLabel+'</span>';
+    h+='<span style="font-size:10px;color:var(--t3);margin-left:8px">'+(e.timestampExt?timeAgo(e.timestampExt):'')+'</span>';
+    if(e.aiSentiment)h+='<span class="outreach-sentiment outreach-sentiment-'+esc(e.aiSentiment)+'" style="font-size:9px;margin-left:6px">'+esc(e.aiSentiment)+'</span>';
+    h+='</div>';
+    if(e.subject)h+='<div style="font-size:11px;color:var(--t2);font-weight:500;margin-top:2px">'+esc(e.subject)+'</div>';
+    h+='<div style="font-size:11px;color:var(--t3);margin-top:3px;line-height:1.4">'+esc(snippet)+'</div>';
+    h+='</div></div>'});
+  h+='</div>';
+  return h}
+
+function rLeadTabVariables(lead){
+  var vars=lead.customVariables||{};
+  var keys=Object.keys(vars);
+  var h='<div class="ic-section-label">Custom Variables ('+keys.length+')</div>';
+  if(!keys.length){
+    h+='<div style="padding:20px;text-align:center;color:var(--t3);font-size:12px">No custom variables</div>';
+    return h}
+  h+='<table class="outreach-table" style="font-size:11px"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>';
+  keys.forEach(function(k){h+='<tr><td style="font-weight:600">'+esc(k)+'</td><td>'+esc(String(vars[k]||''))+'</td></tr>'});
+  h+='</tbody></table>';
+  return h}

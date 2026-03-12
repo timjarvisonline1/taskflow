@@ -137,6 +137,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   analyzeOutreachReplies:analyzeOutreachReplies,
   createOppFromReply:createOppFromReply,
   openThread:openThread,closeThread:closeThread,setInboxFilter:setInboxFilter,
+  updateLeadInterestStatus:updateLeadInterestStatus,setLeadSort:setLeadSort,openLeadDetail:openLeadDetail,
+  openInstantlyLeadDetail:openInstantlyLeadDetail,setLeadDetailTab:setLeadDetailTab,
   /* Meetings */
   openMeeting:openMeeting,closeMeeting:closeMeeting,setMeetingSearch:setMeetingSearch,setMeetingsPage:setMeetingsPage,
   setMeetingCrm:setMeetingCrm,createTaskFromMeetingAction:createTaskFromMeetingAction,

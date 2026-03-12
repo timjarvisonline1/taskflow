@@ -8556,28 +8556,68 @@ function rOutreachLeads(){
   if(S._outreachInterestFilter){
     filtered=filtered.filter(function(l){return l.interestStatus===S._outreachInterestFilter})}
 
+  /* Sort */
+  var sortCol=S._leadSortCol||'name';
+  var sortAsc=S._leadSortAsc!==false;
+  filtered=filtered.slice().sort(function(a,b){
+    var va,vb;
+    switch(sortCol){
+      case'name':va=((a.firstName||'')+' '+(a.lastName||'')).trim().toLowerCase();vb=((b.firstName||'')+' '+(b.lastName||'')).trim().toLowerCase();break;
+      case'company':va=(a.companyName||'').toLowerCase();vb=(b.companyName||'').toLowerCase();break;
+      case'opens':va=a.emailOpenCount||0;vb=b.emailOpenCount||0;break;
+      case'replies':va=a.emailReplyCount||0;vb=b.emailReplyCount||0;break;
+      case'clicks':va=a.emailClickCount||0;vb=b.emailClickCount||0;break;
+      case'lastActivity':va=a.lastReply||a.lastOpen||a.lastClick||0;vb=b.lastReply||b.lastOpen||b.lastClick||0;break;
+      default:va=(a.firstName||'').toLowerCase();vb=(b.firstName||'').toLowerCase()}
+    if(va<vb)return sortAsc?-1:1;if(va>vb)return sortAsc?1:-1;return 0});
+
   if(!filtered.length){
     h+='<div style="text-align:center;padding:40px;color:var(--t3)">No leads match filters.</div>';
     return h}
 
+  function sortHdr(label,col){
+    var arrow=S._leadSortCol===col?(S._leadSortAsc?' ↑':' ↓'):'';
+    return'<th class="lead-sort-th" onclick="TF.setLeadSort(\''+col+'\')">'+label+arrow+'</th>'}
+
   h+='<div class="outreach-table-wrap"><table class="outreach-table">';
-  h+='<thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Campaign</th><th>Interest</th><th>Status</th><th>Links</th></tr></thead>';
+  h+='<thead><tr>'+sortHdr('Name','name')+sortHdr('Company','company')+'<th>Email</th><th>Campaign</th>';
+  h+='<th>Interest</th>'+sortHdr('Opens','opens')+sortHdr('Replies','replies')+sortHdr('Clicks','clicks');
+  h+=sortHdr('Last Activity','lastActivity')+'<th>Score</th><th>Links</th></tr></thead>';
   h+='<tbody>';
   filtered.slice(0,200).forEach(function(l){
     var camp=S.instantlyCampaigns.find(function(c){return c.id===l.campaignId})||{};
     var name=(l.firstName+' '+l.lastName).trim()||l.email;
-    var intCls=l.interestStatus==='positive'?'outreach-int-pos':(l.interestStatus==='negative'?'outreach-int-neg':'');
+    var intCls=l.interestStatus==='positive'?'outreach-int-pos':(l.interestStatus==='negative'||l.interestStatus==='not_interested'?'outreach-int-neg':'');
 
-    h+='<tr>';
-    h+='<td>'+esc(name)+'</td>';
+    /* Engagement heat color */
+    var now=new Date();
+    var lastAct=l.lastReply||l.lastOpen||l.lastClick;
+    var daysSince=lastAct?Math.floor((now-lastAct)/(1000*60*60*24)):999;
+    var heatCls=daysSince<7?'lead-heat-hot':(daysSince<30?'lead-heat-warm':(lastAct?'lead-heat-cold':''));
+
+    h+='<tr class="lead-row '+heatCls+'" onclick="TF.openLeadDetail(\''+l.id+'\')" style="cursor:pointer">';
+    h+='<td><strong>'+esc(name)+'</strong>';
+    if(l.title)h+='<div style="font-size:10px;color:var(--t3)">'+esc(l.title)+'</div>';
+    h+='</td>';
     h+='<td>'+esc(l.companyName)+'</td>';
     h+='<td style="font-size:11px">'+esc(l.email)+'</td>';
     h+='<td><span class="outreach-pill" style="font-size:10px">'+esc(camp.name||'—')+'</span></td>';
-    h+='<td><span class="'+intCls+'">'+esc(l.interestStatus||'—')+'</span></td>';
-    h+='<td>'+esc(l.leadStatus||'—')+'</td>';
+    /* Interest status dropdown */
+    h+='<td><select class="edf lead-interest-select '+intCls+'" onchange="event.stopPropagation();TF.updateLeadInterestStatus(\''+l.id+'\',this.value)" style="font-size:10px;padding:2px 4px">';
+    ['','positive','neutral','negative','not_interested'].forEach(function(s){
+      h+='<option value="'+s+'"'+(l.interestStatus===s?' selected':'')+'>'+(s||'—')+'</option>'});
+    h+='</select></td>';
+    h+='<td style="text-align:center">'+(l.emailOpenCount||'—')+'</td>';
+    h+='<td style="text-align:center">'+(l.emailReplyCount||'—')+'</td>';
+    h+='<td style="text-align:center">'+(l.emailClickCount||'—')+'</td>';
+    h+='<td style="font-size:10px;color:var(--t3)">'+(lastAct?timeAgo(lastAct):'—')+'</td>';
+    /* Lead score badge */
+    var scoreCls=l.leadScore==='High'?'lead-score-high':(l.leadScore==='Medium'?'lead-score-med':(l.leadScore==='Low'?'lead-score-low':''));
+    h+='<td>'+(l.leadScore?'<span class="lead-score-badge '+scoreCls+'">'+esc(l.leadScore)+'</span>':'—')+'</td>';
     h+='<td>';
-    if(l.opportunityId)h+='<span class="outreach-pill outreach-pill-linked" title="Linked to opportunity">'+icon('gem',10)+' Opp</span> ';
-    if(l.prospectCompanyId)h+='<span class="outreach-pill outreach-pill-linked" title="Linked to prospect">'+icon('users',10)+' Prospect</span>';
+    if(l.opportunityId)h+='<span class="outreach-pill outreach-pill-linked" title="Linked to opportunity">'+icon('gem',10)+'</span> ';
+    if(l.prospectCompanyId)h+='<span class="outreach-pill outreach-pill-linked" title="Linked to prospect">'+icon('users',10)+'</span>';
+    if(l.isWebsiteVisitor)h+='<span class="outreach-pill" title="Website visitor" style="background:rgba(99,102,241,0.1);color:var(--blue);font-size:9px">'+icon('activity',8)+'</span>';
     h+='</td>';
     h+='</tr>'});
   h+='</tbody></table></div>';

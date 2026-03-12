@@ -360,6 +360,10 @@ async function syncInstantly(userId) {
 
     // ═══════════ 8. SYNC LEADS (N paginated API calls — limited to 1 page per campaign) ═══════════
     try {
+      // Check if enhanced lead columns exist
+      const { error: leadColTest } = await client.from('instantly_leads').select('email_open_count').eq('user_id', userId).limit(1);
+      const hasLeadEnhanced = !leadColTest;
+
       for (const instantlyCampaignId of campaignIds) {
         const supabaseCampaignId = campaignMap[instantlyCampaignId];
         try {
@@ -391,6 +395,22 @@ async function syncInstantly(userId) {
               metadata: JSON.stringify({ campaign_instantly_id: instantlyCampaignId }),
               synced_at: new Date().toISOString()
             };
+
+            // Add enhanced engagement fields if columns exist
+            if (hasLeadEnhanced) {
+              row.email_open_count = lead.email_open_count || lead.open_count || 0;
+              row.email_reply_count = lead.email_reply_count || lead.reply_count || 0;
+              row.email_click_count = lead.email_click_count || lead.click_count || 0;
+              if (lead.timestamp_last_open) row.timestamp_last_open = lead.timestamp_last_open;
+              if (lead.timestamp_last_reply) row.timestamp_last_reply = lead.timestamp_last_reply;
+              if (lead.timestamp_last_click) row.timestamp_last_click = lead.timestamp_last_click;
+              if (lead.timestamp_last_interest_change) row.timestamp_last_interest_change = lead.timestamp_last_interest_change;
+              row.lead_score = lead.pl_value_lead || lead.lead_score || '';
+              row.is_website_visitor = lead.is_website_visitor === true || lead.is_website_visitor === 1;
+              row.last_step_id = lead.last_step_id || '';
+              row.last_step_from = lead.last_step_from || '';
+              row.verification_status = lead.verification_status || '';
+            }
 
             const { error } = await client
               .from('instantly_leads')

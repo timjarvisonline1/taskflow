@@ -1350,6 +1350,13 @@ async function loadInstantlyLeads(){
         title:r.title||'',interestStatus:r.interest_status||'',leadStatus:r.lead_status||'',
         prospectCompanyId:r.prospect_company_id||'',prospectId:r.prospect_id||'',
         opportunityId:r.opportunity_id||'',customVariables:r.custom_variables||{},
+        emailOpenCount:r.email_open_count||0,emailReplyCount:r.email_reply_count||0,
+        emailClickCount:r.email_click_count||0,
+        lastOpen:r.timestamp_last_open?new Date(r.timestamp_last_open):null,
+        lastReply:r.timestamp_last_reply?new Date(r.timestamp_last_reply):null,
+        lastClick:r.timestamp_last_click?new Date(r.timestamp_last_click):null,
+        leadScore:r.lead_score||'',isWebsiteVisitor:!!r.is_website_visitor,
+        verificationStatus:r.verification_status||'',
         metadata:r.metadata||{},syncedAt:r.synced_at,createdAt:r.created_at}});
   }catch(e){console.error('loadInstantlyLeads:',e)}}
 
@@ -1559,6 +1566,36 @@ function setInboxFilter(key,val){
   else if(key==='sentiment')S.outreachInboxSentiment=val;
   else if(key==='unread')S.outreachInboxUnreadOnly=val==='true';
   render()}
+
+/* ═══════════ INSTANTLY: LEAD MANAGEMENT ═══════════ */
+
+async function updateLeadInterestStatus(leadId,status){
+  var lead=(S.instantlyLeads||[]).find(function(l){return l.id===leadId});
+  if(!lead){toast('Lead not found','warn');return}
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+    /* Get the campaign instantly_id for the API call */
+    var camp=(S.instantlyCampaigns||[]).find(function(c){return c.id===lead.campaignId})||{};
+    var resp=await fetch('/api/instantly/lead-action',{method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({leadEmail:lead.email,campaignId:camp.instantlyId||'',interestStatus:status})});
+    var result=await resp.json();
+    if(result.ok){
+      lead.interestStatus=status;
+      await _sb.from('instantly_leads').update({interest_status:status}).eq('id',leadId);
+      render();toast('Interest status updated','ok')}
+    else{toast('Update failed: '+(result.error||'Unknown'),'warn')}
+  }catch(e){toast('Error: '+e.message,'warn')}}
+
+function setLeadSort(col){
+  if(S._leadSortCol===col)S._leadSortAsc=!S._leadSortAsc;
+  else{S._leadSortCol=col;S._leadSortAsc=true}
+  render()}
+
+function openLeadDetail(leadId){
+  S._leadDetailId=leadId;
+  openInstantlyLeadDetail(leadId)}
 
 /* ═══════════ INSTANTLY: ANALYZE REPLIES ═══════════ */
 async function analyzeOutreachReplies(){
