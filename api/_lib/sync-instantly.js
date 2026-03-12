@@ -123,6 +123,90 @@ async function syncInstantly(userId) {
       }
     } catch (e) { console.error('Campaign analytics sync error:', e.message); }
 
+    // ═══════════ 2b. SYNC CAMPAIGN ANALYTICS OVERVIEW (pipeline data) ═══════════
+    try {
+      const campaignIds = Object.keys(campaignMap);
+      if (campaignIds.length) {
+        const idsParam = campaignIds.map(function(id) { return 'ids=' + encodeURIComponent(id); }).join('&');
+        const overviewData = await apiFetch(
+          INSTANTLY_BASE + '/campaigns/analytics/overview?' + idsParam,
+          { headers: headers }
+        );
+        // Overview returns aggregate or per-campaign data
+        const overviewEntries = Array.isArray(overviewData) ? overviewData : (overviewData.items || overviewData.data || [overviewData]);
+        for (const o of overviewEntries) {
+          const cId = o.campaign_id || o.id;
+          const supaId = cId ? campaignMap[cId] : null;
+          // If overview is aggregate (no campaign_id), update all campaigns proportionally
+          // If per-campaign, update individually
+          const updateData = {
+            open_count: o.open_count || o.open_count_unique || 0,
+            click_count: o.link_click_count || o.link_click_count_unique || 0,
+            unsubscribed_count: o.unsubscribed_count || 0,
+            completed_count: o.completed_count || 0,
+            total_opportunities: o.total_opportunities || 0,
+            total_opportunity_value: o.total_opportunity_value || 0,
+            total_interested: o.total_interested || 0,
+            total_meeting_booked: o.total_meeting_booked || 0,
+            total_meeting_completed: o.total_meeting_completed || 0,
+            total_closed: o.total_closed || 0,
+            synced_at: new Date().toISOString()
+          };
+          if (supaId) {
+            await client.from('instantly_campaigns').update(updateData).eq('id', supaId);
+            stats.updated++;
+          }
+        }
+      }
+    } catch (e) { console.error('Campaign overview analytics sync error:', e.message); }
+
+    // ═══════════ 2c. SYNC DAILY CAMPAIGN ANALYTICS (time-series) ═══════════
+    try {
+      const campaignIds = Object.keys(campaignMap);
+      if (campaignIds.length) {
+        // Fetch last 90 days of daily analytics
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 90);
+        const startStr = startDate.toISOString().split('T')[0];
+
+        for (const instantlyCampaignId of campaignIds) {
+          const supabaseCampaignId = campaignMap[instantlyCampaignId];
+          try {
+            const dailyData = await apiFetch(
+              INSTANTLY_BASE + '/campaigns/analytics/daily?campaign_id=' +
+              encodeURIComponent(instantlyCampaignId) + '&start_date=' + startStr,
+              { headers: headers }
+            );
+            const dailyEntries = Array.isArray(dailyData) ? dailyData : (dailyData.items || dailyData.data || []);
+            for (const d of dailyEntries) {
+              if (!d.date) continue;
+              const row = {
+                user_id: userId,
+                campaign_id: supabaseCampaignId,
+                date: d.date,
+                sent: d.sent || 0,
+                contacted: d.contacted || 0,
+                new_leads_contacted: d.new_leads_contacted || 0,
+                opened: d.opened || 0,
+                unique_opened: d.unique_opened || 0,
+                replies: d.replies || 0,
+                unique_replies: d.unique_replies || 0,
+                clicks: d.clicks || 0,
+                unique_clicks: d.unique_clicks || 0,
+                bounced: d.bounced || 0,
+                opportunities: d.opportunities || d.unique_opportunities || 0,
+                synced_at: new Date().toISOString()
+              };
+              const { error } = await client
+                .from('instantly_analytics_daily')
+                .upsert(row, { onConflict: 'user_id,campaign_id,date' });
+              if (error) { stats.skipped++; } else { stats.updated++; }
+            }
+          } catch (e) { console.error('Daily analytics sync error for campaign ' + instantlyCampaignId + ':', e.message); }
+        }
+      }
+    } catch (e) { console.error('Daily analytics sync error:', e.message); }
+
     // ═══════════ 3. SYNC LEADS (per campaign) ═══════════
     for (const instantlyCampaignId of Object.keys(campaignMap)) {
       const supabaseCampaignId = campaignMap[instantlyCampaignId];

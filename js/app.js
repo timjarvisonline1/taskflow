@@ -130,7 +130,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   threadCrmClientChange:threadCrmClientChange,threadCrmSave:threadCrmSave,threadCrmNoneChange:threadCrmNoneChange,
   /* Outreach / Instantly */
   openInstantlyCampaignConfig:openInstantlyCampaignConfig,saveInstantlyCampaignConfig:saveInstantlyCampaignConfig,
-  dismissOutreachReply:dismissOutreachReply,getOutreachReplyCount:getOutreachReplyCount,
+  dismissOutreachReply:dismissOutreachReply,getOutreachReplyCount:getOutreachReplyCount,setOutreachAnalyticsDays:setOutreachAnalyticsDays,
   openOutreachReply:openOutreachReply,sendOutreachReply:sendOutreachReply,
   draftOutreachReply:draftOutreachReply,
   analyzeOutreachReplies:analyzeOutreachReplies,

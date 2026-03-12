@@ -135,8 +135,9 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   prospectCompanies:[],prospects:[],pcSort:'name',pSort:'name',
   _ecCandidates:[],
   clientTab:'overview',endClientTab:'overview',opportunityTab:'overview',
-  instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],
-  outreachSub:'campaigns',outreachFilter:'',outreachBulkMode:false,outreachBulkSelected:{},_outreachAnalyzing:false};
+  instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],instantlyAnalyticsDaily:[],
+  outreachSub:'campaigns',outreachFilter:'',outreachBulkMode:false,outreachBulkSelected:{},_outreachAnalyzing:false,
+  _outreachAnalyticsDays:30};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -1321,6 +1322,11 @@ async function loadInstantlyCampaigns(){
         leadsCount:r.leads_count||0,contactedCount:r.contacted_count||0,
         repliesCount:r.replies_count||0,bouncedCount:r.bounced_count||0,
         openRate:r.open_rate||0,replyRate:r.reply_rate||0,
+        openCount:r.open_count||0,clickCount:r.click_count||0,
+        unsubscribedCount:r.unsubscribed_count||0,completedCount:r.completed_count||0,
+        totalOpportunities:r.total_opportunities||0,totalOpportunityValue:r.total_opportunity_value||0,
+        totalInterested:r.total_interested||0,totalMeetingBooked:r.total_meeting_booked||0,
+        totalMeetingCompleted:r.total_meeting_completed||0,totalClosed:r.total_closed||0,
         metadata:r.metadata||{},syncedAt:r.synced_at,createdAt:r.created_at}});
   }catch(e){console.error('loadInstantlyCampaigns:',e)}}
 
@@ -1381,8 +1387,23 @@ async function loadInstantlyAccounts(){
         syncedAt:r.synced_at,createdAt:r.created_at}});
   }catch(e){console.error('loadInstantlyAccounts:',e)}}
 
+async function loadInstantlyAnalyticsDaily(){
+  try{
+    var cutoff=new Date();cutoff.setDate(cutoff.getDate()-90);
+    var res=await _sb.from('instantly_analytics_daily').select('*')
+      .gte('date',cutoff.toISOString().split('T')[0]).order('date',{ascending:true});
+    if(res.error){console.error('loadInstantlyAnalyticsDaily:',res.error);return}
+    S.instantlyAnalyticsDaily=(res.data||[]).map(function(r){
+      return{id:r.id,campaignId:r.campaign_id,date:r.date,
+        sent:r.sent||0,contacted:r.contacted||0,newLeadsContacted:r.new_leads_contacted||0,
+        opened:r.opened||0,uniqueOpened:r.unique_opened||0,
+        replies:r.replies||0,uniqueReplies:r.unique_replies||0,
+        clicks:r.clicks||0,uniqueClicks:r.unique_clicks||0,
+        bounced:r.bounced||0,opportunities:r.opportunities||0}});
+  }catch(e){console.error('loadInstantlyAnalyticsDaily:',e)}}
+
 async function loadInstantlyData(){
-  await Promise.all([loadInstantlyCampaigns(),loadInstantlyLeads(),loadInstantlyEmails(),loadInstantlyAccounts()])}
+  await Promise.all([loadInstantlyCampaigns(),loadInstantlyLeads(),loadInstantlyEmails(),loadInstantlyAccounts(),loadInstantlyAnalyticsDaily()])}
 
 async function dbEditInstantlyCampaign(id,data){
   var upd={};

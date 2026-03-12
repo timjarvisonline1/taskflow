@@ -8515,40 +8515,121 @@ function rOutreachAnalytics(){
   var camps=S.instantlyCampaigns||[];
   var leads=S.instantlyLeads||[];
   var emails=S.instantlyEmails||[];
+  var daily=S.instantlyAnalyticsDaily||[];
   var replies=emails.filter(function(e){return e.isReply&&e.direction==='inbound'});
+  var days=S._outreachAnalyticsDays||30;
 
-  var totalLeads=0,totalContacted=0,totalReplies=0,totalBounced=0;
-  camps.forEach(function(c){totalLeads+=c.leadsCount;totalContacted+=c.contactedCount;totalReplies+=c.repliesCount;totalBounced+=c.bouncedCount});
+  /* Aggregate campaign metrics */
+  var totalLeads=0,totalContacted=0,totalReplies=0,totalBounced=0,totalOpens=0,totalClicks=0;
+  var totalInterested=0,totalMeetingBooked=0,totalMeetingCompleted=0,totalClosed=0,totalOppValue=0,totalOpps=0;
+  camps.forEach(function(c){
+    totalLeads+=c.leadsCount;totalContacted+=c.contactedCount;totalReplies+=c.repliesCount;totalBounced+=c.bouncedCount;
+    totalOpens+=c.openCount||0;totalClicks+=c.clickCount||0;
+    totalInterested+=c.totalInterested||0;totalMeetingBooked+=c.totalMeetingBooked||0;
+    totalMeetingCompleted+=c.totalMeetingCompleted||0;totalClosed+=c.totalClosed||0;
+    totalOppValue+=c.totalOpportunityValue||0;totalOpps+=c.totalOpportunities||0});
   var overallReplyRate=totalContacted>0?((totalReplies/totalContacted)*100).toFixed(1):'0';
-  var oppsCreated=leads.filter(function(l){return!!l.opportunityId}).length;
+  var overallOpenRate=totalContacted>0?((totalOpens/totalContacted)*100).toFixed(1):'0';
+  var oppsCreated=leads.filter(function(l){return!!l.opportunityId}).length||totalOpps;
 
-  var h='<div class="pg-head"><h1>'+icon('bar_chart',18)+' Outreach Analytics</h1></div>';
+  var h='<div class="pg-head"><h1>'+icon('bar_chart',18)+' Outreach Analytics</h1>';
+  h+='<button class="btn" onclick="TF.triggerSync(\'instantly\')" style="margin-left:auto">'+icon('refresh',11)+' Sync</button>';
+  h+='</div>';
 
-  /* Metrics row */
+  /* ── Row 1: Delivery Metrics ── */
   h+='<div class="outreach-metrics-dash">';
   h+=dashMet('Total Leads',totalLeads,'var(--blue)');
   h+=dashMet('Contacted',totalContacted,'var(--purple50)');
+  h+=dashMet('Opens',totalOpens,'var(--cyan)');
+  h+=dashMet('Open Rate',overallOpenRate+'%','var(--cyan)');
   h+=dashMet('Replies',totalReplies,'var(--green)');
   h+=dashMet('Reply Rate',overallReplyRate+'%','var(--amber)');
-  h+=dashMet('Opps Created',oppsCreated,'var(--pink)');
+  h+=dashMet('Clicks',totalClicks,'var(--pink)');
   h+=dashMet('Bounced',totalBounced,totalBounced?'var(--red)':'var(--t4)');
   h+='</div>';
 
-  /* Charts */
-  h+='<div class="outreach-charts-grid">';
-  h+='<div class="outreach-chart-card"><h3>Reply Rate by Campaign</h3><div style="height:250px"><canvas id="outreach-chart-reply-rate"></canvas></div></div>';
-  h+='<div class="outreach-chart-card"><h3>Sentiment Distribution</h3><div style="height:250px"><canvas id="outreach-chart-sentiment"></canvas></div></div>';
-  h+='<div class="outreach-chart-card"><h3>Campaign Volume</h3><div style="height:250px"><canvas id="outreach-chart-volume"></canvas></div></div>';
-  h+='<div class="outreach-chart-card"><h3>Conversion Funnel</h3><div style="height:250px"><canvas id="outreach-chart-funnel"></canvas></div></div>';
+  /* ── Row 2: Pipeline Metrics ── */
+  h+='<div class="outreach-metrics-dash" style="margin-top:8px">';
+  h+=dashMet('Interested',totalInterested,'var(--green)');
+  h+=dashMet('Meeting Booked',totalMeetingBooked,'var(--amber)');
+  h+=dashMet('Meeting Done',totalMeetingCompleted,'var(--blue)');
+  h+=dashMet('Closed',totalClosed,'var(--pink)');
+  var pvFmt=totalOppValue>=1000?'$'+(totalOppValue/1000).toFixed(1)+'k':'$'+totalOppValue.toFixed(0);
+  h+=dashMet('Pipeline Value',pvFmt,'var(--green)');
+  h+=dashMet('Opps Created',oppsCreated,'var(--purple50)');
+  h+='</div>';
+
+  /* ── Date range toggle ── */
+  h+='<div class="outreach-date-toggle">';
+  [30,60,90].forEach(function(d){
+    h+='<button class="btn'+(days===d?' btn-p':'')+'" onclick="TF.setOutreachAnalyticsDays('+d+')">'+d+'d</button>'});
+  h+='</div>';
+
+  /* ── Charts: 2x3 grid ── */
+  h+='<div class="outreach-charts-grid-6">';
+  h+='<div class="outreach-chart-card"><h3>'+icon('send',13)+' Daily Send Volume</h3><div style="height:260px"><canvas id="outreach-chart-daily-volume"></canvas></div></div>';
+  h+='<div class="outreach-chart-card"><h3>'+icon('mail',13)+' Daily Reply Trend</h3><div style="height:260px"><canvas id="outreach-chart-daily-replies"></canvas></div></div>';
+  h+='<div class="outreach-chart-card"><h3>'+icon('target',13)+' Reply Rate by Campaign</h3><div style="height:260px"><canvas id="outreach-chart-reply-rate"></canvas></div></div>';
+  h+='<div class="outreach-chart-card"><h3>'+icon('bar_chart',13)+' Conversion Funnel</h3><div style="height:260px"><canvas id="outreach-chart-funnel"></canvas></div></div>';
+  h+='<div class="outreach-chart-card"><h3>'+icon('sparkle',13)+' Sentiment Distribution</h3><div style="height:260px"><canvas id="outreach-chart-sentiment"></canvas></div></div>';
+  h+='<div class="outreach-chart-card"><h3>'+icon('activity',13)+' Open &amp; Click Rates</h3><div style="height:260px"><canvas id="outreach-chart-rates"></canvas></div></div>';
   h+='</div>';
   return h}
 
 function initOutreachCharts(){
   var camps=S.instantlyCampaigns||[];
   var emails=S.instantlyEmails||[];
+  var daily=S.instantlyAnalyticsDaily||[];
   var replies=emails.filter(function(e){return e.isReply&&e.direction==='inbound'});
+  var days=S._outreachAnalyticsDays||30;
 
-  /* Reply Rate by Campaign (horizontal bar) */
+  /* Filter daily data to selected range */
+  var cutoff=new Date();cutoff.setDate(cutoff.getDate()-days);
+  var cutoffStr=cutoff.toISOString().split('T')[0];
+  var filtered=daily.filter(function(d){return d.date>=cutoffStr});
+
+  /* Build daily aggregates (sum across campaigns per date) */
+  var dateMap={};
+  filtered.forEach(function(d){
+    if(!dateMap[d.date])dateMap[d.date]={sent:0,opened:0,uniqueOpened:0,replies:0,uniqueReplies:0,clicks:0,uniqueClicks:0,bounced:0,contacted:0};
+    var dm=dateMap[d.date];
+    dm.sent+=d.sent;dm.opened+=d.opened;dm.uniqueOpened+=d.uniqueOpened;
+    dm.replies+=d.replies;dm.uniqueReplies+=d.uniqueReplies;
+    dm.clicks+=d.clicks;dm.uniqueClicks+=d.uniqueClicks;
+    dm.bounced+=d.bounced;dm.contacted+=d.contacted});
+  var dates=Object.keys(dateMap).sort();
+  var fmtDate=function(d){var p=d.split('-');return p[1]+'/'+p[2]};
+
+  /* 1. Daily Send Volume (line: sent, opened, replied) */
+  var dvEl=document.getElementById('outreach-chart-daily-volume');
+  if(dvEl&&dates.length){
+    killChart('outreach-chart-daily-volume');
+    var ctx=dvEl.getContext('2d');
+    charts['outreach-chart-daily-volume']=new Chart(ctx,{type:'line',data:{
+      labels:dates.map(fmtDate),
+      datasets:[
+        {label:'Sent',data:dates.map(function(d){return dateMap[d].sent}),borderColor:'rgba(99,102,241,0.9)',backgroundColor:'rgba(99,102,241,0.1)',tension:0.3,fill:true},
+        {label:'Opened',data:dates.map(function(d){return dateMap[d].opened}),borderColor:'rgba(6,182,212,0.9)',backgroundColor:'rgba(6,182,212,0.05)',tension:0.3,fill:false},
+        {label:'Replied',data:dates.map(function(d){return dateMap[d].replies}),borderColor:'rgba(16,185,129,0.9)',backgroundColor:'rgba(16,185,129,0.05)',tension:0.3,fill:false}
+      ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{color:'#aaa',font:{size:11}}}},
+        scales:{x:{ticks:{color:'#888',font:{size:10},maxRotation:0,maxTicksLimit:15}},y:{ticks:{color:'#888'},beginAtZero:true}}}})}
+
+  /* 2. Daily Reply Trend (line: replies + unique) */
+  var drEl=document.getElementById('outreach-chart-daily-replies');
+  if(drEl&&dates.length){
+    killChart('outreach-chart-daily-replies');
+    var ctx2=drEl.getContext('2d');
+    charts['outreach-chart-daily-replies']=new Chart(ctx2,{type:'line',data:{
+      labels:dates.map(fmtDate),
+      datasets:[
+        {label:'Replies',data:dates.map(function(d){return dateMap[d].replies}),borderColor:'rgba(16,185,129,0.9)',backgroundColor:'rgba(16,185,129,0.15)',tension:0.3,fill:true},
+        {label:'Unique Replies',data:dates.map(function(d){return dateMap[d].uniqueReplies}),borderColor:'rgba(245,158,11,0.9)',backgroundColor:'rgba(245,158,11,0.05)',tension:0.3,fill:false}
+      ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{color:'#aaa',font:{size:11}}}},
+        scales:{x:{ticks:{color:'#888',font:{size:10},maxRotation:0,maxTicksLimit:15}},y:{ticks:{color:'#888'},beginAtZero:true}}}})}
+
+  /* 3. Reply Rate by Campaign (horizontal bar) */
   var rrEl=document.getElementById('outreach-chart-reply-rate');
   if(rrEl&&camps.length){
     var labels=camps.map(function(c){return c.name||'?'});
@@ -8556,44 +8637,57 @@ function initOutreachCharts(){
     killChart('outreach-chart-reply-rate');
     mkHBar('outreach-chart-reply-rate',labels,rates,'Reply Rate %','rgba(79,70,229,0.7)')}
 
-  /* Sentiment Distribution (donut) */
+  /* 4. Conversion Funnel (horizontal bar) */
+  var fEl=document.getElementById('outreach-chart-funnel');
+  if(fEl){
+    var tLeads=0,tContacted=0,tReplies=0,tInterested=0,tMeeting=0,tClosed=0;
+    camps.forEach(function(c){tLeads+=c.leadsCount;tContacted+=c.contactedCount;tReplies+=c.repliesCount;
+      tInterested+=c.totalInterested||0;tMeeting+=c.totalMeetingBooked||0;tClosed+=c.totalClosed||0});
+    killChart('outreach-chart-funnel');
+    var ctx3=fEl.getContext('2d');
+    var funnelLabels=['Leads','Contacted','Replies','Interested','Meeting Booked','Closed'];
+    var funnelData=[tLeads,tContacted,tReplies,tInterested,tMeeting,tClosed];
+    var funnelColors=['rgba(99,102,241,0.7)','rgba(79,70,229,0.7)','rgba(16,185,129,0.7)','rgba(245,158,11,0.7)','rgba(236,72,153,0.7)','rgba(168,85,247,0.7)'];
+    charts['outreach-chart-funnel']=new Chart(ctx3,{type:'bar',data:{
+      labels:funnelLabels,
+      datasets:[{data:funnelData,backgroundColor:funnelColors}]
+    },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#888'}},y:{ticks:{color:'#ccc',font:{size:11}}}}}})}
+
+  /* 5. Sentiment Distribution (donut) */
   var sEl=document.getElementById('outreach-chart-sentiment');
-  if(sEl&&replies.length){
+  if(sEl){
     var sentCounts={};
     replies.forEach(function(r){var s=r.aiSentiment||'unanalyzed';sentCounts[s]=(sentCounts[s]||0)+1});
     var sLabels=Object.keys(sentCounts);
-    var sVals=sLabels.map(function(k){return sentCounts[k]});
-    var sColors=sLabels.map(function(k){
-      if(k==='positive')return'rgba(16,185,129,0.8)';
-      if(k==='negative'||k==='not_interested')return'rgba(239,68,68,0.8)';
-      if(k==='question')return'rgba(245,158,11,0.8)';
-      if(k==='ooo'||k==='bounce')return'rgba(156,163,175,0.6)';
-      return'rgba(99,102,241,0.6)'});
-    killChart('outreach-chart-sentiment');
-    mkDonut('outreach-chart-sentiment',sLabels,sVals,sColors)}
+    if(sLabels.length){
+      var sVals=sLabels.map(function(k){return sentCounts[k]});
+      var sColors=sLabels.map(function(k){
+        if(k==='positive')return'rgba(16,185,129,0.8)';
+        if(k==='negative'||k==='not_interested')return'rgba(239,68,68,0.8)';
+        if(k==='question')return'rgba(245,158,11,0.8)';
+        if(k==='ooo'||k==='bounce')return'rgba(156,163,175,0.6)';
+        if(k==='referral')return'rgba(168,85,247,0.8)';
+        return'rgba(99,102,241,0.6)'});
+      killChart('outreach-chart-sentiment');
+      mkDonut('outreach-chart-sentiment',sLabels,sVals,sColors)}}
 
-  /* Campaign Volume (bar) */
-  var vEl=document.getElementById('outreach-chart-volume');
-  if(vEl&&camps.length){
-    var vLabels=camps.map(function(c){return c.name||'?'});
-    var vLeads=camps.map(function(c){return c.leadsCount});
-    var vContacted=camps.map(function(c){return c.contactedCount});
-    killChart('outreach-chart-volume');
-    var ctx=vEl.getContext('2d');
-    new Chart(ctx,{type:'bar',data:{labels:vLabels,datasets:[
-      {label:'Leads',data:vLeads,backgroundColor:'rgba(99,102,241,0.5)'},
-      {label:'Contacted',data:vContacted,backgroundColor:'rgba(16,185,129,0.5)'}
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#aaa',font:{size:11}}}},scales:{x:{ticks:{color:'#888',font:{size:10}}},y:{ticks:{color:'#888'}}}}})}
-
-  /* Conversion Funnel (horizontal bar) */
-  var fEl=document.getElementById('outreach-chart-funnel');
-  if(fEl){
-    var totalLeads=0,totalContacted=0,totalReplies=0,totalPositive=0,totalOpps=0;
-    camps.forEach(function(c){totalLeads+=c.leadsCount;totalContacted+=c.contactedCount;totalReplies+=c.repliesCount});
-    totalPositive=replies.filter(function(r){return r.aiSentiment==='positive'||r.aiSentiment==='referral'}).length;
-    totalOpps=(S.instantlyLeads||[]).filter(function(l){return!!l.opportunityId}).length;
-    killChart('outreach-chart-funnel');
-    mkHBar('outreach-chart-funnel',['Leads','Contacted','Replies','Positive','Opportunities'],[totalLeads,totalContacted,totalReplies,totalPositive,totalOpps],'Conversion Funnel','rgba(79,70,229,0.7)')}}
+  /* 6. Open & Click Rates (line: rates over time) */
+  var ocEl=document.getElementById('outreach-chart-rates');
+  if(ocEl&&dates.length){
+    killChart('outreach-chart-rates');
+    var ctx4=ocEl.getContext('2d');
+    var openRates=dates.map(function(d){var dm=dateMap[d];return dm.contacted>0?((dm.opened/dm.contacted)*100):0});
+    var clickRates=dates.map(function(d){var dm=dateMap[d];return dm.contacted>0?((dm.clicks/dm.contacted)*100):0});
+    charts['outreach-chart-rates']=new Chart(ctx4,{type:'line',data:{
+      labels:dates.map(fmtDate),
+      datasets:[
+        {label:'Open Rate %',data:openRates,borderColor:'rgba(6,182,212,0.9)',backgroundColor:'rgba(6,182,212,0.1)',tension:0.3,fill:true},
+        {label:'Click Rate %',data:clickRates,borderColor:'rgba(236,72,153,0.9)',backgroundColor:'rgba(236,72,153,0.05)',tension:0.3,fill:false}
+      ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{color:'#aaa',font:{size:11}}}},
+        scales:{x:{ticks:{color:'#888',font:{size:10},maxRotation:0,maxTicksLimit:15}},y:{ticks:{color:'#888',callback:function(v){return v+'%'}},beginAtZero:true}}}})}}
 
 /* Helper: dismiss outreach reply */
 function dismissOutreachReply(emailId){
@@ -8605,4 +8699,6 @@ function dismissOutreachReply(emailId){
 /* Helper: outreach reply count for badges */
 function getOutreachReplyCount(){
   return(S.instantlyEmails||[]).filter(function(e){return e.isReply&&e.direction==='inbound'&&e.replyStatus==='pending'}).length}
+
+function setOutreachAnalyticsDays(days){S._outreachAnalyticsDays=days;render()}
 

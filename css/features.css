@@ -2008,11 +2008,14 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .outreach-warmup-off{font-size:11px;color:var(--t4)}
 
 /* Analytics dashboard */
-.outreach-metrics-dash{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
-.outreach-metrics-dash .dash-met{flex:1;min-width:120px}
+.outreach-metrics-dash{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.outreach-metrics-dash .dash-met{flex:1;min-width:100px}
+.outreach-date-toggle{display:flex;gap:6px;margin-bottom:16px}
+.outreach-date-toggle .btn{font-size:12px;padding:5px 14px}
 .outreach-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.outreach-charts-grid-6{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .outreach-chart-card{background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:16px}
-.outreach-chart-card h3{font-size:13px;color:var(--t2);margin:0 0 12px;font-weight:600}
+.outreach-chart-card h3{font-size:13px;color:var(--t2);margin:0 0 12px;font-weight:600;display:flex;align-items:center;gap:6px}
 
 /* Reply composer */
 .outreach-composer{background:var(--bg1);border:1px solid var(--gborder);border-radius:8px;padding:12px;margin-top:8px}
@@ -2022,5 +2025,7 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 @media(max-width:860px){
   .outreach-card-grid{grid-template-columns:1fr}
   .outreach-charts-grid{grid-template-columns:1fr}
+  .outreach-charts-grid-6{grid-template-columns:1fr}
   .outreach-metrics-dash{flex-direction:column}
+  .outreach-metrics-dash .dash-met{min-width:80px}
 }
