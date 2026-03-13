@@ -140,7 +140,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   _outreachAnalyticsDays:30,instantlyCampaignTab:'overview',
   outreachThreadView:null,outreachInboxFilter:'all',outreachInboxCampaign:'',outreachInboxSentiment:'',outreachInboxUnreadOnly:false,
   /* GA4 Analytics */
-  ga4Data:null,_ga4Timer:null,_ga4Connected:false};
+  ga4Data:null,_ga4Timer:null,_ga4Connected:false,_ga4SourceLabels:{},_ga4ConfigOpen:false};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -215,7 +215,8 @@ var SECTIONS=[
     {id:'analytics',label:'Analytics',icon:'bar_chart'},
     {id:'activity',label:'Activity',icon:'clock'}
   ]},
-  {id:'meetings',icon:'mic',label:'Meetings'}
+  {id:'meetings',icon:'mic',label:'Meetings'},
+  {id:'website',icon:'bar_chart',label:'Website Analytics'}
 ];
 var VIEWS_FLAT=[];
 SECTIONS.forEach(function(sec){
@@ -6714,3 +6715,56 @@ function startGA4Polling(){
 
 function stopGA4Polling(){
   if(S._ga4Timer){clearInterval(S._ga4Timer);S._ga4Timer=null}}
+
+/* GA4 Source Label Config */
+function loadGA4SourceLabels(){
+  S._ga4SourceLabels={};
+  var intg=S.integrations.find(function(i){return i.platform==='google_analytics'});
+  if(intg&&intg.config&&intg.config.source_labels){
+    S._ga4SourceLabels=intg.config.source_labels;
+  }
+}
+function toggleGA4Config(){
+  S._ga4ConfigOpen=!S._ga4ConfigOpen;
+  var panel=gel('ga4-config-panel');
+  if(panel)panel.classList.toggle('open',S._ga4ConfigOpen);
+}
+function addGA4LabelRow(src,lbl){
+  var list=gel('ga4-label-list');if(!list)return;
+  var row=document.createElement('div');
+  row.className='ga4-label-row';
+  row.innerHTML='<input type="text" class="ga4-src-input" placeholder="utm_source value" value="'+escAttr(src||'')+'">'
+    +'<span class="ga4-label-arrow">→</span>'
+    +'<input type="text" class="ga4-lbl-input" placeholder="Display label" value="'+escAttr(lbl||'')+'">'
+    +'<button class="ga4-label-del" onclick="this.parentElement.remove()" title="Remove">'+icon('x',12)+'</button>';
+  list.appendChild(row);
+}
+async function saveGA4Labels(){
+  var rows=document.querySelectorAll('.ga4-label-row');
+  var labels={};
+  rows.forEach(function(r){
+    var s=r.querySelector('.ga4-src-input');
+    var l=r.querySelector('.ga4-lbl-input');
+    if(s&&l&&s.value.trim()&&l.value.trim()){
+      labels[s.value.trim().toLowerCase()]=l.value.trim();
+    }
+  });
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/settings/credentials',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'},
+      body:JSON.stringify({platform:'google_analytics',credentials:{},config:{source_labels:labels}})
+    });
+    var data=await resp.json();
+    if(data.success){
+      toast('Source labels saved','ok');
+      /* Update local integration config */
+      var intg=S.integrations.find(function(i){return i.platform==='google_analytics'});
+      if(intg){if(!intg.config)intg.config={};intg.config.source_labels=labels}
+      S._ga4SourceLabels=labels;
+      /* Re-render sources panel immediately */
+      if(S.ga4Data)updateGA4Map();
+    }else{toast('Failed to save: '+(data.error||'unknown'),'warn')}
+  }catch(e){toast('Save error: '+e.message,'warn')}
+}

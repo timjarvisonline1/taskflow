@@ -38,9 +38,9 @@ module.exports = async function handler(req, res) {
       // 1. Locations: country + city → activeUsers
       safeCall(['country', 'city'], ['activeUsers']),
       // 2. Pages: page path → activeUsers
-      safeCall(['unifiedScreenName'], ['activeUsers']),
-      // 3. Sources: source + medium → activeUsers (2 dims max for realtime reliability)
-      safeCall(['firstUserSource', 'firstUserMedium'], ['activeUsers'])
+      safeCall(['pagePath'], ['activeUsers']),
+      // 3. Sources: source + medium → activeUsers
+      safeCall(['sessionSource', 'sessionMedium'], ['activeUsers'])
     ]);
 
     // Parse locations and geocode

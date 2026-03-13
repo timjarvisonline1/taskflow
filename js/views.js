@@ -25,12 +25,13 @@ function render(){
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
 
-  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break;case'outreach':html=rOutreach();break}
+  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break;case'outreach':html=rOutreach();break;case'website':html=rWebsiteAnalytics();break}
   m.classList.toggle('email-active',S.view==='email');
   if(S.view!=='email'){var _dm=gel('detail-modal');if(_dm)_dm.classList.remove('email-light');if(S.gmailThreadId){S.gmailThreadId='';S.gmailThread=null;_dm&&_dm.classList.remove('on','full-detail')}}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
-  if(S.view==='dashboard')initDashboardCharts();else{destroyGA4Map()}
+  if(S.view==='dashboard')initDashboardCharts();
+  if(S.view==='website'){setTimeout(function(){initGA4Map()},200)}else{destroyGA4Map()}
   if(S.view==='projects')initProjectCharts();
   if(S.view==='opportunities'){initOpportunityCharts();if(S.opViewMode==='profitability'&&S.subView&&OPP_TYPES[S.subView])initOppProfitabilityCharts(S.subView);if(S.subView==='profitability')initOppProfitabilityDashboard()}
   if(S.view==='clients')initClientsCharts();
@@ -501,20 +502,6 @@ function rDashboard(){
   h+='<div class="dash-section">Activity</div>';
   h+='<div class="dash-heatmap" id="heatmap-cal"></div>';
 
-  /* GA4 Live Visitors Map */
-  if(S._ga4Connected){
-    h+='<div class="dash-section">Live Visitors</div>';
-    h+='<div class="ga4-map-wrap">';
-    h+='<div class="ga4-map-container">';
-    h+='<div id="ga4-map" style="height:400px"></div>';
-    h+='<div class="ga4-map-overlay"><div class="ga4-active-count" id="ga4-count">—</div><div class="ga4-active-label">active now</div></div>';
-    h+='</div>';
-    h+='<div class="ga4-panels">';
-    h+='<div class="ga4-panel"><h4>'+icon('layers',12)+' Top Pages</h4><div id="ga4-pages-list"><div style="color:var(--t4);font-size:11px">Loading...</div></div></div>';
-    h+='<div class="ga4-panel"><h4>'+icon('activity',12)+' Traffic Sources</h4><div id="ga4-sources-list"><div style="color:var(--t4);font-size:11px">Loading...</div></div></div>';
-    h+='</div></div>';
-  }
-
   /* Charts */
   h+='<div class="dash-charts">';
   h+='<div class="chart-card"><h3>Tasks by Importance</h3><div class="chart-wrap"><canvas id="dash-imp-chart"></canvas></div></div>';
@@ -548,8 +535,6 @@ function initDashboardCharts(){
     if(Object.keys(dailyData).length){var _dlk=Object.keys(dailyData),_dlv=_dlk.map(function(k){return dailyData[k]});mkLine('dash-daily-chart',_dlk,_dlv,'#ff0099')}
     /* Heatmap */
     renderHeatmap();
-    /* GA4 map */
-    if(S._ga4Connected)initGA4Map();
   },200)}
 
 /* ═══════════ GA4 MAP ═══════════ */
@@ -608,7 +593,8 @@ function updateGA4Map(){
     if(!d.sources||!d.sources.length){srcEl.innerHTML='<div style="color:var(--t4);font-size:11px">No traffic sources</div>';
     }else{
       var sh='';d.sources.forEach(function(s){
-        var label=esc(s.source)+' / '+esc(s.medium);
+        var srcName=S._ga4SourceLabels[s.source.toLowerCase()]||s.source;
+        var label=esc(srcName)+' / '+esc(s.medium);
         sh+='<div class="ga4-source-row"><div class="ga4-source-parts"><span class="ga4-row-name" title="'+escAttr(label)+'">'+label+'</span>';
         if(s.campaign)sh+='<span class="ga4-utm-badge" title="'+escAttr(s.campaign)+'">'+esc(s.campaign)+'</span>';
         sh+='</div><span class="ga4-row-count">'+s.users+'</span></div>'});
@@ -620,6 +606,58 @@ function updateGA4Map(){
 function destroyGA4Map(){
   stopGA4Polling();
   if(_ga4Map){_ga4Map.remove();_ga4Map=null;_ga4Markers=null}}
+
+/* ═══════════ WEBSITE ANALYTICS VIEW ═══════════ */
+function rWebsiteAnalytics(){
+  loadGA4SourceLabels();
+  var h='<div class="pg-head" style="display:flex;align-items:center;justify-content:space-between">';
+  h+='<h1>'+icon('bar_chart',18)+' Website Analytics</h1>';
+  if(S._ga4Connected){
+    h+='<button class="ga4-config-toggle" onclick="TF.toggleGA4Config()">'+icon('settings',12)+' Source Labels</button>';
+  }
+  h+='</div>';
+
+  if(!S._ga4Connected){
+    h+='<div class="ga4-placeholder"><p>Connect Google Analytics in <a href="#" onclick="TF.nav(\'dashboard\');setTimeout(function(){TF.openSettings&&TF.openSettings()},300);return false">Settings</a> to see live website visitors.</p></div>';
+    return h;
+  }
+
+  /* Config panel (hidden by default) */
+  h+='<div class="ga4-config-panel'+(S._ga4ConfigOpen?' open':'')+'" id="ga4-config-panel">';
+  h+='<h4>Source Label Mapping</h4>';
+  h+='<div class="ga4-config-desc">Map UTM source values to friendly display names (e.g. "ce" → "Cold Email")</div>';
+  h+='<div id="ga4-label-list">';
+  /* Render existing mappings */
+  var labels=S._ga4SourceLabels||{};
+  var keys=Object.keys(labels);
+  if(keys.length){
+    keys.forEach(function(k){
+      h+='<div class="ga4-label-row">';
+      h+='<input type="text" class="ga4-src-input" placeholder="utm_source value" value="'+escAttr(k)+'">';
+      h+='<span class="ga4-label-arrow">→</span>';
+      h+='<input type="text" class="ga4-lbl-input" placeholder="Display label" value="'+escAttr(labels[k])+'">';
+      h+='<button class="ga4-label-del" onclick="this.parentElement.remove()" title="Remove">'+icon('x',12)+'</button>';
+      h+='</div>';
+    });
+  }
+  h+='</div>';
+  h+='<div class="ga4-config-actions">';
+  h+='<button class="ga4-config-add" onclick="TF.addGA4LabelRow()">+ Add Mapping</button>';
+  h+='<button class="ga4-config-save" onclick="TF.saveGA4Labels()">Save Labels</button>';
+  h+='</div></div>';
+
+  /* Map */
+  h+='<div class="ga4-map-wrap">';
+  h+='<div class="ga4-map-container">';
+  h+='<div id="ga4-map" style="height:500px"></div>';
+  h+='<div class="ga4-map-overlay"><div class="ga4-active-count" id="ga4-count">—</div><div class="ga4-active-label">active now</div></div>';
+  h+='</div>';
+  h+='<div class="ga4-panels">';
+  h+='<div class="ga4-panel"><h4>'+icon('layers',12)+' Top Pages</h4><div id="ga4-pages-list"><div style="color:var(--t4);font-size:11px">Loading...</div></div></div>';
+  h+='<div class="ga4-panel"><h4>'+icon('activity',12)+' Traffic Sources</h4><div id="ga4-sources-list"><div style="color:var(--t4);font-size:11px">Loading...</div></div></div>';
+  h+='</div></div>';
+  return h;
+}
 
 /* ═══════════ RETAIN CLIENTS ═══════════ */
 function buildClientMap(){

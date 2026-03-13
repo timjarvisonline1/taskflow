@@ -2177,6 +2177,27 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
 .ga4-map-container .leaflet-popup-tip{background:rgba(20,20,20,0.95);border:1px solid var(--gborder)}
 .ga4-map-container .leaflet-popup-close-button{color:var(--t3)!important}
 
-/* Pulsing circle marker animation */
-@keyframes ga4pulse{0%{opacity:.8;transform:scale(1)}50%{opacity:.4;transform:scale(1.6)}100%{opacity:.8;transform:scale(1)}}
-.ga4-pulse{animation:ga4pulse 2s ease-in-out infinite}
+/* Pulsing circle marker animation — gentle opacity only */
+@keyframes ga4pulse{0%,100%{opacity:.7}50%{opacity:.3}}
+.leaflet-interactive.ga4-pulse{animation:ga4pulse 3s ease-in-out infinite}
+
+/* GA4 Source Label Config Panel */
+.ga4-config-toggle{background:none;border:1px solid var(--gborder);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--t3);display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;transition:all .15s}
+.ga4-config-toggle:hover{color:var(--t1);border-color:var(--t3)}
+.ga4-config-panel{background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--gborder);border-radius:12px;padding:18px;margin:0 0 16px;display:none}
+.ga4-config-panel.open{display:block}
+.ga4-config-panel h4{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px}
+.ga4-config-desc{font-size:11px;color:var(--t4);margin:0 0 12px}
+.ga4-label-row{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.ga4-label-row input{flex:1;background:var(--card);border:1px solid var(--gborder);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--t1);font-family:var(--ff);outline:none;transition:border-color .15s}
+.ga4-label-row input:focus{border-color:var(--accent)}
+.ga4-label-row input::placeholder{color:var(--t4)}
+.ga4-label-arrow{color:var(--t4);font-size:12px;flex-shrink:0}
+.ga4-label-del{background:none;border:none;cursor:pointer;color:var(--t4);padding:4px;border-radius:4px;display:flex;align-items:center;transition:color .15s}
+.ga4-label-del:hover{color:var(--red,#ff3358)}
+.ga4-config-actions{display:flex;gap:8px;margin-top:12px}
+.ga4-config-actions button{padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.ga4-config-add{background:none;border:1px solid var(--gborder);color:var(--t2)}
+.ga4-config-add:hover{border-color:var(--t3);color:var(--t1)}
+.ga4-config-save{background:var(--accent);border:1px solid var(--accent);color:#fff}
+.ga4-config-save:hover{opacity:.85}
