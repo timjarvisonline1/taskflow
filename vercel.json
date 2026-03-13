@@ -17,6 +17,9 @@
     },
     "api/meetings/*.js": {
       "maxDuration": 300
+    },
+    "api/ga4/*.js": {
+      "maxDuration": 15
     }
   },
   "rewrites": [

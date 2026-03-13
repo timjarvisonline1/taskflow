@@ -138,7 +138,9 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],instantlyAnalyticsDaily:[],instantlyCampaignSteps:[],instantlyEvents:[],
   outreachSub:'campaigns',outreachFilter:'',outreachBulkMode:false,outreachBulkSelected:{},_outreachAnalyzing:false,
   _outreachAnalyticsDays:30,instantlyCampaignTab:'overview',
-  outreachThreadView:null,outreachInboxFilter:'all',outreachInboxCampaign:'',outreachInboxSentiment:'',outreachInboxUnreadOnly:false};
+  outreachThreadView:null,outreachInboxFilter:'all',outreachInboxCampaign:'',outreachInboxSentiment:'',outreachInboxUnreadOnly:false,
+  /* GA4 Analytics */
+  ga4Data:null,_ga4Timer:null,_ga4Connected:false};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -5412,6 +5414,8 @@ async function loadData(){toast('Loading data...','info');
     setTimeout(function(){syncRlProspectCompanies()},400);
     /* Start periodic knowledge base sync (embeds all entity data) */
     startKnowledgeSync();
+    /* Check if GA4 is connected */
+    S._ga4Connected=S.integrations.some(function(i){return i.platform==='google_analytics'&&i.has_credentials});
   }catch(e){toast(''+e.message,'warn')}
   render()}
 
@@ -6687,3 +6691,22 @@ document.addEventListener('keydown',function(e){
 (function(){var ov=gel('mob-overlay'),sx=0;if(!ov)return;
   ov.addEventListener('touchstart',function(e){sx=e.touches[0].clientX},{passive:true});
   ov.addEventListener('touchmove',function(e){if(e.touches[0].clientX-sx<-50)closeMenu()},{passive:true})})();
+
+/* ═══════════ GA4 LIVE ANALYTICS ═══════════ */
+async function fetchGA4Realtime(){
+  if(!S._ga4Connected)return;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/ga4/realtime',{headers:{'Authorization':'Bearer '+sess.data.session.access_token}});
+    var data=await resp.json();
+    if(data.success){S.ga4Data=data;updateGA4Map()}
+    else if(data.error){console.warn('GA4:',data.error)}
+  }catch(e){console.warn('GA4 fetch error:',e.message)}}
+
+function startGA4Polling(){
+  stopGA4Polling();
+  fetchGA4Realtime();
+  S._ga4Timer=setInterval(fetchGA4Realtime,30000)}
+
+function stopGA4Polling(){
+  if(S._ga4Timer){clearInterval(S._ga4Timer);S._ga4Timer=null}}

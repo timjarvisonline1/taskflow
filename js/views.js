@@ -30,7 +30,7 @@ function render(){
   if(S.view!=='email'){var _dm=gel('detail-modal');if(_dm)_dm.classList.remove('email-light');if(S.gmailThreadId){S.gmailThreadId='';S.gmailThread=null;_dm&&_dm.classList.remove('on','full-detail')}}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
   if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
-  if(S.view==='dashboard')initDashboardCharts();
+  if(S.view==='dashboard')initDashboardCharts();else{destroyGA4Map()}
   if(S.view==='projects')initProjectCharts();
   if(S.view==='opportunities'){initOpportunityCharts();if(S.opViewMode==='profitability'&&S.subView&&OPP_TYPES[S.subView])initOppProfitabilityCharts(S.subView);if(S.subView==='profitability')initOppProfitabilityDashboard()}
   if(S.view==='clients')initClientsCharts();
@@ -501,6 +501,20 @@ function rDashboard(){
   h+='<div class="dash-section">Activity</div>';
   h+='<div class="dash-heatmap" id="heatmap-cal"></div>';
 
+  /* GA4 Live Visitors Map */
+  if(S._ga4Connected){
+    h+='<div class="dash-section">Live Visitors</div>';
+    h+='<div class="ga4-map-wrap">';
+    h+='<div class="ga4-map-container">';
+    h+='<div id="ga4-map" style="height:400px"></div>';
+    h+='<div class="ga4-map-overlay"><div class="ga4-active-count" id="ga4-count">—</div><div class="ga4-active-label">active now</div></div>';
+    h+='</div>';
+    h+='<div class="ga4-panels">';
+    h+='<div class="ga4-panel"><h4>'+icon('layers',12)+' Top Pages</h4><div id="ga4-pages-list"><div style="color:var(--t4);font-size:11px">Loading...</div></div></div>';
+    h+='<div class="ga4-panel"><h4>'+icon('activity',12)+' Traffic Sources</h4><div id="ga4-sources-list"><div style="color:var(--t4);font-size:11px">Loading...</div></div></div>';
+    h+='</div></div>';
+  }
+
   /* Charts */
   h+='<div class="dash-charts">';
   h+='<div class="chart-card"><h3>Tasks by Importance</h3><div class="chart-wrap"><canvas id="dash-imp-chart"></canvas></div></div>';
@@ -534,7 +548,78 @@ function initDashboardCharts(){
     if(Object.keys(dailyData).length){var _dlk=Object.keys(dailyData),_dlv=_dlk.map(function(k){return dailyData[k]});mkLine('dash-daily-chart',_dlk,_dlv,'#ff0099')}
     /* Heatmap */
     renderHeatmap();
+    /* GA4 map */
+    if(S._ga4Connected)initGA4Map();
   },200)}
+
+/* ═══════════ GA4 MAP ═══════════ */
+var _ga4Map=null,_ga4Markers=null;
+
+function initGA4Map(){
+  var el=gel('ga4-map');if(!el)return;
+  if(typeof L==='undefined')return;
+  /* Destroy previous map instance if any */
+  if(_ga4Map){_ga4Map.remove();_ga4Map=null}
+  _ga4Map=L.map('ga4-map',{zoomControl:true,attributionControl:true,worldCopyJump:true}).setView([25,0],2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains:'abcd',maxZoom:18
+  }).addTo(_ga4Map);
+  _ga4Markers=L.layerGroup().addTo(_ga4Map);
+  startGA4Polling()}
+
+function updateGA4Map(){
+  var d=S.ga4Data;if(!d)return;
+  /* Update active count */
+  var countEl=gel('ga4-count');
+  if(countEl)countEl.textContent=d.totalActive||'0';
+  /* Update markers */
+  if(_ga4Markers){
+    _ga4Markers.clearLayers();
+    (d.locations||[]).forEach(function(loc){
+      if(!loc.lat||!loc.lng)return;
+      var r=Math.max(5,Math.min(25,loc.users*4));
+      var circle=L.circleMarker([loc.lat,loc.lng],{
+        radius:r,fillColor:'#3ddc84',fillOpacity:0.6,color:'#3ddc84',weight:1,opacity:0.8,
+        className:'ga4-pulse'
+      });
+      var label=(loc.city?loc.city+', ':'')+loc.country;
+      var popup='<div style="font-family:Inter,sans-serif;font-size:12px">';
+      popup+='<div style="font-weight:700;margin-bottom:4px">'+esc(label)+'</div>';
+      popup+='<div style="color:#3ddc84;font-weight:700;font-size:16px">'+loc.users+'</div>';
+      popup+='<div style="font-size:10px;color:#aaa">active user'+(loc.users!==1?'s':'')+'</div></div>';
+      circle.bindPopup(popup,{className:'ga4-popup'});
+      _ga4Markers.addLayer(circle);
+    });
+  }
+  /* Update pages panel */
+  var pagesEl=gel('ga4-pages-list');
+  if(pagesEl){
+    if(!d.pages||!d.pages.length){pagesEl.innerHTML='<div style="color:var(--t4);font-size:11px">No active pages</div>';
+    }else{
+      var ph='';d.pages.forEach(function(p){
+        ph+='<div class="ga4-page-row"><span class="ga4-row-name" title="'+escAttr(p.page)+'">'+esc(p.page)+'</span><span class="ga4-row-count">'+p.users+'</span></div>'});
+      pagesEl.innerHTML=ph;
+    }
+  }
+  /* Update sources panel */
+  var srcEl=gel('ga4-sources-list');
+  if(srcEl){
+    if(!d.sources||!d.sources.length){srcEl.innerHTML='<div style="color:var(--t4);font-size:11px">No traffic sources</div>';
+    }else{
+      var sh='';d.sources.forEach(function(s){
+        var label=esc(s.source)+' / '+esc(s.medium);
+        sh+='<div class="ga4-source-row"><div class="ga4-source-parts"><span class="ga4-row-name" title="'+escAttr(label)+'">'+label+'</span>';
+        if(s.campaign)sh+='<span class="ga4-utm-badge" title="'+escAttr(s.campaign)+'">'+esc(s.campaign)+'</span>';
+        sh+='</div><span class="ga4-row-count">'+s.users+'</span></div>'});
+      srcEl.innerHTML=sh;
+    }
+  }
+}
+
+function destroyGA4Map(){
+  stopGA4Polling();
+  if(_ga4Map){_ga4Map.remove();_ga4Map=null;_ga4Markers=null}}
 
 /* ═══════════ RETAIN CLIENTS ═══════════ */
 function buildClientMap(){

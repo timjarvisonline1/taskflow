@@ -43,6 +43,8 @@ module.exports = async function handler(req, res) {
       return await testInstantly(res, mergedCreds);
     } else if (platform === 'anthropic') {
       return await testAnthropic(res, mergedCreds, mergedConfig);
+    } else if (platform === 'google_analytics') {
+      return await testGA4(res, mergedCreds, mergedConfig);
     } else {
       return res.status(400).json({ error: 'Unknown platform: ' + platform });
     }
@@ -262,5 +264,32 @@ async function testGmail(res, userId, creds) {
     success: true,
     details: 'Connected as ' + profile.emailAddress + ' (' + profile.messagesTotal + ' messages)',
     email: profile.emailAddress
+  });
+}
+
+async function testGA4(res, creds, config) {
+  const { getGA4AccessToken, callGA4RealtimeApi } = require('../_lib/ga4-auth');
+
+  const saJson = creds.service_account_json;
+  const propertyId = config.property_id;
+
+  if (!saJson) throw new Error('Service account JSON is required');
+  if (!propertyId) throw new Error('GA4 Property ID is required');
+
+  // Validate JSON format
+  try { JSON.parse(saJson); } catch (e) { throw new Error('Invalid JSON in service account key'); }
+
+  const token = await getGA4AccessToken(saJson);
+  const result = await callGA4RealtimeApi(token, propertyId, ['country'], ['activeUsers']);
+
+  const totalActive = (result.rows || []).reduce(function(sum, row) {
+    return sum + (parseInt(row.metricValues[0].value, 10) || 0);
+  }, 0);
+
+  const countries = (result.rows || []).length;
+
+  return res.status(200).json({
+    success: true,
+    details: 'Connected. ' + totalActive + ' active user(s) from ' + countries + ' countr' + (countries === 1 ? 'y' : 'ies') + ' right now.'
   });
 }

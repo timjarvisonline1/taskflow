@@ -3435,6 +3435,9 @@ var INTG_PLATFORMS=[
   {id:'instantly',label:'Instantly.ai',color:'#4F46E5',desc:'Cold email outreach campaigns',
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[]},
+  {id:'google_analytics',label:'Google Analytics',color:'#F9AB00',desc:'Live website visitor analytics',
+    fields:[{key:'service_account_json',label:'Service Account JSON',type:'textarea'}],
+    configFields:[{key:'property_id',label:'GA4 Property ID (numeric, e.g. 123456789)',type:'text'}]},
 ];
 
 /* ═══════════ SCHEDULED ITEM MODALS ═══════════ */
@@ -3710,7 +3713,11 @@ function openIntegrationsModal(){
       var isStored=storedKeys.indexOf(f.key)!==-1;
       var placeholder=isStored?'Saved ✓ — enter new value to update':esc(f.label);
       h+='<label class="intg-label">'+esc(f.label)+(isStored?' <span style="color:var(--green);font-size:10px;font-weight:700">✓ Stored</span>':'');
-      h+='<input type="'+f.type+'" class="intg-input" id="intg-'+plat.id+'-'+f.key+'" value="" placeholder="'+placeholder+'" autocomplete="off">';
+      if(f.type==='textarea'){
+        h+='<textarea class="intg-input" id="intg-'+plat.id+'-'+f.key+'" placeholder="'+placeholder+'" autocomplete="off" rows="4" style="resize:vertical;font-family:var(--fd);font-size:11px"></textarea>';
+      }else{
+        h+='<input type="'+f.type+'" class="intg-input" id="intg-'+plat.id+'-'+f.key+'" value="" placeholder="'+placeholder+'" autocomplete="off">';
+      }
       h+='</label>';
     });
     plat.configFields.forEach(function(f){
