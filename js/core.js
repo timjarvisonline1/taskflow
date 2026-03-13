@@ -6699,9 +6699,13 @@ async function fetchGA4Realtime(){
     var sess=await _sb.auth.getSession();if(!sess.data.session)return;
     var resp=await fetch('/api/ga4/realtime',{headers:{'Authorization':'Bearer '+sess.data.session.access_token}});
     var data=await resp.json();
-    if(data.success){S.ga4Data=data;updateGA4Map()}
-    else if(data.error){console.warn('GA4:',data.error)}
-  }catch(e){console.warn('GA4 fetch error:',e.message)}}
+    if(data.success){S.ga4Data=data;updateGA4Map();if(data.warnings)console.warn('GA4 warnings:',data.warnings)}
+    else if(data.error){console.warn('GA4:',data.error);showGA4Error(data.error)}
+  }catch(e){console.warn('GA4 fetch error:',e.message);showGA4Error(e.message)}}
+function showGA4Error(msg){
+  var c=gel('ga4-count');if(c)c.textContent='!';
+  var p=gel('ga4-pages-list');if(p)p.innerHTML='<div style="color:var(--red,#ff3358);font-size:11px">'+esc(msg)+'</div>';
+  var s=gel('ga4-sources-list');if(s)s.innerHTML='<div style="color:var(--red,#ff3358);font-size:11px">'+esc(msg)+'</div>'}
 
 function startGA4Polling(){
   stopGA4Polling();

@@ -23,14 +23,24 @@ module.exports = async function handler(req, res) {
   try {
     const token = await getGA4AccessToken(saJson);
 
-    // Make 3 parallel API calls for different dimension combos
+    // Helper: call GA4 API with graceful error handling per call
+    async function safeCall(dimensions, metrics) {
+      try {
+        return await callGA4RealtimeApi(token, propertyId, dimensions, metrics);
+      } catch (e) {
+        console.warn('GA4 call failed for dims [' + dimensions.join(',') + ']:', e.message);
+        return { rows: null, _error: e.message };
+      }
+    }
+
+    // Make 3 parallel API calls — each one can fail independently
     const [locResult, pageResult, sourceResult] = await Promise.all([
       // 1. Locations: country + city → activeUsers
-      callGA4RealtimeApi(token, propertyId, ['country', 'city'], ['activeUsers']),
+      safeCall(['country', 'city'], ['activeUsers']),
       // 2. Pages: page path → activeUsers
-      callGA4RealtimeApi(token, propertyId, ['unifiedScreenName'], ['activeUsers']),
-      // 3. Sources: source + medium + campaign → activeUsers
-      callGA4RealtimeApi(token, propertyId, ['sessionSource', 'sessionMedium', 'sessionCampaignName'], ['activeUsers'])
+      safeCall(['unifiedScreenName'], ['activeUsers']),
+      // 3. Sources: source + medium → activeUsers (2 dims max for realtime reliability)
+      safeCall(['firstUserSource', 'firstUserMedium'], ['activeUsers'])
     ]);
 
     // Parse locations and geocode
@@ -89,17 +99,22 @@ module.exports = async function handler(req, res) {
       sourceResult.rows.forEach(function(row) {
         const source = row.dimensionValues[0].value;
         const medium = row.dimensionValues[1].value;
-        const campaign = row.dimensionValues[2].value;
         const users = parseInt(row.metricValues[0].value, 10) || 0;
         sources.push({
           source: source === '(not set)' ? '(direct)' : source,
           medium: medium === '(not set)' ? '(none)' : medium,
-          campaign: campaign === '(not set)' ? null : campaign,
+          campaign: null,
           users: users
         });
       });
       sources.sort(function(a, b) { return b.users - a.users; });
     }
+
+    // Collect any per-call errors for debugging
+    const errors = [];
+    if (locResult._error) errors.push('locations: ' + locResult._error);
+    if (pageResult._error) errors.push('pages: ' + pageResult._error);
+    if (sourceResult._error) errors.push('sources: ' + sourceResult._error);
 
     return res.status(200).json({
       success: true,
@@ -107,7 +122,8 @@ module.exports = async function handler(req, res) {
       locations: locations,
       pages: pages.slice(0, 20),
       sources: sources.slice(0, 20),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      warnings: errors.length ? errors : undefined
     });
 
   } catch (e) {
