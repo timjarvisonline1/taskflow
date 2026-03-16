@@ -6545,7 +6545,7 @@ function rEmailActionRequired(){
       h+='<span class="action-card-compact-sender">'+esc(fromName)+'</span>';
       h+='<span class="action-card-compact-sep">&mdash;</span>';
       /* Subject */
-      h+='<span class="action-card-compact-subject">'+esc(t.subject||'(no subject)')+'</span>';
+      h+='<span class="action-card-compact-subject">'+esc(decHtml(t.subject)||'(no subject)')+'</span>';
       /* Client badge inline */
       if(ctx&&ctx.primaryClient)h+='<span class="email-client-badge" style="font-size:9px;padding:1px 6px;margin-left:4px;flex-shrink:0">'+esc(ctx.primaryClient.clientName)+'</span>';
       if(t.has_meeting)h+='<span class="email-meeting-badge" style="margin-left:4px;flex-shrink:0" title="Meeting">'+icon('calendar',9)+'</span>';
@@ -6590,7 +6590,7 @@ function rEmailActionRequired(){
       h+='<div class="action-urgency-dot" style="background:var(--amber)"></div>';
       h+='<span class="action-card-compact-sender">'+esc(fromName)+'</span>';
       h+='<span class="action-card-compact-sep">&mdash;</span>';
-      h+='<span class="action-card-compact-subject">'+esc(t.subject||'(no subject)')+'</span>';
+      h+='<span class="action-card-compact-subject">'+esc(decHtml(t.subject)||'(no subject)')+'</span>';
       h+='<div class="action-card-compact-right">';
       if(t.followup_details)h+='<span class="action-card-compact-expand" onclick="event.stopPropagation();TF.toggleActionExpand(this)" title="Details">'+icon('chevron_down',9)+'</span>';
       h+='<div class="action-card-compact-btns">';
@@ -6685,7 +6685,7 @@ function rEmailScheduledList(){
       h+='<div style="font-size:10px;color:var(--t4)">'+_fmtCountdown(e.scheduledAt)+'</div>';
       h+='</div>';
       h+='<div class="email-row-mid">';
-      h+='<div class="email-subject">'+esc(e.subject||'(no subject)')+'</div>';
+      h+='<div class="email-subject">'+esc(decHtml(e.subject)||'(no subject)')+'</div>';
       h+='<div class="email-preview">Scheduled for '+_fmtSchedDate(e.scheduledAt)+'</div>';
       h+='</div>';
       h+='<div class="email-row-right">';
@@ -6698,7 +6698,7 @@ function rEmailScheduledList(){
       h+='<div class="email-row" style="cursor:default;border-left:3px solid #e06666">';
       h+='<div class="email-row-left"><div class="email-from" style="color:#e06666">To: '+esc(e.to)+'</div></div>';
       h+='<div class="email-row-mid">';
-      h+='<div class="email-subject">'+esc(e.subject||'(no subject)')+'</div>';
+      h+='<div class="email-subject">'+esc(decHtml(e.subject)||'(no subject)')+'</div>';
       h+='<div class="email-preview" style="color:#e06666">Error: '+esc(e.error||'Unknown error')+'</div>';
       h+='</div>';
       h+='<div class="email-row-right">';
@@ -6711,7 +6711,7 @@ function rEmailScheduledList(){
       h+='<div class="email-row" style="cursor:default;opacity:.6">';
       h+='<div class="email-row-left"><div class="email-from">To: '+esc(e.to)+'</div></div>';
       h+='<div class="email-row-mid">';
-      h+='<div class="email-subject">'+esc(e.subject||'(no subject)')+'</div>';
+      h+='<div class="email-subject">'+esc(decHtml(e.subject)||'(no subject)')+'</div>';
       h+='<div class="email-preview">Sent '+_fmtSchedDate(e.sentAt||e.scheduledAt)+'</div>';
       h+='</div><div class="email-row-right"></div></div>'})}
 
@@ -6963,18 +6963,31 @@ function rEmailList(threads){
     }
     if(dateGroup!==lastGroup){h+='<div class="email-group-header">'+dateGroup+'</div>';lastGroup=dateGroup}
 
-    /* If email is from the user, show the recipient's name instead */
+    /* Gmail-style participant list from all senders in thread */
     var _ueInbox=S._userEmails||[];if(!_ueInbox.length){var _ufi=(S._userEmail||'').toLowerCase();if(_ufi)_ueInbox=[_ufi]}
-    if(_ueInbox.indexOf(fromEmail.toLowerCase())!==-1&&(t.toEmails||t.to_emails)){
-      var _inboxTo=(t.toEmails||t.to_emails).split(',')[0].trim();
-      var _inboxToMatch=_inboxTo.match(/<(.+?)>/);
-      var _inboxToEmail=_inboxToMatch?_inboxToMatch[1].trim():_inboxTo;
-      var _inboxToName=_inboxTo.match(/^(.+?)\s*</);
-      fromName=_inboxToName?_inboxToName[1].replace(/"/g,'').trim():_inboxToEmail.split('@')[0];
-      fromEmail=_inboxToEmail}
-    /* N6: No JS truncation — CSS text-overflow handles it */
-    var fromDisplay=fromName||fromEmail;
-    var initial=(fromName||fromEmail||'?').charAt(0).toUpperCase();
+    var _participants=t.participants||[];
+    var fromDisplay='';
+    if(_participants.length>1){
+      /* Build Gmail-style: "me, Nick, Paul" or "me .. Nick, Paul" */
+      var _pNames=[];var _hasGap=false;
+      _participants.forEach(function(p){
+        var isMe=_ueInbox.indexOf(p.email.toLowerCase())!==-1;
+        var pLabel=isMe?'me':(p.name?(p.name.split(' ')[0]):p.email.split('@')[0]);
+        if(_pNames.length>3){_hasGap=true;return}
+        if(_pNames.indexOf(pLabel)===-1)_pNames.push(pLabel)});
+      fromDisplay=_hasGap?_pNames.slice(0,2).join(', ')+' .. '+_pNames.slice(2).join(', '):_pNames.join(', ')}
+    else{
+      /* Fallback: single sender or no participants data */
+      if(_ueInbox.indexOf(fromEmail.toLowerCase())!==-1&&(t.toEmails||t.to_emails)){
+        var _inboxTo=(t.toEmails||t.to_emails).split(',')[0].trim();
+        var _inboxToMatch=_inboxTo.match(/<(.+?)>/);
+        var _inboxToEmail=_inboxToMatch?_inboxToMatch[1].trim():_inboxTo;
+        var _inboxToName=_inboxTo.match(/^(.+?)\s*</);
+        fromName=_inboxToName?_inboxToName[1].replace(/"/g,'').trim():_inboxToEmail.split('@')[0];
+        fromEmail=_inboxToEmail}
+      fromDisplay=fromName||fromEmail}
+    var initial=(fromDisplay||'?').charAt(0).toUpperCase();
+    if(initial==='m'&&fromDisplay==='me')initial=(fromName||fromEmail||'?').charAt(0).toUpperCase();
     var avatarBg=emailAvatarColor(fromEmail);
 
     /* N5/N6/N7/N9/N10: Gmail-style flat row with checkbox + star */
@@ -7004,8 +7017,8 @@ function rEmailList(threads){
     h+='</div>';
     /* Subject + snippet section (flex:1, truncated) */
     h+='<div class="email-row-content">';
-    h+='<span class="email-row-subject">'+esc(subject)+'</span>';
-    h+='<span class="email-row-snippet"> — '+esc(snippet.substring(0,80))+'</span>';
+    h+='<span class="email-row-subject">'+esc(decHtml(subject))+'</span>';
+    h+='<span class="email-row-snippet"> — '+esc(decHtml(snippet).substring(0,80))+'</span>';
     h+='</div>';
     /* N5: No CRM pills in row — client association shown via left border (has-client class) */
     /* AI-driven urgency dot (for Action Required threads) */
@@ -7182,7 +7195,7 @@ function rEmailThreadModal(threadId){
   h+='<div class="detail-full-header">';
   h+='<div class="tf-modal-top">';
   h+='<div style="flex:1;min-width:0">';
-  h+='<div class="email-thread-modal-subject">'+esc(firstMsg.subject||'(no subject)')+'</div>';
+  h+='<div class="email-thread-modal-subject">'+esc(decHtml(firstMsg.subject)||'(no subject)')+'</div>';
   h+='<div style="font-size:12px;color:var(--t3);margin-top:2px">'+totalMsgs+' message'+(totalMsgs>1?'s':'');
   if(clientMatch&&clientMatch.clientName)h+=' &middot; <span class="email-client-badge" style="cursor:pointer;font-size:10px;padding:1px 8px" onclick="TF.openClientDashboard(\''+escAttr(clientMatch.clientName)+'\')">'+esc(clientMatch.clientName)+'</span>';
   h+='</div></div>';
@@ -7268,7 +7281,7 @@ function rEmailThreadModal(threadId){
     if(msgMatch&&msgMatch.contactName)h+='<span class="email-msg-contact-badge">'+esc(msgMatch.contactName)+'</span>';
     h+='</div>';
     if(!isCollapsed&&_rcptSum){h+='<div class="email-msg-rcpt-summary">'+esc(_rcptSum)+'</div>'}
-    if(isCollapsed&&msg.snippet){h+='<div class="email-msg-snippet">'+esc(msg.snippet.substring(0,120))+'</div>'}
+    if(isCollapsed&&msg.snippet){h+='<div class="email-msg-snippet">'+esc(decHtml(msg.snippet).substring(0,120))+'</div>'}
     h+='</div>';
     h+='<div class="email-msg-date">'+dateLabel+'</div>';
     if(msg.attachments&&msg.attachments.length>0){
@@ -7286,7 +7299,7 @@ function rEmailThreadModal(threadId){
       var encoded=btoa(unescape(encodeURIComponent(msg.body)));
       h+='<iframe class="email-iframe" srcdoc="" data-email-body="'+encoded+'" sandbox="allow-same-origin" style="width:100%;border:none;min-height:100px"></iframe>';
     }else{
-      h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2);line-height:1.6">'+esc(msg.snippet)+'</div>';
+      h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2);line-height:1.6">'+esc(decHtml(msg.snippet))+'</div>';
     }
     if(msg.attachments&&msg.attachments.length>0){
       h+='<div class="email-attachments">';
@@ -7369,6 +7382,7 @@ function rEmailThreadModal(threadId){
   h+='<button class="email-inline-reply-btn" onclick="TF.inlineReplyAll()">'+icon('reply_all',11)+' Reply All</button>';
   h+='<button class="email-inline-reply-btn" onclick="TF.inlineForward()">'+icon('forward',11)+' Forward</button>';
   h+='<button class="email-inline-reply-btn" onclick="TF.addInlineAttachment()">'+icon('paperclip',11)+' Attach</button>';
+  if(getEmailSignature())h+='<button class="email-inline-reply-btn compose-sig-toggle" onclick="TF.toggleComposeSig()" title="Toggle signature">'+icon('edit',11)+' Sig</button>';
   h+='</div></div>';
 
   h+='</div>'; /* close .detail-split-left */
@@ -7631,7 +7645,7 @@ function rEmailThread(){
   h+='<div class="email-thread-detail">';
 
   /* ── Subject header ── */
-  h+='<div class="email-thread-subject">'+esc(firstMsg.subject||'(no subject)')+'</div>';
+  h+='<div class="email-thread-subject">'+esc(decHtml(firstMsg.subject)||'(no subject)')+'</div>';
   h+='<div class="email-thread-meta">';
   h+='<span>'+totalMsgs+' message'+(totalMsgs>1?'s':'')+'</span>';
   if(clientMatch&&clientMatch.clientName){
@@ -7693,7 +7707,7 @@ function rEmailThread(){
     if(msgMatch&&msgMatch.contactName)h+='<span class="email-msg-contact-badge">'+esc(msgMatch.contactName)+'</span>';
     h+='</div>';
     if(!isCollapsed&&_rcptSum2){h+='<div class="email-msg-rcpt-summary">'+esc(_rcptSum2)+'</div>'}
-    if(isCollapsed&&msg.snippet){h+='<div class="email-msg-snippet">'+esc(msg.snippet.substring(0,120))+'</div>'}
+    if(isCollapsed&&msg.snippet){h+='<div class="email-msg-snippet">'+esc(decHtml(msg.snippet).substring(0,120))+'</div>'}
     h+='</div>';
     h+='<div class="email-msg-date">'+dateLabel+'</div>';
     if(msg.attachments&&msg.attachments.length>0){
@@ -7713,7 +7727,7 @@ function rEmailThread(){
       var encoded=btoa(unescape(encodeURIComponent(msg.body)));
       h+='<iframe class="email-iframe" srcdoc="" data-email-body="'+encoded+'" sandbox="allow-same-origin" style="width:100%;border:none;min-height:100px"></iframe>';
     }else{
-      h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2);line-height:1.6">'+esc(msg.snippet)+'</div>';
+      h+='<div style="white-space:pre-wrap;font-size:13px;color:var(--t2);line-height:1.6">'+esc(decHtml(msg.snippet))+'</div>';
     }
     if(msg.attachments&&msg.attachments.length>0){
       h+='<div class="email-attachments">';
@@ -7773,6 +7787,7 @@ function rEmailThread(){
   h+='<button class="email-inline-reply-send" onclick="TF.quickReplyEmail()">'+icon('send',12)+' Send</button>';
   h+='<button class="email-inline-reply-btn" onclick="TF.replyAllEmail()">'+icon('reply_all',11)+' Reply All</button>';
   h+='<button class="email-inline-reply-btn" onclick="TF.forwardEmail()">'+icon('forward',11)+' Forward</button>';
+  if(getEmailSignature())h+='<button class="email-inline-reply-btn compose-sig-toggle" onclick="TF.toggleComposeSig()" title="Toggle signature">'+icon('edit',11)+' Sig</button>';
   h+='<button class="email-inline-reply-btn" onclick="TF.openReplyEmail()" style="margin-left:auto">'+icon('maximize',11)+' Full Reply</button>';
   h+='</div></div>';
 

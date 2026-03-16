@@ -3977,6 +3977,9 @@ function openComposeEmail(opts){
   h+='<button class="btn btn-p" onclick="TF.scheduleCustom()" style="font-size:11px;padding:5px 12px;margin-top:6px;width:100%">Schedule</button>';
   h+='</div></div></div>';
   h+='<button class="btn" onclick="TF.addComposeAttachment()" style="font-size:12px;padding:7px 14px">'+icon('paperclip',12)+' Attach</button>';
+  var _hasSig=!!getEmailSignature();
+  var _sigIncluded=_hasSig&&(bodyContent.indexOf('email-signature')!==-1);
+  if(_hasSig)h+='<button class="btn compose-sig-toggle'+(_sigIncluded?' active':'')+'" onclick="TF.toggleComposeSig()" style="font-size:12px;padding:7px 14px" title="Toggle signature">'+icon('edit',12)+' Sig</button>';
   h+='<button class="btn ai-draft-btn" id="ai-draft-btn" onclick="TF.toggleComposeDraftPrompt()" style="font-size:12px;padding:7px 14px;background:rgba(16,163,127,.12);border-color:rgba(16,163,127,.3);color:#10A37F" title="'+(isReply?'Draft reply':'Generate draft')+' using your knowledge base">'+icon('sparkle',12)+' AI Draft</button>';
   h+='<div style="flex:1"></div>';
   h+='<button class="btn" onclick="TF.closeModal()" style="font-size:12px;padding:7px 14px">Discard</button>';

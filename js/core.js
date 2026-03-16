@@ -249,6 +249,7 @@ var MOB_VIEWS=[
 function gel(id){return document.getElementById(id)}
 function cel(tag,cls,html){var e=document.createElement(tag);if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;return e}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function decHtml(s){return String(s||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#0*39;/g,"'").replace(/&#x0*27;/gi,"'")}
 function escAttr(s){return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
 function fmtM(m){m=Math.round(m||0);if(m<=0)return'0m';var h=Math.floor(m/60),r=m%60;return h>0&&r>0?h+'h '+r+'m':h>0?h+'h':r+'m'}
 function fmtT(s){s=Math.max(0,Math.round(s||0));var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;return(h?h+':':'')+String(m).padStart(h?2:1,'0')+':'+String(ss).padStart(2,'0')}
@@ -3477,7 +3478,15 @@ function expandReplyEditor(){
   if(prompt)prompt.style.display='none';
   if(editor){editor.classList.remove('collapsed');
     var ed=gel('email-inline-reply-editor');
-    if(ed)setTimeout(function(){ed.focus()},50);
+    if(ed){
+      /* Auto-insert signature if editor is empty and signature exists */
+      var _c=ed.innerHTML||'';
+      if((!_c||_c==='<br>'||_c==='<div><br></div>')&&getEmailSignature()){
+        ed.innerHTML='<br><div class="email-signature">--<br>'+getEmailSignature()+'</div>';
+        var sigBtn=document.querySelector('.compose-sig-toggle');if(sigBtn)sigBtn.classList.add('active')}
+      setTimeout(function(){ed.focus();
+        /* Place cursor at start (before signature) */
+        var sel=window.getSelection();if(sel){var range=document.createRange();range.setStart(ed,0);range.collapse(true);sel.removeAllRanges();sel.addRange(range)}},50)}
     /* Enable toolbar state tracking for inline reply */
     document.addEventListener('selectionchange',updateComposeToolbar)}}
 
@@ -5212,6 +5221,14 @@ document.addEventListener('keydown',handleEmailKeyboard);
 /* ── Email signature ── */
 function getEmailSignature(){return localStorage.getItem('tf_email_signature')||''}
 function saveEmailSignature(html){localStorage.setItem('tf_email_signature',html);toast('Signature saved','ok')}
+function toggleComposeSig(){
+  var sig=getEmailSignature();if(!sig){toast('No signature set — use the settings icon to create one','info');return}
+  /* Find the active editor (compose modal or inline reply) */
+  var editor=gel('compose-body')||gel('email-inline-reply-editor');if(!editor)return;
+  var existing=editor.querySelector('.email-signature');
+  var btn=document.querySelector('.compose-sig-toggle');
+  if(existing){existing.remove();if(btn)btn.classList.remove('active')}
+  else{var sigDiv=document.createElement('div');sigDiv.className='email-signature';sigDiv.innerHTML='--<br>'+sig;editor.appendChild(sigDiv);if(btn)btn.classList.add('active')}}
 
 /* ── Cache user email(s) — Supabase + Gmail ── */
 S._userEmails=[];

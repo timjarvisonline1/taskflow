@@ -79,6 +79,20 @@ module.exports = async function handler(req, res) {
       const lastFromMatch = lastFromRaw.match(/<(.+?)>/);
       const lastMessageFromEmail = lastFromMatch ? lastFromMatch[1].trim() : lastFromRaw.trim();
 
+      // Build unique participant list from all message senders (Gmail-style)
+      const seenEmails = {};
+      const participants = [];
+      for (const msg of messages) {
+        const fr = getHeader(msg, 'From');
+        const fm = fr.match(/^(.+?)\s*<(.+?)>$/);
+        const pEmail = fm ? fm[2].trim().toLowerCase() : fr.trim().toLowerCase();
+        const pName = fm ? fm[1].replace(/"/g, '').trim() : '';
+        if (pEmail && !seenEmails[pEmail]) {
+          seenEmails[pEmail] = true;
+          participants.push({ email: pEmail, name: pName });
+        }
+      }
+
       return {
         threadId,
         subject: getHeader(firstMsg, 'Subject') || '(no subject)',
@@ -89,7 +103,8 @@ module.exports = async function handler(req, res) {
         date: new Date(parseInt(lastMsg.internalDate)).toISOString(),
         messageCount: messages.length,
         isUnread, labels: allLabels,
-        lastMessageFromEmail
+        lastMessageFromEmail,
+        participants
       };
     };
 

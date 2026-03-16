@@ -216,6 +216,20 @@ async function syncGmail(userId) {
           if (ecRow) ruleEndClientId = ecRow.id;
         }
 
+        // Build unique participant list from all message senders (Gmail-style)
+        const seenParticipants = {};
+        const participants = [];
+        for (const msg of messages) {
+          const fr = getHeader(msg, 'From');
+          const fm = fr.match(/^(.+?)\s*<(.+?)>$/);
+          const pEmail = fm ? fm[2].trim().toLowerCase() : fr.trim().toLowerCase();
+          const pName = fm ? fm[1].replace(/"/g, '').trim() : '';
+          if (pEmail && !seenParticipants[pEmail]) {
+            seenParticipants[pEmail] = true;
+            participants.push({ email: pEmail, name: pName });
+          }
+        }
+
         // Build base row with Gmail metadata (no CRM fields yet)
         const row = {
           user_id: userId,
@@ -231,6 +245,7 @@ async function syncGmail(userId) {
           is_unread: isUnread,
           labels: allLabels,
           last_message_from: lastFromEmail,
+          participants: participants,
           synced_at: new Date().toISOString()
         };
 
