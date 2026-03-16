@@ -4560,7 +4560,18 @@ function openSignatureEditor(){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('settings',14)+' Email Signature</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<div class="edf-body" style="padding:16px">';
-  h+='<p style="font-size:12px;color:var(--t3);margin:0 0 12px">Your signature will be automatically added to new emails.</p>';
+  h+='<p style="font-size:12px;color:var(--t3);margin:0 0 12px">Your signature will be automatically added to new emails. Use the toolbar to add links, formatting, etc.</p>';
+  /* Compact formatting toolbar */
+  h+='<div class="sig-toolbar">';
+  h+='<button class="sig-tb-btn" onclick="document.execCommand(\'bold\')" title="Bold">'+icon('bold',13)+'</button>';
+  h+='<button class="sig-tb-btn" onclick="document.execCommand(\'italic\')" title="Italic">'+icon('italic',13)+'</button>';
+  h+='<button class="sig-tb-btn" onclick="document.execCommand(\'underline\')" title="Underline">'+icon('underline',13)+'</button>';
+  h+='<span class="sig-tb-sep"></span>';
+  h+='<button class="sig-tb-btn" onclick="TF.sigInsertLink()" title="Insert link">'+icon('link',13)+'</button>';
+  h+='<span class="sig-tb-sep"></span>';
+  h+='<button class="sig-tb-btn" onclick="document.execCommand(\'insertUnorderedList\')" title="Bullet list">'+icon('list_ul',13)+'</button>';
+  h+='<button class="sig-tb-btn" onclick="document.execCommand(\'removeFormat\')" title="Clear formatting">'+icon('eraser',13)+'</button>';
+  h+='</div>';
   h+='<div class="compose-body-wrap">';
   h+='<div class="compose-editor" contenteditable="true" id="sig-editor" data-placeholder="Write your signature..." style="min-height:120px">'+sig+'</div>';
   h+='</div>';
@@ -4569,6 +4580,14 @@ function openSignatureEditor(){
   h+='<button class="btn" onclick="saveEmailSignature(\'\');TF.closeModal()" style="color:var(--red)">Clear Signature</button>';
   h+='</div></div>';
   gel('m-body').innerHTML=h;var _sm=gel('modal');_sm.classList.add('on','email-light')}
+
+function sigInsertLink(){
+  var ed=gel('sig-editor');if(!ed)return;ed.focus();
+  var sel=window.getSelection();var hasText=sel&&sel.toString().length>0;
+  var url=prompt('Enter URL:','https://');if(!url)return;
+  if(hasText){document.execCommand('createLink',false,url)}
+  else{var text=prompt('Link text:',url);if(!text)text=url;
+    document.execCommand('insertHTML',false,'<a href="'+escAttr(url)+'">'+esc(text)+'</a>')}}
 
 /* ═══════════ CONTACT MODALS ═══════════ */
 

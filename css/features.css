@@ -1538,6 +1538,13 @@ select.ed-in:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http:/
   padding-top:8px;margin-top:16px}
 .compose-sig-toggle.active{background:var(--accent-muted);border-color:rgba(255,0,153,.25);color:var(--accent)}
 
+/* ── Signature editor toolbar ── */
+.sig-toolbar{display:flex;align-items:center;gap:2px;padding:6px 8px;border:1px solid #e0e0e0;border-bottom:none;border-radius:6px 6px 0 0;background:#f8f9fa}
+.sig-tb-btn{width:28px;height:28px;border:none;background:none;border-radius:4px;cursor:pointer;color:#444;display:flex;align-items:center;justify-content:center;transition:all .1s}
+.sig-tb-btn:hover{background:#e2e5e9;color:#111}
+.sig-tb-sep{width:1px;height:18px;background:#d0d0d0;margin:0 4px}
+.sig-toolbar+.compose-body-wrap .compose-editor{border-radius:0 0 6px 6px}
+
 /* ── Attachment indicator in thread list ── */
 .email-att-indicator{font-size:12px;color:var(--t4);margin-left:4px;flex-shrink:0}
 
