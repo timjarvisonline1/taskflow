@@ -4212,7 +4212,7 @@ async function quickReplyEmail(){
   var subject=lastMsg.subject||'';
 
   /* Build payload based on mode */
-  var payload={body:'<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>'};
+  var payload={body:sanitizeEmailHtml(body)};
   if(mode==='forward'){
     /* Forward: use inline recipients, Fwd: prefix, NO threadId */
     if(!window._inlineRecipients.to.length){toast('Add at least one recipient','warn');return}
@@ -4366,8 +4366,7 @@ async function inlineAiDraftGo(){
     /* Clean up streaming result */
     var draft=rawText.trim();
     draft=draft.replace(/^```html\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/g,'').trim();
-    if(draft&&!draft.includes('font-family')){
-      draft='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.6">'+draft+'</div>'}
+    draft=sanitizeEmailHtml(draft);
     if(editor){editor.innerHTML=draft}
     if(!draft){toast('AI could not generate a draft','warn');return}
     /* M5 — Store variant for cycling */
@@ -4504,6 +4503,28 @@ function replyAllEmail(msgIdx){
   quoteBody+='<blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:8px 0;color:#666">'+(lastMsg.body||lastMsg.snippet||'')+'</blockquote></div>';
   openComposeEmail({to:replyTo,cc:allCC.join(', '),subject:subject,body:quoteBody,
     replyToThreadId:S.gmailThread.threadId,replyToMessageId:lastMsg.id})}
+
+/* ── Sanitize email HTML: strip font-family/font-size so emails match Gmail's native formatting ── */
+function sanitizeEmailHtml(html){
+  var el=document.createElement('div');el.innerHTML=html;
+  /* Remove font-family and font-size from all inline styles */
+  el.querySelectorAll('[style]').forEach(function(n){
+    n.style.removeProperty('font-family');
+    n.style.removeProperty('font-size');
+    if(!n.getAttribute('style').trim())n.removeAttribute('style')});
+  /* Remove <font face="..."> tags — unwrap to keep inner content */
+  el.querySelectorAll('font[face]').forEach(function(f){
+    f.removeAttribute('face');
+    if(!f.attributes.length){
+      while(f.firstChild)f.parentNode.insertBefore(f.firstChild,f);
+      f.parentNode.removeChild(f)}});
+  /* Remove <font size="..."> tags */
+  el.querySelectorAll('font[size]').forEach(function(f){
+    f.removeAttribute('size');
+    if(!f.attributes.length){
+      while(f.firstChild)f.parentNode.insertBefore(f.firstChild,f);
+      f.parentNode.removeChild(f)}});
+  return el.innerHTML}
 
 /* ── Compose command helper ── */
 function execComposeCmd(cmd,val){
@@ -4677,7 +4698,7 @@ async function scheduleEmail(scheduledAt){
   if(!to){toast('Add at least one recipient','warn');return}
   if(!body||body==='<br>'||body==='<div><br></div>'){toast('Write a message','warn');return}
 
-  var htmlBody='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>';
+  var htmlBody=sanitizeEmailHtml(body);
   var uid=await getUserId();if(!uid)return;
 
   var catClient=(gel('compose-cat-client')||{}).value||'';

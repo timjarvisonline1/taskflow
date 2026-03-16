@@ -4272,8 +4272,7 @@ async function aiDraft(){
     /* Clean up streaming result */
     var draft=rawText.trim();
     draft=draft.replace(/^```html\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/g,'').trim();
-    if(draft&&!draft.includes('font-family')){
-      draft='<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;line-height:1.6">'+draft+'</div>'}
+    draft=sanitizeEmailHtml(draft);
     if(streamTarget){streamTarget.outerHTML=draft}
     if(!draft){toast('AI could not generate a draft','warn');return}
 
@@ -4306,8 +4305,8 @@ async function sendEmail(){
   if(!to){toast('Add at least one recipient','warn');return}
   if(!body||body==='<br>'||body==='<div><br></div>'){toast('Write a message','warn');return}
 
-  /* Wrap in styled div */
-  var htmlBody='<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">'+body+'</div>';
+  /* Sanitize: strip font-family/font-size so emails match Gmail's native formatting */
+  var htmlBody=sanitizeEmailHtml(body);
 
   var payload={to:to,subject:subject,body:htmlBody};
   if(cc)payload.cc=cc;
