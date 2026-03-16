@@ -5239,12 +5239,13 @@ async function cacheUserEmail(){
     var token=sess.data.session.access_token;
     S._userEmail=sess.data.session.user.email||'';
     var emails=[S._userEmail.toLowerCase()];
-    /* Also grab Gmail address from a sent thread (may differ from Supabase email) */
+    /* Also grab Gmail address from profile (may differ from Supabase email) */
     var resp=await fetch('/api/gmail/threads?maxResults=1&label=sent',{headers:{'Authorization':'Bearer '+token}});
     if(resp.ok){
       var data=await resp.json();
       if(data.threads&&data.threads.length){
-        var gmailAddr=(data.threads[0].fromEmail||'').toLowerCase().trim();
+        /* Use lastMessageFromEmail — in Sent threads, the last sender is always the user */
+        var gmailAddr=(data.threads[0].lastMessageFromEmail||data.threads[0].lastMessageFrom||'').toLowerCase().trim();
         if(gmailAddr&&emails.indexOf(gmailAddr)===-1)emails.push(gmailAddr)}}
     S._userEmails=emails.filter(function(e){return!!e});
   }catch(e){}}
