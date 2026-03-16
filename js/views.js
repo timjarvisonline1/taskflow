@@ -7020,7 +7020,15 @@ function rEmailList(threads){
     h+='<span class="email-row-subject">'+esc(decHtml(subject))+'</span>';
     h+='<span class="email-row-snippet"> — '+esc(decHtml(snippet).substring(0,80))+'</span>';
     h+='</div>';
-    /* N5: No CRM pills in row — client association shown via left border (has-client class) */
+    /* CRM context pills (small, right-aligned before date) */
+    var _crmPills='';
+    if(crmCtx){
+      if(crmCtx.primaryClient)_crmPills+='<span class="email-crm-pill client" title="Client: '+escAttr(crmCtx.primaryClient.clientName)+'">'+esc(crmCtx.primaryClient.clientName)+'</span>';
+      if(crmCtx.endClients&&crmCtx.endClients.length){var _ecn=crmCtx.endClients[0];_crmPills+='<span class="email-crm-pill ec" title="End-Client: '+escAttr(_ecn)+'">'+esc(_ecn)+'</span>'}
+      if(crmCtx.opportunities&&crmCtx.opportunities.length){var _opn=crmCtx.opportunities[0].name;_crmPills+='<span class="email-crm-pill opp" title="Opportunity: '+escAttr(_opn)+'">'+esc(_opn)+'</span>'}
+      if(crmCtx.campaigns&&crmCtx.campaigns.length){var _cpn=crmCtx.campaigns[0].name;_crmPills+='<span class="email-crm-pill camp" title="Campaign: '+escAttr(_cpn)+'">'+esc(_cpn)+'</span>'}
+    }
+    if(_crmPills)h+='<div class="email-crm-pills">'+_crmPills+'</div>';
     /* AI-driven urgency dot (for Action Required threads) */
     if(t.needs_reply===true&&(t.reply_status==='pending'||!t.reply_status)){
       var _urgDotColors={critical:'#ef4444',high:'#f59e0b',normal:'#3b82f6',low:'#71717a'};
