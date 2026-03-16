@@ -7024,7 +7024,7 @@ function rEmailList(threads){
     var _crmPills='';
     if(crmCtx){
       if(crmCtx.primaryClient)_crmPills+='<span class="email-crm-pill client" title="Client: '+escAttr(crmCtx.primaryClient.clientName)+'">'+esc(crmCtx.primaryClient.clientName)+'</span>';
-      if(crmCtx.endClients&&crmCtx.endClients.length){var _ecn=crmCtx.endClients[0];_crmPills+='<span class="email-crm-pill ec" title="End-Client: '+escAttr(_ecn)+'">'+esc(_ecn)+'</span>'}
+      if(crmCtx.endClients&&crmCtx.endClients.length){var _ecn=crmCtx.endClients[0].name||crmCtx.endClients[0];_crmPills+='<span class="email-crm-pill ec" title="End-Client: '+escAttr(_ecn)+'">'+esc(_ecn)+'</span>'}
       if(crmCtx.opportunities&&crmCtx.opportunities.length){var _opn=crmCtx.opportunities[0].name;_crmPills+='<span class="email-crm-pill opp" title="Opportunity: '+escAttr(_opn)+'">'+esc(_opn)+'</span>'}
       if(crmCtx.campaigns&&crmCtx.campaigns.length){var _cpn=crmCtx.campaigns[0].name;_crmPills+='<span class="email-crm-pill camp" title="Campaign: '+escAttr(_cpn)+'">'+esc(_cpn)+'</span>'}
     }

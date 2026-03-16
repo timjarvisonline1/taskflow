@@ -2967,7 +2967,11 @@ async function loadGmailThreads(){
     var{data,error}=await _sb.from('gmail_threads').select('*').eq('user_id',uid).order('last_message_at',{ascending:false}).limit(500);
     if(error)throw error;
     S.gmailThreads=data||[];
-    S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
+    /* Only count unread from INBOX threads — Supabase has stale is_unread on old/archived threads.
+       If live threads are loaded, prefer those (more accurate). */
+    if(!S._gmailLiveThreads){
+      S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread&&(t.labels||'').indexOf('INBOX')!==-1}).length;
+    }
   }catch(e){console.error('loadGmailThreads:',e)}}
 
 /* K7 — Fetch entity emails from Supabase (goes beyond in-memory 500 limit).
@@ -3092,7 +3096,7 @@ async function openEmailThread(threadId){
         S.gmailThreads.push(cached)}}
     if(cached){cached.is_unread=false;cached.isUnread=false}
     if(S._gmailLiveThreads)S._gmailLiveThreads.forEach(function(t){if((t.threadId||t.thread_id)===threadId){t.isUnread=false;t.is_unread=false}});
-    S.gmailUnread=S.gmailThreads.filter(function(t){return t.is_unread}).length;
+    S.gmailUnread=(S._gmailLiveThreads||S.gmailThreads).filter(function(t){return(t.isUnread||t.is_unread)&&((t.labels||'').indexOf('INBOX')!==-1)}).length;
     /* Fire-and-forget mark-read API call */
     fetch('/api/gmail/mark-read',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
