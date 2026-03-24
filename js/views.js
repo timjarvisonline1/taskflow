@@ -6674,14 +6674,13 @@ function rEmailAiDrafts(){
     if(ago)h+='<span style="font-size:11px;color:var(--t4);flex-shrink:0">'+ago+'</span>';
     h+='</div>';
 
-    /* Original context (collapsed) */
+    /* Original context — click to expand full thread inline */
     h+='<div style="margin-bottom:10px">';
-    h+='<div onclick="TF.toggleAiDraftContext(\''+d.id+'\')" style="cursor:pointer;font-size:12px;color:var(--t3)">';
-    h+=icon('mail',11)+' <strong>'+esc(decHtml(d.subject||'(no subject)'))+'</strong>';
-    h+=' <span style="color:var(--t4);font-size:10px">(click to expand)</span></div>';
-    h+='<div id="ai-draft-ctx-'+d.id+'" style="display:none;margin-top:6px;padding:8px 12px;background:var(--bg1);border-radius:6px;font-size:12px;color:var(--t3)">';
-    h+=esc(d.original_snippet||'');
-    h+='<div style="margin-top:4px"><a href="#" onclick="event.preventDefault();TF.openEmailThread(\''+esc(d.thread_id)+'\')" style="font-size:11px;color:var(--accent)">View full thread</a></div>';
+    h+='<div onclick="TF.toggleAiDraftContext(\''+d.id+'\')" style="cursor:pointer;font-size:12px;color:var(--t3);display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
+    h+=icon('mail',12)+' <strong style="color:var(--t1)">'+esc(decHtml(d.subject||'(no subject)'))+'</strong>';
+    h+='<span style="color:var(--t4);font-size:10px;margin-left:auto">'+icon('arrow_left',9)+' View Conversation</span></div>';
+    h+='<div id="ai-draft-ctx-'+d.id+'" style="display:none;margin-top:6px;padding:10px 12px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder);max-height:500px;overflow-y:auto">';
+    h+='<div style="padding:12px;color:var(--t3);font-size:12px">'+icon('refresh',12)+' Loading conversation...</div>';
     h+='</div></div>';
 
     /* Draft body */

@@ -121,6 +121,26 @@ module.exports = async function handler(req, res) {
       .eq('user_id', userId)
       .eq('thread_id', draft.thread_id);
 
+    /* Archive thread (remove INBOX label) — same as compose sendEmail flow */
+    try {
+      await fetch(GMAIL_API + '/threads/' + draft.thread_id + '/modify', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ removeLabelIds: ['INBOX'] })
+      });
+      /* Update Supabase labels */
+      var threadRow = await client.from('gmail_threads')
+        .select('id, labels')
+        .eq('user_id', userId)
+        .eq('thread_id', draft.thread_id)
+        .single();
+      if (threadRow.data) {
+        var newLabels = (threadRow.data.labels || '').split(',')
+          .filter(function(l) { return l !== 'INBOX'; }).join(',');
+        await client.from('gmail_threads').update({ labels: newLabels }).eq('id', threadRow.data.id);
+      }
+    } catch (archiveErr) { /* non-fatal */ }
+
     return res.status(200).json({ success: true, gmail_message_id: sendResult.id });
   } catch (e) {
     return res.status(500).json({ error: e.message });

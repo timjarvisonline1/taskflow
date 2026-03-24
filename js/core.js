@@ -4777,9 +4777,72 @@ function openAiDraftCompose(id){
     _draftCat:{client:draft.client_id||'',ec:draft.end_client||'',campaign:draft.campaign_id||'',opp:draft.opportunity_id||'',none:false}
   })}
 
-function toggleAiDraftContext(id){
+/* Cache for fetched AI draft threads */
+var _aiDraftThreadCache={};
+
+async function toggleAiDraftContext(id){
   var el=gel('ai-draft-ctx-'+id);
-  if(el)el.style.display=el.style.display==='none'?'block':'none'}
+  if(!el)return;
+  var isHidden=el.style.display==='none';
+  if(!isHidden){el.style.display='none';return}
+  /* Show the panel */
+  el.style.display='block';
+  /* If already loaded messages, done */
+  if(el.getAttribute('data-loaded'))return;
+  /* Find the draft to get thread_id */
+  var draft=S.aiDrafts.find(function(d){return d.id===id});
+  if(!draft)return;
+  /* Check cache */
+  if(_aiDraftThreadCache[draft.thread_id]){
+    _renderAiDraftThread(el,_aiDraftThreadCache[draft.thread_id],draft);return}
+  /* Fetch full thread */
+  el.innerHTML='<div style="padding:12px;color:var(--t3);font-size:12px">'+icon('refresh',12)+' Loading conversation...</div>';
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/gmail/thread?id='+encodeURIComponent(draft.thread_id),{headers:{'Authorization':'Bearer '+sess.data.session.access_token}});
+    var data=await resp.json();
+    if(data.error)throw new Error(data.error);
+    var msgs=data.messages||data||[];
+    _aiDraftThreadCache[draft.thread_id]=msgs;
+    _renderAiDraftThread(el,msgs,draft);
+  }catch(e){el.innerHTML='<div style="padding:12px;color:var(--red);font-size:12px">Failed to load thread: '+esc(e.message)+'</div>'}}
+
+function _renderAiDraftThread(el,msgs,draft){
+  el.setAttribute('data-loaded','1');
+  if(!msgs.length){el.innerHTML='<div style="padding:12px;color:var(--t3);font-size:12px">No messages found</div>';return}
+  var h='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.3px">Conversation ('+msgs.length+' message'+(msgs.length!==1?'s':'')+')</div>';
+  var _ueList=S._userEmails||[];if(!_ueList.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)_ueList=[_uf]}
+  msgs.forEach(function(msg,idx){
+    var isMe=_ueList.indexOf((msg.fromEmail||'').toLowerCase())!==-1;
+    var fromDisplay=isMe?'me':(msg.fromName||msg.fromEmail||'Unknown');
+    var initial=(isMe?(S._userEmail||'U'):(msg.fromName||msg.fromEmail||'?')).charAt(0).toUpperCase();
+    var avatarBg=emailAvatarColor(msg.fromEmail||'');
+    var dateD=new Date(msg.date);
+    var dateLabel=dateD.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+dateD.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    var isLast=idx===msgs.length-1;
+    /* Compact message row */
+    h+='<div style="padding:8px 0;'+(idx<msgs.length-1?'border-bottom:1px solid var(--gborder);':'')+'">';
+    h+='<div style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">';
+    h+='<div style="width:22px;height:22px;border-radius:50%;background:'+(isMe?'var(--accent)':avatarBg)+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">'+initial+'</div>';
+    h+='<span style="font-weight:'+(isLast?'600':'400')+';font-size:12px;color:var(--t1)">'+esc(fromDisplay)+'</span>';
+    h+='<span style="font-size:11px;color:var(--t4);margin-left:auto;flex-shrink:0">'+dateLabel+'</span>';
+    h+='</div>';
+    /* Message body — last message expanded, others collapsed */
+    h+='<div style="display:'+(isLast?'block':'none')+';margin-top:6px;padding-left:28px;font-size:12px;color:var(--t2);line-height:1.5;max-height:300px;overflow-y:auto">';
+    if(msg.body){
+      /* Render body safely — strip scripts, use srcdoc iframe for HTML emails */
+      var bodyText=msg.body.replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'');
+      /* If it looks like HTML, render in constrained div */
+      if(bodyText.indexOf('<')!==-1&&bodyText.indexOf('>')!==-1){
+        h+='<div class="ai-draft-msg-body" style="font-size:12px;line-height:1.5;word-break:break-word">'+bodyText+'</div>';
+      }else{
+        h+='<div style="white-space:pre-wrap">'+esc(bodyText)+'</div>';
+      }
+    }else if(msg.snippet){
+      h+='<div style="white-space:pre-wrap;color:var(--t3)">'+esc(decHtml(msg.snippet))+'</div>';
+    }
+    h+='</div></div>'});
+  el.innerHTML=h}
 
 /* ── Scheduled Emails (Supabase) ── */
 async function loadScheduledEmails(){
