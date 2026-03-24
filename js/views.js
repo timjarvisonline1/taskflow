@@ -6604,6 +6604,109 @@ function rEmailActionRequired(){
   h+='</div>'; /* close email-page-wrap */
   return h}
 
+/* ── AI Drafts View ── */
+function rEmailAiDrafts(){
+  var drafts=S.aiDrafts||[];
+  var h='<div class="email-page-wrap">';
+  h+='<div class="pg-head"><h1>'+icon('sparkle',18)+' AI Drafts';
+  if(drafts.length)h+=' <span style="background:var(--purple50);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px">'+drafts.length+'</span>';
+  h+='</h1>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn btn-p" onclick="TF.triggerBatchDraft()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('sparkle',12)+' Generate Drafts Now</button>';
+  if(drafts.length>1)h+='<button class="btn" onclick="TF.discardAllAiDrafts()" style="font-size:12px;padding:7px 14px;border-radius:10px">Discard All</button>';
+  h+='</div></div>';
+
+  if(!drafts.length){
+    h+='<div style="text-align:center;padding:80px 0">';
+    h+='<div style="font-size:36px;margin-bottom:12px">'+icon('sparkle',36)+'</div>';
+    h+='<div style="font-size:16px;font-weight:600;color:var(--t1);margin-bottom:6px">No AI drafts pending review</div>';
+    h+='<div style="font-size:13px;color:var(--t3)">Drafts are generated from emails flagged as needing a reply.<br>Click "Generate Drafts Now" to create drafts, or set up automatic generation.</div>';
+    h+='</div>';
+    return h+'</div>'}
+
+  drafts.forEach(function(d){
+    var fromEmail=d.original_from||'';
+    var fromName=fromEmail;
+    var _fm=fromEmail.match(/^(.+?)\s*<(.+?)>$/);
+    if(_fm){fromName=_fm[1].replace(/"/g,'').trim();fromEmail=_fm[2].trim()}
+    else{fromName=fromEmail.split('@')[0]}
+    var avatarColor=emailAvatarColor(fromEmail);
+    var initial=(fromName||'?')[0].toUpperCase();
+
+    /* Time ago */
+    var ago='';
+    if(d.created_at){
+      var diff=Date.now()-new Date(d.created_at).getTime();
+      var mins=Math.floor(diff/60000);
+      if(mins<60)ago=mins+'m ago';
+      else if(mins<1440)ago=Math.floor(mins/60)+'h ago';
+      else ago=Math.floor(mins/1440)+'d ago'}
+
+    /* CRM pills */
+    var crmPills='';
+    if(d.client_id){var cl=S.clientRecords.find(function(c){return c.id===d.client_id});if(cl)crmPills+='<span class="email-client-badge" style="font-size:9px;padding:1px 6px">'+esc(cl.name)+'</span>'}
+    if(d.end_client)crmPills+='<span class="email-client-badge" style="font-size:9px;padding:1px 6px;background:var(--purple50);color:#fff">'+esc(d.end_client)+'</span>';
+
+    /* Urgency from gmail_threads */
+    var gt=S.gmailThreads.find(function(t){return t.thread_id===d.thread_id});
+    var urgBadge='';
+    if(gt&&gt.ai_urgency&&gt.ai_urgency!=='normal'){
+      var urgColors={critical:'var(--red)',high:'var(--amber)',low:'var(--t4)'};
+      urgBadge='<span style="font-size:9px;padding:1px 6px;border-radius:4px;background:'+((urgColors[gt.ai_urgency]||'var(--t4)'))+';color:#fff;margin-left:4px">'+gt.ai_urgency+'</span>'}
+
+    /* KB sources info */
+    var kbInfo='';
+    if(d.kb_chunks_used>0){
+      var srcPills='';
+      try{var srcs=JSON.parse(d.kb_sources||'[]');srcs.forEach(function(s){srcPills+='<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg1);color:var(--t3);margin-left:3px">'+s.count+' '+s.type.toLowerCase()+(s.count!==1?'s':'')+'</span>'})}catch(e){}
+      kbInfo='<div style="font-size:11px;color:var(--t4);margin-top:6px">Generated '+ago+' using '+d.kb_chunks_used+' KB sources'+srcPills+'</div>'}
+
+    h+='<div class="action-card-compact" style="padding:16px;margin-bottom:12px;border-left:3px solid var(--purple50);cursor:default">';
+
+    /* Header row: avatar, sender, date, urgency, CRM */
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+    h+='<div style="width:28px;height:28px;border-radius:50%;background:'+avatarColor+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0">'+initial+'</div>';
+    h+='<div style="flex:1;min-width:0">';
+    h+='<span style="font-weight:600;font-size:13px;color:var(--t1)">'+esc(fromName)+'</span>';
+    h+='<span style="font-size:11px;color:var(--t4);margin-left:6px">'+esc(fromEmail)+'</span>';
+    h+=urgBadge+crmPills;
+    h+='</div>';
+    if(ago)h+='<span style="font-size:11px;color:var(--t4);flex-shrink:0">'+ago+'</span>';
+    h+='</div>';
+
+    /* Original context (collapsed) */
+    h+='<div style="margin-bottom:10px">';
+    h+='<div onclick="TF.toggleAiDraftContext(\''+d.id+'\')" style="cursor:pointer;font-size:12px;color:var(--t3)">';
+    h+=icon('mail',11)+' <strong>'+esc(decHtml(d.subject||'(no subject)'))+'</strong>';
+    h+=' <span style="color:var(--t4);font-size:10px">(click to expand)</span></div>';
+    h+='<div id="ai-draft-ctx-'+d.id+'" style="display:none;margin-top:6px;padding:8px 12px;background:var(--bg1);border-radius:6px;font-size:12px;color:var(--t3)">';
+    h+=esc(d.original_snippet||'');
+    h+='<div style="margin-top:4px"><a href="#" onclick="event.preventDefault();TF.openEmailThread(\''+esc(d.thread_id)+'\')" style="font-size:11px;color:var(--accent)">View full thread</a></div>';
+    h+='</div></div>';
+
+    /* Draft body */
+    h+='<div style="border:1px solid var(--gborder);border-radius:8px;padding:12px 16px;background:var(--bg);margin-bottom:8px;font-size:13px;line-height:1.6;color:var(--t1)">';
+    if(d._regenerating){h+='<div style="text-align:center;padding:20px;color:var(--t3)">'+icon('refresh',16)+' Regenerating draft...</div>'}
+    else{h+=d.body_html||'<em style="color:var(--t4)">Empty draft</em>'}
+    h+='</div>';
+
+    /* KB info */
+    if(kbInfo)h+=kbInfo;
+
+    /* Action buttons */
+    h+='<div style="display:flex;gap:8px;align-items:center;margin-top:10px">';
+    h+='<button class="btn btn-p" onclick="TF.openAiDraftCompose(\''+d.id+'\')" style="font-size:12px;padding:6px 14px;border-radius:8px">'+icon('edit',11)+' Edit & Send</button>';
+    h+='<button class="btn" onclick="if(confirm(\'Send this reply to '+esc(escAttr(fromName))+' exactly as drafted?\'))TF.quickSendAiDraft(\''+d.id+'\')" style="font-size:12px;padding:6px 14px;border-radius:8px">'+icon('send',11)+' Quick Send</button>';
+    h+='<button class="btn" onclick="var p=prompt(\'Custom prompt (optional):\',\'\');if(p!==null)TF.regenerateAiDraft(\''+d.id+'\',p)" style="font-size:12px;padding:6px 10px;border-radius:8px" title="Regenerate">'+icon('refresh',11)+'</button>';
+    h+='<button class="btn" onclick="if(confirm(\'Discard this draft?\'))TF.discardAiDraft(\''+d.id+'\')" style="font-size:12px;padding:6px 10px;border-radius:8px" title="Discard">'+icon('trash',11)+'</button>';
+    h+='<button class="btn" onclick="TF.openEmailThread(\''+esc(d.thread_id)+'\')" style="font-size:12px;padding:6px 10px;border-radius:8px" title="Open Thread">'+icon('mail',11)+'</button>';
+    h+='</div>';
+
+    h+='</div>'});
+
+  h+='</div>';
+  return h}
+
 function rEmailDraftList(){
   var drafts=_loadDrafts();
   var h='<div class="email-page-wrap">';
@@ -6725,6 +6828,7 @@ function rEmail(){
   if(sub.indexOf('e-')!==0&&S.gmailFilter!==sub){S.gmailFilter=sub}
   var isSmartInbox=sub.indexOf('e-')===0;
   if(sub==='e-action'&&!S.gmailThreadId)return rEmailActionRequired();
+  if(sub==='e-ai-drafts')return rEmailAiDrafts();
   if(sub==='e-drafts')return rEmailDraftList();
   if(sub==='e-scheduled')return rEmailScheduledList();
   /* NOTE: Do NOT clear S.gmailThreadId here — that caused state loss on every render() */

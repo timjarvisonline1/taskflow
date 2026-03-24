@@ -140,7 +140,8 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   _outreachAnalyticsDays:30,instantlyCampaignTab:'overview',
   outreachThreadView:null,outreachInboxFilter:'all',outreachInboxCampaign:'',outreachInboxSentiment:'',outreachInboxUnreadOnly:false,
   /* GA4 Analytics */
-  ga4Data:null,_ga4Timer:null,_ga4Connected:false,_ga4SourceLabels:{},_ga4ConfigOpen:false};
+  ga4Data:null,_ga4Timer:null,_ga4Connected:false,_ga4SourceLabels:{},_ga4ConfigOpen:false,
+  aiDrafts:[],_aiDraftsLoading:false};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
@@ -195,6 +196,7 @@ var SECTIONS=[
   ]},
   {id:'email',icon:'mail',label:'Email',kbd:'9',subs:[
     {id:'e-action',label:'Action Required',icon:'zap'},
+    {id:'e-ai-drafts',label:'AI Drafts',icon:'sparkle'},
     {id:'inbox',label:'Inbox',icon:'inbox'},
     {id:'sent',label:'Sent',icon:'mail'},
     {id:'all',label:'All Mail',icon:'folder'},
@@ -3345,8 +3347,8 @@ function setGmailFilter(filter){
   save();
   /* Full render needed when switching to/from special views (action, drafts, scheduled)
      or between smart inboxes and standard views — layout changes completely */
-  var needsFullRender=filter==='e-action'||filter==='e-drafts'||filter==='e-scheduled'
-    ||_prevFilter==='e-action'||_prevFilter==='e-drafts'||_prevFilter==='e-scheduled'
+  var needsFullRender=filter==='e-action'||filter==='e-ai-drafts'||filter==='e-drafts'||filter==='e-scheduled'
+    ||_prevFilter==='e-action'||_prevFilter==='e-ai-drafts'||_prevFilter==='e-drafts'||_prevFilter==='e-scheduled'
     ||(isSmartInbox!==(_prevFilter&&_prevFilter.indexOf('e-')===0));
   if(needsFullRender){render()}else{_refreshEmailListPanel()}
   buildNav();
@@ -4689,6 +4691,96 @@ function deleteDraft(draftId){
 
 function getDraftCount(){return _loadDrafts().length}
 
+/* ── AI Email Drafts (Supabase) ── */
+async function loadAiDrafts(){
+  var uid=await getUserId();if(!uid)return;
+  S._aiDraftsLoading=true;
+  var res=await _sb.from('ai_email_drafts').select('*').eq('user_id',uid).in('status',['pending','edited']).order('created_at',{ascending:false});
+  S.aiDrafts=(res.data||[]);
+  S._aiDraftsLoading=false}
+function getAiDraftCount(){return(S.aiDrafts||[]).length}
+
+async function triggerBatchDraft(){
+  toast('Generating AI drafts...','info');
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/gmail/trigger-batch-draft',{method:'POST',headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'}});
+    var data=await resp.json();
+    if(data.success){
+      toast('Generated '+data.drafts_created+' draft'+(data.drafts_created!==1?'s':''),'ok');
+      await loadAiDrafts();render();buildNav()
+    }else{toast('Draft generation failed: '+(data.error||'Unknown'),'err')}
+  }catch(e){toast('Error: '+e.message,'err')}}
+
+async function quickSendAiDraft(id){
+  var draft=S.aiDrafts.find(function(d){return d.id===id});if(!draft)return;
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/gmail/ai-draft-send',{method:'POST',headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:id})});
+    var data=await resp.json();
+    if(data.success){
+      S.aiDrafts=S.aiDrafts.filter(function(d){return d.id!==id});
+      /* Update local gmail_threads state */
+      var gt=S.gmailThreads.find(function(t){return t.thread_id===draft.thread_id});
+      if(gt){gt.needs_reply=false;gt.reply_status='replied'}
+      toast('Email sent!','ok');render();buildNav()
+    }else{toast('Send failed: '+(data.error||'Unknown'),'err')}
+  }catch(e){toast('Error: '+e.message,'err')}}
+
+async function discardAiDraft(id){
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/gmail/ai-draft-discard',{method:'POST',headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:id})});
+    var data=await resp.json();
+    if(data.success){
+      S.aiDrafts=S.aiDrafts.filter(function(d){return d.id!==id});
+      toast('Draft discarded','ok');render();buildNav()
+    }else{toast('Discard failed','err')}
+  }catch(e){toast('Error: '+e.message,'err')}}
+
+async function discardAllAiDrafts(){
+  if(!confirm('Discard all '+S.aiDrafts.length+' AI drafts?'))return;
+  for(var i=0;i<S.aiDrafts.length;i++){
+    try{
+      var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+      await fetch('/api/gmail/ai-draft-discard',{method:'POST',headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:S.aiDrafts[i].id})});
+    }catch(e){}}
+  S.aiDrafts=[];toast('All drafts discarded','ok');render();buildNav()}
+
+async function regenerateAiDraft(id,customPrompt){
+  var idx=S.aiDrafts.findIndex(function(d){return d.id===id});if(idx===-1)return;
+  S.aiDrafts[idx]._regenerating=true;render();
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/gmail/ai-draft-regenerate',{method:'POST',headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:id,custom_prompt:customPrompt||''})});
+    var data=await resp.json();
+    if(data.id){
+      S.aiDrafts[idx]=data;
+      toast('Draft regenerated','ok')
+    }else{toast('Regenerate failed: '+(data.error||'Unknown'),'err')}
+  }catch(e){toast('Error: '+e.message,'err')}
+  S.aiDrafts[idx]._regenerating=false;render()}
+
+function openAiDraftCompose(id){
+  var draft=S.aiDrafts.find(function(d){return d.id===id});if(!draft)return;
+  var to=[];try{to=JSON.parse(draft.to_addresses||'[]')}catch(e){}
+  var cc=[];try{cc=JSON.parse(draft.cc_addresses||'[]')}catch(e){}
+  openComposeEmail({
+    to:to[0]||'',
+    cc:cc.join(', '),
+    subject:draft.subject||'',
+    body:draft.body_html||'',
+    replyToThreadId:draft.thread_id||'',
+    replyToMessageId:draft.message_id||'',
+    _aiDraftId:draft.id,
+    _draftRecipients:{to:to,cc:cc,bcc:[]},
+    _draftCat:{client:draft.client_id||'',ec:draft.end_client||'',campaign:draft.campaign_id||'',opp:draft.opportunity_id||'',none:false}
+  })}
+
+function toggleAiDraftContext(id){
+  var el=gel('ai-draft-ctx-'+id);
+  if(el)el.style.display=el.style.display==='none'?'block':'none'}
+
 /* ── Scheduled Emails (Supabase) ── */
 async function loadScheduledEmails(){
   var uid=await getUserId();if(!uid)return;
@@ -5432,7 +5524,7 @@ async function loadData(){toast('Loading data...','info');
     /* Load campaigns first (payments/meetings reference them) */
     await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities(),loadEndClients(),loadProspectCompanies()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings(),loadProspects(),loadInstantlyData()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings(),loadProspects(),loadInstantlyData(),loadAiDrafts()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -6675,6 +6767,7 @@ function buildSubNav(sec){
     if(sub.id==='inbox'){var _sib=S.tasks.filter(function(t){return t.isInbox}).length;if(_sib>0)h+='<span class="sub-badge">'+_sib+'</span>'}
     if(sub.id==='review'&&S.review.length>0)h+='<span class="sub-badge">'+S.review.length+'</span>';
     if(sub.id==='e-action'){var _ac=getActionRequiredCount();if(_ac>0)h+='<span class="sub-badge" style="background:#EA4335;color:#fff">'+_ac+'</span>'}
+    if(sub.id==='e-ai-drafts'){var _adc=getAiDraftCount();if(_adc>0)h+='<span class="sub-badge" style="background:var(--purple50);color:#fff">'+_adc+'</span>'}
     if(sub.id==='e-drafts'){var _dc=getDraftCount();if(_dc>0)h+='<span class="sub-badge">'+_dc+'</span>'}
     if(sub.id==='e-scheduled'){var _sc2=(S.scheduledEmails||[]).filter(function(e){return e.status==='pending'}).length;if(_sc2>0)h+='<span class="sub-badge">'+_sc2+'</span>'}
     if(sub.id==='ec_review'){var _ecrc=(S._ecCandidates||[]).length;if(_ecrc>0)h+='<span class="sub-badge">'+_ecrc+'</span>'}

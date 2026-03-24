@@ -85,6 +85,7 @@ taskflow/
 │   │   ├── supabase.js     # Service client, auth verification, upsertPayment, applyPayerMap
 │   │   ├── gmail-auth.js   # Gmail OAuth token refresh
 │   │   ├── sync-gmail.js   # Gmail thread metadata sync (with email rules engine)
+│   │   ├── email-rules.js  # Shared email rule condition matcher (used by sync-gmail.js + core.js)
 │   │   ├── zoho-auth.js    # OAuth token refresh + code exchange for Zoho
 │   │   ├── sync-brex.js    # Brex transaction sync
 │   │   ├── sync-mercury.js # Mercury transaction sync
@@ -92,7 +93,11 @@ taskflow/
 │   │   ├── sync-zoho-payments.js # Zoho Payments sync
 │   │   ├── embeddings.js         # KB: core embedding library (chunk, embed, store, search, dedup)
 │   │   ├── entity-chunkers.js    # KB: 11 entity type chunkers (task, client, campaign, contact, etc.)
-│   │   └── sync-instantly.js     # Instantly.ai sync (parallelized, 9 sections, time-budgeted)
+│   │   ├── sync-instantly.js     # Instantly.ai sync (parallelized, 9 sections, time-budgeted)
+│   │   ├── analyze-meeting.js    # AI meeting analysis for task extraction (Claude Sonnet, 14 categories)
+│   │   ├── ga4-auth.js           # Google OAuth2 token generation from service account JSON (RS256 JWT)
+│   │   ├── city-coords.js        # Lightweight city geocoding (~300 cities) for GA4 map visualization
+│   │   └── draft-engine.js       # Shared RAG draft engine (extracted from ai-draft.js, used by batch-draft)
 │   ├── gmail/
 │   │   ├── threads.js      # GET — fetch thread list from Gmail API
 │   │   ├── thread.js       # GET — fetch single thread with messages
@@ -103,7 +108,15 @@ taskflow/
 │   │   ├── attachment.js   # GET — download attachment
 │   │   ├── analyze.js     # POST — batch AI email analysis (Claude Sonnet)
 │   │   ├── summarize.js   # POST — on-demand thread summarization
-│   │   └── ec-suggest.js  # POST — AI end-client suggestions for EC Review
+│   │   ├── ec-suggest.js  # POST — AI end-client suggestions for EC Review
+│   │   ├── batch-archive.js # POST — archive up to 50 threads in parallel
+│   │   ├── profile.js     # GET — authenticated user's Gmail email address
+│   │   ├── ai-drafts.js   # GET — list pending/edited AI drafts
+│   │   ├── ai-draft-update.js    # POST — update AI draft (body, recipients, subject)
+│   │   ├── ai-draft-send.js      # POST — send AI draft via Gmail with threading
+│   │   ├── ai-draft-discard.js   # POST — discard AI draft
+│   │   ├── ai-draft-regenerate.js # POST — regenerate AI draft with optional custom prompt
+│   │   └── trigger-batch-draft.js # POST — trigger batch draft generation (JWT auth wrapper)
 │   ├── knowledge/
 │   │   ├── search.js          # POST — vector similarity search
 │   │   ├── ai-ask.js          # POST — RAG-powered AI Q&A (keyword + vector → Claude)
@@ -114,20 +127,23 @@ taskflow/
 │   │   ├── ingest-document.js # POST — document text embedding
 │   │   ├── ingest-url.js      # POST — web page embedding
 │   │   ├── ingest-youtube.js  # POST — YouTube transcript embedding
-│   │   └── sync-entities.js   # POST — batch entity sync (11 types → KB)
+│   │   ├── sync-entities.js   # POST — batch entity sync (11 types → KB)
+│   │   └── quick-replies.js  # POST — AI quick-reply suggestions (3 short replies via Claude)
 │   ├── auth/
-│   │   └── gmail-connect.js # GET — initiate Gmail OAuth flow
+│   │   ├── gmail-connect.js # GET — initiate Gmail OAuth flow
+│   │   └── gmail-callback.js # GET — OAuth redirect, exchanges code for tokens, stores in DB
 │   ├── sync/
 │   │   ├── brex.js         # POST — triggers Brex sync
 │   │   ├── mercury.js      # POST — triggers Mercury sync
 │   │   ├── zoho-books.js   # POST — triggers Zoho Books sync
 │   │   ├── zoho-payments.js # POST — triggers Zoho Payments sync
+│   │   ├── gmail.js        # POST — triggers Gmail thread metadata sync to Supabase
 │   │   └── cleanup-duplicates.js # POST — one-time duplicate cleanup
 │   ├── settings/
 │   │   ├── credentials.js  # GET/POST/DELETE integration credentials
 │   │   └── test-connection.js # POST — test a platform connection
 │   ├── cron/
-│   │   └── sync-all.js     # Periodic sync for all active integrations
+│   │   └── batch-draft.js  # POST — batch AI draft generation (CRON_SECRET or JWT auth)
 │   ├── meetings/
 │   │   └── generate-report.js # POST — AI Kajabi report generation (SSE streaming, Claude Sonnet)
 │   ├── instantly/
@@ -137,6 +153,8 @@ taskflow/
 │   │   ├── unread.js         # GET — unread email count from Instantly
 │   │   ├── lead-action.js    # POST — update lead interest status
 │   │   └── account-action.js # POST — account actions (warmup, pause, resume, test, mark_fixed)
+│   ├── ga4/
+│   │   └── realtime.js      # GET — GA4 Realtime API (active users, pages, countries, sources, devices)
 │   └── webhook/
 │       ├── mercury.js        # Mercury webhook (HMAC-SHA256 verified)
 │       ├── zoho-payments.js  # Zoho Payments webhook
@@ -181,7 +199,16 @@ taskflow/
 │   ├── enhance-instantly-emails.sql         # Phase 3: thread_id, is_unread, content_preview, eaccount columns
 │   ├── enhance-instantly-leads.sql          # Phase 4: engagement metric columns on leads
 │   ├── enhance-instantly-accounts.sql       # Phase 5: instantly_warmup_daily table
-│   └── enhance-instantly-events.sql         # Phase 6: instantly_events table for activity feed
+│   ├── enhance-instantly-events.sql         # Phase 6: instantly_events table for activity feed
+│   ├── enhance-opportunity-fields.sql       # Zapier intake fields + close_reason on opportunities
+│   ├── remap-fc-stages.sql                  # F&C Partnership stage name consolidation
+│   ├── add-meetings.sql                     # meetings table (Read.ai records, transcript, JSONB fields)
+│   ├── add-meeting-ai-tasks.sql             # ai_tasks_generated boolean on meetings
+│   ├── add-meeting-ai-suggestions.sql       # ai_suggestions JSONB on meetings
+│   ├── enhance-email-ai.sql                 # 8 AI columns on gmail_threads (sentiment, meeting, followup, task)
+│   ├── fix-knowledge-search-timeout.sql     # Optimized match_knowledge() with two-phase HNSW scan
+│   ├── add-gmail-participants.sql           # participants JSONB on gmail_threads
+│   └── add-ai-email-drafts.sql             # ai_email_drafts table (AI-generated reply drafts)
 │
 └── scripts/
     ├── run-migration.py        # Helper to run SQL migrations
@@ -193,7 +220,11 @@ taskflow/
     ├── embed-meetings-lite.py  # KB: lightweight meeting embedding
     ├── embed-batch.py          # KB: batch entity embedding
     ├── create-vector-index.py  # KB: create HNSW vector index
-    └── run-embed.sh            # KB: shell wrapper for embedding scripts
+    ├── run-embed.sh            # KB: shell wrapper for embedding scripts
+    ├── import-opportunities.py # One-time CSV import from Close CRM (maps pipelines to opp types)
+    ├── import-contacts.js      # Browser console script for importing contacts from CSVs
+    ├── import-readai-meetings.py # Pull historical meetings from Read.ai REST API (PKCE OAuth)
+    └── backfill-transcripts.py # Fetch full transcripts for already-imported meetings (rate-limited)
 ```
 
 ## Client-Side Architecture
@@ -212,8 +243,10 @@ The main navigation is defined by `SECTIONS` in `core.js`. Sections are ordered 
 | 6 | `projects` | Projects | 6 | Board, List, Timeline |
 | 7 | `clients` | Clients | 7 | Active, Lapsed, End Clients, Prospects, People, Contact Review |
 | 8 | `finance` | Finance | 8 | Overview, Transactions, Invoices, Upcoming, Recurring, Forecast, Team |
-| 9 | `email` | Email | 9 | Action Required (with badge), Inbox, Sent, All Mail, Drafts (with badge), Scheduled (with badge), then Smart Inboxes: Clients (Active), Clients (Lapsed), Prospects, By Campaign, By Opportunity, Other |
-| 10 | `outreach` | Outreach | 0 | Campaigns, Replies (with unread badge), Leads, Accounts, Activity |
+| 9 | `email` | Email | 9 | Action Required (with badge), AI Drafts (with badge), Inbox, Sent, All Mail, Drafts (with badge), Scheduled (with badge), then Smart Inboxes: Clients (Active), Clients (Lapsed), Prospects, By Campaign, By Opportunity, Other |
+| 10 | `outreach` | Outreach | 0 | Campaigns, Replies (with unread badge), Leads, Accounts, Analytics, Activity |
+| 11 | `meetings` | Meetings | — | — (single view with search, type filter, pagination) |
+| 12 | `website` | Website Analytics | — | — (GA4 real-time dashboard) |
 
 **Mobile bottom tabs** (`MOB_VIEWS`): Add, Tasks, Review, Opps
 
@@ -243,10 +276,11 @@ S = {
   phases: [],             // Project phase objects
   opportunities: [],      // Sales opportunity objects
   payments: [],           // Campaign payment records
-  campMeetings: [],       // Campaign meeting records
+  campaignMeetings: [],   // Campaign meeting records
+  oppMeetings: [],        // Opportunity meeting records
   actLogs: {},            // Activity logs by task ID
   financePayments: [],    // Finance payment records
-  finSplits: [],          // Payment split records
+  financePaymentSplits: [], // Payment split records
   payerMap: [],           // Payer-to-client mappings
   integrations: [],       // Integration credential records
   accountBalances: [],    // Live bank account balance snapshots
@@ -255,26 +289,23 @@ S = {
   contacts: [],           // CRM contacts (name, email, clientId, endClient)
   endClients: [],         // Managed end-client entities (from Supabase end_clients table)
   meetings: [],           // Read.ai meeting records (each has isGroupCall, groupCallType, kajabiReportHtml)
-  meetingFilter: '',       // Meetings list filter: '' | 'group_call' | 'office_hours' | 'group_accountability' | 'olympic_mindset'
+  meetingDetail: null,    // Currently open meeting object
+  meetingSearch: '',      // Meeting search query
+  meetingsPage: 1,        // Meeting pagination page number
+  meetingFilter: '',      // Meetings list filter: '' | 'group_call' | 'office_hours' | 'group_accountability' | 'olympic_mindset'
 
   // Entity dashboard tab state
   clientTab: 'overview',           // Active tab in client detail modal
   endClientTab: 'overview',        // Active tab in end-client detail modal
   opportunityTab: 'overview',      // Active tab in opportunity detail modal
   prospectCompanyTab: 'overview',  // Active tab in prospect company detail modal
-  // (campaignTab already existed — 'overview' default)
+  campaignTab: 'overview',         // Active tab in campaign detail modal
+  instantlyCampaignTab: 'overview', // Active tab in Instantly campaign detail modal
+  leadDetailTab: 'overview',       // Active tab in lead detail modal
 
   // EC Review state
   ecSort: 'name',              // End-client list sort field
   _ecCandidates: [],           // AI-discovered EC candidates
-  _ecAnalyzing: false,         // EC Review analysis in progress
-
-  // Entity tracking (for tab re-renders)
-  _lastEndClientDash: '',      // Currently open end-client UUID
-  _lastEndClientName: '',      // Currently open end-client name (for chart name-based filtering)
-  _lastCampaignId: '',         // Currently open campaign ID
-  _lastOpportunityId: '',      // Currently open opportunity ID
-  _lastProspectCompanyId: '',  // Currently open prospect company ID
 
   // People view state
   peopleFilter: 'all',         // People view filter: 'all' | 'client' | 'endclient' | 'prospect'
@@ -283,6 +314,8 @@ S = {
   // Prospect data
   prospectCompanies: [],       // Prospect company objects
   prospects: [],               // Individual prospect people
+  pcSort: 'name',              // Prospect company sort field
+  pSort: 'name',               // Prospect sort field
 
   // Email state
   gmailThreads: [],       // Cached gmail thread metadata (from Supabase, limit 500)
@@ -292,15 +325,9 @@ S = {
   gmailThreadId: '',      // Thread ID being viewed
   gmailUnread: 0,         // Unread count
   _gmailFetching: false,  // Loading state
-  _gmailLiveThreads: null,// Live thread results (vs cached)
-  _gmailNextPage: null,   // Pagination token
   _gmailCache: {},        // Per-filter cache {filter: {threads, nextPage}} — preserves data across view switches
-  _filteredEmailResults: null, // Server-side filtered results (when email filters active)
   scheduledEmails: [],    // Scheduled emails (from Supabase)
   emailRules: [],         // Email rules (from Supabase)
-  _domainMap: {},         // email domain → CRM context (built by _buildDomainMap)
-  _threadCrmCache: {},    // thread_id → CRM context cache (invalidated on contact/domain changes)
-  _emailTimer: null,      // Silent timer tracking email reading time
 
   // Email filters & bulk
   emailFilters: {},       // {client, endClient, opportunity, campaign} — filter values
@@ -313,16 +340,18 @@ S = {
   subView: '',            // Sub-view within a section
   filters: {},            // Task filters (client, endClient, campaign, project, opportunity, cat, imp, type, search, dateFrom, dateTo)
   collapsed: {},          // Collapsed sections
-  layout: 'board',        // Task layout (board, list)
+  layout: 'grid',         // Task layout (grid, list)
   groupBy: 'importance',  // Task grouping
-  customOrder: {},        // Custom task ordering
+  customOrder: [],        // Custom task ordering
   timers: {},             // Active timers by task ID {started, elapsed}
   pins: {},               // Pinned tasks
   schedOrder: {},         // Schedule ordering
   projTaskOrder: {},      // Project task ordering
+  calEvents: [],          // Google Calendar events
 
   // Client detail view
   clientDetailName: '',   // Currently open client name (used by client detail modal)
+  campaignDetailId: '',   // Currently open campaign ID
 
   // Bulk operations
   bulkMode: false,        // Bulk selection active
@@ -332,41 +361,70 @@ S = {
   focusTask: null,        // Currently focused task ID
   focusDuration: 25,      // Focus session duration (minutes)
 
+  // Dashboard/Analytics
+  dashPeriod: 30,         // Dashboard analytics period (days)
+  doneSort: 'date',       // Completed tasks sort order
+  weeklyRange: 'all',     // Weekly summary range
+  clientSort: 'name',     // Client directory sort
+
   // Finance UI state
-  finFilter: '',          // '' | 'unmatched' | 'matched' | 'expenses'
+  finFilter: 'unmatched', // 'unmatched' | 'matched' | 'expenses'
   finDirection: '',       // '' | 'inflow' | 'outflow'
   finSearch: '',          // Search text
   finRange: '12m',        // Analytics range
-  finShowAnalytics: true, // Show/hide analytics
   finCatFilter: '',       // Category filter
   finClientFilter: '',    // Client filter
   finCustomStart: '',     // Custom date range start
   finCustomEnd: '',       // Custom date range end
   finBulkMode: false,     // Finance bulk mode
+  finBulkSelected: {},    // Finance bulk selected IDs
 
   // Campaign/Opportunity UI state
   cpShowPaused: false,    // Show paused campaigns
   cpShowCompleted: false, // Show completed campaigns
   opShowClosed: false,    // Show closed opportunities
+  opTypeFilter: '',       // Opportunity type filter
+  opViewMode: 'pipeline', // Opportunity view mode
+  opPartnerFilter: '',    // Opportunity partner filter
 
   // Forecast
   forecastHorizon: 90,    // Forecast lookout period (days)
   forecastScenario: 'expected', // 'expected' | 'conservative'
 
+  // Notes
+  campaignNotes: {},      // Campaign notes cache
+  clientNotes: {},        // Client notes cache
+
   // Outreach (Instantly.ai) state
-  instantlyCampaigns: [],   // Synced Instantly campaigns
-  instantlyLeads: [],       // Synced leads
-  instantlyEmails: [],      // Synced emails
-  instantlyAccounts: [],    // Synced sending accounts
-  instantlyEvents: [],      // Webhook event feed
-  outreachSub: 'campaigns', // Current outreach sub-view
-  outreachFilter: 'all',    // Reply filter
-  outreachThreadView: null, // Thread ID for inbox thread detail view
-  outreachInboxFilter: 'all',   // Inbox filter: 'all' | 'positive' | 'question' | 'negative' | 'neutral'
-  outreachInboxCampaign: '',    // Inbox campaign filter
-  outreachInboxSentiment: '',   // Inbox sentiment filter
+  instantlyCampaigns: [],       // Synced Instantly campaigns
+  instantlyLeads: [],           // Synced leads
+  instantlyEmails: [],          // Synced emails
+  instantlyAccounts: [],        // Synced sending accounts
+  instantlyAnalyticsDaily: [],  // Daily analytics per campaign
+  instantlyCampaignSteps: [],   // Step-level analytics per campaign
+  instantlyEvents: [],          // Webhook event feed
+  outreachSub: 'campaigns',     // Current outreach sub-view
+  outreachFilter: '',            // Reply filter
+  outreachBulkMode: false,       // Outreach bulk selection mode
+  outreachBulkSelected: {},      // Outreach bulk selected IDs
+  _outreachAnalyzing: false,     // Outreach AI analysis in progress
+  _outreachAnalyticsDays: 30,    // Outreach analytics lookback window (days)
+  outreachThreadView: null,      // Thread ID for inbox thread detail view
+  outreachInboxFilter: 'all',    // Inbox filter: 'all' | 'positive' | 'question' | 'negative' | 'neutral'
+  outreachInboxCampaign: '',     // Inbox campaign filter
+  outreachInboxSentiment: '',    // Inbox sentiment filter
   outreachInboxUnreadOnly: false, // Show only unread threads
-  leadDetailTab: 'overview',    // Active tab in lead detail modal
+
+  // GA4 Website Analytics state
+  ga4Data: null,              // GA4 real-time analytics data
+  _ga4Timer: null,            // GA4 polling timer (30s interval)
+  _ga4Connected: false,       // GA4 integration connection status
+  _ga4SourceLabels: {},       // Custom GA4 source labels mapping
+  _ga4ConfigOpen: false,      // GA4 config panel open state
+
+  // AI Email Drafts
+  aiDrafts: [],               // Pending/edited AI-generated draft replies (from Supabase)
+  _aiDraftsLoading: false,    // Loading state for AI drafts
 }
 ```
 
@@ -375,7 +433,7 @@ S = {
 All views are rendered by calling `render()`, which calls the appropriate `rXxx()` function based on `S.view`. Views build HTML strings and inject via `innerHTML`. No virtual DOM.
 
 ```
-render() → rDashboard() | rToday() | rTasks() | rFinance() | rCampaigns() | rProjects() | rOpportunities() | rClients() | rEmail() | rOutreach()
+render() → rDashboard() | rToday() | rTasks() | rFinance() | rCampaigns() | rProjects() | rOpportunities() | rClients() | rEmail() | rOutreach() | rMeetings() | rWebsiteAnalytics()
 
 Dashboard:
   rDashboard()             — Comprehensive overview: today's focus, productivity, sales pipeline,
@@ -482,6 +540,10 @@ Meetings views:
 
 Email sub-views (via rEmail() dispatcher):
   rEmailActionRequired()   — AI-powered triage: urgency-grouped cards with CRM context, dismiss, snooze
+  rEmailAiDrafts()         — AI-generated draft replies: card-based list with Edit & Send, Quick Send,
+                             Regenerate (with custom prompt), Discard. Badge count in sub-nav.
+                             Each card shows sender avatar, urgency, CRM pills, collapsible original
+                             context, rendered draft body, KB source pills, action buttons.
   rEmailDraftList()        — Saved drafts with open/delete (uses localStorage)
   rEmailScheduledList()    — Scheduled emails: pending (with countdown), failed, sent history
   rEmailListPanel()        — Split view left panel: thread list with avatars, badges, archive button
@@ -510,6 +572,23 @@ Outreach entity modals (modals.js):
                                    linked records), Activity (email timeline), Variables (key-value table)
   openInstantlyAccountDetail(id) — Account detail modal: health score, warmup toggle, pause/resume,
                                    test vitals, mark fixed, provider config
+
+Instantly campaign detail tabs (via rInstantlyCampaignTabContent() dispatcher):
+  rIcTabOverview(camp)           — Overview with 4 charts, metrics summary
+  rIcTabSequences(camp)          — Campaign sequences/steps viewer
+  rIcTabSchedule(camp)           — Campaign schedule configuration
+  rIcTabAnalytics(camp)          — Analytics table (daily time-series)
+  rIcTabConfig(camp)             — Campaign config (default opp type, mapped client)
+
+Lead detail tabs (via rLeadDetailTabContent() dispatcher):
+  rLeadTabOverview(lead, camp)   — Contact info, engagement metrics, interest status, linked records
+  rLeadTabActivity(lead)         — Email timeline (chronological)
+  rLeadTabVariables(lead)        — Key-value table of custom variables
+
+Website Analytics (standalone view):
+  rWebsiteAnalytics()            — GA4 real-time dashboard with active users, top pages, countries,
+                                   traffic sources, device breakdown. 30-second auto-polling.
+                                   Config panel for source label customization.
 
 Mobile views:
   rMobAdd()                — Quick add task
@@ -612,11 +691,22 @@ Gmail is connected via OAuth 2.0 with scopes `gmail.readonly`, `gmail.send`, `gm
 - `POST /api/gmail/analyze` — batch AI email analysis (Claude Sonnet, up to 30 threads per call, returns 12 fields: needs_reply, summary, urgency, category, sentiment, has_meeting, meeting_details, needs_followup, followup_details, suggested_client, suggested_task)
 - `POST /api/gmail/summarize` — on-demand thread summarization (fetches full message bodies, caches result)
 - `POST /api/gmail/ec-suggest` — AI-powered end-client suggestions. Accepts candidate contacts (email, name, clientName, emailCount, meetingCount), existing end-clients, and contacts. Returns end-client group suggestions with confidence scores, contact categorization, and reasoning. Used by EC Review feature.
+- `POST /api/gmail/batch-archive` — archive up to 50 threads in parallel (removes INBOX label, updates Supabase)
+- `GET /api/gmail/profile` — returns authenticated user's Gmail email address
+- `POST /api/sync/gmail` — triggers Gmail thread metadata sync to Supabase
 
 ### Meetings API
 
 - `POST /api/meetings/generate-report` — AI Kajabi report generation. Loads meeting with full transcript from DB, builds type-specific prompt (Office Hours / Group Accountability / Olympic Mindset), streams response via **Server-Sent Events** (SSE) to avoid Vercel timeout on long transcripts. Each chunk event (`{t:'c',h:'<text>'}`) contains a fragment of HTML; done event (`{t:'d'}`) signals completion. Caches result in `kajabi_report_html` column. Uses Claude Sonnet with `max_tokens: 64000`. Auto-detects wall-clock timestamps (`[16:01:30]`) vs speaker-only format (`[Tim Jarvis]:`) and adjusts prompts accordingly — elapsed time is calculated from the meeting's `start_time`. Vercel `maxDuration: 300` (Pro plan).
 - `POST /api/webhook/readai` — Read.ai webhook endpoint for meeting data ingestion. Receives meeting transcripts, summaries, action items, participants, and metadata.
+
+### GA4 Website Analytics API
+
+- `GET /api/ga4/realtime` — fetches GA4 Realtime API data (active users, top pages, countries/cities with coordinates, traffic sources, devices). Uses service account JWT auth (`api/_lib/ga4-auth.js`). City coordinates resolved via static lookup (`api/_lib/city-coords.js`, ~300 cities). Returns JSON for dashboard visualization.
+
+### Knowledge Base Quick Replies
+
+- `POST /api/knowledge/quick-replies` — generates 3 short email quick-reply suggestions using Claude AI. Takes email subject/snippet/summary + sentiment, returns JSON array of 1-sentence replies (<15 words each).
 
 ### Compose Editor
 
@@ -976,16 +1066,19 @@ Python CLI scripts for initial population of the knowledge base:
 
 ### AI Email Analysis Pipeline
 
-Six AI-powered email features, all using Claude Sonnet (configurable via `integration_credentials`):
+Seven AI-powered email features, all using Claude Sonnet (configurable via `integration_credentials`):
 
 | Feature | Endpoint | Trigger | Model | Max Tokens |
 |---------|----------|---------|-------|------------|
 | Batch Analysis | `/api/gmail/analyze` | Poll (60s) / Refresh / Load | Sonnet | 8192 |
 | Summarization | `/api/gmail/summarize` | Manual | Sonnet | 1024 |
 | EC Suggest | `/api/gmail/ec-suggest` | Manual | Sonnet | 4096 |
+| Quick Replies | `/api/knowledge/quick-replies` | Manual | Sonnet | 512 |
 | AI Draft | `/api/knowledge/ai-draft` | Manual | Sonnet + OpenAI embedding | 2048 |
 | AI Q&A | `/api/knowledge/ai-ask` | Manual | Sonnet + OpenAI embedding | 4096 |
 | Email Embedding | `/api/knowledge/ingest-emails` | Manual refresh | OpenAI embedding | N/A |
+| Meeting Analysis | `api/_lib/analyze-meeting.js` | Manual | Sonnet | 4096 |
+| Batch AI Drafts | `api/cron/batch-draft.js` | Cron / Manual | Sonnet + OpenAI embedding | 4096 |
 
 **Batch analysis** (`analyzeNewEmails()` → `/api/gmail/analyze`): Sends up to 30 threads per batch with snippet, metadata, and CRM context (clients, first 50 contacts, active campaigns, open opportunities). Returns 15 fields per thread including `needs_reply`, `ai_urgency`, `ai_category`, `ai_sentiment`, `has_meeting`, `ai_suggested_task`. Auto-associates suggested client/campaign/opportunity to thread CRM fields.
 
@@ -1013,6 +1106,24 @@ Six AI-powered email features, all using Claude Sonnet (configurable via `integr
 - `stripQuotedReply(text)` — Strips quoted reply content from email bodies before embedding (removes `>` prefixed lines, "On ... wrote:" blocks)
 - `cleanOrphans(client, userId, sourceType, validSourceIds)` — Remove embeddings for deleted records
 
+## GA4 Website Analytics
+
+Real-time Google Analytics 4 dashboard. Uses service account authentication (RS256 JWT, no npm dependencies).
+
+**Architecture:**
+- `api/_lib/ga4-auth.js` — generates OAuth2 access tokens from service account JSON with module-level caching (60s buffer)
+- `api/_lib/city-coords.js` — static lookup table (~300 world cities) mapping city/country pairs to lat/lng for map visualization
+- `api/ga4/realtime.js` — GET endpoint fetching GA4 Realtime API data (active users by page, country, city, source, device)
+
+**Client-side:**
+- `rWebsiteAnalytics()` — renders dashboard with active user count, top pages, geo data, traffic sources, device breakdown
+- `fetchGA4Realtime()` — fetches data from `/api/ga4/realtime`
+- `startGA4Polling()` / `stopGA4Polling()` — 30-second auto-refresh interval (starts on view enter, stops on leave)
+- `toggleGA4Config()` — config panel for custom source label mapping (stored in `integration_credentials`)
+- `S.ga4Data` — cached response, `S._ga4Connected` — connection status
+
+**Configuration:** GA4 service account JSON and property ID stored in `integration_credentials` table. Source labels customizable via in-app config panel.
+
 ## Database Tables
 
 ### Core Tables
@@ -1023,7 +1134,7 @@ Six AI-powered email features, all using Claude Sonnet (configurable via `integr
 - `campaigns` — marketing campaign records with fees, dates, links, billing frequency/terms
 - `projects` — project records with phases
 - `project_phases` — ordered phases within projects
-- `opportunities` — sales pipeline items with opp_type, payment method, processing fees, receiving account
+- `opportunities` — sales pipeline items with opp_type, payment method, processing fees, receiving account, contact_job_title, prospect_website, previous_relationship, company_description, prospect_description, video_strategy_benefits, close_reason
 - `payments` — campaign-related payment records
 - `campaign_meetings` — meeting records linked to campaigns
 - `opportunity_meetings` — meeting records linked to opportunities
@@ -1051,13 +1162,14 @@ Six AI-powered email features, all using Claude Sonnet (configurable via `integr
 ### Knowledge Base Tables
 - `knowledge_chunks` — vector-embedded content chunks (pgvector 1536-dim). Fields: source_type (meeting/email/webpage/youtube/document/task/client/campaign/contact/project/opportunity/activity/payment/scheduled/team), source_id, chunk_index, title, content, content_tsv (tsvector, auto-populated by trigger), client_id FK, end_client, campaign_id FK, date, people[], tags[], embedding vector(1536), embedding_model, token_count, content_hash. HNSW index for cosine distance, GIN index on content_tsv for full-text search. Unique constraint on (user_id, source_type, source_id, chunk_index).
 - `knowledge_sources` — ingestion tracking per source. Fields: source_type, source_id, name, url, status (pending/processing/complete/error), chunks_count, tokens_used, error_message, last_ingested_at. Unique constraint on (user_id, source_type, source_id).
-- `match_knowledge()` — SQL function for hybrid search: cosine vector similarity + tsvector full-text matching + recency weighting. Accepts optional source_type, client_id, and search_keywords filters. Returns ranked chunks above threshold with source type diversity cap (50%).
+- `match_knowledge()` — SQL function for hybrid search: two-phase approach (Phase 1: fast HNSW index scan using cosine distance, Phase 2: apply recency weighting + keyword boost to candidates). Accepts optional source_type, client_id, and search_keywords filters. Returns ranked chunks above threshold with source type diversity cap (50%). Optimized via `fix-knowledge-search-timeout.sql` to avoid statement timeouts on 50K+ rows.
 
 ### Email Tables
-- `gmail_threads` — thread metadata synced from Gmail (subject, from, to, cc, snippet, labels, is_unread, client_id, end_client, campaign_id, opportunity_id, last_message_from, last_message_at)
+- `gmail_threads` — thread metadata synced from Gmail (subject, from, to, cc, snippet, labels, is_unread, client_id, end_client, campaign_id, opportunity_id, last_message_from, last_message_at, participants JSONB)
 - `contacts` — CRM contacts (first_name, last_name, email, client_id, end_client, phone, notes)
 - `scheduled_emails` — emails queued for future sending (to, cc, bcc, subject, body, attachments, scheduled_at, status: pending/sent/failed)
 - `email_rules` — auto-categorization rules (name, conditions JSON, actions JSON, is_active, priority)
+- `ai_email_drafts` — AI-generated draft replies (thread_id, message_id, subject, to_addresses JSON, cc_addresses JSON, body_html, body_text, original_snippet, original_from, original_date, kb_chunks_used, kb_sources JSON, client_id FK, end_client, campaign_id FK, opportunity_id FK, status: pending/edited/sent/discarded, batch_run_id, ai_model, custom_prompt, sent_at, discarded_at). Unique partial index on (user_id, thread_id) WHERE status='pending'
 
 ### Meetings Table
 - `meetings` — Read.ai meeting records ingested via webhook (title, start_time, end_time, duration_minutes, participants JSONB, summary, transcript, action_items JSONB, key_questions JSONB, topics JSONB, chapter_summaries JSONB, report_url, owner_email, owner_name, source, session_id, client_id FK, end_client, campaign_id, opportunity_id, is_group_call boolean, group_call_type text, kajabi_report_html text, ai_suggestions JSONB, ai_tasks_generated boolean)
@@ -1094,12 +1206,14 @@ Each entity has standard CRUD helpers:
 - **End Clients**: `dbAddEndClient()`, `dbEditEndClient()`, `dbDeleteEndClient()`, `loadEndClients()`
 - **Prospect Companies**: `dbAddProspectCompany()`, `dbEditProspectCompany()`, `dbDeleteProspectCompany()`, `loadProspectCompanies()`, `ensureProspectCompanyExists()`, `syncRlProspectCompanies()`
 - **Prospects**: `dbAddProspect()`, `dbEditProspect()`, `dbDeleteProspect()`, `loadProspects()`
-- **Meetings**: `loadMeetings()`, `openMeeting()`, `closeMeeting()`, `dbEditMeeting()`, `setMeetingFilter()`, `toggleGroupCall()`, `setGroupCallType()`, `generateKajabiReport()`, `copyKajabiReport()`, `saveKajabiReport()`, `toggleKajabiPreview()`, `addMeetingParticipantAsContact()`
+- **Meetings**: `loadMeetings()`, `openMeeting()`, `closeMeeting()`, `dbEditMeeting()`, `setMeetingFilter()`, `setMeetingSearch()`, `setMeetingsPage()`, `setMeetingCrm()`, `refreshMtgCrm()`, `refreshMtgCampaigns()`, `toggleGroupCall()`, `setGroupCallType()`, `generateKajabiReport()`, `copyKajabiReport()`, `saveKabajiReport()`, `toggleKajabiPreview()`, `addMeetingParticipantAsContact()`
 - **Reconciliation**: `linkExpenseToScheduled()`, `unlinkExpenseFromScheduled()`, `saveExpenseAsOneOff()`
 - **Email Drafts** (localStorage): `_loadDrafts()`, `_saveDraft(id)`, `_deleteDraft(id)`, `openDraft(id)`, `deleteDraft(id)`, `getDraftCount()`
 - **Scheduled Emails**: `loadScheduledEmails()`, `scheduleEmail(scheduledAt)`, `cancelScheduledEmail(id)`, `_checkScheduledEmails()`
 - **Email Rules**: `loadEmailRules()`, `applyEmailRules(thread)`, `_applyRuleActionsToThread(threadId, actions)`, `saveEmailRule(data)`, `deleteEmailRule(id)`, `toggleEmailRule(id, active)`
-- **Outreach (Instantly)**: `loadInstantlyCampaigns()`, `loadInstantlyLeads()`, `loadInstantlyEmails()`, `loadInstantlyAccounts()`, `loadInstantlyData()`, `loadInstantlyEvents()`, `dbEditInstantlyCampaign()`, `dbEditInstantlyEmail()`, `dbEditInstantlyLead()`, `getThreads()`, `getFilteredThreads()`, `getUnreadReplyCount()`, `openThread()`, `closeThread()`, `markThreadRead()`, `setInboxFilter()`, `updateLeadInterestStatus()`, `setLeadSort()`, `openLeadDetail()`, `accountAction()`, `toggleAccountStatus()`, `toggleAccountWarmup()`, `openAccountDetail()`, `refreshActivity()`
+- **Outreach (Instantly)**: `loadInstantlyCampaigns()`, `loadInstantlyLeads()`, `loadInstantlyEmails()`, `loadInstantlyAccounts()`, `loadInstantlyData()`, `loadInstantlyEvents()`, `dbEditInstantlyCampaign()`, `dbEditInstantlyEmail()`, `dbEditInstantlyLead()`, `getThreads()`, `getFilteredThreads()`, `getUnreadReplyCount()`, `openThread()`, `closeThread()`, `markThreadRead()`, `setInboxFilter()`, `updateLeadInterestStatus()`, `setLeadSort()`, `openLeadDetail()`, `accountAction()`, `toggleAccountStatus()`, `toggleAccountWarmup()`, `openAccountDetail()`, `refreshActivity()`, `setInstantlyCampaignTab()`, `openInstantlyLeadDetail()`, `openInstantlyAccountDetail()`, `setOutreachAnalyticsDays()`, `analyzeOutreachReplies()`, `openOutreachReply()`, `sendOutreachReply()`, `draftOutreachReply()`, `createOppFromReply()`, `dismissOutreachReply()`, `openInstantlyCampaignConfig()`, `saveInstantlyCampaignConfig()`
+- **AI Email Drafts**: `loadAiDrafts()`, `getAiDraftCount()`, `triggerBatchDraft()`, `openAiDraftCompose()`, `quickSendAiDraft()`, `regenerateAiDraft()`, `discardAiDraft()`, `discardAllAiDrafts()`, `toggleAiDraftContext()`
+- **GA4 Website Analytics**: `fetchGA4Realtime()`, `startGA4Polling()`, `stopGA4Polling()`, `toggleGA4Config()`, `addGA4LabelRow()`, `saveGA4Labels()`, `loadGA4SourceLabels()`
 - **Backfill**: `backfillEndClientIds()` — probes tables for `end_client_id` column existence before attempting updates, silently skips tables missing the column
 
 ## Features (features.js)
@@ -1238,19 +1352,30 @@ Each entity has standard CRUD helpers:
 - **Instantly reply composer**: Works in both old modal context and new thread view — checks `thread-reply-body` textarea ID first, falls back to `outreach-reply-body`
 - **`backfillEndClientIds()` column probing**: Function probes each table with `SELECT end_client_id LIMIT 0` before attempting updates. Tables without the column are silently excluded. This prevents 500 errors on tables that haven't had the `add-end-client-id.sql` migration run
 - **Instantly sync graceful degradation**: Sync checks for table/column existence before using enhanced features (Phases 1-6). App works regardless of which migrations have been run — features degrade gracefully when tables/columns don't exist
+- **GA4 auth**: Uses Google service account JSON with RS256 JWT (built-in crypto, zero npm dependencies). Module-level token caching with 60s buffer before expiry
+- **GA4 city coordinates**: Static lookup of ~300 world cities for map visualization — no external geocoding API needed
+- **GA4 polling**: 30-second interval via `_ga4Timer`, starts on entering Website Analytics view, stops on leaving. Source labels stored in `integration_credentials` config
+- **Meeting detail CRM bar**: `rMeetingCrmBar()` renders inline CRM context dropdowns (client, end-client, campaign, opportunity) with cascading refresh
+- **Opportunity Zapier fields**: `enhance-opportunity-fields.sql` added 7 columns for Zapier intake automation (contact_job_title, prospect_website, previous_relationship, company_description, prospect_description, video_strategy_benefits, close_reason)
+- **F&C stage remapping**: `remap-fc-stages.sql` consolidated F&C Partnership stages (Discovery Call→Meeting Complete, Audit/Report→Video Tracking, Proactive Pitch→Pitch Development, Negotiation→Awaiting)
+- **AI Email Drafts unique index**: Unique partial index on `(user_id, thread_id) WHERE status = 'pending'` prevents duplicate pending drafts. Batch-draft uses `ON CONFLICT DO NOTHING` to skip silently.
+- **AI Draft shared engine**: `api/_lib/draft-engine.js` contains the core RAG pipeline extracted from `ai-draft.js`. Both the interactive endpoint and batch cron use this shared helper to avoid code duplication.
+- **Batch draft auth**: `api/cron/batch-draft.js` accepts both `CRON_SECRET` Bearer token and Supabase JWT auth. `trigger-batch-draft.js` is a thin JWT-auth wrapper that delegates to the same handler.
+- **AI Draft Edit & Send**: When compose modal sends an email originating from an AI draft (`window._composeAiDraftId`), the draft status is updated to `sent` and `gmail_threads.reply_status` is set to `replied` via a background API call after the Gmail send completes.
 
-## Current Status (as of 2026-03-12)
+## Current Status (as of 2026-03-24)
 
 ### Integrations
 - **Brex**: Connected, syncing ~308 transactions
 - **Mercury**: Connected, syncing
 - **Zoho Books**: Connected, syncing (orgId 899890816 — Film&Content LLC)
 - **Zoho Payments**: Connected, syncing ~69 records
-- **Gmail**: Connected via OAuth (readonly + send + modify scopes)
-- **Anthropic (Claude AI)**: API key stored in integration_credentials, powers email analysis + EC Review + KB RAG
+- **Gmail**: Connected via OAuth (readonly + send + modify scopes), with OAuth callback handler
+- **Anthropic (Claude AI)**: API key stored in integration_credentials, powers email analysis + EC Review + KB RAG + meeting analysis + quick replies
 - **OpenAI**: API key stored in integration_credentials, powers KB embeddings (text-embedding-3-large, 1536 dims)
-- **Knowledge Base**: pgvector in Supabase — 53,000+ emails embedded, meetings embedded, entities synced. Hybrid search (vector + tsvector + recency weighting)
+- **Knowledge Base**: pgvector in Supabase — 53,000+ emails embedded, meetings embedded, entities synced. Hybrid search (vector + tsvector + recency weighting). Optimized match_knowledge() with two-phase HNSW scan
 - **Instantly.ai**: Connected, full 6-phase integration complete — campaigns, leads, emails, accounts, analytics, activity feed, webhooks. Parallelized sync with 40s time budget. 8 Supabase tables + 10 API endpoints
+- **Google Analytics 4**: Connected via service account, real-time dashboard with 30-second polling, geo visualization, source label customization
 
 ### What's Working
 - All four finance platforms sync via "Sync Now" buttons
@@ -1274,6 +1399,12 @@ Each entity has standard CRUD helpers:
 - **Bulk email embedding** — 53,000+ emails embedded via `scripts/embed-emails.py`
 - Quick Add Queue with badge counts
 - Mobile bottom tabs: Add, Tasks, Review, Opps
+- **Meetings section** — standalone view with search, type filter (All/Group Calls/Office Hours/Group Accountability/Olympic Mindset), pagination, two-column detail view, CRM bar, AI meeting analysis for task extraction, Kajabi report generation (SSE streaming)
+- **Website Analytics section** — GA4 real-time dashboard with active users, top pages, countries/cities (geo coordinates), traffic sources, device breakdown. 30-second auto-polling. Source label customization config panel
+- **Quick replies** — AI-generated short reply suggestions for emails
+- **AI Email Drafts** — automated batch AI draft generation for emails needing replies, with review/edit/send UI
+- **Batch archive** — archive up to 50 Gmail threads in parallel
+- **Gmail sync endpoint** — dedicated POST endpoint for triggering Gmail metadata sync
 - **Outreach (Instantly.ai)** — Complete 6-phase integration:
   - Phase 1: Rich analytics dashboard with daily time-series, pipeline metrics
   - Phase 2: Campaign detail modal with sequences, step analytics, 4 charts
@@ -1315,6 +1446,17 @@ Each entity has standard CRUD helpers:
 - **Gmail sync pagination** — syncs up to 500 threads, never misses emails after long gaps
 - **AI Draft** — RAG-powered reply drafting with knowledge base context (inline + compose modal)
 - **Thread summarization** — on-demand Claude-powered summaries for long threads (10+ messages)
+- **AI Email Drafts** — automated batch draft generation for emails needing replies:
+  - `ai_email_drafts` Supabase table with status lifecycle: pending → edited → sent/discarded
+  - Batch cron endpoint (`api/cron/batch-draft.js`) generates up to 15 drafts per run
+  - Shared RAG engine (`api/_lib/draft-engine.js`) extracted from ai-draft.js — reused by both interactive and batch drafting
+  - Embeds un-embedded INBOX threads before drafting to keep KB fresh
+  - AI Drafts sub-view in Email section with badge count, card-based layout
+  - Each card: sender avatar, urgency badge, CRM pills, collapsible original context, rendered draft body, KB source info
+  - Actions: Edit & Send (pre-populates compose), Quick Send (sends as-is), Regenerate (with optional custom prompt), Discard
+  - "Generate Drafts Now" button triggers batch from UI via `trigger-batch-draft.js` wrapper
+  - Unique partial index prevents duplicate pending drafts per thread
+  - CRUD API: `ai-drafts.js` (list), `ai-draft-update.js`, `ai-draft-send.js`, `ai-draft-discard.js`, `ai-draft-regenerate.js`
 
 ### Entity Dashboard Architecture
 

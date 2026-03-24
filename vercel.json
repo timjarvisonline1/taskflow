@@ -20,6 +20,9 @@
     },
     "api/ga4/*.js": {
       "maxDuration": 15
+    },
+    "api/cron/*.js": {
+      "maxDuration": 300
     }
   },
   "rewrites": [

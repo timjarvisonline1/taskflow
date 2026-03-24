@@ -4012,6 +4012,7 @@ function openComposeEmail(opts){
 
   /* Draft tracking */
   window._composeDraftId=opts._draftId||null;
+  window._composeAiDraftId=opts._aiDraftId||null;
   if(window._composeDraftTimer)clearInterval(window._composeDraftTimer);
   window._composeDraftTimer=setInterval(function(){
     if(!gel('compose-body')){clearInterval(window._composeDraftTimer);return}
@@ -4361,6 +4362,12 @@ async function sendEmail(){
     /* Clean up draft */
     if(window._composeDraftTimer){clearInterval(window._composeDraftTimer);window._composeDraftTimer=null}
     if(window._composeDraftId){_deleteDraft(window._composeDraftId);window._composeDraftId=null}
+    /* Update AI draft status if this was an AI draft */
+    if(window._composeAiDraftId){
+      var _adId=window._composeAiDraftId;window._composeAiDraftId=null;
+      try{var _adSess=await _sb.auth.getSession();if(_adSess.data.session){
+        fetch('/api/gmail/ai-draft-send',{method:'POST',headers:{'Authorization':'Bearer '+_adSess.data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:_adId})})
+        .then(function(){S.aiDrafts=S.aiDrafts.filter(function(d){return d.id!==_adId});buildNav()})}}catch(e){}}
     /* Clean up compose state */
     document.removeEventListener('selectionchange',updateComposeToolbar);
     window._composeAttachments=[];
