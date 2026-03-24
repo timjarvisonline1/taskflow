@@ -227,15 +227,27 @@ module.exports = async function handler(req, res) {
           isBatchDraft: true
         });
 
-        /* Parse reply recipients */
+        /* Parse reply recipients — Reply All: sender as To, all other participants as CC */
         var replyTo = latestInbound.fromEmail || latestInbound.from;
-        var replyCc = '';
-        if (latestInbound.cc) {
-          /* Keep CCs but remove user's own email */
-          var ccList = latestInbound.cc.split(',').map(function(e) { return e.trim(); })
-            .filter(function(e) { return extractEmail(e).toLowerCase() !== userEmail; });
-          if (ccList.length) replyCc = ccList.join(', ');
+        var ccSet = {};
+        /* Add original To recipients (minus user) to CC */
+        if (latestInbound.to) {
+          latestInbound.to.split(',').forEach(function(e) {
+            var addr = extractEmail(e.trim()).toLowerCase();
+            if (addr && addr !== userEmail) ccSet[addr] = e.trim();
+          });
         }
+        /* Add original CC recipients (minus user) to CC */
+        if (latestInbound.cc) {
+          latestInbound.cc.split(',').forEach(function(e) {
+            var addr = extractEmail(e.trim()).toLowerCase();
+            if (addr && addr !== userEmail) ccSet[addr] = e.trim();
+          });
+        }
+        /* Remove the reply-to sender from CC (they're already in To) */
+        var replyToLower = extractEmail(replyTo).toLowerCase();
+        delete ccSet[replyToLower];
+        var ccArray = Object.values(ccSet);
 
         var replySubject = (thread.subject || latestInbound.subject || '');
         if (replySubject && !replySubject.match(/^re:/i)) replySubject = 'Re: ' + replySubject;
@@ -247,7 +259,7 @@ module.exports = async function handler(req, res) {
           message_id: latestInbound.id,
           subject: replySubject,
           to_addresses: JSON.stringify([replyTo]),
-          cc_addresses: replyCc ? JSON.stringify(replyCc.split(',').map(function(e) { return e.trim(); })) : '[]',
+          cc_addresses: JSON.stringify(ccArray),
           body_html: result.draft,
           body_text: stripHtmlBasic(result.draft),
           original_snippet: thread.ai_summary || (latestInbound.body || '').substring(0, 200),

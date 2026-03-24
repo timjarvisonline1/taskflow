@@ -4766,13 +4766,14 @@ function openAiDraftCompose(id){
   var to=[];try{to=JSON.parse(draft.to_addresses||'[]')}catch(e){}
   var cc=[];try{cc=JSON.parse(draft.cc_addresses||'[]')}catch(e){}
   openComposeEmail({
-    to:to[0]||'',
+    to:to.join(', '),
     cc:cc.join(', '),
     subject:draft.subject||'',
     body:draft.body_html||'',
     replyToThreadId:draft.thread_id||'',
     replyToMessageId:draft.message_id||'',
     _aiDraftId:draft.id,
+    _skipSignature:true,
     _draftRecipients:{to:to,cc:cc,bcc:[]},
     _draftCat:{client:draft.client_id||'',ec:draft.end_client||'',campaign:draft.campaign_id||'',opp:draft.opportunity_id||'',none:false}
   })}

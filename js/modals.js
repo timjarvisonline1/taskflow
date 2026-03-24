@@ -3926,8 +3926,9 @@ function openComposeEmail(opts){
 
   /* Contenteditable editor */
   var bodyContent=opts.body||'';
-  /* Add signature for new emails */
-  if(!isReply&&!isForward){
+  /* Add signature — skip for AI drafts (they already have a complete reply) */
+  if(opts._skipSignature){/* no signature */}
+  else if(!isReply&&!isForward){
     var sig=getEmailSignature();
     if(sig)bodyContent='<br><br><div class="email-signature">--<br>'+sig+'</div>'}
   else if(isReply){
