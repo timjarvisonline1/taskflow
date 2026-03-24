@@ -6624,6 +6624,9 @@ function rEmailAiDrafts(){
     h+='</div>';
     return h+'</div>'}
 
+  /* Scrollable card container — flex:1 fills remaining space, overflow-y:auto enables scroll */
+  h+='<div style="flex:1;overflow-y:auto;padding:0 4px 20px 0">';
+
   drafts.forEach(function(d){
     var fromEmail=d.original_from||'';
     var fromName=fromEmail;
@@ -6644,66 +6647,62 @@ function rEmailAiDrafts(){
 
     /* CRM pills */
     var crmPills='';
-    if(d.client_id){var cl=S.clientRecords.find(function(c){return c.id===d.client_id});if(cl)crmPills+='<span class="email-client-badge" style="font-size:9px;padding:1px 6px">'+esc(cl.name)+'</span>'}
-    if(d.end_client)crmPills+='<span class="email-client-badge" style="font-size:9px;padding:1px 6px;background:var(--purple50);color:#fff">'+esc(d.end_client)+'</span>';
+    if(d.client_id){var cl=S.clientRecords.find(function(c){return c.id===d.client_id});if(cl)crmPills+='<span class="email-client-badge" style="font-size:9px;padding:1px 6px;margin-left:6px">'+esc(cl.name)+'</span>'}
+    if(d.end_client)crmPills+='<span class="email-client-badge" style="font-size:9px;padding:1px 6px;margin-left:4px;background:var(--purple50);color:#fff">'+esc(d.end_client)+'</span>';
 
     /* Urgency from gmail_threads */
     var gt=S.gmailThreads.find(function(t){return t.thread_id===d.thread_id});
     var urgBadge='';
     if(gt&&gt.ai_urgency&&gt.ai_urgency!=='normal'){
-      var urgColors={critical:'var(--red)',high:'var(--amber)',low:'var(--t4)'};
-      urgBadge='<span style="font-size:9px;padding:1px 6px;border-radius:4px;background:'+((urgColors[gt.ai_urgency]||'var(--t4)'))+';color:#fff;margin-left:4px">'+gt.ai_urgency+'</span>'}
+      var urgColors={critical:'#ef4444',high:'#f59e0b',low:'var(--t4)'};
+      urgBadge='<span style="font-size:9px;padding:1px 6px;border-radius:4px;background:'+(urgColors[gt.ai_urgency]||'var(--t4)')+';color:#fff;margin-left:6px">'+gt.ai_urgency+'</span>'}
 
-    /* KB sources info */
-    var kbInfo='';
+    /* KB sources summary line */
+    var kbLine='';
     if(d.kb_chunks_used>0){
-      var srcPills='';
-      try{var srcs=JSON.parse(d.kb_sources||'[]');srcs.forEach(function(s){srcPills+='<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--bg1);color:var(--t3);margin-left:3px">'+s.count+' '+s.type.toLowerCase()+(s.count!==1?'s':'')+'</span>'})}catch(e){}
-      kbInfo='<div style="font-size:11px;color:var(--t4);margin-top:6px">Generated '+ago+' using '+d.kb_chunks_used+' KB sources'+srcPills+'</div>'}
+      var srcBits=[];
+      try{var srcs=JSON.parse(d.kb_sources||'[]');srcs.forEach(function(s){srcBits.push(s.count+' '+s.type.toLowerCase()+(s.count!==1?'s':''))})}catch(e){}
+      kbLine=d.kb_chunks_used+' KB sources: '+srcBits.join(', ')}
 
-    h+='<div class="action-card-compact" style="padding:16px;margin-bottom:12px;border-left:3px solid var(--purple50);cursor:default">';
+    h+='<div class="action-card-compact" style="padding:12px 14px;margin-bottom:10px;border-left:3px solid var(--purple50);cursor:default">';
 
-    /* Header row: avatar, sender, date, urgency, CRM */
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
-    h+='<div style="width:28px;height:28px;border-radius:50%;background:'+avatarColor+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0">'+initial+'</div>';
-    h+='<div style="flex:1;min-width:0">';
+    /* Row 1: avatar, sender, urgency, CRM, time */
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+    h+='<div style="width:26px;height:26px;border-radius:50%;background:'+avatarColor+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">'+initial+'</div>';
     h+='<span style="font-weight:600;font-size:13px;color:var(--t1)">'+esc(fromName)+'</span>';
-    h+='<span style="font-size:11px;color:var(--t4);margin-left:6px">'+esc(fromEmail)+'</span>';
+    h+='<span style="font-size:11px;color:var(--t4)">'+esc(fromEmail)+'</span>';
     h+=urgBadge+crmPills;
-    h+='</div>';
-    if(ago)h+='<span style="font-size:11px;color:var(--t4);flex-shrink:0">'+ago+'</span>';
+    h+='<span style="font-size:11px;color:var(--t4);margin-left:auto;flex-shrink:0">'+ago+'</span>';
     h+='</div>';
 
-    /* Original context — click to expand full thread inline */
-    h+='<div style="margin-bottom:10px">';
-    h+='<div onclick="TF.toggleAiDraftContext(\''+d.id+'\')" style="cursor:pointer;font-size:12px;color:var(--t3);display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
-    h+=icon('mail',12)+' <strong style="color:var(--t1)">'+esc(decHtml(d.subject||'(no subject)'))+'</strong>';
-    h+='<span style="color:var(--t4);font-size:10px;margin-left:auto">'+icon('arrow_left',9)+' View Conversation</span></div>';
-    h+='<div id="ai-draft-ctx-'+d.id+'" style="display:none;margin-top:6px;padding:10px 12px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder);max-height:500px;overflow-y:auto">';
-    h+='<div style="padding:12px;color:var(--t3);font-size:12px">'+icon('refresh',12)+' Loading conversation...</div>';
-    h+='</div></div>';
+    /* Row 2: subject + view conversation toggle */
+    h+='<div onclick="TF.toggleAiDraftContext(\''+d.id+'\')" style="cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg2);border-radius:5px;margin-bottom:8px">';
+    h+='<span style="color:var(--t2);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(decHtml(d.subject||'(no subject)'))+'</span>';
+    h+='<span style="color:var(--t4);font-size:10px;flex-shrink:0;white-space:nowrap">'+icon('mail',10)+' View Thread</span></div>';
+    /* Thread expansion area (hidden, loaded on demand) */
+    h+='<div id="ai-draft-ctx-'+d.id+'" style="display:none;margin-bottom:8px;padding:10px 12px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder);max-height:400px;overflow-y:auto">';
+    h+='<div style="padding:8px;color:var(--t3);font-size:12px">'+icon('refresh',12)+' Loading...</div>';
+    h+='</div>';
 
-    /* Draft body */
-    h+='<div style="border:1px solid var(--gborder);border-radius:8px;padding:12px 16px;background:var(--bg);margin-bottom:8px;font-size:13px;line-height:1.6;color:var(--t1)">';
-    if(d._regenerating){h+='<div style="text-align:center;padding:20px;color:var(--t3)">'+icon('refresh',16)+' Regenerating draft...</div>'}
+    /* Draft body — constrained height */
+    h+='<div style="border:1px solid var(--gborder);border-radius:6px;padding:10px 14px;background:var(--bg);max-height:180px;overflow-y:auto;font-size:13px;line-height:1.5;color:var(--t1)">';
+    if(d._regenerating){h+='<div style="text-align:center;padding:16px;color:var(--t3)">'+icon('refresh',14)+' Regenerating...</div>'}
     else{h+=d.body_html||'<em style="color:var(--t4)">Empty draft</em>'}
     h+='</div>';
 
-    /* KB info */
-    if(kbInfo)h+=kbInfo;
-
-    /* Action buttons */
-    h+='<div style="display:flex;gap:8px;align-items:center;margin-top:10px">';
-    h+='<button class="btn btn-p" onclick="TF.openAiDraftCompose(\''+d.id+'\')" style="font-size:12px;padding:6px 14px;border-radius:8px">'+icon('edit',11)+' Edit & Send</button>';
-    h+='<button class="btn" onclick="if(confirm(\'Send this reply to '+esc(escAttr(fromName))+' exactly as drafted?\'))TF.quickSendAiDraft(\''+d.id+'\')" style="font-size:12px;padding:6px 14px;border-radius:8px">'+icon('send',11)+' Quick Send</button>';
-    h+='<button class="btn" onclick="var p=prompt(\'Custom prompt (optional):\',\'\');if(p!==null)TF.regenerateAiDraft(\''+d.id+'\',p)" style="font-size:12px;padding:6px 10px;border-radius:8px" title="Regenerate">'+icon('refresh',11)+'</button>';
-    h+='<button class="btn" onclick="if(confirm(\'Discard this draft?\'))TF.discardAiDraft(\''+d.id+'\')" style="font-size:12px;padding:6px 10px;border-radius:8px" title="Discard">'+icon('trash',11)+'</button>';
-    h+='<button class="btn" onclick="TF.openEmailThread(\''+esc(d.thread_id)+'\')" style="font-size:12px;padding:6px 10px;border-radius:8px" title="Open Thread">'+icon('mail',11)+'</button>';
+    /* Footer: KB info + action buttons on same row */
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-top:8px">';
+    h+='<button class="btn btn-p" onclick="TF.openAiDraftCompose(\''+d.id+'\')" style="font-size:11px;padding:5px 12px;border-radius:6px">'+icon('edit',10)+' Edit & Send</button>';
+    h+='<button class="btn" onclick="if(confirm(\'Send this reply to '+esc(escAttr(fromName))+' exactly as drafted?\'))TF.quickSendAiDraft(\''+d.id+'\')" style="font-size:11px;padding:5px 12px;border-radius:6px">'+icon('send',10)+' Quick Send</button>';
+    h+='<button class="btn" onclick="var p=prompt(\'Custom prompt (optional):\',\'\');if(p!==null)TF.regenerateAiDraft(\''+d.id+'\',p)" style="font-size:11px;padding:5px 8px;border-radius:6px" title="Regenerate">'+icon('refresh',10)+'</button>';
+    h+='<button class="btn" onclick="if(confirm(\'Discard this draft?\'))TF.discardAiDraft(\''+d.id+'\')" style="font-size:11px;padding:5px 8px;border-radius:6px" title="Discard">'+icon('trash',10)+'</button>';
+    if(kbLine)h+='<span style="font-size:10px;color:var(--t4);margin-left:auto">'+kbLine+'</span>';
     h+='</div>';
 
     h+='</div>'});
 
-  h+='</div>';
+  h+='</div>'; /* close scrollable container */
+  h+='</div>'; /* close email-page-wrap */
   return h}
 
 function rEmailDraftList(){
