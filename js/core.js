@@ -3713,7 +3713,9 @@ async function ensureGmailThreads(){
   if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
     S.gmailUnread=(S._gmailLiveThreads||[]).filter(function(t){return t.isUnread}).length;
     S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
-  _refreshEmailListPanel();buildNav()}
+  _refreshEmailListPanel();buildNav();
+  /* Trigger analysis now that live inbox is loaded */
+  analyzeNewEmails()}
 
 var _emailPollTimer=null;
 function startEmailPolling(){
@@ -5637,8 +5639,8 @@ async function loadData(){toast('Loading data...','info');
     processRecurring();
     if(typeof cleanMtgPrompted==='function')cleanMtgPrompted();
     toast('Loaded '+S.tasks.length+' tasks, '+S.done.length+' completed'+(S.review.length?', '+S.review.length+' to review':''),'ok');
-    /* Trigger AI email analysis for unanalyzed threads (background, non-blocking) */
-    setTimeout(function(){analyzeNewEmails()},500);
+    /* AI email analysis is triggered by ensureGmailThreads(), pollGmailInbox(), and refreshGmailInbox()
+       after live threads are loaded — not here, since S._gmailLiveThreads isn't populated yet */
     /* Backfill end_clients table from string data across all entities */
     setTimeout(function(){syncEndClientRecords().then(backfillEndClientIds)},200);
     /* Sync RL opportunity company names into prospect_companies */
