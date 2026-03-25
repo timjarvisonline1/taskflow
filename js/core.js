@@ -5066,9 +5066,11 @@ window._inlineReplyMode='reply';
 window._inlineRecipients={to:[],cc:[],bcc:[]};
 window._inlineAttachments=[];
 
+function _getRecipients(p){return p==='inline'?window._inlineRecipients:p==='ai-review'?window._aiReviewRecipients:window._composeRecipients}
+
 function acRecipient(field,prefix){
   var p=prefix||'compose';
-  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  var recs=_getRecipients(p);
   var input=gel(p+'-'+field+'-input');if(!input)return;
   var q=input.value.toLowerCase().trim();
   var dd=gel(p+'-'+field+'-ac');if(!dd)return;
@@ -5094,7 +5096,7 @@ function acRecipient(field,prefix){
 
 function acSelect(field,email,name,prefix){
   var p=prefix||'compose';
-  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  var recs=_getRecipients(p);
   recs[field].push(email);
   renderRecipientChips(field,p);
   var input=gel(p+'-'+field+'-input');if(input){input.value='';input.focus()}
@@ -5102,13 +5104,13 @@ function acSelect(field,email,name,prefix){
 
 function acRemoveChip(field,idx,prefix){
   var p=prefix||'compose';
-  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  var recs=_getRecipients(p);
   recs[field].splice(idx,1);
   renderRecipientChips(field,p)}
 
 function renderRecipientChips(field,prefix){
   var p=prefix||'compose';
-  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  var recs=_getRecipients(p);
   var wrap=gel(p+'-'+field+'-chips');if(!wrap)return;
   var h='';
   recs[field].forEach(function(email,i){
@@ -5154,7 +5156,7 @@ function chipDrop(e){
 
 function recipientKeydown(field,e,prefix){
   var p=prefix||'compose';
-  var recs=p==='inline'?window._inlineRecipients:window._composeRecipients;
+  var recs=_getRecipients(p);
   var input=gel(p+'-'+field+'-input');if(!input)return;
   if(e.key==='Enter'||e.key===','||e.key==='Tab'){
     e.preventDefault();

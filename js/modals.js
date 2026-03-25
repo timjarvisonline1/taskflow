@@ -4573,9 +4573,9 @@ function openAiDraftReview(id){
   var clientName='';
   if(draft.client_id){var _cr=S.clientRecords.find(function(c){return c.id===draft.client_id});if(_cr)clientName=_cr.name}
 
-  /* Store state for send */
+  /* Store state for send — same structure as _composeRecipients */
   window._aiReviewDraftId=id;
-  window._aiReviewRecipients={to:to,cc:cc,bcc:[]};
+  window._aiReviewRecipients={to:to.slice(),cc:cc.slice(),bcc:[]};
 
   var fromEmail=draft.original_from||'';
   var fromName=fromEmail;
@@ -4610,16 +4610,27 @@ function openAiDraftReview(id){
   h+='<div class="detail-split-right" style="padding:16px 20px;gap:10px">';
   h+='<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">'+icon('edit',11)+' Your Reply</div>';
 
-  /* To / CC compact rows */
-  h+='<div style="display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
-  h+='<span style="font-weight:600;color:var(--t3);width:28px;flex-shrink:0">To:</span>';
-  h+='<input type="text" id="ai-review-to" value="'+escAttr(to.join(', '))+'" style="flex:1;border:none;background:transparent;font-size:12px;color:var(--t1);outline:none" placeholder="Recipients">';
-  h+='</div>';
-  if(cc.length){
-    h+='<div style="display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
-    h+='<span style="font-weight:600;color:var(--t3);width:28px;flex-shrink:0">Cc:</span>';
-    h+='<input type="text" id="ai-review-cc" value="'+escAttr(cc.join(', '))+'" style="flex:1;border:none;background:transparent;font-size:12px;color:var(--t1);outline:none" placeholder="CC">';
-    h+='</div>'}
+  /* To / CC / BCC chip-based recipient fields — same pattern as compose modal */
+  function _arField(field,label,show){
+    var s='<div id="ai-review-'+field+'-wrap" style="position:relative;'+(show?'':'display:none')+'">';
+    s+='<div style="display:flex;align-items:flex-start;gap:4px;font-size:12px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
+    s+='<span style="font-weight:600;color:var(--t3);width:28px;flex-shrink:0;padding-top:2px">'+label+'</span>';
+    s+='<div class="compose-recipient-wrap" data-drop-field="'+field+'" style="flex:1;min-height:24px;border:none;padding:0" onclick="var i=gel(\'ai-review-'+field+'-input\');if(i)i.focus()" ondragover="TF.chipDragOver(event)" ondragleave="TF.chipDragLeave(event)" ondrop="TF.chipDrop(event)">';
+    s+='<span id="ai-review-'+field+'-chips"></span>';
+    s+='<input class="compose-recipient-input" id="ai-review-'+field+'-input" placeholder="Add recipients..." style="font-size:12px"';
+    s+=' oninput="TF.acRecipient(\''+field+'\',\'ai-review\')" onkeydown="TF.recipientKeydown(\''+field+'\',event,\'ai-review\')"';
+    s+=' onfocus="TF.acRecipient(\''+field+'\',\'ai-review\')" onblur="setTimeout(function(){var d=gel(\'ai-review-'+field+'-ac\');if(d)d.classList.remove(\'open\')},200)">';
+    s+='<div class="compose-ac-dropdown" id="ai-review-'+field+'-ac"></div>';
+    s+='</div></div></div>';
+    return s}
+  h+=_arField('to','To:',true);
+  h+=_arField('cc','Cc:',cc.length>0);
+  h+=_arField('bcc','Bcc:',false);
+  /* Toggle links for Cc/Bcc */
+  var _arToggles='';
+  if(!cc.length)_arToggles+='<a href="#" onclick="event.preventDefault();gel(\'ai-review-cc-wrap\').style.display=\'block\';this.style.display=\'none\'" style="font-size:11px;color:var(--accent)">Cc</a>';
+  _arToggles+=' <a href="#" onclick="event.preventDefault();gel(\'ai-review-bcc-wrap\').style.display=\'block\';this.style.display=\'none\'" style="font-size:11px;color:var(--accent)">Bcc</a>';
+  h+='<div style="display:flex;gap:12px;margin-bottom:2px">'+_arToggles+'</div>';
 
   /* Subject */
   h+='<div style="display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
@@ -4675,6 +4686,12 @@ function openAiDraftReview(id){
 
   gel('detail-body').innerHTML=h;
   gel('detail-modal').classList.add('on','full-detail','email-light');
+
+  /* Render initial recipient chips */
+  setTimeout(function(){
+    renderRecipientChips('to','ai-review');
+    renderRecipientChips('cc','ai-review');
+  },20);
 
   /* Fetch and render thread */
   _loadAiReviewThread(draft)}
@@ -4742,8 +4759,10 @@ async function sendAiDraftReview(){
   var draft=(S.aiDrafts||[]).find(function(d){return d.id===draftId});if(!draft)return;
 
   /* Gather values from the review form */
-  var toVal=(gel('ai-review-to')||{}).value||'';
-  var ccVal=(gel('ai-review-cc')||{}).value||'';
+  var recs=window._aiReviewRecipients||{to:[],cc:[],bcc:[]};
+  var toVal=recs.to.join(', ');
+  var ccVal=recs.cc.join(', ');
+  var bccVal=recs.bcc.join(', ');
   var subjectVal=(gel('ai-review-subject')||{}).value||'';
   var bodyEl=gel('ai-review-body');
   var bodyHtml=bodyEl?bodyEl.innerHTML:'';
@@ -4763,8 +4782,8 @@ async function sendAiDraftReview(){
     /* Update draft content */
     await fetch('/api/gmail/ai-draft-update',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({id:draftId,body_html:bodyHtml,subject:subjectVal,
-        to_addresses:JSON.stringify(toVal.split(',').map(function(s){return s.trim()}).filter(Boolean)),
-        cc_addresses:JSON.stringify(ccVal?ccVal.split(',').map(function(s){return s.trim()}).filter(Boolean):[])})});
+        to_addresses:JSON.stringify(recs.to),
+        cc_addresses:JSON.stringify(recs.cc)})});
 
     /* Send via the send endpoint */
     toast('Sending...','info');
