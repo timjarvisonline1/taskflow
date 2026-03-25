@@ -4674,8 +4674,7 @@ function openAiDraftReview(id){
   h+='</div>'; /* close split */
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.remove('email-light');
-  gel('detail-modal').classList.add('on','full-detail');
+  gel('detail-modal').classList.add('on','full-detail','email-light');
 
   /* Fetch and render thread */
   _loadAiReviewThread(draft)}
@@ -4735,7 +4734,8 @@ function closeAiDraftReview(){
   window._aiReviewDraftId=null;
   window._aiReviewRecipients=null;
   var dm=gel('detail-modal');
-  dm.classList.remove('on','full-detail','email-light')}
+  dm.classList.remove('on','full-detail');
+  /* Keep email-light since we're returning to the email section */}
 
 async function sendAiDraftReview(){
   var draftId=window._aiReviewDraftId;if(!draftId)return;
