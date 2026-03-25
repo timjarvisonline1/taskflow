@@ -4759,12 +4759,14 @@ async function triggerBatchDraft(){
   try{
     var sess=await _sb.auth.getSession();if(!sess.data.session)return;
     var resp=await fetch('/api/gmail/trigger-batch-draft',{method:'POST',headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'}});
-    var data=await resp.json();
+    var text=await resp.text();
+    console.log('[triggerBatchDraft] Status:', resp.status, '| Response:', text.substring(0, 500));
+    var data;try{data=JSON.parse(text)}catch(e){toast('Server error: '+text.substring(0,100),'err');return}
     if(data.success){
       toast('Generated '+data.drafts_created+' draft'+(data.drafts_created!==1?'s':''),'ok');
       await loadAiDrafts();render();buildNav()
     }else{toast('Draft generation failed: '+(data.error||'Unknown'),'err')}
-  }catch(e){toast('Error: '+e.message,'err')}}
+  }catch(e){console.error('[triggerBatchDraft]',e);toast('Error: '+e.message,'err')}}
 
 async function quickSendAiDraft(id){
   var draft=S.aiDrafts.find(function(d){return d.id===id});if(!draft)return;

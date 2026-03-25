@@ -97,12 +97,13 @@ module.exports = async function handler(req, res) {
 
     /* Step 3: Query for candidates */
     var candidateRes = await client.from('gmail_threads')
-      .select('thread_id, subject, from_email, from_name, client_id, end_client, campaign_id, opportunity_id, ai_urgency, last_message_from, last_message_at, ai_summary')
+      .select('thread_id, subject, from_email, from_name, client_id, end_client, campaign_id, opportunity_id, ai_urgency, last_message_from, last_message_at, ai_summary, reply_status')
       .eq('user_id', userId)
       .eq('needs_reply', true)
       .ilike('labels', '%INBOX%')
       .order('last_message_at', { ascending: false })
       .limit(50);
+    console.log('[batch-draft] Candidates query returned:', (candidateRes.data || []).length, 'rows, error:', candidateRes.error ? candidateRes.error.message : 'none');
 
     var allCandidates = candidateRes.data || [];
 
@@ -126,6 +127,7 @@ module.exports = async function handler(req, res) {
     var candidates = filtered.filter(function(t) {
       return !existingDraftThreads[t.thread_id];
     });
+    console.log('[batch-draft] After filters: allCandidates=' + allCandidates.length + ', afterReplyStatus=' + filtered.length + ', afterExistingDrafts=' + candidates.length);
 
     /* Sort by urgency priority */
     var urgencyOrder = { critical: 0, high: 1, normal: 2, low: 3 };
