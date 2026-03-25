@@ -3881,23 +3881,17 @@ async function analyzeNewEmails(){
         client_id:live.clientId||null}}
     unanalyzed.push(thread)});
 
-  console.log('[analyzeNewEmails] Live inbox threads:', inboxThreadIds.length, '| Supabase INBOX:', S.gmailThreads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1}).length, '| Unanalyzed:', unanalyzed.length);
-  if(!unanalyzed.length){console.log('[analyzeNewEmails] Nothing to analyze — all inbox threads already have needs_reply set');return}
-  /* Gate: only analyze threads involving known contacts, clients, or prospects.
-     Threads with no known participants get marked as skipped to avoid re-checking. */
-  var toAnalyze=[];var skipped=[];
-  unanalyzed.forEach(function(t){
-    if(_isKnownEmailThread(t)){toAnalyze.push(t)}
-    else{skipped.push(t)}
-  });
-  console.log('[analyzeNewEmails] Known contact threads:', toAnalyze.length, '| Skipped (unknown):', skipped.length);
-  /* Mark skipped threads with sentinel so they don't re-enter the queue.
-     needs_reply=false, ai_summary notes the skip reason for transparency. */
-  if(skipped.length){
-    skipped.forEach(function(t){
-      t.needs_reply=false;t.ai_urgency='low';t.ai_category='';
-      t.ai_summary='(Skipped — no known contacts)';t.ai_analyzed_at='skipped'});
-    _refreshEmailListPanel()}
+  /* Also check local analysis cache for threads already analyzed this session */
+  if(!window._analyzedEmailCache)window._analyzedEmailCache={};
+  unanalyzed=unanalyzed.filter(function(t){return!window._analyzedEmailCache[t.thread_id]});
+
+  console.log('[analyzeNewEmails] Live inbox threads:', inboxThreadIds.length, '| Supabase INBOX:', S.gmailThreads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1}).length, '| Unanalyzed:', unanalyzed.length, '| Already cached:', Object.keys(window._analyzedEmailCache).length);
+  if(!unanalyzed.length){console.log('[analyzeNewEmails] Nothing to analyze — all inbox threads already have needs_reply set or cached');return}
+  /* Send ALL inbox threads to analysis — Claude with full message bodies
+     can determine relevance better than the contact-matching gate.
+     Previously this filtered to known contacts only, skipping 75% of threads. */
+  var toAnalyze=unanalyzed;
+  console.log('[analyzeNewEmails] Threads to analyze:', toAnalyze.length);
   if(!toAnalyze.length)return;
   _analyzingEmails=true;
   try{
@@ -3934,9 +3928,12 @@ async function analyzeNewEmails(){
     console.log('[analyzeNewEmails] API returned', result.analyzed, 'results. needs_reply breakdown:',
       (result.results||[]).filter(function(r){return r.needs_reply}).length, 'true,',
       (result.results||[]).filter(function(r){return!r.needs_reply}).length, 'false');
-    /* Merge results into local state */
+    /* Merge results into local state + cache */
     if(result.results&&result.results.length){
       result.results.forEach(function(r){
+        /* Mark as analyzed in session cache so we don't re-analyze */
+        window._analyzedEmailCache[r.threadId]=true;
+        /* Update Supabase thread if present */
         var t=S.gmailThreads.find(function(th){return th.thread_id===r.threadId});
         if(t){t.needs_reply=r.needs_reply;t.ai_summary=r.ai_summary||'';
           t.ai_urgency=r.ai_urgency||'';t.ai_category=r.ai_category||'';
