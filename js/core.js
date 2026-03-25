@@ -3839,12 +3839,12 @@ async function analyzeNewEmails(){
   if(_analyzingEmails)return;
   /* Find threads needing analysis: not yet analyzed, in INBOX */
   var ue=S._userEmails||[];if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
-  var unanalyzed=S.gmailThreads.filter(function(t){
-    if(t.needs_reply!==null&&t.needs_reply!==undefined)return false;
-    if((t.labels||'').indexOf('INBOX')===-1)return false;
-    return true
+  var inboxThreads=S.gmailThreads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1});
+  var unanalyzed=inboxThreads.filter(function(t){
+    return t.needs_reply===null||t.needs_reply===undefined
   });
-  if(!unanalyzed.length)return;
+  console.log('[analyzeNewEmails] Total gmailThreads:', S.gmailThreads.length, '| INBOX:', inboxThreads.length, '| Unanalyzed:', unanalyzed.length);
+  if(!unanalyzed.length){console.log('[analyzeNewEmails] Nothing to analyze — all INBOX threads already have needs_reply set');return}
   /* Gate: only analyze threads involving known contacts, clients, or prospects.
      Threads with no known participants get marked as skipped to avoid re-checking. */
   var toAnalyze=[];var skipped=[];
@@ -3852,6 +3852,7 @@ async function analyzeNewEmails(){
     if(_isKnownEmailThread(t)){toAnalyze.push(t)}
     else{skipped.push(t)}
   });
+  console.log('[analyzeNewEmails] Known contact threads:', toAnalyze.length, '| Skipped (unknown):', skipped.length);
   /* Mark skipped threads with sentinel so they don't re-enter the queue.
      needs_reply=false, ai_summary notes the skip reason for transparency. */
   if(skipped.length){
@@ -3886,11 +3887,15 @@ async function analyzeNewEmails(){
     var oppPayloads=(S.opportunities||[]).filter(function(o){return!o.closedAt}).map(function(o){
       return{id:o.id,name:o.name||'',client:o.client||'',endClient:o.endClient||'',
         contactName:o.contactName||'',contactEmail:o.contactEmail||'',stage:o.stage||''}});
+    console.log('[analyzeNewEmails] Sending', threadPayloads.length, 'threads to /api/gmail/analyze...');
     var resp=await fetch('/api/gmail/analyze',{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({threads:threadPayloads,clients:clients,contacts:contacts,campaigns:campPayloads,opportunities:oppPayloads})});
-    if(!resp.ok){var errData=await resp.json();console.warn('Email analysis:',errData.error);_analyzingEmails=false;return}
+    if(!resp.ok){var errData=await resp.json();console.warn('[analyzeNewEmails] API error:',resp.status,errData.error);_analyzingEmails=false;return}
     var result=await resp.json();
+    console.log('[analyzeNewEmails] API returned', result.analyzed, 'results. needs_reply breakdown:',
+      (result.results||[]).filter(function(r){return r.needs_reply}).length, 'true,',
+      (result.results||[]).filter(function(r){return!r.needs_reply}).length, 'false');
     /* Merge results into local state */
     if(result.results&&result.results.length){
       result.results.forEach(function(r){
