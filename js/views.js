@@ -6624,8 +6624,8 @@ function rEmailAiDrafts(){
     h+='</div>';
     return h+'</div>'}
 
-  /* Scrollable card container — flex:1 fills remaining space, overflow-y:auto enables scroll */
-  h+='<div style="flex:1;overflow-y:auto;padding:0 4px 20px 0">';
+  /* Scrollable card container — flex:1 fills remaining space, min-height:0 allows shrinking, overflow-y:auto enables scroll */
+  h+='<div style="flex:1;min-height:0;overflow-y:auto;padding:0 4px 20px 0">';
 
   drafts.forEach(function(d){
     var fromEmail=d.original_from||'';
@@ -6684,8 +6684,8 @@ function rEmailAiDrafts(){
     h+='<div style="padding:8px;color:var(--t3);font-size:12px">'+icon('refresh',12)+' Loading...</div>';
     h+='</div>';
 
-    /* Draft body — constrained height */
-    h+='<div style="border:1px solid var(--gborder);border-radius:6px;padding:10px 14px;background:var(--bg);max-height:180px;overflow-y:auto;font-size:13px;line-height:1.5;color:var(--t1)">';
+    /* Draft body — constrained height so cards stay compact and list scrolls */
+    h+='<div style="border:1px solid var(--gborder);border-radius:6px;padding:10px 14px;background:var(--bg);max-height:140px;overflow-y:auto;font-size:13px;line-height:1.5;color:var(--t1)">';
     if(d._regenerating){h+='<div style="text-align:center;padding:16px;color:var(--t3)">'+icon('refresh',14)+' Regenerating...</div>'}
     else{h+=d.body_html||'<em style="color:var(--t4)">Empty draft</em>'}
     h+='</div>';

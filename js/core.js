@@ -4546,7 +4546,7 @@ function execComposeCmd(cmd,val){
   /* Target whichever contenteditable editor is active */
   var editor=document.activeElement;
   if(!editor||editor.contentEditable!=='true')
-    editor=gel('compose-body')||gel('email-inline-reply-editor');
+    editor=gel('compose-body')||gel('ai-review-body')||gel('email-inline-reply-editor');
   if(!editor)return;
   editor.focus();
   if(cmd==='createLink'){
@@ -4722,8 +4722,11 @@ async function quickSendAiDraft(id){
       S.aiDrafts=S.aiDrafts.filter(function(d){return d.id!==id});
       /* Update local gmail_threads state */
       var gt=S.gmailThreads.find(function(t){return t.thread_id===draft.thread_id});
-      if(gt){gt.needs_reply=false;gt.reply_status='replied'}
-      toast('Email sent!','ok');render();buildNav()
+      if(gt){gt.needs_reply=false;gt.reply_status='replied';gt.labels=(gt.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
+      /* Remove from live inbox cache too */
+      if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==draft.thread_id});
+      if(S._gmailCache&&S._gmailCache.inbox)delete S._gmailCache.inbox;
+      toast('Email sent & archived!','ok');render();buildNav()
     }else{toast('Send failed: '+(data.error||'Unknown'),'err')}
   }catch(e){toast('Error: '+e.message,'err')}}
 
@@ -4762,21 +4765,8 @@ async function regenerateAiDraft(id,customPrompt){
   S.aiDrafts[idx]._regenerating=false;render()}
 
 function openAiDraftCompose(id){
-  var draft=S.aiDrafts.find(function(d){return d.id===id});if(!draft)return;
-  var to=[];try{to=JSON.parse(draft.to_addresses||'[]')}catch(e){}
-  var cc=[];try{cc=JSON.parse(draft.cc_addresses||'[]')}catch(e){}
-  openComposeEmail({
-    to:to.join(', '),
-    cc:cc.join(', '),
-    subject:draft.subject||'',
-    body:draft.body_html||'',
-    replyToThreadId:draft.thread_id||'',
-    replyToMessageId:draft.message_id||'',
-    _aiDraftId:draft.id,
-    _skipSignature:true,
-    _draftRecipients:{to:to,cc:cc,bcc:[]},
-    _draftCat:{client:draft.client_id||'',ec:draft.end_client||'',campaign:draft.campaign_id||'',opp:draft.opportunity_id||'',none:false}
-  })}
+  /* Delegate to the full-page review view in modals.js */
+  openAiDraftReview(id)}
 
 /* Cache for fetched AI draft threads */
 var _aiDraftThreadCache={};

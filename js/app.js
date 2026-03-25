@@ -116,6 +116,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   openAiDraftCompose:openAiDraftCompose,quickSendAiDraft:quickSendAiDraft,
   regenerateAiDraft:regenerateAiDraft,discardAiDraft:discardAiDraft,discardAllAiDrafts:discardAllAiDrafts,
   toggleAiDraftContext:toggleAiDraftContext,
+  openAiDraftReview:openAiDraftReview,closeAiDraftReview:closeAiDraftReview,
+  sendAiDraftReview:sendAiDraftReview,regenerateFromReview:regenerateFromReview,discardFromReview:discardFromReview,
   scheduleEmail:scheduleEmail,cancelScheduledEmail:cancelScheduledEmail,
   toggleScheduleMenu:toggleScheduleMenu,schedulePreset:schedulePreset,scheduleCustom:scheduleCustom,
   fetchEntityEmails:fetchEntityEmails,

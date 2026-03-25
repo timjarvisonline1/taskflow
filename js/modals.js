@@ -4562,6 +4562,257 @@ function openReplyEmail(msgIdx){
   openComposeEmail({to:replyTo,subject:subject,body:quoteBody,
     replyToThreadId:S.gmailThread.threadId,replyToMessageId:lastMsg.id})}
 
+/* ── AI Draft Full-Page Review ── */
+/* Opens a full-page split view: thread messages on left, editable draft on right */
+function openAiDraftReview(id){
+  var draft=(S.aiDrafts||[]).find(function(d){return d.id===id});
+  if(!draft)return;
+  var to=[];try{to=JSON.parse(draft.to_addresses||'[]')}catch(e){}
+  var cc=[];try{cc=JSON.parse(draft.cc_addresses||'[]')}catch(e){}
+  /* Resolve CRM context */
+  var clientName='';
+  if(draft.client_id){var _cr=S.clientRecords.find(function(c){return c.id===draft.client_id});if(_cr)clientName=_cr.name}
+
+  /* Store state for send */
+  window._aiReviewDraftId=id;
+  window._aiReviewRecipients={to:to,cc:cc,bcc:[]};
+
+  var fromEmail=draft.original_from||'';
+  var fromName=fromEmail;
+  var _fm=fromEmail.match(/^(.+?)\s*<(.+?)>$/);
+  if(_fm){fromName=_fm[1].replace(/"/g,'').trim();fromEmail=_fm[2].trim()}
+  else{fromName=fromEmail.split('@')[0]}
+
+  var h='';
+  /* Header */
+  h+='<div class="detail-full-header" style="padding:12px 24px 0">';
+  h+='<div class="tf-modal-top" style="margin-bottom:0">';
+  h+='<div style="flex:1;min-width:0">';
+  h+='<div style="font-size:16px;font-weight:700;color:var(--t1);display:flex;align-items:center;gap:8px">'+icon('sparkle',16)+' Review AI Draft</div>';
+  h+='<div style="font-size:12px;color:var(--t3);margin-top:2px">'+esc(decHtml(draft.subject||'(no subject)'))+'</div>';
+  h+='</div>';
+  h+='<button class="tf-modal-close" onclick="TF.closeAiDraftReview()">&times;</button>';
+  h+='</div>';
+  /* Thin border */
+  h+='<div style="border-bottom:1px solid var(--gborder);margin-top:10px"></div>';
+  h+='</div>';
+
+  /* Split layout: thread left, compose right */
+  h+='<div class="detail-split" style="grid-template-columns:45% 55%">';
+
+  /* ── LEFT: Thread messages ── */
+  h+='<div class="detail-split-left" style="padding:16px 20px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">'+icon('mail',11)+' Conversation</div>';
+  h+='<div id="ai-review-thread" style="font-size:13px"><div style="padding:20px;color:var(--t3);text-align:center">'+icon('refresh',14)+' Loading thread...</div></div>';
+  h+='</div>';
+
+  /* ── RIGHT: Editable draft ── */
+  h+='<div class="detail-split-right" style="padding:16px 20px;gap:10px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">'+icon('edit',11)+' Your Reply</div>';
+
+  /* To / CC compact rows */
+  h+='<div style="display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
+  h+='<span style="font-weight:600;color:var(--t3);width:28px;flex-shrink:0">To:</span>';
+  h+='<input type="text" id="ai-review-to" value="'+escAttr(to.join(', '))+'" style="flex:1;border:none;background:transparent;font-size:12px;color:var(--t1);outline:none" placeholder="Recipients">';
+  h+='</div>';
+  if(cc.length){
+    h+='<div style="display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
+    h+='<span style="font-weight:600;color:var(--t3);width:28px;flex-shrink:0">Cc:</span>';
+    h+='<input type="text" id="ai-review-cc" value="'+escAttr(cc.join(', '))+'" style="flex:1;border:none;background:transparent;font-size:12px;color:var(--t1);outline:none" placeholder="CC">';
+    h+='</div>'}
+
+  /* Subject */
+  h+='<div style="display:flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
+  h+='<span style="font-weight:600;color:var(--t3);width:52px;flex-shrink:0">Subject:</span>';
+  h+='<input type="text" id="ai-review-subject" value="'+escAttr(draft.subject||'')+'" style="flex:1;border:none;background:transparent;font-size:12px;color:var(--t1);outline:none;font-weight:500">';
+  h+='</div>';
+
+  /* Rich text toolbar */
+  h+=buildRichToolbar('ai-review');
+
+  /* Editable body */
+  h+='<div class="compose-editor" contenteditable="true" id="ai-review-body" style="flex:1;min-height:200px;padding:12px 14px;border:1px solid var(--gborder);border-radius:6px;background:var(--bg);font-size:13px;line-height:1.6;color:var(--t1);overflow-y:auto;outline:none;font-family:Inter,-apple-system,sans-serif">';
+  h+=(draft.body_html||'');
+  h+='</div>';
+
+  /* Categorization bar — compact */
+  h+='<div style="padding:8px 10px;background:var(--bg1);border-radius:6px;border:1px solid var(--gborder)">';
+  h+='<div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:6px;text-transform:uppercase">Categorize</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
+  /* Client */
+  h+='<div><span style="font-size:10px;color:var(--t4)">Client</span><input type="text" id="ai-review-client" value="'+escAttr(clientName)+'" list="ai-review-client-list" style="width:100%;font-size:11px;padding:4px 8px;border:1px solid var(--gborder);border-radius:4px;background:var(--bg);color:var(--t1)">';
+  h+='<datalist id="ai-review-client-list">';
+  S.clientRecords.forEach(function(cr){h+='<option value="'+esc(cr.name)+'">'});
+  h+='</datalist></div>';
+  /* End Client */
+  h+='<div><span style="font-size:10px;color:var(--t4)">End Client</span><input type="text" id="ai-review-ec" value="'+escAttr(draft.end_client||'')+'" style="width:100%;font-size:11px;padding:4px 8px;border:1px solid var(--gborder);border-radius:4px;background:var(--bg);color:var(--t1)"></div>';
+  /* Campaign */
+  h+='<div><span style="font-size:10px;color:var(--t4)">Campaign</span><select id="ai-review-campaign" style="width:100%;font-size:11px;padding:4px 8px;border:1px solid var(--gborder);border-radius:4px;background:var(--bg);color:var(--t1)"><option value="">— Select —</option>';
+  S.campaigns.filter(function(c){return c.status==='Active'||c.status==='Setup'}).forEach(function(c){h+='<option value="'+c.id+'"'+(c.id===draft.campaign_id?' selected':'')+'>'+esc(c.name)+'</option>'});
+  h+='</select></div>';
+  /* Opportunity */
+  h+='<div><span style="font-size:10px;color:var(--t4)">Opportunity</span><select id="ai-review-opp" style="width:100%;font-size:11px;padding:4px 8px;border:1px solid var(--gborder);border-radius:4px;background:var(--bg);color:var(--t1)"><option value="">— Select —</option>';
+  S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'}).forEach(function(o){h+='<option value="'+o.id+'"'+(o.id===draft.opportunity_id?' selected':'')+'>'+esc(o.name)+(o.stage?' ('+o.stage+')':'')+'</option>'});
+  h+='</select></div>';
+  h+='</div></div>';
+
+  /* Action buttons row */
+  h+='<div style="display:flex;align-items:center;gap:8px;padding-top:4px;flex-shrink:0">';
+  h+='<button class="btn btn-p" onclick="TF.sendAiDraftReview()" style="font-size:12px;padding:8px 20px;border-radius:8px;font-weight:600">'+icon('send',12)+' Send</button>';
+  h+='<button class="btn" onclick="TF.regenerateFromReview()" style="font-size:12px;padding:8px 14px;border-radius:8px">'+icon('refresh',12)+' Regenerate</button>';
+  h+='<button class="btn" onclick="if(confirm(\'Discard this draft?\'))TF.discardFromReview()" style="font-size:12px;padding:8px 14px;border-radius:8px">'+icon('trash',12)+' Discard</button>';
+  h+='<div style="flex:1"></div>';
+  /* KB info */
+  var kbLine='';
+  if(draft.kb_chunks_used>0){
+    var srcBits=[];try{var srcs=JSON.parse(draft.kb_sources||'[]');srcs.forEach(function(s){srcBits.push(s.count+' '+s.type.toLowerCase()+(s.count!==1?'s':''))})}catch(e){}
+    kbLine='Generated using '+draft.kb_chunks_used+' KB sources'+(srcBits.length?': '+srcBits.join(', '):'')}
+  if(kbLine)h+='<span style="font-size:10px;color:var(--t4)">'+kbLine+'</span>';
+  h+='</div>';
+
+  h+='</div>'; /* close right pane */
+  h+='</div>'; /* close split */
+
+  gel('detail-body').innerHTML=h;
+  gel('detail-modal').classList.remove('email-light');
+  gel('detail-modal').classList.add('on','full-detail');
+
+  /* Fetch and render thread */
+  _loadAiReviewThread(draft)}
+
+async function _loadAiReviewThread(draft){
+  var el=gel('ai-review-thread');if(!el)return;
+  /* Check cache */
+  if(_aiDraftThreadCache[draft.thread_id]){
+    _renderAiReviewMessages(el,_aiDraftThreadCache[draft.thread_id]);return}
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/gmail/thread?id='+encodeURIComponent(draft.thread_id),{headers:{'Authorization':'Bearer '+sess.data.session.access_token}});
+    var data=await resp.json();
+    if(data.error)throw new Error(data.error);
+    var msgs=data.messages||data||[];
+    _aiDraftThreadCache[draft.thread_id]=msgs;
+    _renderAiReviewMessages(el,msgs);
+  }catch(e){el.innerHTML='<div style="padding:16px;color:var(--red);font-size:12px">Failed to load: '+esc(e.message)+'</div>'}}
+
+function _renderAiReviewMessages(el,msgs){
+  if(!msgs.length){el.innerHTML='<div style="padding:16px;color:var(--t3)">No messages found</div>';return}
+  var _ueList=S._userEmails||[];if(!_ueList.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)_ueList=[_uf]}
+  var h='';
+  msgs.forEach(function(msg,idx){
+    var isMe=_ueList.indexOf((msg.fromEmail||'').toLowerCase())!==-1;
+    var fromDisplay=isMe?'You':(msg.fromName||msg.fromEmail||'Unknown');
+    var initial=(isMe?(S._userEmail||'U'):(msg.fromName||msg.fromEmail||'?')).charAt(0).toUpperCase();
+    var avatarBg=emailAvatarColor(msg.fromEmail||'');
+    var dateD=new Date(msg.date);
+    var dateLabel=dateD.toLocaleDateString('en-US',{month:'short',day:'numeric'})+', '+dateD.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    var isLast=idx===msgs.length-1;
+
+    h+='<div style="padding:10px 0;'+(idx<msgs.length-1?'border-bottom:1px solid var(--gborder);':'')+'">';
+    /* Header row — click to expand/collapse */
+    h+='<div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">';
+    h+='<div style="width:26px;height:26px;border-radius:50%;background:'+(isMe?'var(--accent)':avatarBg)+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">'+initial+'</div>';
+    h+='<div style="flex:1;min-width:0">';
+    h+='<span style="font-weight:'+(isLast?'600':'500')+';font-size:13px;color:var(--t1)">'+esc(fromDisplay)+'</span>';
+    if(!isLast&&msg.snippet){h+=' <span style="font-size:12px;color:var(--t4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"> — '+esc(decHtml(msg.snippet).substring(0,80))+'</span>'}
+    h+='</div>';
+    h+='<span style="font-size:11px;color:var(--t4);flex-shrink:0;white-space:nowrap">'+dateLabel+'</span>';
+    h+='</div>';
+    /* Message body — last expanded, others collapsed */
+    h+='<div style="display:'+(isLast?'block':'none')+';margin-top:8px;padding-left:34px;font-size:13px;color:var(--t2);line-height:1.6;max-height:600px;overflow-y:auto">';
+    if(msg.to){h+='<div style="font-size:11px;color:var(--t4);margin-bottom:6px">To: '+esc(msg.to)+(msg.cc?' &middot; Cc: '+esc(msg.cc):'')+'</div>'}
+    if(msg.body){
+      var bodyText=msg.body.replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'');
+      if(bodyText.indexOf('<')!==-1&&bodyText.indexOf('>')!==-1){
+        h+='<div style="font-size:13px;line-height:1.6;word-break:break-word">'+bodyText+'</div>'}
+      else{h+='<div style="white-space:pre-wrap">'+esc(bodyText)+'</div>'}
+    }else if(msg.snippet){
+      h+='<div style="white-space:pre-wrap;color:var(--t3)">'+esc(decHtml(msg.snippet))+'</div>'}
+    h+='</div></div>'});
+  el.innerHTML=h}
+
+function closeAiDraftReview(){
+  window._aiReviewDraftId=null;
+  window._aiReviewRecipients=null;
+  var dm=gel('detail-modal');
+  dm.classList.remove('on','full-detail','email-light')}
+
+async function sendAiDraftReview(){
+  var draftId=window._aiReviewDraftId;if(!draftId)return;
+  var draft=(S.aiDrafts||[]).find(function(d){return d.id===draftId});if(!draft)return;
+
+  /* Gather values from the review form */
+  var toVal=(gel('ai-review-to')||{}).value||'';
+  var ccVal=(gel('ai-review-cc')||{}).value||'';
+  var subjectVal=(gel('ai-review-subject')||{}).value||'';
+  var bodyEl=gel('ai-review-body');
+  var bodyHtml=bodyEl?bodyEl.innerHTML:'';
+  var clientVal=(gel('ai-review-client')||{}).value||'';
+  var ecVal=(gel('ai-review-ec')||{}).value||'';
+  var campVal=(gel('ai-review-campaign')||{}).value||'';
+  var oppVal=(gel('ai-review-opp')||{}).value||'';
+
+  if(!toVal.trim()){toast('No recipients','err');return}
+  if(!bodyHtml.trim()||bodyHtml==='<br>'){toast('Draft body is empty','err');return}
+
+  /* First update the draft in DB with edited values */
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var token=sess.data.session.access_token;
+
+    /* Update draft content */
+    await fetch('/api/gmail/ai-draft-update',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({id:draftId,body_html:bodyHtml,subject:subjectVal,
+        to_addresses:JSON.stringify(toVal.split(',').map(function(s){return s.trim()}).filter(Boolean)),
+        cc_addresses:JSON.stringify(ccVal?ccVal.split(',').map(function(s){return s.trim()}).filter(Boolean):[])})});
+
+    /* Send via the send endpoint */
+    toast('Sending...','info');
+    var resp=await fetch('/api/gmail/ai-draft-send',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({id:draftId})});
+    var data=await resp.json();
+    if(data.success){
+      S.aiDrafts=S.aiDrafts.filter(function(d){return d.id!==draftId});
+      var gt=S.gmailThreads.find(function(t){return t.thread_id===draft.thread_id});
+      if(gt){gt.needs_reply=false;gt.reply_status='replied';gt.labels=(gt.labels||'').split(',').filter(function(l){return l!=='INBOX'}).join(',')}
+      if(S._gmailLiveThreads)S._gmailLiveThreads=S._gmailLiveThreads.filter(function(t){return(t.threadId||t.thread_id)!==draft.thread_id});
+      if(S._gmailCache&&S._gmailCache.inbox)delete S._gmailCache.inbox;
+
+      /* Save CRM categorization to thread */
+      var crmUpdate={};
+      if(clientVal){var cid=resolveClientId(clientVal);if(cid)crmUpdate.client_id=cid}
+      if(ecVal)crmUpdate.end_client=ecVal;
+      if(campVal)crmUpdate.campaign_id=campVal;
+      if(oppVal)crmUpdate.opportunity_id=oppVal;
+      if(Object.keys(crmUpdate).length&&draft.thread_id){
+        _sb.from('gmail_threads').update(crmUpdate).eq('thread_id',draft.thread_id).eq('user_id',S._userId||'').then(function(){})}
+
+      closeAiDraftReview();
+      toast('Email sent & archived!','ok');render();buildNav()
+    }else{toast('Send failed: '+(data.error||'Unknown'),'err')}
+  }catch(e){toast('Error: '+e.message,'err')}}
+
+async function regenerateFromReview(){
+  var draftId=window._aiReviewDraftId;if(!draftId)return;
+  var custom=prompt('Custom prompt (optional):','');if(custom===null)return;
+  var bodyEl=gel('ai-review-body');
+  if(bodyEl)bodyEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--t3)">'+icon('refresh',16)+' Regenerating draft...</div>';
+  try{
+    var sess=await _sb.auth.getSession();if(!sess.data.session)return;
+    var resp=await fetch('/api/gmail/ai-draft-regenerate',{method:'POST',headers:{'Authorization':'Bearer '+sess.data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({id:draftId,custom_prompt:custom||undefined})});
+    var data=await resp.json();
+    if(data.id){
+      var idx=S.aiDrafts.findIndex(function(d){return d.id===draftId});
+      if(idx!==-1)S.aiDrafts[idx]=data;
+      if(bodyEl)bodyEl.innerHTML=data.body_html||'';
+      toast('Draft regenerated','ok')
+    }else{toast('Regenerate failed: '+(data.error||'Unknown'),'err');if(bodyEl)bodyEl.innerHTML='<em>Regeneration failed. Close and try again.</em>'}
+  }catch(e){toast('Error: '+e.message,'err')}}
+
+function discardFromReview(){
+  var draftId=window._aiReviewDraftId;if(!draftId)return;
+  discardAiDraft(draftId);
+  closeAiDraftReview()}
+
 /* ── Signature Editor ── */
 function openSignatureEditor(){
   var sig=getEmailSignature();
