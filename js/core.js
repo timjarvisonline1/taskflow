@@ -3881,17 +3881,25 @@ async function analyzeNewEmails(){
         client_id:live.clientId||null}}
     unanalyzed.push(thread)});
 
-  /* Also check local analysis cache for threads already analyzed this session */
+  /* Also check local analysis cache for threads already analyzed this session.
+     Cache values: true = permanently analyzed, number = retry-after timestamp */
   if(!window._analyzedEmailCache)window._analyzedEmailCache={};
-  unanalyzed=unanalyzed.filter(function(t){return!window._analyzedEmailCache[t.thread_id]});
+  var now=Date.now();
+  unanalyzed=unanalyzed.filter(function(t){
+    var cached=window._analyzedEmailCache[t.thread_id];
+    if(cached===true)return false;/* permanently analyzed */
+    if(typeof cached==='number'&&cached>now)return false;/* retry cooldown */
+    if(typeof cached==='number'&&cached<=now)delete window._analyzedEmailCache[t.thread_id];/* cooldown expired, retry */
+    return true;
+  });
 
   console.log('[analyzeNewEmails] Live inbox threads:', inboxThreadIds.length, '| Supabase INBOX:', S.gmailThreads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1}).length, '| Unanalyzed:', unanalyzed.length, '| Already cached:', Object.keys(window._analyzedEmailCache).length);
   if(!unanalyzed.length){console.log('[analyzeNewEmails] Nothing to analyze — all inbox threads already have needs_reply set or cached');return}
   /* Send ALL inbox threads to analysis — Claude with full message bodies
      can determine relevance better than the contact-matching gate.
-     Previously this filtered to known contacts only, skipping 75% of threads. */
-  var toAnalyze=unanalyzed;
-  console.log('[analyzeNewEmails] Threads to analyze:', toAnalyze.length);
+     Batch to 15 at a time to avoid Vercel 504 timeouts (API fetches full bodies). */
+  var toAnalyze=unanalyzed.slice(0,15);
+  console.log('[analyzeNewEmails] Threads to analyze:', unanalyzed.length, '| This batch:', toAnalyze.length);
   if(!toAnalyze.length)return;
   _analyzingEmails=true;
   try{
@@ -3949,7 +3957,13 @@ async function analyzeNewEmails(){
         delete S._threadCrmCache[r.threadId]});
       /* Granular cache invalidation — only analyzed threads cleared above */
       _refreshEmailListPanel();buildNav()}
-  }catch(e){console.warn('analyzeNewEmails:',e)}
+  }catch(e){
+    console.warn('[analyzeNewEmails] Error:', e.message||e);
+    /* On failure, cache attempted threads with a retry timestamp so we don't hammer the API.
+       They'll be retried after 5 minutes. */
+    var retryAfter=Date.now()+5*60*1000;
+    toAnalyze.forEach(function(t){window._analyzedEmailCache[t.thread_id]=retryAfter});
+  }
   _analyzingEmails=false}
 
 function getActionRequiredCount(){
