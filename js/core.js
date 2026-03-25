@@ -3837,14 +3837,50 @@ function applyNewEmails(){
 var _analyzingEmails=false;
 async function analyzeNewEmails(){
   if(_analyzingEmails)return;
-  /* Find threads needing analysis: not yet analyzed, in INBOX */
   var ue=S._userEmails||[];if(!ue.length){var _uf=(S._userEmail||'').toLowerCase();if(_uf)ue=[_uf]}
-  var inboxThreads=S.gmailThreads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1});
-  var unanalyzed=inboxThreads.filter(function(t){
-    return t.needs_reply===null||t.needs_reply===undefined
-  });
-  console.log('[analyzeNewEmails] Total gmailThreads:', S.gmailThreads.length, '| INBOX:', inboxThreads.length, '| Unanalyzed:', unanalyzed.length);
-  if(!unanalyzed.length){console.log('[analyzeNewEmails] Nothing to analyze — all INBOX threads already have needs_reply set');return}
+
+  /* Build INBOX thread list from BOTH sources:
+     1. S.gmailThreads (Supabase) — has AI analysis state (needs_reply, ai_summary)
+     2. S._gmailLiveThreads (Gmail API) — has accurate inbox contents
+     Merge: use live threads as the ground truth for what's in INBOX,
+     but look up analysis state from Supabase data */
+  var supabaseMap={};
+  S.gmailThreads.forEach(function(t){supabaseMap[t.thread_id]=t});
+
+  /* Get all thread IDs that are currently in the live inbox */
+  var liveInboxIds={};
+  if(S._gmailLiveThreads&&S._gmailLiveThreads.length){
+    S._gmailLiveThreads.forEach(function(t){
+      var tid=t.threadId||t.thread_id;
+      if(tid)liveInboxIds[tid]=t})
+  }
+  /* Also include Supabase threads with INBOX label */
+  S.gmailThreads.forEach(function(t){
+    if((t.labels||'').indexOf('INBOX')!==-1)liveInboxIds[t.thread_id]=t});
+
+  var inboxThreadIds=Object.keys(liveInboxIds);
+
+  /* Find which inbox threads need analysis */
+  var unanalyzed=[];
+  inboxThreadIds.forEach(function(tid){
+    var supa=supabaseMap[tid];
+    /* If we have Supabase data and needs_reply is already set, skip */
+    if(supa&&supa.needs_reply!==null&&supa.needs_reply!==undefined)return;
+    /* Use Supabase row if available (has more metadata), otherwise build from live */
+    var thread=supa;
+    if(!thread){
+      var live=liveInboxIds[tid];
+      thread={thread_id:tid,subject:live.subject||'',snippet:live.snippet||'',
+        from_email:live.fromEmail||'',from_name:live.fromName||'',
+        to_emails:live.toEmails||live.to||'',cc_emails:live.ccEmails||live.cc||'',
+        labels:'INBOX',message_count:live.messageCount||1,
+        last_message_at:live.lastMessageAt||live.date||'',
+        last_message_from:live.lastMessageFrom||live.fromEmail||'',
+        client_id:live.clientId||null}}
+    unanalyzed.push(thread)});
+
+  console.log('[analyzeNewEmails] Live inbox threads:', inboxThreadIds.length, '| Supabase INBOX:', S.gmailThreads.filter(function(t){return(t.labels||'').indexOf('INBOX')!==-1}).length, '| Unanalyzed:', unanalyzed.length);
+  if(!unanalyzed.length){console.log('[analyzeNewEmails] Nothing to analyze — all inbox threads already have needs_reply set');return}
   /* Gate: only analyze threads involving known contacts, clients, or prospects.
      Threads with no known participants get marked as skipped to avoid re-checking. */
   var toAnalyze=[];var skipped=[];
