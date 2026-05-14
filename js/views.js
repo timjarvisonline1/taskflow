@@ -390,31 +390,39 @@ function rDashboard(){
   h+='</div>';
 
   if(todayMeetings.length){
-    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 18px">';
-    todayMeetings.slice(0,6).forEach(function(m){
+    h+='<h2 class="tf-h2">Today\'s meetings</h2>';
+    h+='<div class="tf-panel" style="margin-bottom:28px">';
+    todayMeetings.slice(0,8).forEach(function(m){
       var t1=m.start.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;border-left:3px solid var(--pink)">';
-      h+='<span style="font-size:11px;font-weight:600;color:var(--pink);font-family:var(--fd)">'+t1+'</span>';
-      h+='<span style="font-size:12px;color:var(--t1)">'+esc(m.title)+'</span></div>'});
+      h+='<div class="tf-row" style="cursor:default">';
+      h+='<div class="tf-row-left">';
+      h+='<span style="font-family:var(--fmono);font-size:13px;font-weight:600;color:var(--accent);min-width:54px">'+t1+'</span>';
+      h+='<span class="tf-row-title">'+esc(m.title)+'</span>';
+      h+='</div></div>'});
     h+='</div>'}
 
   /* ── NEEDS ATTENTION ── */
   var attnItems=[];
   if(overdueTasks.length)attnItems.push({k:'task',label:overdueTasks.length+' overdue task'+(overdueTasks.length>1?'s':''),color:'var(--red)',nav:'tasks',sub:'open'});
-  if(oppsNeedingAttn)attnItems.push({k:'opp',label:oppsNeedingAttn+' opportunit'+(oppsNeedingAttn===1?'y':'ies')+' need updating',color:'var(--amber)',nav:'opportunities'});
+  if(oppsNeedingAttn)attnItems.push({k:'opp',label:oppsNeedingAttn+' opportunit'+(oppsNeedingAttn===1?'y needs':'ies need')+' updating',color:'var(--amber)',nav:'opportunities'});
   if(staleClients)attnItems.push({k:'client',label:staleClients+' client'+(staleClients>1?'s':'')+' going stale',color:'var(--amber)',nav:'clients'});
   if(overdueInv)attnItems.push({k:'inv',label:overdueInv+' invoice'+(overdueInv>1?'s':'')+' past expected payment',color:'var(--red)',nav:'finance',sub:'invoices'});
   if(reviewCount)attnItems.push({k:'rev',label:reviewCount+' item'+(reviewCount>1?'s':'')+' in review queue',color:'var(--amber)',nav:'tasks',sub:'review'});
 
   if(attnItems.length){
     h+='<h2 class="tf-h2">Needs your attention</h2>';
-    h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">';
+    h+='<div class="tf-panel" style="margin-bottom:28px">';
     attnItems.forEach(function(i){
       var navCall=i.sub?'TF.nav(\''+i.nav+'\',\''+i.sub+'\')':'TF.nav(\''+i.nav+'\')';
-      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-left:3px solid '+i.color+';border-radius:10px;padding:11px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:13px;color:var(--t1)" onclick="'+navCall+'">';
-      h+='<span>'+icon('alert',12)+' '+esc(i.label)+'</span>'+icon('chevron_right',14)+'</div>'});
-    h+='</div>'}else{
-    h+='<div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25);border-radius:12px;padding:16px;margin-bottom:18px;text-align:center;color:var(--green);font-size:13px">'+icon('check',14)+' Nothing needs your attention right now. Nice.</div>'}
+      h+='<div class="tf-row" onclick="'+navCall+'">';
+      h+='<div class="tf-row-left">';
+      h+='<span style="width:8px;height:8px;border-radius:50%;background:'+i.color+';flex-shrink:0"></span>';
+      h+='<span class="tf-row-title">'+esc(i.label)+'</span></div>';
+      h+='<div class="tf-row-right">'+icon('chevron_right',16)+'</div></div>'});
+    h+='</div>'
+  }else{
+    h+='<div style="background:#fff;border:1px solid var(--hairline);border-radius:12px;padding:18px 22px;margin-bottom:28px;display:flex;align-items:center;gap:10px;color:var(--green);font-size:13.5px"><span style="width:8px;height:8px;border-radius:50%;background:var(--green)"></span>Nothing needs your attention right now. Nice.</div>'
+  }
 
   /* ── PRODUCTIVITY ── */
   var deltaWeek=weekDone.length-prevWeekDone.length;
@@ -3908,20 +3916,19 @@ function rOpportunities(){
   h+='</div>';
 
   if(needsAttn.length){
-    h+='<h2 class="tf-h2" style="color:var(--amber)">Needs your attention <span style="font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">— '+needsAttn.length+' to update</span></h2>';
-    h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">';
+    h+='<h2 class="tf-h2">Needs your attention <span style="font-weight:400;color:var(--t3);margin-left:4px">— '+needsAttn.length+' to update</span></h2>';
+    h+='<div class="tf-panel" style="margin-bottom:24px">';
     needsAttn.slice(0,10).forEach(function(o){
       var why=_oppAttentionReason(o,td);
       var v=_oppValue(o);
-      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-left:3px solid var(--amber);border-radius:10px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
-      h+='<div style="flex:1;min-width:0">';
-      h+='<div style="font-weight:600;font-size:13px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
-      h+='<div style="font-size:11px;color:var(--t3);margin-top:3px">'+esc((oppTypeConf(o.type)||{}).label||'')+' · '+esc(o.stage||'')+(o.client?' · '+esc(o.client):'')+' · '+fmtUSD(v)+'</div>';
-      h+='</div>';
-      h+='<div style="font-size:11px;color:var(--amber);flex-shrink:0;text-align:right;font-weight:500">'+esc(why)+'</div>';
+      h+='<div class="tf-row" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
+      h+='<div class="tf-row-left"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0"></span>';
+      h+='<div style="min-width:0"><div class="tf-row-title">'+esc(o.name||'Untitled')+'</div>';
+      h+='<div class="tf-row-sub">'+esc((oppTypeConf(o.type)||{}).label||'')+' · '+esc(o.stage||'')+(o.client?' · '+esc(o.client):'')+' · '+fmtUSD(v)+'</div></div></div>';
+      h+='<div class="tf-row-right"><span style="font-size:12px;color:var(--amber);font-weight:500">'+esc(why)+'</span>'+icon('chevron_right',14)+'</div>';
       h+='</div>'});
-    if(needsAttn.length>10)h+='<div class="tf-helper">+'+(needsAttn.length-10)+' more — click into each to update</div>';
     h+='</div>';
+    if(needsAttn.length>10)h+='<div class="tf-helper">+'+(needsAttn.length-10)+' more — click into each to update</div>';
   }
 
   /* Per-type pipeline */
@@ -5566,21 +5573,24 @@ function rFinanceOverviewSimple(){
   h+=_finKpi('Overdue invoices','count',overdueCount,overdueCount>0?'var(--red)':'var(--t3)');
   h+=_finKpi('Monthly recurring','fmtUSD',monthlyOut,'var(--amber)',recurring.length+' items');
   h+='</div>';
-  /* Bank balance cards */
+  /* Bank balance — single panel with one row per account */
   h+='<h2 class="tf-h2">Live bank balances</h2>';
   if(!bals.length){
-    h+='<div class="tf-empty"><strong>No balance data yet</strong><br>Click <strong>Integrations</strong> at the top to connect Brex and Mercury, then hit Sync to pull your live balances.</div>';
-  }else{
-    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">';
-    bals.forEach(function(b){
-      var srcCol=b.source==='brex'?'var(--purple50)':(b.source==='mercury'?'var(--blue)':'var(--t3)');
-      var sync=b.syncedAt?fmtDShort(new Date(b.syncedAt)):'never';
-      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:14px">';
-      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="bg" style="background:'+srcCol+';color:#fff;font-size:10px;padding:2px 8px">'+esc(b.source||'?').toUpperCase()+'</span><span style="font-size:12px;color:var(--t3)">'+esc(b.accountName||b.account||'Account')+'</span></div>';
-      h+='<div style="font-family:var(--fd);font-size:22px;font-weight:700;color:var(--t1)">'+fmtUSD(Number(b.balance||0))+'</div>';
-      h+='<div style="font-size:10px;color:var(--t4);margin-top:6px">Last synced: '+sync+'</div>';
-      h+='</div>'});
-    h+='</div>'}
+    h+='<div class="tf-empty"><strong>No balance data yet</strong>Click <strong>Integrations</strong> at the top to connect Brex and Mercury, then hit Sync to pull your live balances.</div>';
+    return h}
+  h+='<div class="tf-panel">';
+  bals.forEach(function(b){
+    var srcCol=b.source==='brex'?'#af52de':(b.source==='mercury'?'#007aff':'var(--t3)');
+    var sync=b.syncedAt?fmtDShort(new Date(b.syncedAt)):'never';
+    h+='<div class="tf-row" style="cursor:default">';
+    h+='<div class="tf-row-left">';
+    h+='<span style="width:8px;height:8px;border-radius:50%;background:'+srcCol+';flex-shrink:0"></span>';
+    h+='<div style="min-width:0"><div class="tf-row-title">'+esc(b.accountName||b.account||'Account')+'</div>';
+    h+='<div class="tf-row-sub">'+esc((b.source||'').toUpperCase())+' · last synced '+esc(sync)+'</div></div>';
+    h+='</div>';
+    h+='<div class="tf-row-right"><div style="font-family:var(--fd);font-size:17px;font-weight:600;color:var(--t1);letter-spacing:-0.02em">'+fmtUSD(Number(b.balance||0))+'</div></div>';
+    h+='</div>'});
+  h+='</div>';
   return h}
 function _finKpi(label,fmt,value,color,extra){
   var v=fmt==='fmtUSD'?fmtUSD(value):(fmt==='count'?value:value);
@@ -8621,20 +8631,20 @@ function rEmailSearch(){
     return h}
 
   h+='<div class="tf-helper">Showing '+shown.toLocaleString()+' of '+filtered.length.toLocaleString()+' '+(filtered.length>shown?'matches (refine to narrow)':'matches')+'</div>';
-  h+='<div class="email-search-list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px">';
+  h+='<div class="tf-panel">';
   filtered.slice(0,shown).forEach(function(t){
     var subject=t.subject||'(no subject)';
     var snippet=t.snippet||'';
     var from=t.from_name||t.fromName||t.from_email||t.fromEmail||'';
     var dt=t.last_message_at||t.lastMessageAt||t.date||'';
     var dtStr=dt?fmtDShort(new Date(dt)):'';
-    h+='<div class="tf-card tf-card-clickable" style="padding:11px 14px" onclick="TF.openEmailThread(\''+escAttr(t.thread_id||t.threadId||t.id)+'\')">';
-    h+='<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:3px">';
-    h+='<div style="font-weight:600;font-size:13px;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(subject)+'</div>';
-    if(dtStr)h+='<div style="font-size:11px;color:var(--t4);flex-shrink:0">'+esc(dtStr)+'</div>';
+    h+='<div class="tf-row" onclick="TF.openEmailThread(\''+escAttr(t.thread_id||t.threadId||t.id)+'\')">';
+    h+='<div class="tf-row-left" style="flex-direction:column;align-items:flex-start;gap:2px">';
+    h+='<div style="display:flex;justify-content:space-between;gap:12px;width:100%"><div class="tf-row-title">'+esc(subject)+'</div>';
+    if(dtStr)h+='<div style="font-size:12px;color:var(--t4);flex-shrink:0">'+esc(dtStr)+'</div>';
     h+='</div>';
-    h+='<div style="font-size:11px;color:var(--t3);margin-bottom:3px">'+esc(from)+'</div>';
-    if(snippet)h+='<div style="font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(snippet)+'</div>';
+    h+='<div style="font-size:12.5px;color:var(--t2);width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(from)+(snippet?' <span style="color:var(--t4)">— '+esc(snippet)+'</span>':'')+'</div>';
+    h+='</div>';
     h+='</div>'});
   h+='</div>';
   return h}

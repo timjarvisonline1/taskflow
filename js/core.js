@@ -6632,13 +6632,15 @@ function filterBar(items,showDate){
   ecs.sort();
   /* Build campaign names list */
   var cps=S.campaigns.map(function(c){return c.name});
-  var h='<div class="flts">';h+='<input class="fl fl-s" placeholder="Search... ( / )" value="'+esc(S.filters.search||'')+'" oninput="TF.filtSearch(this.value)">';
+  var h='<div class="tf-toolbar">';
+  h+='<input class="fl fl-s" placeholder="Search tasks..." value="'+esc(S.filters.search||'')+'" oninput="TF.filtSearch(this.value)">';
+  h+='<div class="tf-toolbar-divider"></div>';
   var pjs=S.projects.filter(function(p){return p.status!=='Archived'}).map(function(p){return p.name});
   var ops=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'}).map(function(o){return o.name});
-  h+=fSel('client',cls,'All Clients');if(ecs.length)h+=fSel('endClient',ecs,'All End Clients');if(cps.length)h+=fSel('campaign',cps,'All Campaigns');if(pjs.length)h+=fSel('project',pjs,'All Projects');if(ops.length)h+=fSel('opportunity',ops,'All Opportunities');h+=fSel('cat',cas,'All Categories');h+=fSel('imp',ims,'All Importance');h+=fSel('type',TYPES,'All Types');
+  h+=fSel('client',cls,'All clients');if(ecs.length)h+=fSel('endClient',ecs,'All end clients');if(cps.length)h+=fSel('campaign',cps,'All campaigns');if(pjs.length)h+=fSel('project',pjs,'All projects');if(ops.length)h+=fSel('opportunity',ops,'All opportunities');h+=fSel('cat',cas,'All categories');h+=fSel('imp',ims,'All importance');h+=fSel('type',TYPES,'All types');
   if(showDate){h+='<input type="date" class="fl" value="'+(S.filters.dateFrom||'')+'" onchange="TF.filt(\'dateFrom\',this.value)" title="From">';
     h+='<input type="date" class="fl" value="'+(S.filters.dateTo||'')+'" onchange="TF.filt(\'dateTo\',this.value)" title="To">'}
-  if(S.filters.client||S.filters.endClient||S.filters.campaign||S.filters.project||S.filters.opportunity||S.filters.cat||S.filters.imp||S.filters.type||S.filters.search||S.filters.dateFrom||S.filters.dateTo)h+='<button class="fl-clr" onclick="TF.clearF()">'+icon('x',12)+' Clear</button>';
+  if(S.filters.client||S.filters.endClient||S.filters.campaign||S.filters.project||S.filters.opportunity||S.filters.cat||S.filters.imp||S.filters.type||S.filters.search||S.filters.dateFrom||S.filters.dateTo){h+='<div class="tf-toolbar-spacer"></div><button class="fl-clr" onclick="TF.clearF()">'+icon('x',12)+' Clear</button>'}
   return h+'</div>'}
 function fSel(key,opts,all){var cur=S.filters[key]||'';
   var h='<select class="fl'+(cur?' fl-active':'')+'" onchange="TF.filt(\''+key+'\',this.value)"><option value="">'+all+'</option>';
@@ -6869,16 +6871,12 @@ function buildNav(){var h='';
     if(sec.soon){
       h+='<div class="s-item s-item-soon" data-v="'+sec.id+'">';
       h+='<span class="ico">'+icon(sec.icon)+'</span><span class="s-label">'+sec.label+'</span>';
-      h+='<span class="s-right"><span class="s-soon-badge">Soon</span>';
-      if(sec.kbd)h+='<span class="kbd">'+sec.kbd+'</span>';
-      h+='</span></div>';
+      h+='<span class="s-right"><span class="s-soon-badge">Soon</span></span></div>';
       return;
     }
     h+='<div class="s-item'+(isOn?' on':'')+'" data-v="'+sec.id+'" title="'+esc(sec.label)+'" onclick="TF.nav(\''+sec.id+'\')">';
     h+='<span class="ico">'+icon(sec.icon)+'</span><span class="s-label">'+sec.label+'</span>';
-    h+='<span class="s-right">'+badge;
-    if(sec.kbd)h+='<span class="kbd">'+sec.kbd+'</span>';
-    h+='</span></div>';
+    h+='<span class="s-right">'+badge+'</span></div>';
   });
   gel('s-nav').innerHTML=h;
   /* Position the active indicator */

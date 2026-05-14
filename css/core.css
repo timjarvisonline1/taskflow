@@ -105,20 +105,19 @@ body{
 .s-logo-icon{width:34px;height:34px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 2px 8px rgba(230,0,122,0.25)}
 .s-logo-text{font-family:var(--fd);font-size:18px;font-weight:700;letter-spacing:-0.025em;color:var(--t1)}
 
-/* Sidebar Add Task button */
-.s-add-wrap{padding:8px 14px 12px}
+/* Sidebar Add Task button — subtle, accent on hover */
+.s-add-wrap{padding:10px 14px 14px}
 .s-add-btn{
   width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
-  padding:11px 16px;background:var(--accent);
-  border:none;color:#fff;
-  font-family:var(--f);font-size:13.5px;font-weight:600;letter-spacing:-0.005em;
-  border-radius:10px;cursor:pointer;
-  transition:transform .15s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease);
-  box-shadow:0 2px 8px rgba(230,0,122,0.22);
+  padding:9px 14px;background:var(--bg3);
+  border:none;color:var(--t1);
+  font-family:var(--f);font-size:13px;font-weight:500;letter-spacing:-0.005em;
+  border-radius:9px;cursor:pointer;
+  transition:background .12s var(--ease),color .12s var(--ease);
 }
-.s-add-btn:hover{background:var(--accent-hover);box-shadow:0 4px 16px rgba(230,0,122,0.28);transform:translateY(-1px)}
-.s-add-btn:active{transform:translateY(0) scale(0.97)}
-.s-add-btn span{display:flex;align-items:center;gap:8px}
+.s-add-btn:hover{background:var(--accent);color:#fff}
+.s-add-btn:active{background:var(--accent-hover)}
+.s-add-btn span{display:flex;align-items:center;gap:6px}
 
 .s-nav{flex:1;padding:6px 10px;overflow-y:auto}
 .s-item{
@@ -288,13 +287,13 @@ h3{font-family:var(--fd);font-size:11px;font-weight:600;color:var(--t3);margin:2
 .fl-clr:hover{color:var(--accent)}
 .fl-active{border-color:var(--accent)!important;color:var(--accent)!important}
 
-/* Sections */
-.sec{margin-bottom:28px}
-.sec-h{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid var(--gborder);margin-bottom:12px;cursor:pointer;user-select:none;transition:opacity .2s var(--ease)}
+/* Sections (task groups by importance, etc.) */
+.sec{margin-bottom:24px}
+.sec-h{display:flex;align-items:center;gap:8px;padding:0 4px 10px;cursor:pointer;user-select:none;transition:opacity .2s var(--ease)}
 .sec-h:hover{opacity:.75}
-.sec-t{font-family:var(--fd);font-size:15px;font-weight:600;letter-spacing:-0.015em}
-.sec-c{font-size:11px;color:var(--t3);background:var(--bg3);padding:3px 10px;border-radius:10px;font-weight:600}
-.sec-toggle{margin-left:auto;color:var(--t4);font-size:11px;transition:transform .3s var(--ease)}
+.sec-t{font-family:var(--fd);font-size:14px;font-weight:600;letter-spacing:-0.012em}
+.sec-c{font-size:11px;color:var(--t3);font-weight:500;letter-spacing:0}
+.sec-toggle{margin-left:auto;color:var(--t4);font-size:10px;transition:transform .3s var(--ease)}
 .sec-body{overflow:hidden;transition:max-height .4s var(--ease-out);max-height:8000px}
 .sec-body.collapsed{max-height:0}
 
