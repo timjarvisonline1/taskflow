@@ -373,7 +373,7 @@ function rDashboard(){
   var overdueInv=openInv.filter(function(i){return i.expectedAt&&i.expectedAt<td_}).length;
 
   /* Bank cash */
-  var totalCash=(S.accountBalances||[]).reduce(function(s,b){return s+Number(b.balance||0)},0);
+  var totalCash=_dedupedBalances().reduce(function(s,b){return s+Number(b.currentBalance||0)},0);
 
   /* ── HEADER ── */
   var h='<div class="pg-head"><h1>'+icon('dashboard',18)+' Dashboard</h1>';
@@ -5551,9 +5551,10 @@ function rFinanceMobileSubs(sub){
 
 /* ── Simple Finance Overview: just bank balances + at-a-glance numbers ── */
 function rFinanceOverviewSimple(){
-  var bals=S.accountBalances||[];
+  var bals=_dedupedBalances();
+  bals.sort(function(a,b){return(Number(b.currentBalance)||0)-(Number(a.currentBalance)||0)});
   var totalUSD=0;
-  bals.forEach(function(b){totalUSD+=Number(b.balance||0)});
+  bals.forEach(function(b){totalUSD+=Number(b.currentBalance||0)});
   var openInv=(S.invoices||[]).filter(function(i){return i.status==='open'});
   var openTotal=openInv.reduce(function(s,i){return s+Number(i.amount||0)},0);
   var overdueCount=openInv.filter(function(i){return i.expectedAt&&i.expectedAt<today()}).length;
@@ -5580,18 +5581,29 @@ function rFinanceOverviewSimple(){
     return h}
   h+='<div class="tf-panel">';
   bals.forEach(function(b){
-    var srcCol=b.source==='brex'?'#af52de':(b.source==='mercury'?'#007aff':'var(--t3)');
-    var sync=b.syncedAt?fmtDShort(new Date(b.syncedAt)):'never';
+    var plat=(b.platform||'').toLowerCase();
+    var srcCol=plat==='brex'?'#af52de':(plat==='mercury'?'#007aff':(plat==='stripe'?'#635bff':'var(--t3)'));
+    var sync=b.capturedAt?fmtDShort(new Date(b.capturedAt)):'never';
     h+='<div class="tf-row" style="cursor:default">';
     h+='<div class="tf-row-left">';
     h+='<span style="width:8px;height:8px;border-radius:50%;background:'+srcCol+';flex-shrink:0"></span>';
-    h+='<div style="min-width:0"><div class="tf-row-title">'+esc(b.accountName||b.account||'Account')+'</div>';
-    h+='<div class="tf-row-sub">'+esc((b.source||'').toUpperCase())+' · last synced '+esc(sync)+'</div></div>';
+    h+='<div style="min-width:0"><div class="tf-row-title">'+esc(b.accountName||b.accountId||'Account')+'</div>';
+    h+='<div class="tf-row-sub">'+esc((b.platform||'').toUpperCase())+(b.platform?' · ':'')+'last synced '+esc(sync)+'</div></div>';
     h+='</div>';
-    h+='<div class="tf-row-right"><div style="font-family:var(--fd);font-size:17px;font-weight:600;color:var(--t1);letter-spacing:-0.02em">'+fmtUSD(Number(b.balance||0))+'</div></div>';
+    h+='<div class="tf-row-right"><div style="font-family:var(--fd);font-size:17px;font-weight:600;color:var(--t1);letter-spacing:-0.02em">'+fmtUSD(Number(b.currentBalance||0))+'</div></div>';
     h+='</div>'});
   h+='</div>';
   return h}
+
+/* Helper — most recent balance per (platform, accountId) so we don't sum
+   snapshots across captures. */
+function _dedupedBalances(){
+  var byAcct={};
+  (S.accountBalances||[]).forEach(function(b){
+    var k=(b.platform||'')+'|'+(b.accountId||b.accountName||'');
+    var existing=byAcct[k];
+    if(!existing||(b.capturedAt&&existing.capturedAt&&b.capturedAt>existing.capturedAt))byAcct[k]=b});
+  return Object.keys(byAcct).map(function(k){return byAcct[k]})}
 function _finKpi(label,fmt,value,color,extra){
   var v=fmt==='fmtUSD'?fmtUSD(value):(fmt==='count'?value:value);
   return '<div class="tf-kpi"><div class="tf-kpi-label">'+esc(label)+'</div><div class="tf-kpi-value" style="color:'+color+'">'+v+'</div>'+(extra?'<div class="tf-kpi-extra">'+esc(extra)+'</div>':'')+'</div>'}
@@ -5636,8 +5648,7 @@ function rFinanceForecastSimple(){
   var td=today();
   var horizon=90;
   var endDt=_addDays(td,horizon);
-  var bals=S.accountBalances||[];
-  var startCash=bals.reduce(function(s,b){return s+Number(b.balance||0)},0);
+  var startCash=_dedupedBalances().reduce(function(s,b){return s+Number(b.currentBalance||0)},0);
 
   /* Build per-day inflows/outflows */
   var days={};  /* date string → {in:0,out:0,events:[]} */
