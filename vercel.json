@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/sync/*.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/webhook/readai.js": {
       "maxDuration": 60

@@ -3411,33 +3411,26 @@ async function unsplitPayment(){
 
 /* ═══════════ INTEGRATIONS MODAL ═══════════ */
 var INTG_PLATFORMS=[
-  {id:'brex',label:'Brex',color:'#f5a623',desc:'Banking (Tim Jarvis Online LLC)',
+  /* canSync:true means the platform has a live /api/sync/{slug} endpoint.
+     Others are credential-only (used by AI features, webhooks, etc.) */
+  {id:'brex',label:'Brex',color:'#f5a623',desc:'Live bank balance + transactions',canSync:true,
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[{key:'cash_account_id',label:'Cash Account ID (leave blank to auto-detect)',type:'text'}]},
-  {id:'mercury',label:'Mercury',color:'#6c5ce7',desc:'Banking (Film&Content LLC)',
+  {id:'mercury',label:'Mercury',color:'#6c5ce7',desc:'Live bank balance + transactions',canSync:true,
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[]},
-  {id:'zoho_books',label:'Zoho Books',color:'#2196f3',desc:'Accounting (Film&Content LLC)',
-    fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'},{key:'refresh_token',label:'Refresh Token',type:'password'},{key:'code',label:'Auth Code (first-time only)',type:'text'}],
-    configFields:[{key:'organization_id',label:'Organization ID',type:'text'}]},
-  {id:'gmail',label:'Gmail',color:'#EA4335',desc:'Email (tim.jarvis@timjarvis.online)',oauth:true,
+  {id:'gmail',label:'Gmail',color:'#EA4335',desc:'Email search index + AI knowledge base',oauth:true,canSync:true,
     fields:[{key:'client_id',label:'Client ID',type:'text'},{key:'client_secret',label:'Client Secret',type:'password'}],
     configFields:[]},
-  {id:'anthropic',label:'Anthropic (Claude AI)',color:'#D4A574',desc:'AI-powered email analysis',
+  {id:'anthropic',label:'Anthropic (Claude)',color:'#D4A574',desc:'Powers Ask TaskFlow',
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[{key:'model',label:'Model (default: claude-sonnet-4-6)',type:'text'}]},
   {id:'openai',label:'OpenAI (Embeddings)',color:'#10A37F',desc:'Knowledge base vector embeddings',
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[]},
-  {id:'readai',label:'Read.ai',color:'#6366F1',desc:'Meeting transcripts and recordings',
+  {id:'readai',label:'Read.ai',color:'#6366F1',desc:'Meeting transcripts via webhook',
     fields:[],
     configFields:[{key:'webhook_secret',label:'Webhook Secret',type:'text'}]},
-  {id:'instantly',label:'Instantly.ai',color:'#4F46E5',desc:'Cold email outreach campaigns',
-    fields:[{key:'api_key',label:'API Key',type:'password'}],
-    configFields:[]},
-  {id:'google_analytics',label:'Google Analytics',color:'#F9AB00',desc:'Live website visitor analytics',
-    fields:[{key:'service_account_json',label:'Service Account JSON',type:'textarea'}],
-    configFields:[{key:'property_id',label:'GA4 Property ID (numeric, e.g. 123456789)',type:'text'}]},
 ];
 
 /* ═══════════ SCHEDULED ITEM MODALS ═══════════ */
@@ -3744,7 +3737,7 @@ function openIntegrationsModal(){
     if(plat.oauth&&!isConnected){
       h+='<button class="btn btn-go" onclick="TF.connectGmail()" style="font-size:12px;padding:6px 14px">'+icon('mail',11)+' Connect Gmail</button>'}
     if(isConnected){
-      h+='<button class="btn btn-go" onclick="TF.triggerSync(\''+plat.id.replace(/_/g,'-')+'\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Now</button>';
+      if(plat.canSync){h+='<button class="btn btn-go" onclick="TF.triggerSync(\''+plat.id.replace(/_/g,'-')+'\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Now</button>'}
       h+='<button class="btn" onclick="TF.deleteIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:rgba(255,0,0,0.2)">Disconnect</button>';
     }
     h+='</div>';
