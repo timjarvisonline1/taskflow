@@ -5001,23 +5001,34 @@ function _invCampaignOptions(selected){
   var h='<option value="">—</option>';
   (S.campaigns||[]).forEach(function(c){h+='<option value="'+escAttr(c.id)+'"'+(c.id===selected?' selected':'')+'>'+esc(c.name)+'</option>'});
   return h}
+function _invClientDatalist(){
+  var h='<datalist id="inv-client-list">';
+  (S.clientRecords||[]).forEach(function(c){h+='<option value="'+escAttr(c.name)+'">'});
+  return h+'</datalist>'}
+function _invEndClientDatalist(){
+  var seen={},names=[];
+  (S.endClients||[]).forEach(function(e){if(e.name&&!seen[e.name]){seen[e.name]=1;names.push(e.name)}});
+  (S.campaigns||[]).forEach(function(c){if(c.endClient&&!seen[c.endClient]){seen[c.endClient]=1;names.push(c.endClient)}});
+  names.sort();
+  return '<datalist id="inv-ec-list">'+names.map(function(n){return'<option value="'+escAttr(n)+'">'}).join('')+'</datalist>'}
 function openAddInvoice(){
   var td=today();
   var nextMonth=new Date();nextMonth.setDate(nextMonth.getDate()+30);
   var defExp=nextMonth.toISOString().slice(0,10);
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('file',12)+' Add Invoice</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="inv-client">'+_invClientOptions('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="inv-ec" placeholder="Optional"></div>';
+  h+=_invClientDatalist()+_invEndClientDatalist();
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><input type="text" class="edf" id="inv-client" list="inv-client-list" placeholder="Start typing a client name…" autocomplete="off"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="inv-ec" list="inv-ec-list" placeholder="Optional" autocomplete="off"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="inv-campaign">'+_invCampaignOptions('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Reference</span><input type="text" class="edf" id="inv-ref" placeholder="e.g. INV-2026-014"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Amount (USD)</span><input type="number" class="edf" id="inv-amt" min="0" step="0.01" placeholder="0.00" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount (USD)</span><input type="number" class="edf" id="inv-amt" min="0" step="0.01" placeholder="0.00"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Issued</span><input type="date" class="edf" id="inv-issued" value="'+td+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Expected payment</span><input type="date" class="edf" id="inv-expected" value="'+defExp+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="inv-notes" rows="2" placeholder="Optional"></textarea></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveInvoice()">Save Invoice</button></div>';
   gel('m-body').innerHTML=h;gel('modal').classList.add('on');
-  setTimeout(function(){var n=gel('inv-amt');if(n)n.focus()},100)}
+  setTimeout(function(){var n=gel('inv-client');if(n)n.focus()},100)}
 
 async function saveInvoice(){
   var data={
@@ -5040,8 +5051,9 @@ function openEditInvoice(id){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('file',12)+' Edit Invoice</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<input type="hidden" id="inv-id" value="'+escAttr(id)+'">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="inv-client">'+_invClientOptions(inv.client||'')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="inv-ec" value="'+escAttr(inv.endClient||'')+'"></div>';
+  h+=_invClientDatalist()+_invEndClientDatalist();
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><input type="text" class="edf" id="inv-client" list="inv-client-list" value="'+escAttr(inv.client||'')+'" autocomplete="off"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="inv-ec" list="inv-ec-list" value="'+escAttr(inv.endClient||'')+'" autocomplete="off"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="inv-campaign">'+_invCampaignOptions(inv.campaign||'')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Reference</span><input type="text" class="edf" id="inv-ref" value="'+escAttr(inv.reference||'')+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Amount (USD)</span><input type="number" class="edf" id="inv-amt" min="0" step="0.01" value="'+escAttr(inv.amount||0)+'"></div>';
