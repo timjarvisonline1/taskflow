@@ -5584,7 +5584,7 @@ function rFinanceOverviewSimple(){
   return h}
 function _finKpi(label,fmt,value,color,extra){
   var v=fmt==='fmtUSD'?fmtUSD(value):(fmt==='count'?value:value);
-  return '<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--t3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em">'+esc(label)+'</div><div style="font-family:var(--fd);font-size:22px;font-weight:700;color:'+color+'">'+v+'</div>'+(extra?'<div style="font-size:10px;color:var(--t4);margin-top:4px">'+esc(extra)+'</div>':'')+'</div>'}
+  return '<div class="tf-kpi"><div class="tf-kpi-label">'+esc(label)+'</div><div class="tf-kpi-value" style="color:'+color+'">'+v+'</div>'+(extra?'<div class="tf-kpi-extra">'+esc(extra)+'</div>':'')+'</div>'}
 
 /* ── Invoices view (manual entry) ── */
 function rInvoicesView(){
