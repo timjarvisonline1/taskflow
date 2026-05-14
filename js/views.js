@@ -329,182 +329,123 @@ function dashMet(label,value,color){return'<div class="dash-met"><div class="das
 function rDashboard(){
   var td_=today(),now=new Date();
   var tdEnd=new Date(td_.getTime()+864e5);
-  /* Task metrics */
+
+  /* ── DATA ── */
   var openTasks=S.tasks.length;
-  var overdueTasks=S.tasks.filter(function(t){return t.due&&t.due<td_}).length;
+  var overdueTasks=S.tasks.filter(function(t){return t.due&&t.due<td_});
   var inProgress=0;Object.keys(S.timers).forEach(function(id){if(S.timers[id].started)inProgress++});
   var todayDone=S.done.filter(function(d){return d.completed&&d.completed>=td_&&d.completed<tdEnd});
   var todayMins=0;todayDone.forEach(function(d){todayMins+=d.duration||0});
   var reviewCount=S.review.length;
   var dueTodayTasks=S.tasks.filter(function(t){return t.due&&t.due>=td_&&t.due<tdEnd});
   var todayMeetings=S.calEvents.filter(function(e){return!e.allDay&&e.start>=td_&&e.start<tdEnd&&e.title.indexOf('OOO')!==0});
+  todayMeetings.sort(function(a,b){return a.start-b.start});
 
-  /* Weekly metrics */
   var weekStart=new Date(td_);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);
   var weekEnd=new Date(weekStart.getTime()+7*864e5);
   var weekDone=S.done.filter(function(d){return d.completed&&d.completed>=weekStart&&d.completed<weekEnd});
   var weekMins=0;weekDone.forEach(function(d){weekMins+=d.duration||0});
+  var prevWeekStart=new Date(weekStart.getTime()-7*864e5);
+  var prevWeekDone=S.done.filter(function(d){return d.completed&&d.completed>=prevWeekStart&&d.completed<weekStart});
 
-  /* Monthly metrics */
-  var monthStart=new Date(td_.getFullYear(),td_.getMonth(),1);
-  var monthDone=S.done.filter(function(d){return d.completed&&d.completed>=monthStart});
+  var activeOpps=(S.opportunities||[]).filter(function(o){return!o.closedAt&&o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
+  var pipelineValue=activeOpps.reduce(function(s,o){return s+_oppValue(o)},0);
+  var oppsNeedingAttn=activeOpps.filter(function(o){
+    var lastTouchMs=(o.updated_at?new Date(o.updated_at):o.created?new Date(o.created):new Date()).getTime();
+    return(Date.now()-lastTouchMs)/86400000>=14||!o.expectedClose||(o.expectedClose&&o.expectedClose.toISOString().slice(0,10)<td_&&!oppIsClosedStage(o.stage))}).length;
 
-  /* Campaign metrics */
-  var activeCampaigns=S.campaigns.filter(function(c){return c.status==='Active'});
-  var monthlyRecurring=0;activeCampaigns.forEach(function(c){monthlyRecurring+=(c.monthlyFee||0)+(c.monthlyAdSpend||0)});
+  /* Stale clients (no contact 14+ days, has active campaign) */
+  var staleClients=0;
+  (S.clientRecords||[]).filter(function(c){return c.status==='active'}).forEach(function(c){
+    var hasActive=(S.campaigns||[]).some(function(cp){return cp.partner===c.name&&(cp.status==='Active'||cp.status==='Setup')});
+    if(!hasActive)return;
+    var lastDate=null;
+    (S.gmailThreads||[]).forEach(function(t){
+      if(t.client_id===c.id){var d=t.last_message_at||t.lastMessageAt;if(d&&(!lastDate||d>lastDate))lastDate=d}});
+    (S.meetings||[]).forEach(function(m){
+      if(m.client_id===c.id){var d=m.start_time||m.startTime;if(d&&(!lastDate||d>lastDate))lastDate=d}});
+    var days=lastDate?(Date.now()-new Date(lastDate).getTime())/86400000:9999;
+    if(days>=14)staleClients++});
 
-  /* Revenue */
-  var totalRevenue=0;var recentInflows=0;var cut7d=new Date(td_.getTime()-7*864e5);
-  S.financePayments.forEach(function(p){if(p.status!=='excluded'&&p.type!=='transfer'&&p.direction==='inflow'&&p.type==='payment'){totalRevenue+=p.amount;if(p.date&&p.date>=cut7d)recentInflows+=p.amount}});
+  /* Outstanding invoices */
+  var openInv=(S.invoices||[]).filter(function(i){return i.status==='open'});
+  var outstandingTotal=openInv.reduce(function(s,i){return s+Number(i.amount||0)},0);
+  var overdueInv=openInv.filter(function(i){return i.expectedAt&&i.expectedAt<td_}).length;
 
-  /* Opportunity metrics */
-  var activeOpps=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'});
-  var pipelineValue=0,weightedPipeline=0;
-  activeOpps.forEach(function(o){var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);pipelineValue+=v;weightedPipeline+=v*(o.probability||0)/100});
-  var wonOpps=S.opportunities.filter(function(o){return o.stage==='Closed Won'});
-  var closedTotal=wonOpps.length+S.opportunities.filter(function(o){return o.stage==='Closed Lost'}).length;
-  var winRate=closedTotal>0?Math.round(wonOpps.length/closedTotal*100):0;
+  /* Bank cash */
+  var totalCash=(S.accountBalances||[]).reduce(function(s,b){return s+Number(b.balance||0)},0);
 
-  /* Client metrics */
-  var activeClients={};S.clientRecords.forEach(function(cr){if(cr.status==='active')activeClients[cr.name]=true});
-  var clientsWithOverdue={};S.tasks.forEach(function(t){if(t.due&&t.due<td_&&t.client)clientsWithOverdue[t.client]=true});
+  /* ── HEADER ── */
+  var h='<div class="pg-head"><h1>'+icon('dashboard',18)+' Dashboard</h1>';
+  h+='<div class="stats"><div class="st">'+now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</div></div></div>';
 
-  /* Completion rate */
-  var totalCreated=S.tasks.length+S.done.length;
-  var completionRate=totalCreated>0?Math.round(S.done.length/totalCreated*100):0;
-  var avgDuration=S.done.length>0?Math.round(S.done.reduce(function(s,d){return s+(d.duration||0)},0)/S.done.length):0;
-
-  /* Top clients by time this week */
-  var weekClientTime={};weekDone.forEach(function(d){if(d.client)weekClientTime[d.client]=(weekClientTime[d.client]||0)+(d.duration||0)});
-  var topClients=Object.keys(weekClientTime).sort(function(a,b){return weekClientTime[b]-weekClientTime[a]}).slice(0,3);
-
-  var h='<div class="pg-head"><h1>'+icon('dashboard',18)+' Dashboard</h1><div class="stats"><div class="st">'+now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</div></div></div>';
-
-  /* Row 1: Today's Focus */
-  h+='<div class="dash-section">Today\'s Focus</div>';
-  h+='<div class="dash-mets">';
-  h+=dashMet('Due Today',dueTodayTasks.length,dueTodayTasks.length?'var(--amber)':'var(--green)');
-  h+=dashMet('Meetings',todayMeetings.length,todayMeetings.length?'var(--purple50)':'var(--t4)');
-  h+=dashMet('In Progress',inProgress,inProgress?'var(--green)':'var(--t4)');
-  h+=dashMet('Review Queue',reviewCount,reviewCount?'var(--amber)':'var(--t4)');
+  /* ── TODAY ── */
+  h+='<h2 class="tf-h2">Today</h2>';
+  h+='<div class="tf-kpi-strip">';
+  h+=_finKpi('Due today','count',dueTodayTasks.length,dueTodayTasks.length?'var(--amber)':'var(--green)');
+  h+=_finKpi('Meetings','count',todayMeetings.length,todayMeetings.length?'var(--purple50)':'var(--t4)');
+  h+=_finKpi('In progress','count',inProgress,inProgress?'var(--green)':'var(--t4)');
+  h+=_finKpi('Done today','count',todayDone.length,'var(--green)',todayMins>0?fmtM(todayMins)+' tracked':'');
+  h+=_finKpi('Review queue','count',reviewCount,reviewCount?'var(--amber)':'var(--t4)');
   h+='</div>';
 
-  /* Today's meetings list */
   if(todayMeetings.length){
-    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
-    todayMeetings.slice(0,5).forEach(function(m){
+    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 18px">';
+    todayMeetings.slice(0,6).forEach(function(m){
       var t1=m.start.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;border-left:3px solid var(--pink)">';
+      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;border-left:3px solid var(--pink)">';
       h+='<span style="font-size:11px;font-weight:600;color:var(--pink);font-family:var(--fd)">'+t1+'</span>';
       h+='<span style="font-size:12px;color:var(--t1)">'+esc(m.title)+'</span></div>'});
     h+='</div>'}
 
-  /* AI Briefing — build live data: ALL tasks + ALL deals */
-  var _aiLive='';
-  var _allSorted=S.tasks.slice().sort(function(a,b){
-    var aOd=a.due&&a.due<td_?0:1,bOd=b.due&&b.due<td_?0:1;
-    if(aOd!==bOd)return aOd-bOd;
-    if(a.due&&b.due)return a.due-b.due;
-    if(a.due)return -1;if(b.due)return 1;return 0});
-  _aiLive+='\nALL OPEN TASKS ('+S.tasks.length+'):\n';
-  _allSorted.forEach(function(t){
-    var isOd=t.due&&t.due<td_;
-    _aiLive+='- '+(isOd?'[OVERDUE] ':'')+t.item+(t.client?' ['+t.client+']':'')+(t.endClient?' ('+t.endClient+')':'')+(t.due?' due '+t.due.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'')+(t.importance?' ['+t.importance+']':'')+(t.category?' #'+t.category:'')+(t.notes?' — '+t.notes.substring(0,150):'')+'\n'});
-  // Active deals (ALL)
-  if(activeOpps.length){
-    _aiLive+='\nALL ACTIVE DEALS ('+activeOpps.length+', pipeline '+fmtUSD(pipelineValue)+'):\n';
-    activeOpps.sort(function(a,b){var va=(a.strategyFee||0)+(a.setupFee||0)+((a.monthlyFee||0)*12);var vb=(b.strategyFee||0)+(b.setupFee||0)+((b.monthlyFee||0)*12);return vb-va}).forEach(function(o){
-      var v=(o.strategyFee||0)+(o.setupFee||0)+((o.monthlyFee||0)*12);
-      _aiLive+='- '+o.name+' ['+o.client+'] Stage: '+o.stage+' Value: '+fmtUSD(v)+(o.probability?' ('+o.probability+'% prob)':'')+(o.endClient?' EC: '+o.endClient:'')+(o.type?' Type: '+o.type:'')+'\n'})}
-  // ALL contacts
-  if(S.contacts&&S.contacts.length){
-    _aiLive+='\nALL CONTACTS ('+S.contacts.length+'):\n';
-    S.contacts.forEach(function(cc){
-      var fn=((cc.firstName||'')+' '+(cc.lastName||'')).trim();
-      var client=cc.clientId?S.clientRecords.find(function(cr){return cr.id===cc.clientId}):null;
-      _aiLive+='- '+fn+(cc.role?' ('+cc.role+')':'')+(client?' ['+client.name+']':'')+(cc.endClient?' EC: '+cc.endClient:'')+(cc.email?' '+cc.email:'')+(cc.phone?' '+cc.phone:'')+'\n'})}
-  // ALL active campaigns
-  if(activeCampaigns.length){
-    _aiLive+='\nACTIVE CAMPAIGNS ('+activeCampaigns.length+'):\n';
-    activeCampaigns.forEach(function(cp){_aiLive+='- '+cp.name+' ['+cp.partner+']'+(cp.endClient?' ('+cp.endClient+')':'')+(cp.monthlyFee?' Fee: '+fmtUSD(cp.monthlyFee)+'/mo':'')+(cp.monthlyAdSpend?' Ad: '+fmtUSD(cp.monthlyAdSpend)+'/mo':'')+'\n'})}
-  // ALL clients
-  if(S.clientRecords&&S.clientRecords.length){
-    _aiLive+='\nALL CLIENTS ('+S.clientRecords.length+'):\n';
-    S.clientRecords.forEach(function(cr){_aiLive+='- '+cr.name+' ('+cr.status+')'+(cr.email?' '+cr.email:'')+(cr.industry?' Industry: '+cr.industry:'')+'\n'})}
-  // ALL projects
-  if(S.projects&&S.projects.length){
-    _aiLive+='\nPROJECTS ('+S.projects.length+'):\n';
-    S.projects.forEach(function(p){_aiLive+='- '+p.name+' ('+p.status+')'+(p.client?' ['+p.client+']':'')+'\n'})}
-  // Today's meetings
-  if(todayMeetings.length){
-    _aiLive+='\nTODAY\'S MEETINGS ('+todayMeetings.length+'):\n';
-    todayMeetings.forEach(function(m){_aiLive+='- '+m.start.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+' '+m.title+'\n'})}
-  // Recent completions (last 20)
-  var _recentDone=S.done.slice(0,20);
-  if(_recentDone.length){
-    _aiLive+='\nRECENTLY COMPLETED ('+_recentDone.length+' of '+S.done.length+'):\n';
-    _recentDone.forEach(function(d){_aiLive+='- '+d.item+(d.client?' ['+d.client+']':'')+(d.completed?' ('+d.completed.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'')+(d.duration?' '+fmtM(d.duration):'')+'\n'})}
+  /* ── NEEDS ATTENTION ── */
+  var attnItems=[];
+  if(overdueTasks.length)attnItems.push({k:'task',label:overdueTasks.length+' overdue task'+(overdueTasks.length>1?'s':''),color:'var(--red)',nav:'tasks',sub:'open'});
+  if(oppsNeedingAttn)attnItems.push({k:'opp',label:oppsNeedingAttn+' opportunit'+(oppsNeedingAttn===1?'y':'ies')+' need updating',color:'var(--amber)',nav:'opportunities'});
+  if(staleClients)attnItems.push({k:'client',label:staleClients+' client'+(staleClients>1?'s':'')+' going stale',color:'var(--amber)',nav:'clients'});
+  if(overdueInv)attnItems.push({k:'inv',label:overdueInv+' invoice'+(overdueInv>1?'s':'')+' past expected payment',color:'var(--red)',nav:'finance',sub:'invoices'});
+  if(reviewCount)attnItems.push({k:'rev',label:reviewCount+' item'+(reviewCount>1?'s':'')+' in review queue',color:'var(--amber)',nav:'tasks',sub:'review'});
 
-  h+=aiBox('dash-ai',{clientId:null,clientName:null,sourceTypes:null,
-    entityContext:{type:'dashboard',name:'Main Dashboard',data:{
-      openTasks:openTasks,overdueTasks:overdueTasks,todayDone:todayDone.length,
-      pendingReplies:_pendingReplies,activeDeals:activeOpps.length,pipelineValue:fmtUSD(pipelineValue)},
-      liveData:_aiLive},
-    suggestedPrompts:['What should I focus on today?','Summarize this week\'s activity',
-      'Any overdue items I should address?','What\'s the status of my active deals?'],
-    placeholder:'Ask about your business...',collapsed:false});
+  if(attnItems.length){
+    h+='<h2 class="tf-h2">Needs your attention</h2>';
+    h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">';
+    attnItems.forEach(function(i){
+      var navCall=i.sub?'TF.nav(\''+i.nav+'\',\''+i.sub+'\')':'TF.nav(\''+i.nav+'\')';
+      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-left:3px solid '+i.color+';border-radius:10px;padding:11px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:13px;color:var(--t1)" onclick="'+navCall+'">';
+      h+='<span>'+icon('alert',12)+' '+esc(i.label)+'</span>'+icon('chevron_right',14)+'</div>'});
+    h+='</div>'}else{
+    h+='<div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25);border-radius:12px;padding:16px;margin-bottom:18px;text-align:center;color:var(--green);font-size:13px">'+icon('check',14)+' Nothing needs your attention right now. Nice.</div>'}
 
-  /* Row 2: Productivity */
-  h+='<div class="dash-section">Productivity</div>';
-  h+='<div class="dash-mets">';
-  h+=dashMet('Done Today',todayDone.length,'var(--green)');
-  h+=dashMet('Done This Week',weekDone.length,'var(--green)');
-  h+=dashMet('Done This Month',monthDone.length,'var(--green)');
-  h+=dashMet('Open Tasks',openTasks,'var(--t1)');
-  h+=dashMet('Overdue',overdueTasks,overdueTasks?'var(--red)':'var(--green)');
-  h+=dashMet('Tracked Today',fmtM(todayMins),'var(--pink)');
-  h+=dashMet('Tracked This Week',fmtM(weekMins),'var(--pink)');
-  h+=dashMet('Completion Rate',completionRate+'%','var(--blue)');
+  /* ── PRODUCTIVITY ── */
+  var deltaWeek=weekDone.length-prevWeekDone.length;
+  h+='<h2 class="tf-h2">Productivity</h2>';
+  h+='<div class="tf-kpi-strip">';
+  h+=_finKpi('Open tasks','count',openTasks,'var(--t1)');
+  h+=_finKpi('Overdue','count',overdueTasks.length,overdueTasks.length?'var(--red)':'var(--green)');
+  h+=_finKpi('Done this week','count',weekDone.length,'var(--green)',deltaWeek===0?'same as last week':(deltaWeek>0?'+'+deltaWeek+' vs last week':deltaWeek+' vs last week'));
+  h+=_finKpi('Tracked this week','count',fmtM(weekMins),'var(--pink)');
   h+='</div>';
 
-  /* Row 3: Sales Pipeline */
-  h+='<div class="dash-section">Sales Pipeline</div>';
-  h+='<div class="dash-mets">';
-  h+=dashMet('Pipeline Value',fmtUSD(pipelineValue),'var(--blue)');
-  h+=dashMet('Weighted',fmtUSD(weightedPipeline),'var(--amber)');
-  h+=dashMet('Active Deals',activeOpps.length,'var(--purple50)');
-  h+=dashMet('Win Rate',winRate+'%',winRate>=50?'var(--green)':'var(--amber)');
+  /* ── SALES ── */
+  h+='<h2 class="tf-h2">Sales</h2>';
+  h+='<div class="tf-kpi-strip">';
+  h+=_finKpi('Pipeline value','fmtUSD',pipelineValue,'var(--blue)');
+  h+=_finKpi('Active deals','count',activeOpps.length,'var(--purple50)');
+  h+=_finKpi('Need updating','count',oppsNeedingAttn,oppsNeedingAttn?'var(--amber)':'var(--green)');
   h+='</div>';
 
-  /* Row 4: Finance */
-  h+='<div class="dash-section">Finance Snapshot</div>';
-  h+='<div class="dash-mets">';
-  h+=dashMet('Total Revenue',fmtUSD(totalRevenue),'var(--green)');
-  h+=dashMet('Monthly Recurring',fmtUSD(monthlyRecurring),'var(--green)');
-  h+=dashMet('Recent Inflows (7d)',fmtUSD(recentInflows),'var(--green)');
-  h+=dashMet('Active Campaigns',activeCampaigns.length,'var(--amber)');
+  /* ── FINANCE ── */
+  h+='<h2 class="tf-h2">Finance</h2>';
+  h+='<div class="tf-kpi-strip">';
+  h+=_finKpi('Cash on hand','fmtUSD',totalCash,'var(--green)');
+  h+=_finKpi('Outstanding invoices','fmtUSD',outstandingTotal,'var(--blue)',openInv.length+' open');
+  h+=_finKpi('Overdue invoices','count',overdueInv,overdueInv?'var(--red)':'var(--green)');
   h+='</div>';
 
-  /* Row 5: Clients compact */
-  h+='<div class="dash-section">Clients</div>';
-  h+='<div class="dash-mets">';
-  h+=dashMet('Active Clients',Object.keys(activeClients).length,'var(--t1)');
-  h+=dashMet('With Overdue',Object.keys(clientsWithOverdue).length,Object.keys(clientsWithOverdue).length?'var(--red)':'var(--green)');
-  h+='</div>';
-  if(topClients.length){
-    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">';
-    topClients.forEach(function(cl,i){
-      h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:8px">';
-      h+='<span style="font-size:11px;color:var(--t4);font-weight:600">#'+(i+1)+'</span>';
-      h+='<span style="font-size:12px;color:var(--t1);font-weight:600">'+esc(cl)+'</span>';
-      h+='<span style="font-size:11px;color:var(--pink);font-family:var(--fd)">'+fmtM(weekClientTime[cl])+'</span></div>'});
-    h+='</div>'}
-
-  /* Heatmap */
-  h+='<div class="dash-section">Activity</div>';
+  /* ── ACTIVITY HEATMAP + CHARTS ── */
+  h+='<h2 class="tf-h2">Activity</h2>';
   h+='<div class="dash-heatmap" id="heatmap-cal"></div>';
 
-  /* Charts */
   h+='<div class="dash-charts">';
   h+='<div class="chart-card"><h3>Tasks by Importance</h3><div class="chart-wrap"><canvas id="dash-imp-chart"></canvas></div></div>';
   h+='<div class="chart-card"><h3>Time by Client (7d)</h3><div class="chart-wrap"><canvas id="dash-client-chart"></canvas></div></div>';
@@ -756,7 +697,7 @@ function rClientsStale(){
     c._lastActivity=lastActivity;
     c._daysSince=daysSince==null?9999:daysSince;
     c._openTasks=openT.length;
-    c._hasOpenCampaign=(c.campaigns||[]).filter(function(cp){return cp.status==='Active'||cp.status==='Setup'}).length>0});
+    c._hasOpenCampaign=(c.campaignList||[]).filter(function(cp){return cp.status==='Active'||cp.status==='Setup'}).length>0});
 
   /* Sort: most stale first */
   clients.sort(function(a,b){return b._daysSince-a._daysSince});
@@ -768,22 +709,47 @@ function rClientsStale(){
   h+='<div style="display:flex;gap:8px"><button class="btn" onclick="TF.subNav(\'end_clients\')" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('building',12)+' End Clients</button>';
   h+='<button class="btn btn-p" onclick="TF.openAddClientModal()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Client</button></div></div>';
 
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">';
+  if(!clients.length){
+    h+='<div class="tf-empty"><strong>No active clients yet</strong><br>Click <strong>+ Add Client</strong> to add one. Active clients show here sorted by most-stale relationship first.</div>';
+    return h}
+
+  h+='<div class="tf-kpi-strip">';
   h+=_finKpi('Active clients','count',clients.length,'var(--green)');
-  h+=_finKpi('Going stale (14+ d)','count',stale.length,stale.length>0?'var(--amber)':'var(--t3)','active campaigns');
+  h+=_finKpi('Going stale (14+ d)','count',stale.length,stale.length>0?'var(--amber)':'var(--t3)','with active campaigns');
   h+=_finKpi('Gone dark (45+ d)','count',dark.length,dark.length>0?'var(--red)':'var(--t3)');
   h+=_finKpi('Open tasks','count',clients.reduce(function(s,c){return s+c._openTasks},0),'var(--blue)');
   h+='</div>';
 
-  if(!clients.length){
-    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:28px;text-align:center;color:var(--t4)">No active clients.</div>';
+  /* Filter + search */
+  var heatFilter=S.clientHeatFilter||'all';
+  var search=(S.clientSearch||'').toLowerCase().trim();
+  h+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  h+='<span class="tf-chip'+(heatFilter==='all'?' on':'')+'" onclick="TF.setClientHeat(\'all\')">All <span style="opacity:.6;margin-left:4px">'+clients.length+'</span></span>';
+  h+='<span class="tf-chip'+(heatFilter==='stale'?' on':'')+'" onclick="TF.setClientHeat(\'stale\')">Going stale <span style="opacity:.6;margin-left:4px">'+stale.length+'</span></span>';
+  h+='<span class="tf-chip'+(heatFilter==='dark'?' on':'')+'" onclick="TF.setClientHeat(\'dark\')">Gone dark <span style="opacity:.6;margin-left:4px">'+dark.length+'</span></span>';
+  h+='<span class="tf-chip'+(heatFilter==='healthy'?' on':'')+'" onclick="TF.setClientHeat(\'healthy\')">Healthy <span style="opacity:.6;margin-left:4px">'+(clients.length-stale.length-dark.length)+'</span></span>';
+  h+='</div>';
+  h+='<div style="flex:1;min-width:200px;background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:7px 12px;display:flex;gap:8px;align-items:center;max-width:320px">'+icon('search',13)+'<input type="text" id="cl-search" value="'+escAttr(search)+'" placeholder="Search clients..." style="flex:1;background:transparent;border:none;color:var(--t1);font-size:13px;outline:none" oninput="TF.setClientSearch(this.value)"></div>';
+  h+='</div>';
+
+  /* Apply filter + search */
+  var rows=clients.filter(function(c){
+    if(heatFilter==='stale'&&!(c._daysSince>=14&&c._daysSince<45&&c._hasOpenCampaign))return false;
+    if(heatFilter==='dark'&&c._daysSince<45)return false;
+    if(heatFilter==='healthy'&&c._daysSince>=14)return false;
+    if(search&&c.name.toLowerCase().indexOf(search)===-1)return false;
+    return true});
+
+  if(!rows.length){
+    h+='<div class="tf-empty">No clients match this filter.</div>';
     return h}
 
   h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>';
   ['Client','Last contact','Last email','Last meeting','Open tasks','Campaigns',''].forEach(function(col){
     h+='<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.04em">'+col+'</th>'});
   h+='</tr></thead><tbody>';
-  clients.forEach(function(c){
+  rows.forEach(function(c){
     var heat=c._daysSince>=45?'var(--red)':(c._daysSince>=14?'var(--amber)':'var(--green)');
     var heatBg=c._daysSince>=45?'rgba(255,51,88,0.06)':(c._daysSince>=14?'rgba(255,153,0,0.04)':'transparent');
     var label=c._daysSince==null||c._daysSince>=9999?'never':c._daysSince+'d ago';
@@ -793,7 +759,7 @@ function rClientsStale(){
     h+='<td style="padding:9px 10px;color:var(--t3)">'+esc(c._lastEmail?fmtDShort(new Date(c._lastEmail)):'—')+'</td>';
     h+='<td style="padding:9px 10px;color:var(--t3)">'+esc(c._lastMeet?fmtDShort(new Date(c._lastMeet)):'—')+'</td>';
     h+='<td style="padding:9px 10px;color:'+(c._openTasks>0?'var(--t1)':'var(--t4)')+'">'+c._openTasks+'</td>';
-    h+='<td style="padding:9px 10px;color:var(--t3)">'+(c.campaigns||[]).filter(function(cp){return cp.status==='Active'||cp.status==='Setup'}).length+'</td>';
+    h+='<td style="padding:9px 10px;color:var(--t3)">'+(c.campaignList||[]).filter(function(cp){return cp.status==='Active'||cp.status==='Setup'}).length+'</td>';
     h+='<td style="padding:9px 10px;text-align:right;color:var(--t4)">'+icon('chevron_right',14)+'</td>';
     h+='</tr>'});
   h+='</tbody></table>';
@@ -2050,21 +2016,21 @@ function rToday(){
   h+='<button class="btn" onclick="TF.openSummary()" style="font-size:11px;padding:5px 12px;margin-left:8px">Daily Summary</button>';
   h+='</div></div>';
 
-  /* METRIC STRIP */
-  h+='<div class="td-metrics">';
-  h+='<div class="td-met"><div class="td-met-v" style="color:var(--green)">'+todayDone.length+'</div><div class="td-met-l">Done</div></div>';
-  h+='<div class="td-met"><div class="td-met-v" style="color:var(--pink)">'+fmtM(todayMins)+'</div><div class="td-met-l">Tracked</div></div>';
-  h+='<div class="td-met"><div class="td-met-v" style="color:var(--purple50)">'+dayCalEvents.length+'</div><div class="td-met-l">Meetings</div></div>';
-  h+='<div class="td-met"><div class="td-met-v" style="color:var(--red)">'+focus.length+'</div><div class="td-met-l">Due</div></div>';
-  if(prog)h+='<div class="td-met"><div class="td-met-v" style="color:var(--green)">'+prog+'</div><div class="td-met-l">Running</div></div>';
+  /* KPI strip — same look as the rest of the app */
+  h+='<div class="tf-kpi-strip">';
+  h+=_finKpi('Done today','count',todayDone.length,'var(--green)',todayMins>0?fmtM(todayMins)+' tracked':'');
+  h+=_finKpi('Meetings','count',dayCalEvents.length,dayCalEvents.length?'var(--purple50)':'var(--t4)');
+  h+=_finKpi('Due today','count',focus.length,focus.length?'var(--amber)':'var(--green)');
+  if(prog)h+=_finKpi('Running','count',prog,'var(--green)','timer active');
   h+='</div>';
 
   /* Schedule has only two modes now: suggested list + day timeline */
   var sv=S.subView==='day'?'day':'schedule';
-  h+='<div class="task-mode-toggle" style="margin-bottom:14px">';
+  h+='<div class="task-mode-toggle" style="margin-bottom:6px">';
   h+='<button class="tm-btn'+(sv==='schedule'?' on':'')+'" onclick="TF.subNav(\'schedule\')">'+icon('layers',12)+' Suggested order</button>';
   h+='<button class="tm-btn'+(sv==='day'?' on':'')+'" onclick="TF.subNav(\'day\')">'+icon('today',12)+' Today\'s timeline</button>';
   h+='</div>';
+  h+='<div class="tf-helper" style="margin-bottom:14px">'+(sv==='schedule'?'Tasks ranked by importance, due date, and how long they\'ve sat. Drag to reorder.':'Hour-by-hour view of today, with calendar events and tasks slotted into free time.')+'</div>';
   h+=sv==='day'?rScheduleDay(ctx):rSchedulePlanner(ctx);
   return h}
 
@@ -2921,7 +2887,9 @@ function rTasks(){
   /* ── Header ── */
   var rvCount=S.review.length;
   var ibxCount=S.tasks.filter(function(t){return t.isInbox}).length;
-  var h='<div class="pg-head"><h1>Tasks</h1>';
+  var openCount=S.tasks.filter(function(t){return !t.isInbox}).length;
+  var modeLabel={open:'Open Tasks',done:'Completed',review:'Review Queue',inbox:'Quick Add Queue'}[mode]||'Tasks';
+  var h='<div class="pg-head"><h1>'+icon('tasks',18)+' '+modeLabel+'<span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+(mode==='open'?openCount:mode==='done'?S.done.length:mode==='review'?rvCount:ibxCount)+'</span></h1>';
   if(isMobile()){
     h+='<div class="task-mode-toggle">';
     h+='<button class="tm-btn'+(mode==='open'?' on':'')+'" onclick="TF.subNav(\'open\')">Open</button>';
@@ -2962,13 +2930,13 @@ function rTasks(){
     inboxTasks.sort(function(a,b){return(b._score||0)-(a._score||0)});
     var ibxEst=0;inboxTasks.forEach(function(t){ibxEst+=t.est});
 
-    h+='<div class="td-metrics">';
-    h+='<div class="td-met"><div class="td-met-v" style="color:var(--t1)">'+inboxTasks.length+'</div><div class="td-met-l">In Queue</div></div>';
-    h+='<div class="td-met"><div class="td-met-v" style="color:var(--amber)">'+fmtM(ibxEst)+'</div><div class="td-met-l">Estimated</div></div>';
+    h+='<div class="tf-kpi-strip">';
+    h+=_finKpi('In queue','count',inboxTasks.length,'var(--t1)');
+    h+=_finKpi('Estimated time','count',fmtM(ibxEst),'var(--amber)');
     h+='</div>';
 
     if(!inboxTasks.length){
-      h+='<div class="no-data" style="padding:64px 20px"><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">Quick Add Queue is empty</div><div style="font-size:13px;color:var(--t4)">Tasks added via Quick Add will appear here for review.</div></div>';
+      h+='<div class="tf-empty"><strong>Quick Add Queue is empty</strong><br>Tasks added via Quick Add appear here so you can flesh them out (due date, importance, client) before they hit your main task list.</div>';
     } else {
       h+='<div class="tk-'+S.layout+'">';
       inboxTasks.forEach(function(t,i){h+=taskCard(t,td,i)});
@@ -2983,12 +2951,12 @@ function rTasks(){
     var totEst=0,od=0,totRemain=0;
     filtered.forEach(function(t){totEst+=t.est;if(t.due&&t.due<td)od++;totRemain+=Math.max(0,t.est-Math.round(tmrElapsed(t.id)/60))});
 
-    /* Stat cards */
-    h+='<div class="td-metrics">';
-    h+='<div class="td-met"><div class="td-met-v" style="color:var(--t1)">'+filtered.length+'</div><div class="td-met-l">Tasks</div></div>';
-    h+='<div class="td-met"><div class="td-met-v" style="color:var(--amber)">'+fmtM(totEst)+'</div><div class="td-met-l">Estimated</div></div>';
-    h+='<div class="td-met"><div class="td-met-v" style="color:var(--blue)">'+fmtM(totRemain)+'</div><div class="td-met-l">Remaining</div></div>';
-    h+='<div class="td-met"><div class="td-met-v" style="color:'+(od?'var(--red)':'var(--green)')+'">'+od+'</div><div class="td-met-l">Overdue</div></div>';
+    /* KPI strip */
+    h+='<div class="tf-kpi-strip">';
+    h+=_finKpi('Tasks','count',filtered.length,'var(--t1)');
+    h+=_finKpi('Estimated','count',fmtM(totEst),'var(--amber)');
+    h+=_finKpi('Remaining','count',fmtM(totRemain),'var(--blue)');
+    h+=_finKpi('Overdue','count',od,od?'var(--red)':'var(--green)');
     h+='</div>';
 
     if(S.bulkMode){var selCount=Object.keys(S.bulkSelected).length;
@@ -3927,7 +3895,11 @@ function rOpportunities(){
   var h='<div class="pg-head"><h1>'+icon('gem',18)+' Sales <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+ops.length+' open</span></h1>';
   h+='<button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:13px;padding:8px 18px">+ Add Opportunity</button></div>';
 
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">';
+  if(!ops.length){
+    h+='<div class="tf-empty"><strong>No open opportunities</strong><br>Click <strong>+ Add Opportunity</strong> to track a new deal. Retain Live deals convert into clients, F&C deals into campaigns.</div>';
+    return h}
+
+  h+='<div class="tf-kpi-strip">';
   h+=_finKpi('Pipeline value','fmtUSD',pipelineValue,'var(--blue)');
   h+=_finKpi('Weighted','fmtUSD',weightedValue,'var(--green)','probability-adjusted');
   h+=_finKpi('Retain Live','count',byType.retain_live.length,'var(--green)');
@@ -3936,19 +3908,20 @@ function rOpportunities(){
   h+='</div>';
 
   if(needsAttn.length){
-    h+='<div style="background:rgba(255,153,0,0.06);border:1px solid rgba(255,153,0,0.25);border-radius:12px;padding:14px 16px;margin-bottom:18px">';
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+icon('alert',14)+'<strong style="font-size:13px;color:var(--amber)">Needs your attention</strong> <span style="font-size:11px;color:var(--t3)">— '+needsAttn.length+' opportunit'+(needsAttn.length===1?'y':'ies')+' need updating</span></div>';
-    h+='<div style="display:flex;flex-direction:column;gap:6px">';
-    needsAttn.slice(0,8).forEach(function(o){
+    h+='<h2 class="tf-h2" style="color:var(--amber)">Needs your attention <span style="font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">— '+needsAttn.length+' to update</span></h2>';
+    h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">';
+    needsAttn.slice(0,10).forEach(function(o){
       var why=_oppAttentionReason(o,td);
-      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
+      var v=_oppValue(o);
+      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-left:3px solid var(--amber);border-radius:10px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
       h+='<div style="flex:1;min-width:0">';
       h+='<div style="font-weight:600;font-size:13px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
-      h+='<div style="font-size:11px;color:var(--t3);margin-top:2px">'+esc((oppTypeConf(o.type)||{}).label||'')+' · '+esc(o.stage||'')+(o.client?' · '+esc(o.client):'')+'</div>';
+      h+='<div style="font-size:11px;color:var(--t3);margin-top:3px">'+esc((oppTypeConf(o.type)||{}).label||'')+' · '+esc(o.stage||'')+(o.client?' · '+esc(o.client):'')+' · '+fmtUSD(v)+'</div>';
       h+='</div>';
-      h+='<div style="font-size:11px;color:var(--amber);flex-shrink:0;text-align:right">'+esc(why)+'</div>';
+      h+='<div style="font-size:11px;color:var(--amber);flex-shrink:0;text-align:right;font-weight:500">'+esc(why)+'</div>';
       h+='</div>'});
-    h+='</div></div>';
+    if(needsAttn.length>10)h+='<div class="tf-helper">+'+(needsAttn.length-10)+' more — click into each to update</div>';
+    h+='</div>';
   }
 
   /* Per-type pipeline */
@@ -3956,7 +3929,7 @@ function rOpportunities(){
     var typeOps=byType[typeKey];
     if(!typeOps.length)return;
     var conf=oppTypeConf(typeKey);
-    h+='<h2 style="font-size:14px;margin:18px 0 10px;color:var(--t1);display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:'+conf.color+'"></span>'+esc(conf.label)+' <span style="font-size:11px;color:var(--t3);font-weight:400">· '+typeOps.length+' open · '+fmtUSD(typeOps.reduce(function(s,o){return s+_oppValue(o)},0))+'</span></h2>';
+    h+='<h2 class="tf-h2"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+conf.color+';margin-right:8px;vertical-align:middle"></span>'+esc(conf.label)+' <span style="font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">· '+typeOps.length+' open · '+fmtUSD(typeOps.reduce(function(s,o){return s+_oppValue(o)},0))+'</span></h2>';
     /* Group by stage */
     var stages=conf.stages.concat(conf.awaitingStage?[conf.awaitingStage]:[]);
     var byStage={};stages.forEach(function(st){byStage[st]=[]});
@@ -4506,6 +4479,76 @@ function openCampaignDashboard(id){openCampaignDetail(id)}
 function closeCampaignDashboard(){S._lastCampaignId='';closeModal()}
 
 function rCampaigns(){
+  var td=today();
+  var camps=(S.campaigns||[]).slice();
+  /* Filter: active + setup by default; toggles for paused/completed */
+  var showPaused=S.cpShowPaused,showCompleted=S.cpShowCompleted;
+  var visible=camps.filter(function(c){
+    if(c.status==='Active'||c.status==='Setup')return true;
+    if(c.status==='Paused')return showPaused;
+    if(c.status==='Completed')return showCompleted;
+    return false});
+  visible.sort(function(a,b){
+    var sa={Active:0,Setup:1,Paused:2,Completed:3}[a.status]||4;
+    var sb={Active:0,Setup:1,Paused:2,Completed:3}[b.status]||4;
+    if(sa!==sb)return sa-sb;
+    return(a.name||'').localeCompare(b.name||'')});
+
+  var counts={Active:0,Setup:0,Paused:0,Completed:0};
+  camps.forEach(function(c){if(counts[c.status]!=null)counts[c.status]++});
+  var monthlyRecurring=camps.filter(function(c){return c.status==='Active'}).reduce(function(s,c){return s+(c.monthlyFee||0)+(c.monthlyAdSpend||0)},0);
+  var openTaskCount=0,overdueCount=0;
+  visible.forEach(function(cp){var st=getCampaignStats(cp);openTaskCount+=st.openCount;st.openTasks.forEach(function(t){if(t.due&&t.due<td)overdueCount++})});
+
+  var h='<div class="pg-head"><h1>'+icon('target',18)+' Campaigns <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+camps.length+'</span></h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:13px;padding:8px 18px">+ Add Campaign</button></div>';
+
+  if(!camps.length){
+    h+='<div class="tf-empty"><strong>No campaigns yet</strong><br>Campaigns are ongoing client engagements with monthly fees. Convert a closed-won F&C opportunity to create one, or click <strong>+ Add Campaign</strong>.</div>';
+    return h}
+
+  h+='<div class="tf-kpi-strip">';
+  h+=_finKpi('Active','count',counts.Active,'var(--green)');
+  h+=_finKpi('In setup','count',counts.Setup,'var(--blue)');
+  h+=_finKpi('Monthly recurring','fmtUSD',monthlyRecurring,'var(--amber)');
+  h+=_finKpi('Open tasks','count',openTaskCount,openTaskCount?'var(--t1)':'var(--t4)',overdueCount?overdueCount+' overdue':'');
+  h+='</div>';
+
+  /* Status filter chips */
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">';
+  h+='<span class="tf-chip on">Active + Setup <span style="opacity:.6;margin-left:4px">'+(counts.Active+counts.Setup)+'</span></span>';
+  h+='<span class="tf-chip'+(showPaused?' on':'')+'" onclick="TF.toggleCpStatus(\'paused\')">Paused <span style="opacity:.6;margin-left:4px">'+counts.Paused+'</span></span>';
+  h+='<span class="tf-chip'+(showCompleted?' on':'')+'" onclick="TF.toggleCpStatus(\'completed\')">Completed <span style="opacity:.6;margin-left:4px">'+counts.Completed+'</span></span>';
+  h+='</div>';
+
+  if(!visible.length){
+    h+='<div class="tf-empty"><strong>Nothing matches</strong><br>Toggle the chips above to show paused or completed campaigns.</div>';
+    return h}
+
+  /* Simple table */
+  h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>';
+  ['Campaign','Client','Status','Open tasks','Next bill','Monthly','Renewal'].forEach(function(col){
+    h+='<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.04em">'+col+'</th>'});
+  h+='</tr></thead><tbody>';
+  visible.forEach(function(c){
+    var st=getCampaignStats(c);
+    var stColor={Active:'var(--green)',Setup:'var(--blue)',Paused:'var(--amber)',Completed:'var(--t3)'}[c.status]||'var(--t3)';
+    var nextBill=c.nextBillingDate?fmtDShort(new Date(c.nextBillingDate)):'—';
+    var renewal=c.renewalDate?fmtDShort(new Date(c.renewalDate)):'—';
+    var monthly=(c.monthlyFee||0)+(c.monthlyAdSpend||0);
+    h+='<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="TF.openCampaignDetail(\''+escAttr(c.id)+'\')">';
+    h+='<td style="padding:9px 10px;color:var(--t1);font-weight:500">'+esc(c.name||'Untitled')+(c.endClient?'<div style="font-size:10px;color:var(--t4);margin-top:2px">'+esc(c.endClient)+'</div>':'')+'</td>';
+    h+='<td style="padding:9px 10px;color:var(--t2)">'+esc(c.partner||'—')+'</td>';
+    h+='<td style="padding:9px 10px"><span class="bg" style="font-size:10px;padding:2px 8px;background:'+stColor+';color:#fff">'+esc(c.status)+'</span></td>';
+    h+='<td style="padding:9px 10px;color:'+(st.openCount?'var(--t1)':'var(--t4)')+'">'+st.openCount+'</td>';
+    h+='<td style="padding:9px 10px;color:var(--t3)">'+esc(nextBill)+'</td>';
+    h+='<td style="padding:9px 10px;text-align:right;font-family:var(--fd);font-weight:600;color:var(--t1)">'+(monthly?fmtUSD(monthly):'—')+'</td>';
+    h+='<td style="padding:9px 10px;color:var(--t3)">'+esc(renewal)+'</td>';
+    h+='</tr>'});
+  h+='</tbody></table>';
+  return h}
+
+function rCampaignsLEGACY(){
   return '<div class="pg-head"><h1>'+icon('target',18)+' Campaigns</h1><button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:12px;padding:8px 18px">+ Add Campaign</button></div>'+rCampaignsBody()}
 
 function rCampaignDashboard(cp,st){
@@ -5187,16 +5230,16 @@ function rProjects(){
   var h='<div class="pg-head"><h1>'+icon('folder',18)+' Initiatives <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+projects.length+'</span></h1>';
   h+='<button class="btn btn-p" onclick="TF.openAddProject()" style="font-size:13px;padding:8px 18px">+ New Initiative</button></div>';
 
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">';
+  if(!projects.length){
+    h+='<div class="tf-empty"><strong>No initiatives yet</strong><br>Use this for bigger-picture work that spans weeks or months. Examples: "Rebuild TaskFlow", "Launch new product", "Year-end finance cleanup". Link tasks to an initiative when you create them so they roll up here.</div>';
+    return h}
+
+  h+='<div class="tf-kpi-strip">';
   h+=_finKpi('Active','count',projects.filter(function(p){return p.status==='Active'}).length,'var(--green)');
   h+=_finKpi('Planning','count',projects.filter(function(p){return p.status==='Planning'}).length,'var(--blue)');
   h+=_finKpi('On hold','count',projects.filter(function(p){return p.status==='On Hold'}).length,'var(--amber)');
   h+=_finKpi('Open tasks','count',openTasks,overdueTasks>0?'var(--amber)':'var(--t1)',overdueTasks?overdueTasks+' overdue':'');
   h+='</div>';
-
-  if(!projects.length){
-    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:36px;text-align:center;color:var(--t4);font-size:14px;line-height:1.55">No initiatives yet.<br><span style="font-size:12px">Use this for bigger-picture work that spans weeks or months — Rebuild TaskFlow, Launch new product, Year-end finance cleanup. Tasks can be linked to an initiative.</span></div>';
-    return h}
 
   h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">';
   projects.forEach(function(p){h+=rInitiativeCard(p,td)});
@@ -5517,17 +5560,16 @@ function rFinanceOverviewSimple(){
     else if(freq==='quarterly')monthlyOut+=amt/3;
     else if(freq==='annual'||freq==='yearly')monthlyOut+=amt/12});
   var h='';
-  /* Top KPIs */
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">';
+  h+='<div class="tf-kpi-strip">';
   h+=_finKpi('Total cash','fmtUSD',totalUSD,'var(--green)');
   h+=_finKpi('Outstanding invoices',openTotal===0?'0':'fmtUSD',openTotal,'var(--blue)',openInv.length+' open');
   h+=_finKpi('Overdue invoices','count',overdueCount,overdueCount>0?'var(--red)':'var(--t3)');
   h+=_finKpi('Monthly recurring','fmtUSD',monthlyOut,'var(--amber)',recurring.length+' items');
   h+='</div>';
   /* Bank balance cards */
-  h+='<h2 style="font-size:15px;margin:14px 0 10px;color:var(--t1)">Live bank balances</h2>';
+  h+='<h2 class="tf-h2">Live bank balances</h2>';
   if(!bals.length){
-    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:20px;text-align:center;color:var(--t4);font-size:13px">No balance data yet. Click <strong>Integrations</strong> to connect Brex and Mercury, then hit Sync.</div>';
+    h+='<div class="tf-empty"><strong>No balance data yet</strong><br>Click <strong>Integrations</strong> at the top to connect Brex and Mercury, then hit Sync to pull your live balances.</div>';
   }else{
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">';
     bals.forEach(function(b){
@@ -5552,12 +5594,13 @@ function rInvoicesView(){
   var paid=invs.filter(function(i){return i.status==='paid'});
   var td=today();
   var h='';
-  h+='<div style="display:flex;gap:12px;margin-bottom:14px">';
-  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;flex:1"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em">Outstanding</div><div style="font-family:var(--fd);font-size:20px;font-weight:700;color:var(--blue)">'+fmtUSD(open.reduce(function(s,i){return s+Number(i.amount||0)},0))+'</div><div style="font-size:11px;color:var(--t4);margin-top:2px">'+open.length+' open</div></div>';
-  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;flex:1"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em">Paid (last 90d)</div><div style="font-family:var(--fd);font-size:20px;font-weight:700;color:var(--green)">'+fmtUSD(paid.filter(function(i){return i.paidAt&&i.paidAt>=_addDays(td,-90)}).reduce(function(s,i){return s+Number(i.amount||0)},0))+'</div></div>';
+  h+='<div class="tf-kpi-strip">';
+  h+=_finKpi('Outstanding','fmtUSD',open.reduce(function(s,i){return s+Number(i.amount||0)},0),'var(--blue)',open.length+' open');
+  h+=_finKpi('Paid (last 90d)','fmtUSD',paid.filter(function(i){return i.paidAt&&i.paidAt>=_addDays(td,-90)}).reduce(function(s,i){return s+Number(i.amount||0)},0),'var(--green)');
+  h+=_finKpi('Overdue','count',open.filter(function(i){return i.expectedAt&&i.expectedAt<td}).length,open.filter(function(i){return i.expectedAt&&i.expectedAt<td}).length>0?'var(--red)':'var(--t3)');
   h+='</div>';
   if(!invs.length){
-    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:28px;text-align:center;color:var(--t4);font-size:13px">No invoices yet. Click <strong>+ Add Invoice</strong> to add one.</div>';
+    h+='<div class="tf-empty"><strong>No invoices yet</strong><br>Click <strong>+ Add Invoice</strong> to add one. Invoices track money you\'re owed — they appear in your 90-day forecast based on expected payment date, and you can mark them paid when payment lands.</div>';
     return h}
   h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Issued</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Client</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Reference</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Amount</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Expected</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Status</th><th style="padding:8px;border-bottom:1px solid var(--gborder)"></th></tr></thead><tbody>';
   invs.forEach(function(i){
@@ -5620,13 +5663,39 @@ function rFinanceForecastSimple(){
     if(running<minBal){minBal=running;minDate=d}});
 
   var endBal=running;
+
+  /* Monthly buckets — group events into next 3 calendar months */
+  var months=[];
+  var thisMonth=new Date(td);thisMonth.setDate(1);
+  for(var mi=0;mi<4;mi++){
+    var mStart=new Date(thisMonth);mStart.setMonth(mStart.getMonth()+mi);
+    var mEnd=new Date(mStart);mEnd.setMonth(mEnd.getMonth()+1);
+    var mStartS=mStart.toISOString().slice(0,10),mEndS=mEnd.toISOString().slice(0,10);
+    var mIn=0,mOut=0;
+    points.forEach(function(p){
+      if(p.date>=mStartS&&p.date<mEndS){mIn+=p.inflow;mOut+=p.outflow}});
+    months.push({label:mStart.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}),inflow:mIn,outflow:mOut,net:mIn-mOut})}
+
   var h='';
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">';
+  h+='<div class="tf-kpi-strip">';
   h+=_finKpi('Starting cash','fmtUSD',startCash,'var(--green)');
   h+=_finKpi('Projected (90d)','fmtUSD',endBal,endBal>=startCash?'var(--green)':'var(--amber)');
   h+=_finKpi('Lowest point','fmtUSD',minBal,minBal<0?'var(--red)':'var(--t1)','on '+minDate);
   h+='</div>';
-  h+='<h2 style="font-size:14px;margin:14px 0 8px;color:var(--t1)">Day-by-day flow</h2>';
+
+  /* Monthly summary cards */
+  h+='<h2 class="tf-h2">By month</h2>';
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:18px">';
+  months.forEach(function(m){
+    var netCol=m.net>=0?'var(--green)':'var(--red)';
+    h+='<div class="tf-card"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">'+esc(m.label)+'</div>';
+    h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:11px;color:var(--t3);margin-bottom:3px"><span>In</span><span style="font-family:var(--fd);color:var(--green);font-weight:600">'+(m.inflow?fmtUSD(m.inflow):'—')+'</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:11px;color:var(--t3);margin-bottom:6px"><span>Out</span><span style="font-family:var(--fd);color:var(--red);font-weight:600">'+(m.outflow?'-'+fmtUSD(m.outflow):'—')+'</span></div>';
+    h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:12px;border-top:1px solid var(--gborder);padding-top:6px"><span style="color:var(--t3)">Net</span><span style="font-family:var(--fd);font-weight:700;color:'+netCol+'">'+(m.net===0?'—':(m.net>0?'+':'')+fmtUSD(m.net))+'</span></div>';
+    h+='</div>'});
+  h+='</div>';
+
+  h+='<h2 class="tf-h2">Day-by-day flow</h2>';
   h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;max-height:520px;overflow-y:auto">';
   h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:12px"><thead style="position:sticky;top:0;background:var(--bg1);z-index:1"><tr><th style="text-align:left;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">Date</th><th style="text-align:right;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">In</th><th style="text-align:right;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">Out</th><th style="text-align:right;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">Balance</th><th style="text-align:left;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">Notes</th></tr></thead><tbody>';
   points.forEach(function(p){
@@ -8511,41 +8580,60 @@ function rCrmQuickActions(match){
 function rEmailSearch(){
   var q=(S.gmailSearch||'').toLowerCase().trim();
   var threads=S.gmailThreads||[];
-  var filtered=q?threads.filter(function(t){
+  var dateFilter=S.emailDateFilter||'all';
+  var td=today();
+  /* Date filter cutoffs */
+  var cutoff=null;
+  if(dateFilter==='7d')cutoff=new Date(Date.now()-7*86400000).toISOString();
+  else if(dateFilter==='30d')cutoff=new Date(Date.now()-30*86400000).toISOString();
+  else if(dateFilter==='90d')cutoff=new Date(Date.now()-90*86400000).toISOString();
+  else if(dateFilter==='year')cutoff=new Date(Date.now()-365*86400000).toISOString();
+
+  var filtered=threads.filter(function(t){
+    if(cutoff){var d=t.last_message_at||t.lastMessageAt;if(!d||d<cutoff)return false}
+    if(!q)return true;
     var hay=((t.subject||'')+' '+(t.snippet||'')+' '+(t.from_email||t.fromEmail||'')+' '+(t.from_name||t.fromName||'')).toLowerCase();
-    return hay.indexOf(q)!==-1
-  }):threads;
+    return hay.indexOf(q)!==-1});
   var total=threads.length,shown=Math.min(filtered.length,200);
+
   var h='<div class="pg-head"><h1>'+icon('mail',18)+' Email Search';
-  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+total+' threads indexed</span>';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+total.toLocaleString()+' threads indexed</span>';
   h+='</h1>';
-  h+='<div style="display:flex;gap:8px;align-items:center">';
-  h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Sync Now</button>';
-  h+='</div></div>';
-  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:10px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center">';
-  h+=icon('search',16);
-  h+='<input type="text" id="email-search-input" value="'+escAttr(S.gmailSearch||'')+'" placeholder="Search subject, snippet, sender..." style="flex:1;background:transparent;border:none;color:var(--t1);font-size:14px;outline:none" oninput="TF.searchGmail(this.value)">';
+  h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Sync Now</button></div>';
+
+  /* Search bar */
+  h+='<div class="tf-search-bar">'+icon('search',16);
+  h+='<input type="text" id="email-search-input" value="'+escAttr(S.gmailSearch||'')+'" placeholder="Search subject, snippet, sender..." oninput="TF.searchGmail(this.value)">';
   if(q)h+='<button class="btn" style="font-size:11px;padding:4px 10px" onclick="TF.searchGmail(\'\')">Clear</button>';
   h+='</div>';
-  if(!filtered.length){
-    h+='<div style="text-align:center;padding:60px 20px;color:var(--t4)">';
-    h+=q?'No matches for "'+esc(q)+'"':'Type to search your indexed Gmail threads. Email sync runs in the background.';
-    h+='</div>';
+
+  /* Date filter chips */
+  h+='<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">';
+  [['all','All time'],['7d','Last 7 days'],['30d','Last 30 days'],['90d','Last 90 days'],['year','Last year']].forEach(function(opt){
+    h+='<span class="tf-chip'+(dateFilter===opt[0]?' on':'')+'" onclick="TF.setEmailDateFilter(\''+opt[0]+'\')">'+opt[1]+'</span>'});
+  h+='</div>';
+
+  if(!total){
+    h+='<div class="tf-empty"><strong>No emails indexed yet</strong><br>Click <strong>Sync Now</strong> above to pull your Gmail thread metadata. After the first sync this view shows up to 500 recent threads instantly.</div>';
     return h}
-  h+='<div style="font-size:11px;color:var(--t4);margin-bottom:8px">Showing '+shown+' of '+filtered.length+(filtered.length>shown?' matches (refine your search to narrow)':' matches')+'</div>';
-  h+='<div class="email-search-list" style="display:flex;flex-direction:column;gap:6px">';
+  if(!filtered.length){
+    h+='<div class="tf-empty">'+(q?'No matches for <strong>"'+esc(q)+'"</strong>':'No threads match this date range.')+'</div>';
+    return h}
+
+  h+='<div class="tf-helper">Showing '+shown.toLocaleString()+' of '+filtered.length.toLocaleString()+' '+(filtered.length>shown?'matches (refine to narrow)':'matches')+'</div>';
+  h+='<div class="email-search-list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px">';
   filtered.slice(0,shown).forEach(function(t){
     var subject=t.subject||'(no subject)';
     var snippet=t.snippet||'';
     var from=t.from_name||t.fromName||t.from_email||t.fromEmail||'';
     var dt=t.last_message_at||t.lastMessageAt||t.date||'';
     var dtStr=dt?fmtDShort(new Date(dt)):'';
-    h+='<div class="email-search-row" style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:12px 14px;cursor:pointer" onclick="TF.openEmailThread(\''+escAttr(t.thread_id||t.threadId||t.id)+'\')">';
-    h+='<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:4px">';
+    h+='<div class="tf-card tf-card-clickable" style="padding:11px 14px" onclick="TF.openEmailThread(\''+escAttr(t.thread_id||t.threadId||t.id)+'\')">';
+    h+='<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:3px">';
     h+='<div style="font-weight:600;font-size:13px;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(subject)+'</div>';
     if(dtStr)h+='<div style="font-size:11px;color:var(--t4);flex-shrink:0">'+esc(dtStr)+'</div>';
     h+='</div>';
-    h+='<div style="font-size:11px;color:var(--t3);margin-bottom:4px">'+esc(from)+'</div>';
+    h+='<div style="font-size:11px;color:var(--t3);margin-bottom:3px">'+esc(from)+'</div>';
     if(snippet)h+='<div style="font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(snippet)+'</div>';
     h+='</div>'});
   h+='</div>';
@@ -8588,9 +8676,9 @@ function _renderAskHistory(){
   for(var i=0;i<hist.length;i++){
     var m=hist[i];
     if(m.role==='user'){
-      h+='<div style="background:var(--bg);padding:10px 14px;border-radius:10px;align-self:flex-end;max-width:80%;font-size:13px;color:var(--t1)">'+esc(m.content)+'</div>'
+      h+='<div class="ask-msg-user">'+esc(m.content)+'</div>'
     }else{
-      h+='<div style="background:var(--bg);padding:12px 16px;border-radius:10px;font-size:13px;color:var(--t1);line-height:1.55">'+(m.html||esc(m.content))+'</div>';
+      h+='<div class="ask-msg-ai">'+(m.html||esc(m.content))+'</div>';
       var sources=srcs[i]||m.sources||[];
       if(sources.length){
         h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:-6px;margin-bottom:6px">';
@@ -8614,19 +8702,20 @@ function rMeetings(){
   h+='<div style="display:flex;gap:8px"><a href="/api/webhook/readai" target="_blank" class="btn" style="font-size:11px;padding:6px 12px;border-radius:10px;text-decoration:none;color:var(--t2)" title="Check that the Read.ai webhook URL is reachable. Open in a new tab to see status JSON.">'+icon('check',12)+' Webhook health</a></div>';
   h+='</div>';
 
-  /* Search */
-  h+='<div style="margin-bottom:12px;display:flex;gap:12px;align-items:center">';
-  h+='<input type="text" class="edf" id="meeting-search" value="'+esc(S.meetingSearch)+'" placeholder="Search meetings..." style="max-width:400px;font-size:13px" oninput="TF.setMeetingSearch(this.value)">';
+  /* Search bar */
+  h+='<div class="tf-search-bar">'+icon('search',16);
+  h+='<input type="text" id="meeting-search" value="'+escAttr(S.meetingSearch||'')+'" placeholder="Search meetings by title or participant..." oninput="TF.setMeetingSearch(this.value)">';
+  if(S.meetingSearch)h+='<button class="btn" style="font-size:11px;padding:4px 10px" onclick="TF.setMeetingSearch(\'\')">Clear</button>';
   h+='</div>';
 
-  /* Group Call filter bar */
+  /* Type filter chips */
   var mf=S.meetingFilter;
-  h+='<div class="mtg-filter-bar">';
-  h+='<button class="mtg-filter-btn'+(mf===''?' on':'')+'" onclick="TF.setMeetingFilter(\'\')">All</button>';
-  h+='<button class="mtg-filter-btn'+(mf==='group_call'?' on':'')+'" onclick="TF.setMeetingFilter(\'group_call\')">'+icon('users',11)+' Group Calls</button>';
-  h+='<button class="mtg-filter-btn mtg-fb-oh'+(mf==='office_hours'?' on':'')+'" onclick="TF.setMeetingFilter(\'office_hours\')">Office Hours</button>';
-  h+='<button class="mtg-filter-btn mtg-fb-ga'+(mf==='group_accountability'?' on':'')+'" onclick="TF.setMeetingFilter(\'group_accountability\')">Group Accountability</button>';
-  h+='<button class="mtg-filter-btn mtg-fb-om'+(mf==='olympic_mindset'?' on':'')+'" onclick="TF.setMeetingFilter(\'olympic_mindset\')">Olympic Mindset</button>';
+  h+='<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">';
+  h+='<span class="tf-chip'+(mf===''?' on':'')+'" onclick="TF.setMeetingFilter(\'\')">All</span>';
+  h+='<span class="tf-chip'+(mf==='group_call'?' on':'')+'" onclick="TF.setMeetingFilter(\'group_call\')">Group Calls</span>';
+  h+='<span class="tf-chip'+(mf==='office_hours'?' on':'')+'" onclick="TF.setMeetingFilter(\'office_hours\')">Office Hours</span>';
+  h+='<span class="tf-chip'+(mf==='group_accountability'?' on':'')+'" onclick="TF.setMeetingFilter(\'group_accountability\')">Group Accountability</span>';
+  h+='<span class="tf-chip'+(mf==='olympic_mindset'?' on':'')+'" onclick="TF.setMeetingFilter(\'olympic_mindset\')">Olympic Mindset</span>';
   h+='</div>';
 
   var allMeetings=S.meetings;
@@ -8642,9 +8731,11 @@ function rMeetings(){
         ||JSON.stringify(m.participants||[]).toLowerCase().indexOf(q)!==-1})}
 
   if(!allMeetings.length){
-    h+='<div class="email-empty">'+icon('mic',32);
-    h+='<p>No meetings found.</p>';
-    h+='<p style="font-size:12px;color:var(--t4)">Meetings will appear here when Read.ai sends webhook data.</p></div>';
+    if(!S.meetings.length){
+      h+='<div class="tf-empty"><strong>No meetings yet</strong><br>Meetings appear here automatically when Read.ai sends webhook data. If transcripts have stopped flowing, click <strong>Webhook health</strong> above to check connectivity.</div>';
+    } else {
+      h+='<div class="tf-empty"><strong>No meetings match these filters</strong><br>Clear search or change the type filter above.</div>';
+    }
     return h}
 
   /* Paginate — 50 per page with page numbers */

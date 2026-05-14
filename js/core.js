@@ -3656,10 +3656,10 @@ async function askTaskflow(promptOverride){
   window._askHistory.push({role:'user',content:q});
   /* Render user bubble */
   if(hist){
-    hist.innerHTML+='<div style="background:var(--bg);padding:10px 14px;border-radius:10px;align-self:flex-end;max-width:80%;font-size:13px;color:var(--t1)">'+esc(q)+'</div>';
+    hist.innerHTML+='<div class="ask-msg-user">'+esc(q)+'</div>';
     var loadId='ask-load-'+Date.now();
-    hist.innerHTML+='<div id="'+loadId+'" style="font-size:12px;color:var(--t4);padding:6px 4px;align-self:flex-start"><span style="display:inline-block;animation:pulse 1.4s infinite">Thinking…</span></div>';
-    hist.scrollTop=hist.scrollHeight}
+    hist.innerHTML+='<div id="'+loadId+'" class="ask-loading">Thinking…</div>';
+    hist.scrollTo({top:hist.scrollHeight,behavior:'smooth'})}
   try{
     var sess=await _sb.auth.getSession();
     if(!sess.data.session)throw new Error('Not authenticated');
@@ -3678,7 +3678,7 @@ async function askTaskflow(promptOverride){
       window._askHistory.push({role:'assistant',content:'(error: '+errMsg+')',html:'<span style="color:var(--red)">'+esc(errMsg)+'</span>'})
     }else{
       var answerHtml=data.answer||'';
-      var ansBlock='<div style="background:var(--bg);padding:12px 16px;border-radius:10px;font-size:13px;color:var(--t1);line-height:1.55">'+answerHtml+'</div>';
+      var ansBlock='<div class="ask-msg-ai">'+answerHtml+'</div>';
       var sources=data.sources||[];
       if(sources.length){
         ansBlock+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">';
@@ -3697,7 +3697,7 @@ async function askTaskflow(promptOverride){
     if(loadEl2)loadEl2.remove();
     if(hist)hist.innerHTML+='<div style="background:rgba(255,51,88,0.08);color:var(--red);padding:10px 14px;border-radius:10px;font-size:13px">Error: '+esc(e.message)+'</div>';
     window._askHistory.push({role:'assistant',content:'(error: '+e.message+')',html:'<span style="color:var(--red)">'+esc(e.message)+'</span>'})}
-  if(hist)hist.scrollTop=hist.scrollHeight;
+  if(hist)hist.scrollTo({top:hist.scrollHeight,behavior:'smooth'});
   if(input)input.focus()}
 
 function askClear(){window._askHistory=[];window._askSourcesMap={};render()}

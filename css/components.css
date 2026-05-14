@@ -1,3 +1,27 @@
+/* ── TF UTILITY CLASSES (new design system after May 2026 simplification) ── */
+.tf-h2{font-size:13px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;margin:22px 0 10px}
+.tf-h2:first-child{margin-top:0}
+.tf-kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.tf-empty{background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:36px 24px;text-align:center;color:var(--t4);font-size:13px;line-height:1.6}
+.tf-empty strong{color:var(--t2);font-weight:600}
+.tf-card{background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:14px 16px;transition:border-color .15s}
+.tf-card:hover{border-color:rgba(255,255,255,0.18)}
+.tf-card-clickable{cursor:pointer}
+.tf-helper{font-size:11px;color:var(--t4);margin-top:6px;line-height:1.5}
+.tf-search-bar{background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;margin-bottom:14px}
+.tf-search-bar input{flex:1;background:transparent;border:none;color:var(--t1);font-size:14px;outline:none}
+.tf-chip{font-size:11px;padding:5px 12px;border-radius:14px;background:var(--bg1);border:1px solid var(--gborder);color:var(--t2);cursor:pointer;transition:all .15s}
+.tf-chip:hover{border-color:var(--accent);color:var(--t1)}
+.tf-chip.on{background:var(--accent);color:#fff;border-color:transparent}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.ask-loading{font-size:12px;color:var(--t4);padding:6px 4px;align-self:flex-start;animation:pulse 1.4s infinite}
+.ask-msg-user{background:var(--bg);padding:10px 14px;border-radius:10px;align-self:flex-end;max-width:80%;font-size:13px;color:var(--t1)}
+.ask-msg-ai{background:var(--bg);padding:12px 16px;border-radius:10px;font-size:13px;color:var(--t1);line-height:1.6}
+.ask-msg-ai p{margin:6px 0}
+.ask-msg-ai p:first-child{margin-top:0}.ask-msg-ai p:last-child{margin-bottom:0}
+.ask-msg-ai ul,.ask-msg-ai ol{margin:6px 0;padding-left:20px}
+.ask-msg-ai strong{color:#fff}
+
 /* ── TASK CARDS ── */
 .tk{background:var(--glass);border:1px solid var(--gborder);border-radius:var(--r);transition:all .28s var(--ease);cursor:pointer;position:relative;overflow:hidden;animation:cardIn .3s var(--ease-out) backwards}
 @keyframes cardIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
