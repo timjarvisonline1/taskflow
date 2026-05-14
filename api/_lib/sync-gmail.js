@@ -1,7 +1,6 @@
 const { getServiceClient, getCredentials, updateSyncStatus } = require('./supabase');
 const { refreshGmailToken } = require('./gmail-auth');
 const { getOpenAIKey, embedTexts, chunkEmailThread, storeChunks, upsertSource } = require('./embeddings');
-const { matchEmailRules } = require('./email-rules');
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -100,15 +99,6 @@ async function syncGmail(userId) {
       if (c.email && c.end_client) contactEndClientMap[c.email.toLowerCase()] = { name: c.end_client, id: c.end_client_id };
     });
 
-    // Load email rules for server-side auto-categorization
-    const { data: emailRules } = await client
-      .from('email_rules')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .order('priority', { ascending: false });
-    const activeRules = emailRules || [];
-
     // Fetch each thread's metadata and upsert
     // Skip detailed metadata fetch for threads that haven't changed
     for (const thread of allThreadIds) {
@@ -183,38 +173,12 @@ async function syncGmail(userId) {
           }
         }
 
-        // Apply email rules if no client match found (K10: uses shared matchEmailRules)
+        // Email rules removed in cleanup — Gmail sync now does contact-only auto-association
         let ruleEndClient = null;
+        let ruleEndClientId = null;
         let ruleCampaignId = null;
         let ruleOpportunityId = null;
         let ruleAutoArchive = false;
-        if (!clientId && activeRules.length) {
-          const ruleActions = matchEmailRules(activeRules, {
-            from_email: fromEmail,
-            subject: subject || '',
-            to: toRaw || '',
-            cc: ccRaw || ''
-          });
-          if (ruleActions) {
-            for (const act of ruleActions) {
-              if (act.type === 'assign_client') {
-                const cr = (clientRecords || []).find(c => c.name === act.value);
-                if (cr) clientId = cr.id;
-              } else if (act.type === 'assign_end_client') { ruleEndClient = act.value; }
-              else if (act.type === 'assign_campaign') ruleCampaignId = act.value;
-              else if (act.type === 'assign_opportunity') ruleOpportunityId = act.value;
-              else if (act.type === 'auto_archive') ruleAutoArchive = true;
-            }
-          }
-        }
-
-        // Resolve end-client name to UUID
-        let ruleEndClientId = null;
-        if (ruleEndClient) {
-          const { data: ecRow } = await client.from('end_clients')
-            .select('id').eq('user_id', userId).eq('name', ruleEndClient).maybeSingle();
-          if (ecRow) ruleEndClientId = ecRow.id;
-        }
 
         // Build unique participant list from all message senders (Gmail-style)
         const seenParticipants = {};

@@ -126,99 +126,40 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
-  gmailThreads:[],gmailSearch:'',gmailFilter:'inbox',gmailThread:null,gmailThreadId:'',gmailUnread:0,_gmailFetching:false,_gmailCache:{},
-  emailFilters:{client:'',endClient:'',opportunity:'',campaign:''},emailFilterExclude:{client:false,endClient:false,opportunity:false,campaign:false},
-  emailBulkMode:false,emailBulkSelected:{},
-  contacts:[],scheduledEmails:[],emailRules:[],
+  /* Email — sync only, read-only search */
+  gmailThreads:[],gmailSearch:'',gmailUnread:0,_gmailFetching:false,
+  contacts:[],
   meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,meetingFilter:'',
   endClients:[],ecSort:'name',
-  prospectCompanies:[],prospects:[],pcSort:'name',pSort:'name',
-  _ecCandidates:[],
   clientTab:'overview',endClientTab:'overview',opportunityTab:'overview',
-  instantlyCampaigns:[],instantlyLeads:[],instantlyEmails:[],instantlyAccounts:[],instantlyAnalyticsDaily:[],instantlyCampaignSteps:[],instantlyEvents:[],
-  outreachSub:'campaigns',outreachFilter:'',outreachBulkMode:false,outreachBulkSelected:{},_outreachAnalyzing:false,
-  _outreachAnalyticsDays:30,instantlyCampaignTab:'overview',
-  outreachThreadView:null,outreachInboxFilter:'all',outreachInboxCampaign:'',outreachInboxSentiment:'',outreachInboxUnreadOnly:false,
-  /* GA4 Analytics */
-  ga4Data:null,_ga4Timer:null,_ga4Connected:false,_ga4SourceLabels:{},_ga4ConfigOpen:false,
-  aiDrafts:[],_aiDraftsLoading:false};
+  /* Invoices (manual) */
+  invoices:[]};
 
 var SECTIONS=[
   {id:'dashboard',icon:'dashboard',label:'Dashboard',kbd:'1'},
-  {id:'today',icon:'calendar',label:'Schedule',kbd:'2',subs:[
-    {id:'schedule',label:'Suggested Schedule',icon:'calendar'},
-    {id:'day',label:"Today's Schedule",icon:'today'},
-    {id:'prep',label:'Meeting Prep',icon:'users'},
-    {id:'analytics',label:'Analytics',icon:'bar_chart'},
-    {id:'daily',label:'Daily Summary',icon:'sun'},
-    {id:'weekly',label:'Weekly Summary',icon:'layers'},
-    {id:'capacity',label:'Weekly Capacity',icon:'activity'}
-  ]},
+  {id:'today',icon:'calendar',label:'Schedule',kbd:'2'},
   {id:'tasks',icon:'tasks',label:'Tasks',kbd:'3',subs:[
     {id:'open',label:'Open Tasks',icon:'tasks'},
     {id:'done',label:'Completed',icon:'check'},
     {id:'review',label:'Review Queue',icon:'mail'},
     {id:'inbox',label:'Quick Add Queue',icon:'inbox'}
   ]},
-  {id:'opportunities',icon:'gem',label:'Sales',kbd:'4',subs:[
-    {id:'analytics',label:'Analytics',icon:'dashboard'},
-    {id:'retain_live',label:'Retain Live',icon:'users'},
-    {id:'fc_partnership',label:'F&C Partnerships',icon:'briefcase'},
-    {id:'fc_direct',label:'F&C Direct',icon:'zap'},
-    {id:'profitability',label:'Profitability',icon:'activity'}
-  ]},
-  {id:'campaigns',icon:'target',label:'Campaigns',kbd:'5',subs:[
-    {id:'pipeline',label:'Pipeline',icon:'target'},
-    {id:'list',label:'List',icon:'menu'},
-    {id:'performance',label:'Performance',icon:'activity'}
-  ]},
-  {id:'projects',icon:'folder',label:'Projects',kbd:'6',subs:[
-    {id:'board',label:'Board',icon:'grip'},
-    {id:'list',label:'List',icon:'menu'},
-    {id:'timeline',label:'Timeline',icon:'calendar'}
-  ]},
+  {id:'opportunities',icon:'gem',label:'Sales',kbd:'4'},
+  {id:'campaigns',icon:'target',label:'Campaigns',kbd:'5'},
+  {id:'projects',icon:'folder',label:'Initiatives',kbd:'6'},
   {id:'clients',icon:'clients',label:'Clients',kbd:'7',subs:[
-    {id:'active',label:'Active',icon:'clients'},
-    {id:'lapsed',label:'Lapsed',icon:'clock'},
-    {id:'end_clients',label:'End Clients',icon:'building'},
-    {id:'prospects',label:'Prospects',icon:'target'},
-    {id:'people',label:'People',icon:'users'},
-    {id:'ec_review',label:'Contact Review',icon:'sparkle'}
+    {id:'all',label:'All Clients',icon:'clients'},
+    {id:'end_clients',label:'End Clients',icon:'building'}
   ]},
   {id:'finance',icon:'activity',label:'Finance',kbd:'8',subs:[
     {id:'overview',label:'Overview',icon:'dashboard'},
-    {id:'payments',label:'Transactions',icon:'activity'},
     {id:'invoices',label:'Invoices',icon:'file'},
-    {id:'upcoming',label:'Upcoming',icon:'calendar'},
     {id:'recurring',label:'Recurring',icon:'refresh'},
-    {id:'forecast',label:'Forecast',icon:'pipeline'},
-    {id:'team',label:'Team',icon:'clients'}
+    {id:'forecast',label:'Forecast',icon:'pipeline'}
   ]},
-  {id:'email',icon:'mail',label:'Email',kbd:'9',subs:[
-    {id:'e-action',label:'Action Required',icon:'zap'},
-    {id:'e-ai-drafts',label:'AI Drafts',icon:'sparkle'},
-    {id:'inbox',label:'Inbox',icon:'inbox'},
-    {id:'sent',label:'Sent',icon:'mail'},
-    {id:'all',label:'All Mail',icon:'folder'},
-    {id:'e-drafts',label:'Drafts',icon:'edit'},
-    {id:'e-scheduled',label:'Scheduled',icon:'clock'},
-    {id:'e-active',label:'Clients (Active)',icon:'users',smart:true},
-    {id:'e-lapsed',label:'Clients (Lapsed)',icon:'clock',smart:true},
-    {id:'e-prospects',label:'Prospects',icon:'gem',smart:true},
-    {id:'e-campaigns',label:'By Campaign',icon:'target',smart:true},
-    {id:'e-opportunities',label:'By Opportunity',icon:'trending_up',smart:true},
-    {id:'e-other',label:'Other',icon:'mail',smart:true}
-  ]},
-  {id:'outreach',icon:'send',label:'Outreach',kbd:'0',subs:[
-    {id:'campaigns',label:'Campaigns',icon:'target'},
-    {id:'replies',label:'Replies',icon:'mail'},
-    {id:'leads',label:'Leads',icon:'users'},
-    {id:'accounts',label:'Accounts',icon:'activity'},
-    {id:'analytics',label:'Analytics',icon:'bar_chart'},
-    {id:'activity',label:'Activity',icon:'clock'}
-  ]},
+  {id:'email',icon:'mail',label:'Email Search',kbd:'9'},
   {id:'meetings',icon:'mic',label:'Meetings'},
-  {id:'website',icon:'bar_chart',label:'Website Analytics'}
+  {id:'ai',icon:'sparkle',label:'Ask TaskFlow'}
 ];
 var VIEWS_FLAT=[];
 SECTIONS.forEach(function(sec){
@@ -3315,13 +3256,14 @@ function _refreshThreadCrmContext(){
   var oppId=(gel('thread-crm-opportunity')||{}).value||'';
   ctx.innerHTML=rThreadCrmContext(client,ec,campId,oppId)}
 
-async function searchGmail(query){
-  S.gmailSearch=query;
-  toast('Searching...','info');
-  var data=await fetchGmailThreads(S.gmailFilter==='all'?'':S.gmailFilter,query);
-  if(data){S._gmailLiveThreads=data.threads||[];S._gmailNextPage=data.nextPageToken||null;
-    S._gmailCache[S.gmailFilter]={threads:S._gmailLiveThreads,nextPage:S._gmailNextPage}}
-  _refreshEmailListPanel()}
+function searchGmail(query){
+  S.gmailSearch=query||'';
+  clearTimeout(S._gmailSearchTmr);
+  S._gmailSearchTmr=setTimeout(function(){
+    render();
+    var i=gel('email-search-input');
+    if(i){i.focus();try{i.selectionStart=i.selectionEnd=i.value.length}catch(e){}}
+  },180)}
 
 function setGmailFilter(filter){
   /* Exit bulk mode on view switch */
@@ -3579,7 +3521,7 @@ async function embedNewEmails(){
 
 /* ═══════════ KNOWLEDGE BASE PERIODIC SYNC ═══════════ */
 var _knowledgeEntityTypes=['task','task_done','client','campaign','contact',
-  'project','opportunity','activity_log','finance','scheduled_item','team_member'];
+  'project','opportunity','activity_log','finance','scheduled_item'];
 var _knowledgeSyncIdx=0;
 var _knowledgeSyncTimer=null;
 var _knowledgeSyncing=false;
@@ -3700,6 +3642,65 @@ function aiClearHistory(id){
   var history=gel('ai-history-'+id);if(history)history.innerHTML='';
   var prompts=gel('ai-prompts-'+id);if(prompts)prompts.style.display='flex';
   var badge=gel('ai-badge-'+id);if(badge)badge.style.display='none'}
+
+/* ═══════════ GLOBAL ASK TASKFLOW ═══════════ */
+window._askHistory=window._askHistory||[];
+window._askSourcesMap=window._askSourcesMap||{};
+async function askTaskflow(promptOverride){
+  var input=gel('ask-input');
+  var hist=gel('ask-history');
+  var q=(promptOverride||(input?input.value:'')||'').trim();
+  if(!q)return;
+  if(input)input.value='';
+  /* Track user question */
+  window._askHistory.push({role:'user',content:q});
+  /* Render user bubble */
+  if(hist){
+    hist.innerHTML+='<div style="background:var(--bg);padding:10px 14px;border-radius:10px;align-self:flex-end;max-width:80%;font-size:13px;color:var(--t1)">'+esc(q)+'</div>';
+    var loadId='ask-load-'+Date.now();
+    hist.innerHTML+='<div id="'+loadId+'" style="font-size:12px;color:var(--t4);padding:6px 4px;align-self:flex-start"><span style="display:inline-block;animation:pulse 1.4s infinite">Thinking…</span></div>';
+    hist.scrollTop=hist.scrollHeight}
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session)throw new Error('Not authenticated');
+    var token=sess.data.session.access_token;
+    /* Pass last 6 turns (3 exchanges) as context for follow-ups */
+    var ctxHist=window._askHistory.slice(0,-1).slice(-6).map(function(m){return{role:m.role,content:m.content}});
+    var resp=await fetch('/api/knowledge/ai-ask',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({question:q,context:{conversationHistory:ctxHist}})});
+    var data=await resp.json();
+    var loadEl=document.querySelector('#ask-history > [id^="ask-load-"]:last-child');
+    if(loadEl)loadEl.remove();
+    if(data.error||!resp.ok){
+      var errMsg=data.error||('HTTP '+resp.status);
+      if(hist)hist.innerHTML+='<div style="background:rgba(255,51,88,0.08);color:var(--red);padding:10px 14px;border-radius:10px;font-size:13px">'+esc(errMsg)+'</div>';
+      window._askHistory.push({role:'assistant',content:'(error: '+errMsg+')',html:'<span style="color:var(--red)">'+esc(errMsg)+'</span>'})
+    }else{
+      var answerHtml=data.answer||'';
+      var ansBlock='<div style="background:var(--bg);padding:12px 16px;border-radius:10px;font-size:13px;color:var(--t1);line-height:1.55">'+answerHtml+'</div>';
+      var sources=data.sources||[];
+      if(sources.length){
+        ansBlock+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">';
+        sources.slice(0,6).forEach(function(s){
+          ansBlock+='<span class="bg" style="font-size:10px;padding:3px 8px">'+esc(s.type||'')+': '+esc((s.title||'').substring(0,50))+'</span>'});
+        ansBlock+='</div>'}
+      if(hist)hist.innerHTML+=ansBlock;
+      var histIdx=window._askHistory.length;
+      window._askHistory.push({role:'assistant',
+        content:answerHtml.replace(/<[^>]+>/g,' ').substring(0,800),
+        html:answerHtml,
+        sources:sources});
+      window._askSourcesMap[histIdx]=sources}
+  }catch(e){
+    var loadEl2=document.querySelector('#ask-history > [id^="ask-load-"]:last-child');
+    if(loadEl2)loadEl2.remove();
+    if(hist)hist.innerHTML+='<div style="background:rgba(255,51,88,0.08);color:var(--red);padding:10px 14px;border-radius:10px;font-size:13px">Error: '+esc(e.message)+'</div>';
+    window._askHistory.push({role:'assistant',content:'(error: '+e.message+')',html:'<span style="color:var(--red)">'+esc(e.message)+'</span>'})}
+  if(hist)hist.scrollTop=hist.scrollHeight;
+  if(input)input.focus()}
+
+function askClear(){window._askHistory=[];window._askSourcesMap={};render()}
 
 /* ═══════════ AUTO-FETCH & POLLING ═══════════ */
 async function ensureGmailThreads(){
@@ -5634,9 +5635,9 @@ function fmtUSD(n){return'$'+Number(n||0).toLocaleString('en-US',{minimumFractio
 async function loadData(){toast('Loading data...','info');
   try{
     /* Load campaigns first (payments/meetings reference them) */
-    await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities(),loadEndClients(),loadProspectCompanies()]);
+    await Promise.all([loadTasks(),loadDone(),loadClientRecords(),loadReview(),loadCampaigns(),loadProjects(),loadOpportunities(),loadEndClients()]);
     /* Now load payments, campaign meetings, activity logs, phases & finance (payments/meetings need campaigns, phases need projects) */
-    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadFinancePaymentSplits(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadTeamMembers(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadScheduledEmails(),loadEmailRules(),loadMeetings(),loadProspects(),loadInstantlyData(),loadAiDrafts()]);
+    await Promise.all([loadPayments(),loadCampaignMeetings(),loadOpportunityMeetings(),loadActivityLogs(),loadPhases(),loadFinancePayments(),loadPayerMap(),loadIntegrations(),loadAccountBalances(),loadScheduledItems(),loadCampaignNotes(),loadClientNotes(),loadGmailThreads(),loadContacts(),cacheUserEmail(),loadMeetings(),loadInvoicesSafe()]);
     /* Restore calendar from cache (silent, no render) then background fetch */
     if(CONFIG.calendarURL){restoreCalCache();setTimeout(function(){loadCalendar()},100)}
     S.tasks.forEach(function(t){
@@ -5652,18 +5653,23 @@ async function loadData(){toast('Loading data...','info');
     processRecurring();
     if(typeof cleanMtgPrompted==='function')cleanMtgPrompted();
     toast('Loaded '+S.tasks.length+' tasks, '+S.done.length+' completed'+(S.review.length?', '+S.review.length+' to review':''),'ok');
-    /* AI email analysis is triggered by ensureGmailThreads(), pollGmailInbox(), and refreshGmailInbox()
-       after live threads are loaded — not here, since S._gmailLiveThreads isn't populated yet */
     /* Backfill end_clients table from string data across all entities */
     setTimeout(function(){syncEndClientRecords().then(backfillEndClientIds)},200);
-    /* Sync RL opportunity company names into prospect_companies */
-    setTimeout(function(){syncRlProspectCompanies()},400);
-    /* Start periodic knowledge base sync (embeds all entity data) */
-    startKnowledgeSync();
-    /* Check if GA4 is connected */
-    S._ga4Connected=S.integrations.some(function(i){return i.platform==='google_analytics'&&i.has_credentials});
+    /* Start periodic knowledge base sync (embeds all entity data, powers Ask TaskFlow) */
+    if(typeof startKnowledgeSync==='function')startKnowledgeSync();
   }catch(e){toast(''+e.message,'warn')}
   render()}
+
+/* Safe invoice loader — does not throw if table is missing (pre-migration) */
+async function loadInvoicesSafe(){
+  try{
+    var res=await _sb.from('invoices').select('*').order('issued_at',{ascending:false});
+    if(res.error){S.invoices=[];return}
+    S.invoices=(res.data||[]).map(function(r){
+      return{id:r.id,client:r.client||'',endClient:r.end_client||'',campaign:r.campaign_id||'',
+        amount:Number(r.amount||0),issuedAt:r.issued_at||null,expectedAt:r.expected_at||null,
+        paidAt:r.paid_at||null,reference:r.reference||'',notes:r.notes||'',status:r.status||'open'}})
+  }catch(e){S.invoices=[]}}
 
 /* ═══════════ SUPABASE WRITE HELPERS ═══════════ */
 /* These replace the old hook() webhook calls */
@@ -5985,6 +5991,46 @@ async function dbAddClient(name,status){
     if(res.error.code==='23505')return true;/* already exists, not an error */
     toast('Client save failed: '+res.error.message,'warn');return false}
   return true}
+
+/* ═══════════ INVOICES CRUD (manual entry) ═══════════ */
+async function dbAddInvoice(data){
+  var uid=await getUserId();if(!uid)return false;
+  var row={user_id:uid,
+    client:data.client||'',end_client:data.endClient||'',
+    campaign_id:data.campaign||null,
+    amount:Number(data.amount||0),
+    issued_at:data.issuedAt||null,expected_at:data.expectedAt||null,paid_at:data.paidAt||null,
+    reference:data.reference||'',notes:data.notes||'',status:data.status||'open'};
+  var res=await _sb.from('invoices').insert(row).select().single();
+  if(res.error){toast('Invoice save failed: '+res.error.message,'warn');return false}
+  await loadInvoicesSafe();render();toast('Invoice added','ok');return true}
+
+async function dbEditInvoice(id,data){
+  var row={};
+  if(data.client!==undefined)row.client=data.client||'';
+  if(data.endClient!==undefined)row.end_client=data.endClient||'';
+  if(data.campaign!==undefined)row.campaign_id=data.campaign||null;
+  if(data.amount!==undefined)row.amount=Number(data.amount||0);
+  if(data.issuedAt!==undefined)row.issued_at=data.issuedAt||null;
+  if(data.expectedAt!==undefined)row.expected_at=data.expectedAt||null;
+  if(data.paidAt!==undefined)row.paid_at=data.paidAt||null;
+  if(data.reference!==undefined)row.reference=data.reference||'';
+  if(data.notes!==undefined)row.notes=data.notes||'';
+  if(data.status!==undefined)row.status=data.status||'open';
+  row.updated_at=new Date().toISOString();
+  var res=await _sb.from('invoices').update(row).eq('id',id);
+  if(res.error){toast('Invoice update failed: '+res.error.message,'warn');return false}
+  await loadInvoicesSafe();render();return true}
+
+async function dbDeleteInvoice(id){
+  var res=await _sb.from('invoices').delete().eq('id',id);
+  if(res.error){toast('Invoice delete failed: '+res.error.message,'warn');return false}
+  await loadInvoicesSafe();render();return true}
+
+async function markInvoicePaid(id){
+  var inv=(S.invoices||[]).find(function(i){return i.id===id});if(!inv)return;
+  var ok=await dbEditInvoice(id,{status:'paid',paidAt:today()});
+  if(ok)toast('Invoice marked as paid','ok')}
 
 /* ═══════════ END CLIENTS CRUD ═══════════ */
 async function dbAddEndClient(data){
@@ -6819,8 +6865,6 @@ function buildNav(){var h='';
   SECTIONS.forEach(function(sec){
     var badge='';
     if(sec.id==='tasks'){var _ib=S.tasks.filter(function(t){return t.isInbox}).length+S.review.length;if(_ib)badge='<span class="nav-badge">'+_ib+'</span>'}
-    if(sec.id==='email'&&S.gmailUnread>0){badge='<span class="nav-badge" style="background:#EA4335">'+S.gmailUnread+'</span>'}
-    if(sec.id==='outreach'){var _orc=getUnreadReplyCount();if(_orc>0)badge='<span class="nav-badge" style="background:var(--blue)">'+_orc+'</span>'}
     var isOn=sec.id===S.view;
     if(sec.soon){
       h+='<div class="s-item s-item-soon" data-v="'+sec.id+'">';

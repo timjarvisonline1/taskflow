@@ -10,8 +10,8 @@ function miniMarkdown(text){
   return h}
 
 /* ═══════════ RENDER ═══════════ */
+var LIVE_VIEWS=['dashboard','today','tasks','opportunities','campaigns','projects','clients','finance','email','meetings','ai'];
 function render(){
-  window._aiBoxConfigs={};window._aiConversations={};
   buildNav();
   var m=gel('main'),html='';
   /* Mobile: focused 4-view experience */
@@ -21,26 +21,32 @@ function render(){
     switch(S.view){case'mob-add':html=rMobAdd();break;case'tasks':html=rMobTasks();break;case'mob-review':html=rMobReview();break;case'opportunities':html=rMobOpportunities();break}
     m.innerHTML='<section class="vw on">'+html+'</section>';
     renderSidebar();renderActiveWidget();return}
-  /* Desktop: 8-view experience */
+  /* Desktop */
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
+  if(LIVE_VIEWS.indexOf(S.view)===-1)S.view='dashboard';
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
 
-  switch(S.view){case'today':html=rToday();break;case'tasks':html=rTasks();break;case'opportunities':html=rOpportunities();break;case'campaigns':html=rCampaigns();break;case'projects':html=rProjects();break;case'clients':html=rClients();break;case'dashboard':html=rDashboard();break;case'finance':html=rFinance();break;case'email':html=rEmail();break;case'meetings':html=rMeetings();break;case'outreach':html=rOutreach();break;case'website':html=rWebsiteAnalytics();break}
-  m.classList.toggle('email-active',S.view==='email');
-  if(S.view!=='email'){var _dm=gel('detail-modal');if(_dm)_dm.classList.remove('email-light');if(S.gmailThreadId){S.gmailThreadId='';S.gmailThread=null;_dm&&_dm.classList.remove('on','full-detail')}}
+  switch(S.view){
+    case'today':html=rToday();break;
+    case'tasks':html=rTasks();break;
+    case'opportunities':html=rOpportunities();break;
+    case'campaigns':html=rCampaigns();break;
+    case'projects':html=rProjects();break;
+    case'clients':html=rClients();break;
+    case'dashboard':html=rDashboard();break;
+    case'finance':html=rFinance();break;
+    case'email':html=rEmailSearch();break;
+    case'meetings':html=rMeetings();break;
+    case'ai':html=rAskTaskFlow();break;
+    default:html=rDashboard()}
   m.innerHTML=renderMeetingPromptBanner()+'<section class="vw on">'+html+'</section>';
-  if(S.view==='today'){initTodayCharts();if(S.subView==='analytics')initScheduleAnalyticsCharts();if(S.subView==='weekly')initScheduleWeeklyCharts();if(S.subView==='capacity')initScheduleCapacityCharts()}
+  if(S.view==='today')initTodayCharts();
   if(S.view==='dashboard')initDashboardCharts();
-  if(S.view==='website'){setTimeout(function(){initGA4Map()},200)}else{destroyGA4Map()}
-  if(S.view==='projects')initProjectCharts();
-  if(S.view==='opportunities'){initOpportunityCharts();if(S.opViewMode==='profitability'&&S.subView&&OPP_TYPES[S.subView])initOppProfitabilityCharts(S.subView);if(S.subView==='profitability')initOppProfitabilityDashboard()}
-  if(S.view==='clients')initClientsCharts();
-  if(S.view==='finance'){initFinanceCharts();if(typeof checkStaleBalances==='function')checkStaleBalances()}
-  if(S.view==='campaigns'&&S.subView==='performance')initCampaignPerformanceCharts();
-  if(S.view==='outreach'&&S.subView==='analytics')setTimeout(function(){initOutreachCharts()},80);
-  if(S.view==='email'){initEmailIframes();startEmailPolling();
-    /* N19: Auto-scroll to newest message (now at bottom in chronological order) */
-    if(S.gmailThreadId&&S.gmailThread)setTimeout(function(){var lm=document.querySelector('.email-message-last');if(lm)lm.scrollIntoView({behavior:'auto',block:'nearest'})},120)}else{stopEmailPolling()}
+  if(S.view==='projects'&&typeof initProjectCharts==='function')initProjectCharts();
+  if(S.view==='opportunities'&&typeof initOpportunityCharts==='function')initOpportunityCharts();
+  if(S.view==='clients'&&typeof initClientsCharts==='function')initClientsCharts();
+  if(S.view==='finance'&&typeof initFinanceCharts==='function'){initFinanceCharts();if(typeof checkStaleBalances==='function')checkStaleBalances()}
+  if(S.view==='ai'&&typeof initAskPanel==='function')setTimeout(initAskPanel,40);
   renderSidebar();renderActiveWidget()}
 
 
@@ -381,10 +387,6 @@ function rDashboard(){
   h+=dashMet('Meetings',todayMeetings.length,todayMeetings.length?'var(--purple50)':'var(--t4)');
   h+=dashMet('In Progress',inProgress,inProgress?'var(--green)':'var(--t4)');
   h+=dashMet('Review Queue',reviewCount,reviewCount?'var(--amber)':'var(--t4)');
-  var _pendingReplies=getActionRequiredCount();
-  h+='<div class="dash-met" onclick="TF.nav(\'email\',\'e-action\')" style="cursor:pointer" title="Click to view Action Required"><div class="dash-met-v" style="color:'+(_pendingReplies?'var(--red)':'var(--green)')+'">'+_pendingReplies+'</div><div class="dash-met-l">Pending Replies</div></div>';
-  var _followupCount=S.gmailThreads.filter(function(t){return t.needs_followup===true&&(t.labels||'').indexOf('INBOX')!==-1}).length;
-  h+='<div class="dash-met" onclick="TF.nav(\'email\',\'e-action\')" style="cursor:pointer" title="Follow-ups pending"><div class="dash-met-v" style="color:'+(_followupCount?'var(--amber)':'var(--green)')+'">'+_followupCount+'</div><div class="dash-met-l">Follow-ups</div></div>';
   h+='</div>';
 
   /* Today's meetings list */
@@ -709,6 +711,97 @@ function buildClientMap(){
   return clientMap}
 
 function rClients(){
+  var sub=S.subView||'all';
+  if(sub==='end_clients')return rEndClients();
+  return rClientsStale()}
+
+function rClientsStale(){
+  /* Stay-on-top-of-comms view: every active client with a "freshness" score
+     so stale relationships float to the top */
+  var td=today();
+  var clientMap=buildClientMap();
+  var clients=Object.keys(clientMap).map(function(k){return clientMap[k]});
+  /* Active only */
+  clients=clients.filter(function(c){return c.clientStatus==='active'});
+
+  /* Compute freshness signals per client */
+  clients.forEach(function(c){
+    var name=c.name;
+    var nameL=name.toLowerCase();
+    /* Last email */
+    var lastEmail=null;
+    (S.gmailThreads||[]).forEach(function(t){
+      if((t.client_id&&_clientNameById(t.client_id)===name)||((t.subject||'')+' '+(t.snippet||'')).toLowerCase().indexOf(nameL)>-1){
+        var dt=t.last_message_at||t.lastMessageAt;
+        if(dt&&(!lastEmail||dt>lastEmail))lastEmail=dt}});
+    /* Last meeting */
+    var lastMeet=null;
+    (S.meetings||[]).forEach(function(m){
+      var inIt=(m.client_id&&_clientNameById(m.client_id)===name)||((m.title||'').toLowerCase().indexOf(nameL)>-1);
+      if(inIt){
+        var dt=m.start_time||m.startTime;
+        if(dt&&(!lastMeet||dt>lastMeet))lastMeet=dt}});
+    /* Open tasks for this client */
+    var openT=S.tasks.filter(function(t){return t.client===name});
+    var lastTaskDone=null;
+    S.done.forEach(function(t){if(t.client===name&&(!lastTaskDone||t.completed>lastTaskDone))lastTaskDone=t.completed});
+
+    /* Most recent activity */
+    var dates=[lastEmail,lastMeet,lastTaskDone].filter(Boolean);
+    var lastActivity=dates.length?dates.sort().reverse()[0]:null;
+    var daysSince=lastActivity?Math.round((Date.now()-new Date(lastActivity).getTime())/86400000):null;
+
+    c._lastEmail=lastEmail;
+    c._lastMeet=lastMeet;
+    c._lastActivity=lastActivity;
+    c._daysSince=daysSince==null?9999:daysSince;
+    c._openTasks=openT.length;
+    c._hasOpenCampaign=(c.campaigns||[]).filter(function(cp){return cp.status==='Active'||cp.status==='Setup'}).length>0});
+
+  /* Sort: most stale first */
+  clients.sort(function(a,b){return b._daysSince-a._daysSince});
+
+  var stale=clients.filter(function(c){return c._daysSince>=14&&c._hasOpenCampaign});
+  var dark =clients.filter(function(c){return c._daysSince>=45});
+
+  var h='<div class="pg-head"><h1>'+icon('clients',18)+' Clients <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+clients.length+' active</span></h1>';
+  h+='<div style="display:flex;gap:8px"><button class="btn" onclick="TF.subNav(\'end_clients\')" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('building',12)+' End Clients</button>';
+  h+='<button class="btn btn-p" onclick="TF.openAddClientModal()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Client</button></div></div>';
+
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">';
+  h+=_finKpi('Active clients','count',clients.length,'var(--green)');
+  h+=_finKpi('Going stale (14+ d)','count',stale.length,stale.length>0?'var(--amber)':'var(--t3)','active campaigns');
+  h+=_finKpi('Gone dark (45+ d)','count',dark.length,dark.length>0?'var(--red)':'var(--t3)');
+  h+=_finKpi('Open tasks','count',clients.reduce(function(s,c){return s+c._openTasks},0),'var(--blue)');
+  h+='</div>';
+
+  if(!clients.length){
+    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:28px;text-align:center;color:var(--t4)">No active clients.</div>';
+    return h}
+
+  h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>';
+  ['Client','Last contact','Last email','Last meeting','Open tasks','Campaigns',''].forEach(function(col){
+    h+='<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.04em">'+col+'</th>'});
+  h+='</tr></thead><tbody>';
+  clients.forEach(function(c){
+    var heat=c._daysSince>=45?'var(--red)':(c._daysSince>=14?'var(--amber)':'var(--green)');
+    var heatBg=c._daysSince>=45?'rgba(255,51,88,0.06)':(c._daysSince>=14?'rgba(255,153,0,0.04)':'transparent');
+    var label=c._daysSince==null||c._daysSince>=9999?'never':c._daysSince+'d ago';
+    h+='<tr style="border-bottom:1px solid rgba(255,255,255,0.04);background:'+heatBg+';cursor:pointer" onclick="TF.openClientDetailModal(\''+escAttr(c.name)+'\')">';
+    h+='<td style="padding:9px 10px;color:var(--t1);font-weight:500"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+heat+';margin-right:8px;vertical-align:middle"></span>'+esc(c.name)+'</td>';
+    h+='<td style="padding:9px 10px;color:'+heat+';font-weight:600">'+esc(label)+'</td>';
+    h+='<td style="padding:9px 10px;color:var(--t3)">'+esc(c._lastEmail?fmtDShort(new Date(c._lastEmail)):'—')+'</td>';
+    h+='<td style="padding:9px 10px;color:var(--t3)">'+esc(c._lastMeet?fmtDShort(new Date(c._lastMeet)):'—')+'</td>';
+    h+='<td style="padding:9px 10px;color:'+(c._openTasks>0?'var(--t1)':'var(--t4)')+'">'+c._openTasks+'</td>';
+    h+='<td style="padding:9px 10px;color:var(--t3)">'+(c.campaigns||[]).filter(function(cp){return cp.status==='Active'||cp.status==='Setup'}).length+'</td>';
+    h+='<td style="padding:9px 10px;text-align:right;color:var(--t4)">'+icon('chevron_right',14)+'</td>';
+    h+='</tr>'});
+  h+='</tbody></table>';
+  return h}
+
+function _clientNameById(id){var c=(S.clientRecords||[]).find(function(r){return r.id===id});return c?c.name:''}
+
+function rClientsLEGACY(){
   var sub=S.subView||'active';
   if(sub==='end_clients')return rEndClients();
   if(sub==='prospects'||sub==='prospect_companies')return rProspectsView();
@@ -1966,17 +2059,13 @@ function rToday(){
   if(prog)h+='<div class="td-met"><div class="td-met-v" style="color:var(--green)">'+prog+'</div><div class="td-met-l">Running</div></div>';
   h+='</div>';
 
-  /* SUB-VIEW DISPATCH */
-  var sv=S.subView||'schedule';
-  switch(sv){
-    case'capacity':h+=rScheduleCapacity(ctx);break;
-    case'schedule':h+=rSchedulePlanner(ctx);break;
-    case'day':h+=rScheduleDay(ctx);break;
-    case'prep':h+=rSchedulePrep(ctx);break;
-    case'analytics':h+=rScheduleAnalytics(ctx);break;
-    case'daily':h+=rScheduleDaily(ctx);break;
-    case'weekly':h+=rScheduleWeekly(ctx);break;
-    default:h+=rSchedulePlanner(ctx)}
+  /* Schedule has only two modes now: suggested list + day timeline */
+  var sv=S.subView==='day'?'day':'schedule';
+  h+='<div class="task-mode-toggle" style="margin-bottom:14px">';
+  h+='<button class="tm-btn'+(sv==='schedule'?' on':'')+'" onclick="TF.subNav(\'schedule\')">'+icon('layers',12)+' Suggested order</button>';
+  h+='<button class="tm-btn'+(sv==='day'?' on':'')+'" onclick="TF.subNav(\'day\')">'+icon('today',12)+' Today\'s timeline</button>';
+  h+='</div>';
+  h+=sv==='day'?rScheduleDay(ctx):rSchedulePlanner(ctx);
   return h}
 
 /* ── Sub-view: Weekly Capacity ── */
@@ -3815,7 +3904,91 @@ function opTypeBadgeCls(type){
 
 function rMobOpportunities(){return rOpportunities()}
 
-function rOpportunities(){return '<div class="pg-head"><h1>'+icon('gem',18)+' Sales</h1><button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:12px;padding:8px 18px">+ Add Opportunity</button></div>'+rOpportunitiesBody()}
+function rOpportunities(){
+  /* Unified Sales view: one pipeline + "needs attention" surface */
+  var ops=(S.opportunities||[]).filter(function(o){return !o.closedAt});
+  var td=today();
+  /* Group by type */
+  var byType={retain_live:[],fc_partnership:[],fc_direct:[]};
+  ops.forEach(function(o){if(byType[o.type])byType[o.type].push(o);else byType.fc_partnership.push(o)});
+
+  /* Needs attention: no update in 14+ days, no expected close, stuck stage, no last contact */
+  var needsAttn=ops.filter(function(o){
+    var lastTouchMs=(o.updated_at?new Date(o.updated_at):o.created?new Date(o.created):new Date()).getTime();
+    var daysSince=Math.round((Date.now()-lastTouchMs)/86400000);
+    return daysSince>=14
+      ||(!o.expectedClose)
+      ||(o.expectedClose&&o.expectedClose.toISOString().slice(0,10)<td&&o.stage&&!oppIsClosedStage(o.stage))});
+
+  /* KPIs */
+  var pipelineValue=ops.reduce(function(s,o){return s+_oppValue(o)},0);
+  var weightedValue=ops.reduce(function(s,o){return s+_oppValue(o)*((o.probability||50)/100)},0);
+
+  var h='<div class="pg-head"><h1>'+icon('gem',18)+' Sales <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+ops.length+' open</span></h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:13px;padding:8px 18px">+ Add Opportunity</button></div>';
+
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">';
+  h+=_finKpi('Pipeline value','fmtUSD',pipelineValue,'var(--blue)');
+  h+=_finKpi('Weighted','fmtUSD',weightedValue,'var(--green)','probability-adjusted');
+  h+=_finKpi('Retain Live','count',byType.retain_live.length,'var(--green)');
+  h+=_finKpi('F&C Partnerships','count',byType.fc_partnership.length,'var(--blue)');
+  h+=_finKpi('F&C Direct','count',byType.fc_direct.length,'var(--purple50)');
+  h+='</div>';
+
+  if(needsAttn.length){
+    h+='<div style="background:rgba(255,153,0,0.06);border:1px solid rgba(255,153,0,0.25);border-radius:12px;padding:14px 16px;margin-bottom:18px">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+icon('alert',14)+'<strong style="font-size:13px;color:var(--amber)">Needs your attention</strong> <span style="font-size:11px;color:var(--t3)">— '+needsAttn.length+' opportunit'+(needsAttn.length===1?'y':'ies')+' need updating</span></div>';
+    h+='<div style="display:flex;flex-direction:column;gap:6px">';
+    needsAttn.slice(0,8).forEach(function(o){
+      var why=_oppAttentionReason(o,td);
+      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="font-weight:600;font-size:13px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
+      h+='<div style="font-size:11px;color:var(--t3);margin-top:2px">'+esc((oppTypeConf(o.type)||{}).label||'')+' · '+esc(o.stage||'')+(o.client?' · '+esc(o.client):'')+'</div>';
+      h+='</div>';
+      h+='<div style="font-size:11px;color:var(--amber);flex-shrink:0;text-align:right">'+esc(why)+'</div>';
+      h+='</div>'});
+    h+='</div></div>';
+  }
+
+  /* Per-type pipeline */
+  ['retain_live','fc_partnership','fc_direct'].forEach(function(typeKey){
+    var typeOps=byType[typeKey];
+    if(!typeOps.length)return;
+    var conf=oppTypeConf(typeKey);
+    h+='<h2 style="font-size:14px;margin:18px 0 10px;color:var(--t1);display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:'+conf.color+'"></span>'+esc(conf.label)+' <span style="font-size:11px;color:var(--t3);font-weight:400">· '+typeOps.length+' open · '+fmtUSD(typeOps.reduce(function(s,o){return s+_oppValue(o)},0))+'</span></h2>';
+    /* Group by stage */
+    var stages=conf.stages.concat(conf.awaitingStage?[conf.awaitingStage]:[]);
+    var byStage={};stages.forEach(function(st){byStage[st]=[]});
+    typeOps.forEach(function(o){if(byStage[o.stage])byStage[o.stage].push(o);else{byStage[stages[0]]=byStage[stages[0]]||[];byStage[stages[0]].push(o)}});
+    h+='<div style="display:grid;grid-template-columns:repeat('+stages.length+',1fr);gap:8px;overflow-x:auto">';
+    stages.forEach(function(st){
+      var stOps=byStage[st]||[];
+      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:10px;min-width:200px">';
+      h+='<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">'+esc(st)+' <span style="color:var(--t4);font-weight:400">·  '+stOps.length+'</span></div>';
+      stOps.forEach(function(o){
+        var v=_oppValue(o);
+        h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
+        h+='<div style="font-weight:600;color:var(--t1);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
+        if(o.client||o.endClient)h+='<div style="font-size:10px;color:var(--t3);margin-bottom:3px">'+esc(o.client||o.endClient)+'</div>';
+        h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t4)"><span>'+fmtUSD(v)+'</span><span>'+(o.probability||50)+'%</span></div>';
+        h+='</div>'});
+      if(!stOps.length)h+='<div style="font-size:11px;color:var(--t4);padding:8px 0">—</div>';
+      h+='</div>'});
+    h+='</div>';
+  });
+  return h}
+
+function _oppValue(o){return(Number(o.strategyFee||0)+Number(o.setupFee||0)+Number(o.monthlyFee||0)*Number(o.expectedMonthlyDuration||12))}
+function _oppAttentionReason(o,td){
+  var lastTouchMs=(o.updated_at?new Date(o.updated_at):o.created?new Date(o.created):new Date()).getTime();
+  var daysSince=Math.round((Date.now()-lastTouchMs)/86400000);
+  if(!o.expectedClose)return'No close date set';
+  if(o.expectedClose&&o.expectedClose.toISOString().slice(0,10)<td)return'Past expected close';
+  if(daysSince>=30)return'No update '+daysSince+'d';
+  return daysSince+'d stale'}
+
+function rOpportunitiesLEGACY(){return '<div class="pg-head"><h1>'+icon('gem',18)+' Sales</h1><button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:12px;padding:8px 18px">+ Add Opportunity</button></div>'+rOpportunitiesBody()}
 
 function rOpportunitiesBody(){
   var sub=S.subView||'analytics';
@@ -4996,7 +5169,68 @@ function projStatusClass(s){
   if(s==='Planning')return'proj-st-planning';if(s==='Active')return'proj-st-active';
   if(s==='On Hold')return'proj-st-hold';if(s==='Completed')return'proj-st-completed';return'proj-st-archived'}
 
-function rProjects(){return '<div class="pg-head"><h1>'+icon('folder',18)+' Projects</h1><button class="btn btn-p" onclick="TF.openAddProject()">+ New Project</button></div>'+rProjectsBody()}
+function rProjects(){
+  /* Simplified Initiatives view — flat list of bigger-picture work */
+  var projects=(S.projects||[]).filter(function(p){return p.status!=='Archived'});
+  projects.sort(function(a,b){
+    var sa=_initStatusOrder(a.status),sb=_initStatusOrder(b.status);
+    if(sa!==sb)return sa-sb;
+    var ta=a.targetDate?a.targetDate.getTime():9e15;
+    var tb=b.targetDate?b.targetDate.getTime():9e15;
+    return ta-tb});
+  var openTasks=0,overdueTasks=0,td=today();
+  projects.forEach(function(p){
+    var pt=S.tasks.filter(function(t){return t.project===p.id});
+    openTasks+=pt.length;
+    overdueTasks+=pt.filter(function(t){return t.due&&t.due<td}).length});
+
+  var h='<div class="pg-head"><h1>'+icon('folder',18)+' Initiatives <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+projects.length+'</span></h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddProject()" style="font-size:13px;padding:8px 18px">+ New Initiative</button></div>';
+
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">';
+  h+=_finKpi('Active','count',projects.filter(function(p){return p.status==='Active'}).length,'var(--green)');
+  h+=_finKpi('Planning','count',projects.filter(function(p){return p.status==='Planning'}).length,'var(--blue)');
+  h+=_finKpi('On hold','count',projects.filter(function(p){return p.status==='On Hold'}).length,'var(--amber)');
+  h+=_finKpi('Open tasks','count',openTasks,overdueTasks>0?'var(--amber)':'var(--t1)',overdueTasks?overdueTasks+' overdue':'');
+  h+='</div>';
+
+  if(!projects.length){
+    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:36px;text-align:center;color:var(--t4);font-size:14px;line-height:1.55">No initiatives yet.<br><span style="font-size:12px">Use this for bigger-picture work that spans weeks or months — Rebuild TaskFlow, Launch new product, Year-end finance cleanup. Tasks can be linked to an initiative.</span></div>';
+    return h}
+
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">';
+  projects.forEach(function(p){h+=rInitiativeCard(p,td)});
+  h+='</div>';
+  return h}
+
+function _initStatusOrder(st){return{'Active':0,'Planning':1,'On Hold':2,'Completed':3}[st]||4}
+
+function rInitiativeCard(p,td){
+  var pTasks=S.tasks.filter(function(t){return t.project===p.id});
+  var pDone=S.done.filter(function(t){return t.project===p.id});
+  var open=pTasks.length,done=pDone.length,total=open+done;
+  var pct=total>0?Math.round(done/total*100):0;
+  var overdue=pTasks.filter(function(t){return t.due&&t.due<td}).length;
+  var stCol={'Active':'var(--green)','Planning':'var(--blue)','On Hold':'var(--amber)','Completed':'var(--t3)'}[p.status]||'var(--t3)';
+  var tgt='';
+  if(p.targetDate){
+    var dd=Math.round((p.targetDate-new Date(td))/(86400000));
+    tgt=p.targetDate.toISOString().slice(0,10)+(dd<0?' ('+(-dd)+'d overdue)':dd<=14?' ('+dd+'d)':'')}
+  var h='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:14px 16px;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--gborder)\'" onclick="TF.openProjectDetail(\''+escAttr(p.id)+'\')">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:10px">';
+  h+='<div style="font-weight:600;font-size:14px;color:var(--t1);flex:1;line-height:1.3">'+esc(p.name)+'</div>';
+  h+='<span class="bg" style="background:'+stCol+';color:#fff;font-size:10px;padding:2px 8px;flex-shrink:0">'+esc(p.status)+'</span>';
+  h+='</div>';
+  if(p.description)h+='<div style="font-size:12px;color:var(--t3);margin-bottom:10px;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+esc(p.description)+'</div>';
+  h+='<div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:'+pct+'%;background:'+stCol+';transition:width 0.3s"></div></div>';
+  h+='<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--t3);align-items:center">';
+  h+='<span>'+done+' / '+total+' tasks ('+pct+'%)</span>';
+  if(overdue>0)h+='<span style="color:var(--red);font-weight:600">'+overdue+' overdue</span>';
+  if(tgt)h+='<span style="color:'+(tgt.indexOf('overdue')!==-1?'var(--red)':'var(--t4)')+'">'+icon('calendar',10)+' '+esc(tgt)+'</span>';
+  h+='</div>';
+  h+='</div>';
+  return h}
+
 function rProjectsBody(){
   var sub=S.subView||'board';
   var activeProjects=S.projects.filter(function(p){return p.status!=='Archived'});
@@ -5244,29 +5478,168 @@ function srcClsFull(p){
   return'fin-src fin-src-'+p.source}
 
 function rFinance(){
-  var sub=S.subView||'overview';
+  var validSubs=['overview','invoices','recurring','forecast'];
+  var sub=validSubs.indexOf(S.subView)!==-1?S.subView:'overview';
   var h='<div class="pg-head"><h1>'+icon('activity',18)+' Finance</h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
   h+='<button class="btn" onclick="TF.openIntegrationsModal()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('link',12)+' Integrations</button>';
-  if(sub==='payments')h+='<button class="btn btn-p" onclick="TF.openAddFinancePayment()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Payment</button>';
-  if(sub==='recurring')h+='<button class="btn btn-p" onclick="TF.openAddScheduledItem()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Item</button>';
-  if(sub==='team')h+='<button class="btn btn-p" onclick="TF.openAddTeamMember()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Member</button>';
+  if(sub==='invoices')h+='<button class="btn btn-p" onclick="TF.openAddInvoice()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Invoice</button>';
+  if(sub==='recurring')h+='<button class="btn btn-p" onclick="TF.openAddScheduledItem()" style="font-size:13px;padding:8px 16px;border-radius:10px">+ Add Recurring</button>';
   h+='</div></div>';
   if(isMobile()){h+=rFinanceMobileSubs(sub)}
-  if(sub==='overview')h+=rFinanceOverview();
-  else if(sub==='payments')h+=rFinancePayments();
-  else if(sub==='invoices')h+=rFinanceInvoices();
-  else if(sub==='upcoming')h+=rFinanceUpcoming();
+  if(sub==='overview')h+=rFinanceOverviewSimple();
+  else if(sub==='invoices')h+=rInvoicesView();
   else if(sub==='recurring')h+=rFinanceRecurring();
-  else if(sub==='forecast')h+=rFinanceForecast();
-  else if(sub==='team')h+=rFinanceTeam();
+  else if(sub==='forecast')h+=rFinanceForecastSimple();
   return h}
 
 function rFinanceMobileSubs(sub){
   var h='<div class="task-mode-toggle" style="margin-bottom:16px">';
-  var subs=[['overview','Overview'],['payments','Transactions'],['invoices','Invoices'],['upcoming','Upcoming'],['recurring','Recurring'],['forecast','Forecast'],['team','Team']];
+  var subs=[['overview','Overview'],['invoices','Invoices'],['recurring','Recurring'],['forecast','Forecast']];
   subs.forEach(function(s){h+='<button class="tm-btn'+(sub===s[0]?' on':'')+'" onclick="TF.subNav(\''+s[0]+'\')">'+s[1]+'</button>'});
   return h+'</div>'}
+
+/* ── Simple Finance Overview: just bank balances + at-a-glance numbers ── */
+function rFinanceOverviewSimple(){
+  var bals=S.accountBalances||[];
+  var totalUSD=0;
+  bals.forEach(function(b){totalUSD+=Number(b.balance||0)});
+  var openInv=(S.invoices||[]).filter(function(i){return i.status==='open'});
+  var openTotal=openInv.reduce(function(s,i){return s+Number(i.amount||0)},0);
+  var overdueCount=openInv.filter(function(i){return i.expectedAt&&i.expectedAt<today()}).length;
+  var recurring=(S.scheduledItems||[]);
+  var monthlyOut=0;
+  recurring.forEach(function(r){
+    var amt=Math.abs(Number(r.amount||0));
+    var freq=(r.frequency||'monthly').toLowerCase();
+    if(freq==='monthly')monthlyOut+=amt;
+    else if(freq==='weekly')monthlyOut+=amt*4.33;
+    else if(freq==='quarterly')monthlyOut+=amt/3;
+    else if(freq==='annual'||freq==='yearly')monthlyOut+=amt/12});
+  var h='';
+  /* Top KPIs */
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">';
+  h+=_finKpi('Total cash','fmtUSD',totalUSD,'var(--green)');
+  h+=_finKpi('Outstanding invoices',openTotal===0?'0':'fmtUSD',openTotal,'var(--blue)',openInv.length+' open');
+  h+=_finKpi('Overdue invoices','count',overdueCount,overdueCount>0?'var(--red)':'var(--t3)');
+  h+=_finKpi('Monthly recurring','fmtUSD',monthlyOut,'var(--amber)',recurring.length+' items');
+  h+='</div>';
+  /* Bank balance cards */
+  h+='<h2 style="font-size:15px;margin:14px 0 10px;color:var(--t1)">Live bank balances</h2>';
+  if(!bals.length){
+    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:20px;text-align:center;color:var(--t4);font-size:13px">No balance data yet. Click <strong>Integrations</strong> to connect Brex and Mercury, then hit Sync.</div>';
+  }else{
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">';
+    bals.forEach(function(b){
+      var srcCol=b.source==='brex'?'var(--purple50)':(b.source==='mercury'?'var(--blue)':'var(--t3)');
+      var sync=b.syncedAt?fmtDShort(new Date(b.syncedAt)):'never';
+      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:14px">';
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="bg" style="background:'+srcCol+';color:#fff;font-size:10px;padding:2px 8px">'+esc(b.source||'?').toUpperCase()+'</span><span style="font-size:12px;color:var(--t3)">'+esc(b.accountName||b.account||'Account')+'</span></div>';
+      h+='<div style="font-family:var(--fd);font-size:22px;font-weight:700;color:var(--t1)">'+fmtUSD(Number(b.balance||0))+'</div>';
+      h+='<div style="font-size:10px;color:var(--t4);margin-top:6px">Last synced: '+sync+'</div>';
+      h+='</div>'});
+    h+='</div>'}
+  return h}
+function _finKpi(label,fmt,value,color,extra){
+  var v=fmt==='fmtUSD'?fmtUSD(value):(fmt==='count'?value:value);
+  return '<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--t3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em">'+esc(label)+'</div><div style="font-family:var(--fd);font-size:22px;font-weight:700;color:'+color+'">'+v+'</div>'+(extra?'<div style="font-size:10px;color:var(--t4);margin-top:4px">'+esc(extra)+'</div>':'')+'</div>'}
+
+/* ── Invoices view (manual entry) ── */
+function rInvoicesView(){
+  var invs=(S.invoices||[]).slice();
+  invs.sort(function(a,b){return(b.issuedAt||'').localeCompare(a.issuedAt||'')});
+  var open=invs.filter(function(i){return i.status==='open'});
+  var paid=invs.filter(function(i){return i.status==='paid'});
+  var td=today();
+  var h='';
+  h+='<div style="display:flex;gap:12px;margin-bottom:14px">';
+  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;flex:1"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em">Outstanding</div><div style="font-family:var(--fd);font-size:20px;font-weight:700;color:var(--blue)">'+fmtUSD(open.reduce(function(s,i){return s+Number(i.amount||0)},0))+'</div><div style="font-size:11px;color:var(--t4);margin-top:2px">'+open.length+' open</div></div>';
+  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;flex:1"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em">Paid (last 90d)</div><div style="font-family:var(--fd);font-size:20px;font-weight:700;color:var(--green)">'+fmtUSD(paid.filter(function(i){return i.paidAt&&i.paidAt>=_addDays(td,-90)}).reduce(function(s,i){return s+Number(i.amount||0)},0))+'</div></div>';
+  h+='</div>';
+  if(!invs.length){
+    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:28px;text-align:center;color:var(--t4);font-size:13px">No invoices yet. Click <strong>+ Add Invoice</strong> to add one.</div>';
+    return h}
+  h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Issued</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Client</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Reference</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Amount</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Expected</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600">Status</th><th style="padding:8px;border-bottom:1px solid var(--gborder)"></th></tr></thead><tbody>';
+  invs.forEach(function(i){
+    var isOverdue=i.status==='open'&&i.expectedAt&&i.expectedAt<td;
+    var rowBg=isOverdue?'background:rgba(255,51,88,0.04)':'';
+    h+='<tr style="border-bottom:1px solid rgba(255,255,255,0.04);'+rowBg+'">';
+    h+='<td style="padding:8px;color:var(--t2)">'+esc(i.issuedAt||'')+'</td>';
+    h+='<td style="padding:8px;color:var(--t1);font-weight:500">'+esc(i.client||'')+(i.endClient?' <span style="font-size:10px;color:var(--t4)">/ '+esc(i.endClient)+'</span>':'')+'</td>';
+    h+='<td style="padding:8px;color:var(--t3)">'+esc(i.reference||'')+'</td>';
+    h+='<td style="padding:8px;text-align:right;font-family:var(--fd);font-weight:600;color:var(--t1)">'+fmtUSD(Number(i.amount||0))+'</td>';
+    h+='<td style="padding:8px;color:'+(isOverdue?'var(--red)':'var(--t3)')+'">'+esc(i.expectedAt||'')+(isOverdue?' ⚠':'')+'</td>';
+    h+='<td style="padding:8px"><span class="bg" style="font-size:10px;padding:2px 8px;background:'+(i.status==='paid'?'rgba(34,197,94,0.12);color:var(--green)':'rgba(96,165,250,0.12);color:var(--blue)')+'">'+esc(i.status||'open')+'</span></td>';
+    h+='<td style="padding:8px;text-align:right;white-space:nowrap">';
+    if(i.status==='open')h+='<button class="btn" style="font-size:10px;padding:4px 10px;margin-right:6px;background:var(--green);color:#fff;border-color:transparent" onclick="TF.markInvoicePaid(\''+escAttr(i.id)+'\')">Mark paid</button>';
+    h+='<button class="btn" style="font-size:10px;padding:4px 10px" onclick="TF.openEditInvoice(\''+escAttr(i.id)+'\')">Edit</button>';
+    h+='</td></tr>'});
+  h+='</tbody></table>';
+  return h}
+function _addDays(d,n){var dt=new Date(d);dt.setDate(dt.getDate()+n);return dt.toISOString().slice(0,10)}
+
+/* ── 90-day cash flow forecast (simple) ── */
+function rFinanceForecastSimple(){
+  var td=today();
+  var horizon=90;
+  var endDt=_addDays(td,horizon);
+  var bals=S.accountBalances||[];
+  var startCash=bals.reduce(function(s,b){return s+Number(b.balance||0)},0);
+
+  /* Build per-day inflows/outflows */
+  var days={};  /* date string → {in:0,out:0,events:[]} */
+  for(var i=0;i<=horizon;i++){var d=_addDays(td,i);days[d]={in:0,out:0,events:[]}}
+
+  /* Invoices: outstanding ones with expected_at fall in horizon */
+  (S.invoices||[]).forEach(function(inv){
+    if(inv.status!=='open')return;
+    var d=inv.expectedAt;
+    if(!d||d<td||d>endDt)return;
+    days[d].in+=Number(inv.amount||0);
+    days[d].events.push({label:'Invoice: '+(inv.client||inv.reference||'unnamed'),amount:Number(inv.amount||0),direction:'in'})});
+
+  /* Recurring outgoings: project forward by frequency */
+  (S.scheduledItems||[]).forEach(function(r){
+    var amt=Math.abs(Number(r.amount||0));
+    if(!amt)return;
+    var direction=(r.amount<0||r.direction==='outflow'||(r.category||'').match(/expense|cost|payroll|subscription/i))?'out':'in';
+    var freq=(r.frequency||'monthly').toLowerCase();
+    var nextDate=r.nextDate||r.next_date||r.startDate||td;
+    if(nextDate<td)nextDate=td;
+    var step=freq==='weekly'?7:(freq==='quarterly'?91:(freq==='annual'||freq==='yearly'?365:30));
+    for(var d=nextDate;d<=endDt;d=_addDays(d,step)){
+      if(!days[d])continue;
+      if(direction==='out')days[d].out+=amt;else days[d].in+=amt;
+      days[d].events.push({label:(r.name||r.label||'Recurring'),amount:amt,direction:direction})}});
+
+  /* Running balance */
+  var running=startCash,points=[],minBal=startCash,minDate=td;
+  Object.keys(days).sort().forEach(function(d){
+    running+=days[d].in-days[d].out;
+    points.push({date:d,balance:running,inflow:days[d].in,outflow:days[d].out,events:days[d].events});
+    if(running<minBal){minBal=running;minDate=d}});
+
+  var endBal=running;
+  var h='';
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">';
+  h+=_finKpi('Starting cash','fmtUSD',startCash,'var(--green)');
+  h+=_finKpi('Projected (90d)','fmtUSD',endBal,endBal>=startCash?'var(--green)':'var(--amber)');
+  h+=_finKpi('Lowest point','fmtUSD',minBal,minBal<0?'var(--red)':'var(--t1)','on '+minDate);
+  h+='</div>';
+  h+='<h2 style="font-size:14px;margin:14px 0 8px;color:var(--t1)">Day-by-day flow</h2>';
+  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;max-height:520px;overflow-y:auto">';
+  h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:12px"><thead style="position:sticky;top:0;background:var(--bg1);z-index:1"><tr><th style="text-align:left;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">Date</th><th style="text-align:right;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">In</th><th style="text-align:right;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">Out</th><th style="text-align:right;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">Balance</th><th style="text-align:left;padding:7px 12px;border-bottom:1px solid var(--gborder);color:var(--t3)">Notes</th></tr></thead><tbody>';
+  points.forEach(function(p){
+    if(p.inflow===0&&p.outflow===0&&p.date!==td)return;
+    var balColor=p.balance<0?'var(--red)':(p.balance<minBal*1.2?'var(--amber)':'var(--t1)');
+    h+='<tr><td style="padding:6px 12px;color:var(--t2)">'+esc(p.date)+'</td>';
+    h+='<td style="padding:6px 12px;text-align:right;color:'+(p.inflow?'var(--green)':'var(--t4)')+';font-family:var(--fd)">'+(p.inflow?fmtUSD(p.inflow):'—')+'</td>';
+    h+='<td style="padding:6px 12px;text-align:right;color:'+(p.outflow?'var(--red)':'var(--t4)')+';font-family:var(--fd)">'+(p.outflow?'-'+fmtUSD(p.outflow):'—')+'</td>';
+    h+='<td style="padding:6px 12px;text-align:right;font-family:var(--fd);font-weight:600;color:'+balColor+'">'+fmtUSD(p.balance)+'</td>';
+    h+='<td style="padding:6px 12px;color:var(--t3);font-size:11px">'+p.events.map(function(e){return esc(e.label)}).join('; ')+'</td>';
+    h+='</tr>'});
+  h+='</tbody></table></div>';
+  return h}
 
 function rFinancePayments(){
   var fp=S.financePayments.filter(function(p){return p.status!=='excluded'});
@@ -8134,6 +8507,102 @@ function rCrmQuickActions(match){
   h+='</div>';
   return h}
 
+/* ═══════════ EMAIL SEARCH (read-only, Supabase-cached) ═══════════ */
+function rEmailSearch(){
+  var q=(S.gmailSearch||'').toLowerCase().trim();
+  var threads=S.gmailThreads||[];
+  var filtered=q?threads.filter(function(t){
+    var hay=((t.subject||'')+' '+(t.snippet||'')+' '+(t.from_email||t.fromEmail||'')+' '+(t.from_name||t.fromName||'')).toLowerCase();
+    return hay.indexOf(q)!==-1
+  }):threads;
+  var total=threads.length,shown=Math.min(filtered.length,200);
+  var h='<div class="pg-head"><h1>'+icon('mail',18)+' Email Search';
+  h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+total+' threads indexed</span>';
+  h+='</h1>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  h+='<button class="btn" onclick="TF.refreshGmailInbox()" style="font-size:12px;padding:7px 14px;border-radius:10px">'+icon('refresh',12)+' Sync Now</button>';
+  h+='</div></div>';
+  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;padding:10px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center">';
+  h+=icon('search',16);
+  h+='<input type="text" id="email-search-input" value="'+escAttr(S.gmailSearch||'')+'" placeholder="Search subject, snippet, sender..." style="flex:1;background:transparent;border:none;color:var(--t1);font-size:14px;outline:none" oninput="TF.searchGmail(this.value)">';
+  if(q)h+='<button class="btn" style="font-size:11px;padding:4px 10px" onclick="TF.searchGmail(\'\')">Clear</button>';
+  h+='</div>';
+  if(!filtered.length){
+    h+='<div style="text-align:center;padding:60px 20px;color:var(--t4)">';
+    h+=q?'No matches for "'+esc(q)+'"':'Type to search your indexed Gmail threads. Email sync runs in the background.';
+    h+='</div>';
+    return h}
+  h+='<div style="font-size:11px;color:var(--t4);margin-bottom:8px">Showing '+shown+' of '+filtered.length+(filtered.length>shown?' matches (refine your search to narrow)':' matches')+'</div>';
+  h+='<div class="email-search-list" style="display:flex;flex-direction:column;gap:6px">';
+  filtered.slice(0,shown).forEach(function(t){
+    var subject=t.subject||'(no subject)';
+    var snippet=t.snippet||'';
+    var from=t.from_name||t.fromName||t.from_email||t.fromEmail||'';
+    var dt=t.last_message_at||t.lastMessageAt||t.date||'';
+    var dtStr=dt?fmtDShort(new Date(dt)):'';
+    h+='<div class="email-search-row" style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:12px 14px;cursor:pointer" onclick="TF.openEmailThread(\''+escAttr(t.thread_id||t.threadId||t.id)+'\')">';
+    h+='<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:4px">';
+    h+='<div style="font-weight:600;font-size:13px;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(subject)+'</div>';
+    if(dtStr)h+='<div style="font-size:11px;color:var(--t4);flex-shrink:0">'+esc(dtStr)+'</div>';
+    h+='</div>';
+    h+='<div style="font-size:11px;color:var(--t3);margin-bottom:4px">'+esc(from)+'</div>';
+    if(snippet)h+='<div style="font-size:12px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(snippet)+'</div>';
+    h+='</div>'});
+  h+='</div>';
+  return h}
+
+/* ═══════════ ASK TASKFLOW (global AI Q&A panel) ═══════════ */
+function rAskTaskFlow(){
+  var h='<div class="pg-head"><h1>'+icon('sparkle',18)+' Ask TaskFlow</h1>';
+  if((window._askHistory||[]).length)h+='<button class="btn" onclick="TF.askClear()" style="font-size:12px;padding:7px 14px;border-radius:10px">Clear conversation</button>';
+  h+='</div>';
+  h+='<div id="ask-panel" style="background:var(--bg1);border:1px solid var(--gborder);border-radius:14px;padding:24px;max-width:880px;margin:0 auto;display:flex;flex-direction:column;min-height:60vh">';
+  h+='<div style="margin-bottom:16px;color:var(--t3);font-size:13px;line-height:1.55">Ask anything about your business. The assistant draws on your emails, meetings, clients, campaigns, opportunities, and tasks.</div>';
+  h+='<div id="ask-history" style="display:flex;flex-direction:column;gap:14px;flex:1;min-height:60px;max-height:55vh;overflow-y:auto;margin-bottom:14px"></div>';
+  /* Render persisted conversation */
+  if((window._askHistory||[]).length){
+    h=h.replace('id="ask-history" style="display:flex;flex-direction:column;gap:14px;flex:1;min-height:60px;max-height:55vh;overflow-y:auto;margin-bottom:14px"></div>',
+      'id="ask-history" style="display:flex;flex-direction:column;gap:14px;flex:1;min-height:60px;max-height:55vh;overflow-y:auto;margin-bottom:14px">'+_renderAskHistory()+'</div>')}
+  h+='<div style="display:flex;gap:8px;align-items:stretch">';
+  h+='<input id="ask-input" type="text" placeholder="e.g. What did Spirit say in our last call?" style="flex:1;background:var(--bg);border:1px solid var(--gborder);border-radius:10px;padding:12px 14px;color:var(--t1);font-size:14px;outline:none" onkeydown="if(event.key===\'Enter\')TF.askTaskflow()">';
+  h+='<button class="btn btn-p" onclick="TF.askTaskflow()" style="padding:0 18px;display:flex;align-items:center;gap:6px">'+icon('send',14)+' Ask</button>';
+  h+='</div>';
+  if(!(window._askHistory||[]).length){
+    h+='<div style="margin-top:14px"><div style="font-size:11px;color:var(--t4);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em">Try asking</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+    ['What did I discuss with my biggest client this month?',
+     'Summarize the last 3 client meetings',
+     'Which opportunities have I not updated in a while?',
+     'What outstanding action items do I have?',
+     'Recent emails about pricing or budget'].forEach(function(p){
+      h+='<button class="btn" style="font-size:11px;padding:6px 12px" onclick="TF.askTaskflow('+JSON.stringify(p).replace(/"/g,'&quot;')+')">'+esc(p)+'</button>'});
+    h+='</div></div>';
+  }
+  h+='</div>';
+  return h}
+
+function _renderAskHistory(){
+  var hist=window._askHistory||[];
+  var srcs=window._askSourcesMap||{};
+  var h='';
+  for(var i=0;i<hist.length;i++){
+    var m=hist[i];
+    if(m.role==='user'){
+      h+='<div style="background:var(--bg);padding:10px 14px;border-radius:10px;align-self:flex-end;max-width:80%;font-size:13px;color:var(--t1)">'+esc(m.content)+'</div>'
+    }else{
+      h+='<div style="background:var(--bg);padding:12px 16px;border-radius:10px;font-size:13px;color:var(--t1);line-height:1.55">'+(m.html||esc(m.content))+'</div>';
+      var sources=srcs[i]||m.sources||[];
+      if(sources.length){
+        h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:-6px;margin-bottom:6px">';
+        sources.slice(0,6).forEach(function(s){
+          h+='<span class="bg" style="font-size:10px;padding:3px 8px">'+esc(s.type||'')+': '+esc((s.title||'').substring(0,50))+'</span>'});
+        h+='</div>'}
+    }
+  }
+  return h}
+
+function initAskPanel(){var i=gel('ask-input');if(i)i.focus();var hist=gel('ask-history');if(hist)hist.scrollTop=hist.scrollHeight}
+
 /* ═══════════ MEETINGS ═══════════ */
 
 function rMeetings(){
@@ -8141,7 +8610,9 @@ function rMeetings(){
 
   var h='<div class="pg-head"><h1>'+icon('mic',18)+' Meetings';
   h+=' <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+S.meetings.length+' meetings</span>';
-  h+='</h1></div>';
+  h+='</h1>';
+  h+='<div style="display:flex;gap:8px"><a href="/api/webhook/readai" target="_blank" class="btn" style="font-size:11px;padding:6px 12px;border-radius:10px;text-decoration:none;color:var(--t2)" title="Check that the Read.ai webhook URL is reachable. Open in a new tab to see status JSON.">'+icon('check',12)+' Webhook health</a></div>';
+  h+='</div>';
 
   /* Search */
   h+='<div style="margin-bottom:12px;display:flex;gap:12px;align-items:center">';

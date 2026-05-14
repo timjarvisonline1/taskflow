@@ -163,6 +163,10 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   atToggleMin:atToggleMin,modalToggle:modalToggle,
   signOut:signOut,
   toast:toast,
+  askTaskflow:askTaskflow,askClear:askClear,
+  openAddInvoice:openAddInvoice,saveInvoice:saveInvoice,
+  openEditInvoice:openEditInvoice,saveEditInvoice:saveEditInvoice,
+  deleteInvoice:deleteInvoice,markInvoicePaid:markInvoicePaid,
   /* Mobile */
   mobAddTask:mobAddTask,
   mobAddAndStart:mobAddAndStart,

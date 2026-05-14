@@ -4999,6 +4999,89 @@ function confirmDeleteContact(id){
   if(S._lastEndClientDash)openEndClientDetailModal(S._lastEndClientDash);
   else if(S._lastClientDash)openClientDashboard(S._lastClientDash)}
 
+/* ═══════════ INVOICE MODALS (manual) ═══════════ */
+function _invClientOptions(selected){
+  var h='<option value="">—</option>';
+  (S.clientRecords||[]).forEach(function(c){h+='<option value="'+escAttr(c.name)+'"'+(c.name===selected?' selected':'')+'>'+esc(c.name)+'</option>'});
+  return h}
+function _invCampaignOptions(selected){
+  var h='<option value="">—</option>';
+  (S.campaigns||[]).forEach(function(c){h+='<option value="'+escAttr(c.id)+'"'+(c.id===selected?' selected':'')+'>'+esc(c.name)+'</option>'});
+  return h}
+function openAddInvoice(){
+  var td=today();
+  var nextMonth=new Date();nextMonth.setDate(nextMonth.getDate()+30);
+  var defExp=nextMonth.toISOString().slice(0,10);
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('file',12)+' Add Invoice</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="inv-client">'+_invClientOptions('')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="inv-ec" placeholder="Optional"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="inv-campaign">'+_invCampaignOptions('')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Reference</span><input type="text" class="edf" id="inv-ref" placeholder="e.g. INV-2026-014"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount (USD)</span><input type="number" class="edf" id="inv-amt" min="0" step="0.01" placeholder="0.00" autofocus></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Issued</span><input type="date" class="edf" id="inv-issued" value="'+td+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Expected payment</span><input type="date" class="edf" id="inv-expected" value="'+defExp+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="inv-notes" rows="2" placeholder="Optional"></textarea></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveInvoice()">Save Invoice</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  setTimeout(function(){var n=gel('inv-amt');if(n)n.focus()},100)}
+
+async function saveInvoice(){
+  var data={
+    client:(gel('inv-client')||{}).value||'',
+    endClient:(gel('inv-ec')||{}).value||'',
+    campaign:(gel('inv-campaign')||{}).value||'',
+    reference:(gel('inv-ref')||{}).value||'',
+    amount:parseFloat((gel('inv-amt')||{}).value||'0'),
+    issuedAt:(gel('inv-issued')||{}).value||null,
+    expectedAt:(gel('inv-expected')||{}).value||null,
+    notes:(gel('inv-notes')||{}).value||'',
+    status:'open'};
+  if(!data.client){toast('Pick a client','warn');return}
+  if(!data.amount||data.amount<=0){toast('Enter an amount','warn');return}
+  var ok=await dbAddInvoice(data);
+  if(ok)closeModal()}
+
+function openEditInvoice(id){
+  var inv=(S.invoices||[]).find(function(i){return i.id===id});if(!inv)return;
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('file',12)+' Edit Invoice</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<input type="hidden" id="inv-id" value="'+escAttr(id)+'">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="inv-client">'+_invClientOptions(inv.client||'')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><input type="text" class="edf" id="inv-ec" value="'+escAttr(inv.endClient||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="inv-campaign">'+_invCampaignOptions(inv.campaign||'')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Reference</span><input type="text" class="edf" id="inv-ref" value="'+escAttr(inv.reference||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount (USD)</span><input type="number" class="edf" id="inv-amt" min="0" step="0.01" value="'+escAttr(inv.amount||0)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Issued</span><input type="date" class="edf" id="inv-issued" value="'+escAttr(inv.issuedAt||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Expected payment</span><input type="date" class="edf" id="inv-expected" value="'+escAttr(inv.expectedAt||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Paid on</span><input type="date" class="edf" id="inv-paid" value="'+escAttr(inv.paidAt||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Status</span><select class="edf" id="inv-status"><option value="open"'+(inv.status==='open'?' selected':'')+'>Open</option><option value="paid"'+(inv.status==='paid'?' selected':'')+'>Paid</option><option value="cancelled"'+(inv.status==='cancelled'?' selected':'')+'>Cancelled</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="inv-notes" rows="2">'+esc(inv.notes||'')+'</textarea></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditInvoice()">Save</button>';
+  h+='<button class="btn" onclick="TF.deleteInvoice(\''+escAttr(id)+'\')" style="color:var(--red)">Delete</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+
+async function saveEditInvoice(){
+  var id=(gel('inv-id')||{}).value;if(!id)return;
+  var data={
+    client:(gel('inv-client')||{}).value||'',
+    endClient:(gel('inv-ec')||{}).value||'',
+    campaign:(gel('inv-campaign')||{}).value||'',
+    reference:(gel('inv-ref')||{}).value||'',
+    amount:parseFloat((gel('inv-amt')||{}).value||'0'),
+    issuedAt:(gel('inv-issued')||{}).value||null,
+    expectedAt:(gel('inv-expected')||{}).value||null,
+    paidAt:(gel('inv-paid')||{}).value||null,
+    status:(gel('inv-status')||{}).value||'open',
+    notes:(gel('inv-notes')||{}).value||''};
+  var ok=await dbEditInvoice(id,data);
+  if(ok){closeModal();toast('Invoice updated','ok')}}
+
+async function deleteInvoice(id){
+  if(!confirm('Delete this invoice?'))return;
+  var ok=await dbDeleteInvoice(id);
+  if(ok){closeModal();toast('Invoice deleted','ok')}}
+
 /* ═══════════ END CLIENT MODALS ═══════════ */
 function openAddEndClientModal(){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('building',12)+' Add End Client</span>';

@@ -160,15 +160,38 @@ function normaliseTranscript(val) {
 /* ── Main handler ── */
 
 module.exports = async function handler(req, res) {
+  // GET: health check — lets you verify the webhook URL is reachable from a browser
+  if (req.method === 'GET') {
+    var diag = { status: 'ok', endpoint: 'readai-webhook', timestamp: new Date().toISOString() };
+    try {
+      var c = getServiceClient();
+      var r = await c.from('integration_credentials').select('user_id, config').eq('platform', 'readai').eq('is_active', true);
+      diag.readai_integrations = (r.data || []).length;
+      diag.has_webhook_secret = (r.data || []).filter(function(x){return (x.config||{}).webhook_secret}).length;
+    } catch (e) { diag.db_check_error = e.message; }
+    return res.status(200).json(diag);
+  }
+
   if (req.method !== 'POST') return res.status(405).end();
 
+  console.log('[readai-webhook] POST received, body type=' + typeof req.body + ', headers=' + Object.keys(req.headers || {}).filter(function(k){return k.indexOf('x-')===0||k==='content-type'}).join(','));
+
+  var event;
   try {
-    var event = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    event = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+  } catch (parseErr) {
+    console.error('[readai-webhook] JSON parse failed:', parseErr.message);
+    return res.status(400).json({ status: 'invalid_json', error: parseErr.message });
+  }
 
-    // Validate webhook secret
-    var secret = req.query.secret || req.headers['x-readai-secret'] || '';
-    if (!secret) return res.status(200).json({ status: 'no_secret' });
+  // Validate webhook secret
+  var secret = req.query.secret || req.headers['x-readai-secret'] || '';
+  if (!secret) {
+    console.error('[readai-webhook] No secret provided (query.secret or X-Readai-Secret header)');
+    return res.status(401).json({ status: 'no_secret', hint: 'Include ?secret=YOUR_SECRET in the webhook URL, or set X-Readai-Secret header' });
+  }
 
+  try {
     var client = getServiceClient();
 
     // Find user with matching readai webhook secret
@@ -180,17 +203,26 @@ module.exports = async function handler(req, res) {
 
     var creds = credsRes.data;
     if (!creds || creds.length === 0) {
-      return res.status(200).json({ status: 'no_readai_users' });
+      console.error('[readai-webhook] No active Read.ai integration found in integration_credentials');
+      return res.status(404).json({ status: 'no_readai_users', hint: 'Add a Read.ai integration with platform=readai and webhook_secret in config' });
     }
 
-    // Match by webhook_secret in config; fall back to first user
+    // Match by webhook_secret in config
     var match = creds.find(function(c) { return (c.config || {}).webhook_secret === secret; });
-    if (!match) return res.status(200).json({ status: 'invalid_secret' });
+    if (!match) {
+      console.error('[readai-webhook] Secret mismatch. Provided length=' + secret.length + ', stored count=' + creds.length);
+      return res.status(401).json({ status: 'invalid_secret', hint: 'The secret in the URL does not match the webhook_secret in your Read.ai integration config' });
+    }
     var userId = match.user_id;
 
     // Session ID is required for deduplication
-    var sessionId = event.session_id || '';
-    if (!sessionId) return res.status(200).json({ status: 'no_session_id' });
+    var sessionId = event.session_id || event.id || event.trigger || '';
+    if (!sessionId) {
+      console.error('[readai-webhook] Missing session_id. Payload keys: ' + Object.keys(event).join(', '));
+      return res.status(400).json({ status: 'no_session_id', hint: 'Payload must include session_id (or id) for dedup', received_keys: Object.keys(event) });
+    }
+
+    console.log('[readai-webhook] Processing meeting session_id=' + sessionId + ' user_id=' + userId);
 
     // Normalise fields (handle both JSON and text formats)
     var participants = normaliseParticipants(event.participants);
@@ -353,9 +385,11 @@ module.exports = async function handler(req, res) {
       console.error('Meeting embedding error (non-fatal):', embedErr.message);
     }
 
+    console.log('[readai-webhook] OK session_id=' + sessionId + ' tasks=' + tasksGenerated + ' chunks=' + chunksEmbedded);
     return res.status(200).json({ status: 'ok', session_id: sessionId, tasks_generated: tasksGenerated, chunks_embedded: chunksEmbedded });
   } catch (e) {
-    console.error('Read.ai webhook error:', e);
-    return res.status(200).json({ status: 'error', error: e.message });
+    console.error('[readai-webhook] Processing error:', e.message, e.stack);
+    // Return 500 so Read.ai retries (200 was silently swallowing failures)
+    return res.status(500).json({ status: 'error', error: e.message });
   }
 };
