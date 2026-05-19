@@ -733,19 +733,16 @@ async function loadOpportunities(){
       type:r.type||'fc_partnership',
       client:r.client||'',endClient:r.end_client||'',endClientId:r.end_client_id||null,contactName:r.contact_name||'',contactEmail:r.contact_email||'',
       strategyFee:parseFloat(r.strategy_fee)||0,setupFee:parseFloat(r.setup_fee)||0,
-      monthlyFee:parseFloat(r.monthly_fee)||0,monthlyAdSpend:parseFloat(r.monthly_ad_spend)||0,
+      monthlyFee:parseFloat(r.monthly_fee)||0,
       probability:r.probability||50,
-      expectedClose:r.expected_close?new Date(r.expected_close+'T00:00:00'):null,
-      source:r.source||'',notes:r.notes||'',paymentPlan:r.payment_plan||'',
+      strategyFeeClose:r.strategy_fee_close||null,strategyFeeProb:r.strategy_fee_prob!=null?r.strategy_fee_prob:null,
+      setupFeeClose:r.setup_fee_close||null,setupFeeProb:r.setup_fee_prob!=null?r.setup_fee_prob:null,
+      monthlyFeeStart:r.monthly_fee_start||null,monthlyFeeMonths:r.expected_monthly_duration||null,
+      monthlyFeeProb:r.monthly_fee_prob!=null?r.monthly_fee_prob:null,
+      source:r.source||'',notes:r.notes||'',
       closedAt:r.closed_at?new Date(r.closed_at):null,
       convertedCampaignId:r.converted_campaign_id||'',
-      paymentMethod:r.payment_method||'bank_transfer',processingFeePct:parseFloat(r.processing_fee_pct)||0,
-      receivingAccount:r.receiving_account||'',expectedMonthlyDuration:r.expected_monthly_duration||12,
-      contactJobTitle:r.contact_job_title||'',prospectWebsite:r.prospect_website||'',
-      previousRelationship:r.previous_relationship||'',companyDescription:r.company_description||'',
-      prospectDescription:r.prospect_description||'',videoStrategyBenefits:r.video_strategy_benefits||'',
       closeReason:r.close_reason||'',
-      prospectCompanyId:r.prospect_company_id||null,prospectId:r.prospect_id||null,
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
 async function loadOpportunityMeetings(){
@@ -5898,16 +5895,13 @@ async function dbAddOpportunity(data){
     type:data.type||'fc_partnership',
     client:data.client||'',end_client:_ecName,end_client_id:_ecId,contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
-    monthly_ad_spend:data.monthlyAdSpend||0,
-    probability:data.probability||50,expected_close:data.expectedClose||null,
-    source:data.source||'',notes:data.notes||'',payment_plan:data.paymentPlan||'',
-    payment_method:data.paymentMethod||'bank_transfer',processing_fee_pct:data.processingFeePct||0,
-    receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12,
-    contact_job_title:data.contactJobTitle||'',prospect_website:data.prospectWebsite||'',
-    previous_relationship:data.previousRelationship||'',company_description:data.companyDescription||'',
-    prospect_description:data.prospectDescription||'',video_strategy_benefits:data.videoStrategyBenefits||'',
-    close_reason:data.closeReason||'',
-    prospect_company_id:data.prospectCompanyId||null,prospect_id:data.prospectId||null};
+    probability:data.probability||50,
+    strategy_fee_close:data.strategyFeeClose||null,strategy_fee_prob:data.strategyFeeProb!=null?data.strategyFeeProb:null,
+    setup_fee_close:data.setupFeeClose||null,setup_fee_prob:data.setupFeeProb!=null?data.setupFeeProb:null,
+    monthly_fee_start:data.monthlyFeeStart||null,expected_monthly_duration:data.monthlyFeeMonths||null,
+    monthly_fee_prob:data.monthlyFeeProb!=null?data.monthlyFeeProb:null,
+    source:data.source||'',notes:data.notes||'',
+    close_reason:data.closeReason||''};
   var res=await _sb.from('opportunities').insert(row).select().single();
   if(res.error){toast('Opportunity save failed: '+res.error.message,'warn');return null}
   return res.data}
@@ -5920,17 +5914,14 @@ async function dbEditOpportunity(id,data){
     type:data.type||'fc_partnership',
     client:data.client||'',end_client:_ecName,end_client_id:_ecId,contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
-    monthly_ad_spend:data.monthlyAdSpend||0,
-    probability:data.probability||50,expected_close:data.expectedClose||null,
-    source:data.source||'',notes:data.notes||'',payment_plan:data.paymentPlan||'',
+    probability:data.probability||50,
+    strategy_fee_close:data.strategyFeeClose||null,strategy_fee_prob:data.strategyFeeProb!=null?data.strategyFeeProb:null,
+    setup_fee_close:data.setupFeeClose||null,setup_fee_prob:data.setupFeeProb!=null?data.setupFeeProb:null,
+    monthly_fee_start:data.monthlyFeeStart||null,expected_monthly_duration:data.monthlyFeeMonths||null,
+    monthly_fee_prob:data.monthlyFeeProb!=null?data.monthlyFeeProb:null,
+    source:data.source||'',notes:data.notes||'',
     closed_at:data.closedAt||null,converted_campaign_id:data.convertedCampaignId||null,
-    payment_method:data.paymentMethod||'bank_transfer',processing_fee_pct:data.processingFeePct||0,
-    receiving_account:data.receivingAccount||'',expected_monthly_duration:data.expectedMonthlyDuration||12,
-    contact_job_title:data.contactJobTitle||'',prospect_website:data.prospectWebsite||'',
-    previous_relationship:data.previousRelationship||'',company_description:data.companyDescription||'',
-    prospect_description:data.prospectDescription||'',video_strategy_benefits:data.videoStrategyBenefits||'',
-    close_reason:data.closeReason||'',
-    prospect_company_id:data.prospectCompanyId||null,prospect_id:data.prospectId||null};
+    close_reason:data.closeReason||''};
   var res=await _sb.from('opportunities').update(row).eq('id',id);
   if(res.error){toast('Opportunity update failed: '+res.error.message,'warn');return false}
   return true}

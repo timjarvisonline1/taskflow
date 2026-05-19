@@ -3517,6 +3517,43 @@ function rOpportunityDashboard(op,st){
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
   h+='</div>';
 
+  /* ── Probability ── */
+  h+='<div class="ed-grid ed-grid-3" style="margin-bottom:12px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Overall Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||'')+'" min="0" max="100" placeholder="50"></div>';
+  h+='<div></div><div></div></div>';
+
+  /* ── Fee lines ── */
+  h+='<div style="margin-bottom:16px">';
+  h+='<span class="ed-lbl" style="margin-bottom:8px;display:block">Revenue</span>';
+  h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:10px;overflow:hidden">';
+
+  h+='<div style="padding:10px 14px;border-bottom:1px solid var(--gborder)">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Strategy Fee</div>';
+  h+='<div class="ed-grid ed-grid-3" style="margin:0">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-sf-close" value="'+(op.strategyFeeClose||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-sf-prob" value="'+(op.strategyFeeProb!=null?op.strategyFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
+  h+='</div></div>';
+
+  h+='<div style="padding:10px 14px;border-bottom:1px solid var(--gborder)">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Setup Fee</div>';
+  h+='<div class="ed-grid ed-grid-3" style="margin:0">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-su-close" value="'+(op.setupFeeClose||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-su-prob" value="'+(op.setupFeeProb!=null?op.setupFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
+  h+='</div></div>';
+
+  h+='<div style="padding:10px 14px">';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Monthly Fee</div>';
+  h+='<div class="ed-grid ed-grid-4" style="margin:0">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Months</span><input type="number" class="edf" id="op-mf-months" value="'+(op.monthlyFeeMonths||'')+'" min="1" placeholder="12"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Expected Start</span><input type="date" class="edf" id="op-mf-start" value="'+(op.monthlyFeeStart||'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
+  h+='</div></div>';
+
+  h+='</div></div>';
+
   /* ── Notes ── */
   h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
   h+='<textarea class="edf edf-notes" id="op-notes" rows="5" placeholder="Notes about this opportunity..." style="min-height:100px">'+esc(op.notes)+'</textarea></div>';
@@ -3948,8 +3985,20 @@ function rOpportunities(){
   var pipelineValue=ops.reduce(function(s,o){return s+_oppValue(o)},0);
   var weightedValue=ops.reduce(function(s,o){return s+_oppValue(o)*((o.probability||50)/100)},0);
 
+  var probFilter=S.opProbFilter||'all';
+  if(probFilter!=='all'){
+    var minP=probFilter==='high'?75:(probFilter==='mid'?50:0);
+    var maxP=probFilter==='high'?100:(probFilter==='mid'?74:49);
+    ops=ops.filter(function(o){var p=o.probability||50;return p>=minP&&p<=maxP})}
+
   var h='<div class="pg-head"><h1>'+icon('gem',18)+' Sales <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+ops.length+' open</span></h1>';
   h+='<button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:13px;padding:8px 18px">+ Add Opportunity</button></div>';
+
+  h+='<div class="tf-toolbar" style="margin-bottom:12px">';
+  h+='<span style="font-size:11px;color:var(--t3);margin-right:4px">Probability:</span>';
+  [['all','All'],['high','75%+'],['mid','50–74%'],['low','Under 50%']].forEach(function(f){
+    h+='<button class="tf-chip'+(probFilter===f[0]?' on':'')+'" onclick="TF.setOpProbFilter(\''+f[0]+'\')">'+f[1]+'</button>'});
+  h+='</div>';
 
   if(!ops.length){
     h+='<div class="tf-empty"><strong>No open opportunities</strong><br>Click <strong>+ Add Opportunity</strong> to track a new deal. Retain Live deals convert into clients, F&C deals into campaigns.</div>';
@@ -3999,7 +4048,10 @@ function rOpportunities(){
         h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
         h+='<div style="font-weight:600;color:var(--t1);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
         if(o.client||o.endClient)h+='<div style="font-size:10px;color:var(--t3);margin-bottom:3px">'+esc(o.client||o.endClient)+'</div>';
-        h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t4)"><span>'+fmtUSD(v)+'</span><span>'+(o.probability||50)+'%</span></div>';
+        var _p=o.probability||50;var _pc=_p>=75?'var(--green)':_p>=50?'var(--amber)':'var(--red)';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t4)">';
+        if(v)h+='<span>'+fmtUSD(v)+'</span>';else h+='<span></span>';
+        h+='<span style="font-weight:600;color:'+_pc+'">'+_p+'%</span></div>';
         h+='</div>'});
       if(!stOps.length)h+='<div style="font-size:11px;color:var(--t4);padding:8px 0">—</div>';
       h+='</div>'});
@@ -4007,7 +4059,8 @@ function rOpportunities(){
   });
   return h}
 
-function _oppValue(o){return(Number(o.strategyFee||0)+Number(o.setupFee||0)+Number(o.monthlyFee||0)*Number(o.expectedMonthlyDuration||12))}
+function _oppValue(o){return(Number(o.strategyFee||0)+Number(o.setupFee||0)+Number(o.monthlyFee||0)*Number(o.monthlyFeeMonths||12))}
+function setOpProbFilter(v){S.opProbFilter=v;render()}
 function _oppAttentionReason(o,td){
   var lastTouchMs=(o.updated_at?new Date(o.updated_at):o.created?new Date(o.created):new Date()).getTime();
   var daysSince=Math.round((Date.now()-lastTouchMs)/86400000);
@@ -5692,11 +5745,14 @@ function rInvoicesView(){
 function _addDays(d,n){var dt=new Date(d);dt.setDate(dt.getDate()+n);return dt.toISOString().slice(0,10)}
 
 /* ── 90-day cash flow forecast (simple) ── */
+function toggleForecastOpps(){S.forecastIncludeOpps=!S.forecastIncludeOpps;render()}
+
 function rFinanceForecastSimple(){
   var td=today();
   var horizon=90;
   var endDt=_addDays(td,horizon);
   var startCash=_dedupedBalances().reduce(function(s,b){return s+Number(b.currentBalance||0)},0);
+  var includeOpps=!!S.forecastIncludeOpps;
 
   /* Build per-day inflows/outflows */
   var days={};  /* date string → {in:0,out:0,events:[]} */
@@ -5709,6 +5765,29 @@ function rFinanceForecastSimple(){
     if(!d||d<td||d>endDt)return;
     days[d].in+=Number(inv.amount||0);
     days[d].events.push({label:'Invoice: '+(inv.client||inv.reference||'unnamed'),amount:Number(inv.amount||0),direction:'in'})});
+
+  /* Opportunity fees (probability-weighted) */
+  if(includeOpps){
+    (S.opportunities||[]).forEach(function(op){
+      if(oppIsClosedStage(op.stage))return;
+      var name=op.endClient||op.client||op.name;
+      if(op.strategyFee&&op.strategyFeeClose&&op.strategyFeeClose>=td&&op.strategyFeeClose<=endDt){
+        var amt=op.strategyFee*(op.strategyFeeProb!=null?op.strategyFeeProb/100:1);
+        if(amt&&days[op.strategyFeeClose]){days[op.strategyFeeClose].in+=amt;
+          days[op.strategyFeeClose].events.push({label:'Opp Strategy: '+name,amount:amt,direction:'in'})}}
+      if(op.setupFee&&op.setupFeeClose&&op.setupFeeClose>=td&&op.setupFeeClose<=endDt){
+        var amt2=op.setupFee*(op.setupFeeProb!=null?op.setupFeeProb/100:1);
+        if(amt2&&days[op.setupFeeClose]){days[op.setupFeeClose].in+=amt2;
+          days[op.setupFeeClose].events.push({label:'Opp Setup: '+name,amount:amt2,direction:'in'})}}
+      if(op.monthlyFee&&op.monthlyFeeStart){
+        var mProb=op.monthlyFeeProb!=null?op.monthlyFeeProb/100:1;
+        var mAmt=op.monthlyFee*mProb;
+        var mMonths=op.monthlyFeeMonths||12;
+        for(var mi=0;mi<mMonths;mi++){
+          var mDate=new Date(op.monthlyFeeStart+'T00:00:00');mDate.setMonth(mDate.getMonth()+mi);
+          var mDs=mDate.toISOString().slice(0,10);
+          if(mDs>=td&&mDs<=endDt&&days[mDs]){days[mDs].in+=mAmt;
+            days[mDs].events.push({label:'Opp Monthly: '+name,amount:mAmt,direction:'in'})}}}})}
 
   /* Recurring outgoings: project forward by frequency */
   (S.scheduledItems||[]).forEach(function(r){
@@ -5751,6 +5830,11 @@ function rFinanceForecastSimple(){
   h+=_finKpi('Projected (90d)','fmtUSD',endBal,endBal>=startCash?'var(--green)':'var(--amber)');
   h+=_finKpi('Lowest point','fmtUSD',minBal,minBal<0?'var(--red)':'var(--t1)','on '+minDate);
   h+='</div>';
+
+  h+='<div class="tf-toolbar" style="margin-bottom:12px">';
+  h+='<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);cursor:pointer;user-select:none">';
+  h+='<input type="checkbox" onchange="TF.toggleForecastOpps()"'+(includeOpps?' checked':'')+' style="accent-color:var(--accent)">';
+  h+='Include opportunity fees (probability-weighted)</label></div>';
 
   /* Monthly summary cards */
   h+='<h2 class="tf-h2">By month</h2>';

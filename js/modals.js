@@ -1855,6 +1855,17 @@ async function saveOpportunity(){
   var _opEcRaw=gel('op-endclient')?(gel('op-endclient').value||'').trim():'';op.endClientId=resolveEndClientId(_opEcRaw)||null;op.endClient=op.endClientId?endClientNameById(op.endClientId):_opEcRaw;
   op.contactName=(gel('op-contact').value||'').trim();
   op.contactEmail=(gel('op-email').value||'').trim();
+  op.probability=gel('op-prob')?parseInt(gel('op-prob').value)||50:op.probability;
+  op.strategyFee=gel('op-strategy')?parseFloat(gel('op-strategy').value)||0:0;
+  op.strategyFeeClose=gel('op-sf-close')&&gel('op-sf-close').value?gel('op-sf-close').value:null;
+  op.strategyFeeProb=gel('op-sf-prob')&&gel('op-sf-prob').value!==''?parseInt(gel('op-sf-prob').value):null;
+  op.setupFee=gel('op-setup')?parseFloat(gel('op-setup').value)||0:0;
+  op.setupFeeClose=gel('op-su-close')&&gel('op-su-close').value?gel('op-su-close').value:null;
+  op.setupFeeProb=gel('op-su-prob')&&gel('op-su-prob').value!==''?parseInt(gel('op-su-prob').value):null;
+  op.monthlyFee=gel('op-monthly')?parseFloat(gel('op-monthly').value)||0:0;
+  op.monthlyFeeMonths=gel('op-mf-months')&&gel('op-mf-months').value?parseInt(gel('op-mf-months').value):null;
+  op.monthlyFeeStart=gel('op-mf-start')&&gel('op-mf-start').value?gel('op-mf-start').value:null;
+  op.monthlyFeeProb=gel('op-mf-prob')&&gel('op-mf-prob').value!==''?parseInt(gel('op-mf-prob').value):null;
   op.notes=gel('op-notes')?gel('op-notes').value||'':'';
   await dbEditOpportunity(id,op);
   toast('Saved: '+op.name,'ok');closeModal();render()}

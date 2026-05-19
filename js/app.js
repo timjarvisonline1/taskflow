@@ -164,6 +164,8 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   signOut:signOut,
   toast:toast,
   askTaskflow:askTaskflow,askClear:askClear,
+  setOpProbFilter:setOpProbFilter,
+  toggleForecastOpps:toggleForecastOpps,
   setClientHeat:function(v){S.clientHeatFilter=v;render()},
   setClientSearch:function(v){S.clientSearch=v;clearTimeout(S._clSearchTmr);S._clSearchTmr=setTimeout(function(){render();var i=gel('cl-search');if(i){i.focus();try{i.selectionStart=i.selectionEnd=i.value.length}catch(e){}}},180)},
   setEmailDateFilter:function(v){S.emailDateFilter=v;render()},
