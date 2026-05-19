@@ -3490,12 +3490,23 @@ function rOpportunityDashboard(op,st){
   var stages=oppAllStages(op.type);
   var cliOpts=S.clients.map(function(c){return'<option'+(c===op.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
 
+  /* Prev/next navigation */
+  var visibleOpps=(S.opportunities||[]).filter(function(o){return !o.closedAt&&!oppIsClosedStage(o.stage)});
+  var curIdx=visibleOpps.findIndex(function(o){return o.id===op.id});
+  if(curIdx<0){visibleOpps=S.opportunities||[];curIdx=visibleOpps.findIndex(function(o){return o.id===op.id})}
+  var prevOp=curIdx>0?visibleOpps[curIdx-1]:null;
+  var nextOp=curIdx<visibleOpps.length-1?visibleOpps[curIdx+1]:null;
+
   /* Header */
-  var h='<div class="tf-modal-top" style="padding:20px 28px 16px">';
-  h+='<div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">';
-  h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(op.name)+'</h2>';
-  h+='<span class="bg '+opTypeBadgeCls(op.type)+'">'+conf.label+'</span>';
+  var h='<div class="tf-modal-top" style="padding:16px 28px 12px">';
+  h+='<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">';
+  if(prevOp)h+='<button class="op-nav-btn" onclick="TF.openOpportunityDetail(\''+escAttr(prevOp.id)+'\')" title="'+esc(prevOp.name)+'">'+icon('chevron_left',14)+' Prev</button>';
+  h+='<div style="flex:1;min-width:0"><h2 style="margin:0;font-size:17px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(op.name)+'</h2>';
+  if(visibleOpps.length>1)h+='<div style="font-size:10px;color:var(--t4);margin-top:2px">'+(curIdx+1)+' of '+visibleOpps.length+'</div>';
   h+='</div>';
+  if(nextOp)h+='<button class="op-nav-btn" onclick="TF.openOpportunityDetail(\''+escAttr(nextOp.id)+'\')" title="'+esc(nextOp.name)+'">Next '+icon('chevron_right',14)+'</button>';
+  h+='</div>';
+  h+='<span class="bg '+opTypeBadgeCls(op.type)+'" style="flex-shrink:0">'+conf.label+'</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button>';
   h+='</div>';
 
@@ -3602,7 +3613,7 @@ function rOpportunityDashboard(op,st){
   else{h+='<div style="padding:12px 0 16px;color:var(--t4);font-size:12px">No open tasks</div>'}
 
   /* ── Actions ── */
-  h+='<div class="ed-actions" style="margin-top:8px;padding-bottom:20px">';
+  h+='<div class="ed-actions op-detail-actions" style="margin-top:8px;padding-bottom:20px">';
   h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">Save</button>';
   if(!isClosed){
     h+='<button class="btn" style="background:rgba(255,51,88,0.06);color:var(--red);border-color:rgba(255,51,88,0.2)" onclick="TF.closeAsLost(\''+eid+'\')">Close as Lost</button>'}
