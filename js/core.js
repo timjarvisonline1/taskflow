@@ -3088,6 +3088,7 @@ function closeEmailThread(){
   window._inlineRecipients={to:[],cc:[],bcc:[]};
   window._inlineAttachments=[];
   gel('detail-modal').classList.remove('on','full-detail','email-light');
+  _unlockBodyScroll();
   render();
 }
 

@@ -247,7 +247,11 @@ function openDetail(id){
   }
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
+  _lockBodyScroll()}
+
+function _lockBodyScroll(){var st=document.documentElement.scrollTop||document.body.scrollTop;document.body.style.top='-'+st+'px';document.body.classList.add('modal-open');document.body._savedScroll=st}
+function _unlockBodyScroll(){document.body.classList.remove('modal-open');var st=document.body._savedScroll||0;document.body.style.top='';window.scrollTo(0,st)}
 
 function closeModal(){
   var m=gel('modal');
@@ -276,11 +280,13 @@ function closeModal(){
       inner.classList.remove('tf-modal-wide')}
     /* Close only #modal — leave #detail-modal (email thread) intact */
     m.classList.remove('on','email-light');
+    var dm=gel('detail-modal');if(!dm||!dm.classList.contains('on'))_unlockBodyScroll();
     return}
 
   /* #modal was not open — close #detail-modal */
   if(S.gmailThreadId){closeEmailThread()}
-  else{var dm=gel('detail-modal');dm.classList.remove('on','full-detail','email-light')}}
+  else{var dm=gel('detail-modal');dm.classList.remove('on','full-detail','email-light')}
+  _unlockBodyScroll()}
 
 async function saveDetail(){
   var id=gel('d-id').value;var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
@@ -596,7 +602,7 @@ function openLogMeetingModal(){
   h+='<div class="ed-actions">';
   h+='<button class="btn btn-p" onclick="TF.logMeeting()">'+CK_S+' Log Meeting</button>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var fi=gel('lm-dur');if(fi)fi.focus()},100)}
 
 function refreshLogMtgEC(){
@@ -701,7 +707,7 @@ function openTplForm(idx){
   h+='<div class="ed-actions">';
   h+='<button class="btn btn-p" onclick="TF.saveTpl()">'+(editing?icon('save',12)+' Update Template':'Create Template')+'</button>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 function saveTpl(){var name=(gel('tpl-name')||{}).value;if(!name||!name.trim()){toast('Enter a template name','warn');return}
   var tpl={name:name.trim(),item:(gel('tpl-item')||{}).value||'',importance:gel('tpl-imp').value,category:gel('tpl-cat').value,
@@ -789,7 +795,7 @@ function openDoneDetail(id){
   h+='</div><div id="del-zone"></div>';
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on')}
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on');_lockBodyScroll()}
 
 async function saveDoneDetail(){
   var id=gel('d-id').value;var d=S.done.find(function(t){return t.id===id});if(!d)return;
@@ -919,7 +925,7 @@ function openReviewDetail(id){
   h+='</div>';
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on')}
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on');_lockBodyScroll()}
 
 async function approveReview(id){
   var r=S.review.find(function(t){return t.id===id});if(!r)return;
@@ -1074,7 +1080,7 @@ function openDailySummary(){
 
   h+='<div style="margin-top:16px"><button class="btn btn-p" onclick="navigator.clipboard.writeText('+esc(JSON.stringify(txt)).replace(/'/g,"\\'")+');TF.toast(\'Copied to clipboard\',\'ok\')" style="padding:8px 18px;font-size:12px">Copy Summary</button></div>';
 
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 /* ═══════════ CLIENT TIME REPORT ═══════════ */
 function openClientReport(){
@@ -1089,7 +1095,7 @@ function openClientReport(){
   h+='<div class="fld"><label>To</label><input type="date" id="rpt-to"></div>';
   h+='</div><button class="btn btn-p" onclick="TF.genClientReport()" style="margin-top:12px">Generate Report</button></div>';
   h+='<div id="rpt-output"></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 function genClientReport(){
   var cli=gel('rpt-cli').value,cpFilter=gel('rpt-cp')?gel('rpt-cp').value:'',from=gel('rpt-from').value?new Date(gel('rpt-from').value):null,to=gel('rpt-to').value?new Date(gel('rpt-to').value):null;
   if(to){to.setHours(23,59,59)}
@@ -1154,7 +1160,7 @@ function showCalSetup(){
   h+='</div>';
   h+='<p style="margin-top:14px;font-size:11px;color:var(--t4)">The script only reads event titles and times from your primary calendar. No descriptions, attendees, or private data is exposed.</p>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 /* ═══════════ CASCADING DROPDOWN HELPERS ═══════════ */
 /* Order: Client → End Client → Campaign */
@@ -1301,6 +1307,7 @@ function openCampaignDetail(id){
   var st=getCampaignStats(cp);
   gel('detail-body').innerHTML=rCampaignDashboard(cp,st);
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
+  _lockBodyScroll();
   setTimeout(function(){initEntityCharts('campaign')},50)}
 function _openCampaignDetail_LEGACY(id){
   /* Legacy campaign detail - kept for reference, no longer called */
@@ -1605,7 +1612,8 @@ function _openCampaignDetail_LEGACY(id){
   }/* end desktop else */
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
+  _lockBodyScroll()}
 
 async function saveCampaign(){
   var id=gel('cp-id').value;var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
@@ -1704,7 +1712,7 @@ function openEditCampaignModal(id){
   h+='</div><div id="del-zone"></div>';
   h+='</div>';
 
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 function openAddCampaign(){
   var PLATFORMS=['Meta','Google Ads','YouTube','LinkedIn','TikTok','Microsoft Ads','Programmatic','Multiple','Other'];
@@ -1730,7 +1738,7 @@ function openAddCampaign(){
   h+='<div class="fld"><label>Next Billing Date</label><input type="date" id="ncp-nextBilling"></div>';
   h+='<div class="fld full"><label>Notes</label><textarea id="ncp-notes" rows="2" placeholder="Campaign notes..."></textarea></div>';
   h+='</div><button class="btn btn-p" onclick="TF.addCampaign()" style="margin-top:12px">'+icon('target',12)+' Create Campaign</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var fi=gel('ncp-name');if(fi)fi.focus()},100)}
 
 async function addCampaign(){
@@ -1771,7 +1779,7 @@ function openAddPayment(campaignId){
   h+='<div class="fld"><label>Type</label><select id="pay-type"><option>Strategy</option><option>Set-Up</option><option>Monthly Fee</option><option>Monthly Ad Spend</option><option>Other</option></select></div>';
   h+='<div class="fld full"><label>Notes</label><input type="text" id="pay-notes" placeholder="Optional notes..."></div>';
   h+='</div><button class="btn btn-p" onclick="TF.addPayment()" style="margin-top:12px"> Add Payment</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function addPayment(){
   var cpId=gel('pay-cp').value;if(!cpId){toast('Select a campaign','warn');return}
@@ -1845,6 +1853,7 @@ function openOpportunityDetail(id){
   var st=getOpportunityStats(op);
   gel('detail-body').innerHTML=rOpportunityDashboard(op,st);
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
+  _lockBodyScroll();
   setTimeout(function(){initEntityCharts('opportunity')},50)}
 
 async function saveOpportunity(){
@@ -1887,7 +1896,7 @@ function openAddOpportunity(){
   /* Form (hidden until type selected) */
   h+='<div id="nop-form" style="display:none"></div>';
 
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 /* Populate add form after type selection */
 function selectOpType(type){
@@ -2039,7 +2048,7 @@ function openAddOpportunityMeeting(opId){
   h+='</div>';
   h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.addOpportunityMeeting()">'+icon('check',14)+' Add Meeting</button></div>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var fi=gel('nom-title');if(fi)fi.focus()},100)}
 
 async function addOpportunityMeeting(){
@@ -2193,6 +2202,7 @@ function openProjectDetail(id){
 
   gel('detail-body').innerHTML=h;
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
+  _lockBodyScroll();
 
   /* Initialize charts after render */
   setTimeout(function(){
@@ -2243,7 +2253,7 @@ function openAddProject(){
   h+='</div>';
   h+='<button class="btn btn-p" onclick="TF.addProject()" style="margin-top:16px">'+icon('folder',12)+' Create Project</button>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var fi=gel('pj-add-name');if(fi)fi.focus()},100)}
 
 async function addProject(){
@@ -2383,7 +2393,7 @@ function openAddCampaignMeeting(campaignId){
   h+='<div class="fld full"><label>Recording Link</label><input type="url" id="cmtg-link" placeholder="https://..."></div>';
   h+='<div class="fld full"><label>Notes</label><input type="text" id="cmtg-notes" placeholder="Optional notes..."></div>';
   h+='</div><button class="btn btn-p" onclick="TF.addCampaignMeeting()" style="margin-top:12px">'+icon('mic',12)+' Add Meeting</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function addCampaignMeeting(){
   var cpId=gel('cmtg-cp').value;if(!cpId){toast('Select a campaign','warn');return}
@@ -2566,7 +2576,7 @@ function openFinancePaymentDetail(id){
   h+='</div>';
   h+='</div>';
 
-  gel('detail-body').innerHTML=h;gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail')}
+  gel('detail-body').innerHTML=h;gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');_lockBodyScroll()}
 
 function fpCatChange(){
   var cat=(gel('fp-category')||{}).value||'';
@@ -2740,7 +2750,7 @@ function confirmDeleteFinancePayment(){
   var h='<div class="tf-modal-top"><h2>Delete Payment?</h2><button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
   h+='<p style="color:var(--t3);margin:16px 0">This will permanently delete this payment record.</p>';
   h+='<div class="ed-actions"><button class="btn btn-d" onclick="TF.doDeleteFinancePayment(\''+escAttr(id)+'\')">'+icon('trash',14)+' Delete</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function doDeleteFinancePayment(id){
   var ok=await dbDeleteFinancePayment(id);
@@ -2788,7 +2798,7 @@ function openAssociateModal(paymentId){
   h+='<button class="btn" onclick="TF.closeModal()">Cancel</button>';
   h+='</div></div>';
 
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function associatePayer(){
   var email=(gel('assoc-email')||{}).value||'';
@@ -2893,7 +2903,7 @@ function openExpenseReconcileModal(paymentId){
     h+='</div>'}
 
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 function createScheduledFromExpense(paymentId){
   var p=S.financePayments.find(function(fp){return fp.id===paymentId});
@@ -2938,7 +2948,7 @@ function openAddFinancePayment(){
   h+='</div>';
   h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.addFinancePayment()">'+icon('plus',14)+' Add Payment</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function addFinancePayment(){
   var amt=parseFloat((gel('afp-amount')||{}).value)||0;
@@ -2969,7 +2979,7 @@ function openEditClient(id){
   h+='</div>';
   h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveClient()">'+icon('save',14)+' Save</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function saveClient(){
   var id=(gel('ecl-id')||{}).value;if(!id)return;
@@ -2993,7 +3003,7 @@ function openAddClientModal(){
   h+='</div>';
   h+='<div class="ed-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.addNewClient()">'+icon('check',14)+' Create Client</button><button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function addNewClient(){
   var name=(gel('ncl-name')||{}).value||'';
@@ -3346,7 +3356,7 @@ function openAddScheduledItem(){
   h+='</div>';
   h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveScheduledItem()">'+icon('save',12)+' Add Item</button></div>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 function openEditScheduledItem(id){
   var item=S.scheduledItems.find(function(i){return i.id===id});
@@ -3386,7 +3396,7 @@ function openEditScheduledItem(id){
   h+='<button class="btn" onclick="TF.confirmDeleteScheduledItem(\''+item.id+'\')" style="color:var(--red)">'+icon('trash',12)+' Delete</button>';
   h+='</div>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function saveScheduledItem(){
   var id=gel('si-id')?gel('si-id').value:'';
@@ -3464,7 +3474,7 @@ function openAddTeamMember(){
   h+='<div class="ed-fld" style="margin-top:12px"><span class="ed-lbl">Notes</span><input id="tm-notes" class="edf" placeholder="Optional notes"></div>';
   h+='<div class="edf-actions" style="margin-top:16px"><button class="btn btn-p" onclick="TF.saveTeamMember()">'+icon('save',12)+' Add Member</button></div>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 function openEditTeamMember(id){
   var m=S.teamMembers.find(function(t){return t.id===id});
@@ -3521,7 +3531,7 @@ function openEditTeamMember(id){
   h+='<button class="btn" onclick="TF.confirmDeleteTeamMember(\''+m.id+'\')" style="color:var(--red)">'+icon('trash',12)+' Delete</button>';
   h+='</div>';
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function saveTeamMember(){
   var id=gel('tm-id')?gel('tm-id').value:'';
@@ -3644,7 +3654,7 @@ function openIntegrationsModal(){
   h+='</div>';
 
   h+='</div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
 }
 
 function intgGetFields(platformId){
@@ -4568,7 +4578,7 @@ function openAiDraftReview(id){
   h+='</div>'; /* close split */
 
   gel('detail-body').innerHTML=h;
-  gel('detail-modal').classList.add('on','full-detail','email-light');
+  gel('detail-modal').classList.add('on','full-detail','email-light');_lockBodyScroll();
 
   /* Render initial recipient chips */
   setTimeout(function(){
@@ -4802,7 +4812,7 @@ function _openAddContactModalImpl(clientId,prefill){
   h+='</div>';
 
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveContact()">Add Contact</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   if(prefill){
     if(prefill.email){var fe=gel('fc-email');if(fe)fe.value=prefill.email}
     if(prefill.firstName){var fn=gel('fc-first-name');if(fn)fn.value=prefill.firstName}
@@ -4838,7 +4848,7 @@ function openEditContactModal(contactId){
   h+='</select></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditContact()">Save Contact</button>';
   h+='<button class="btn" onclick="TF.confirmDeleteContact(\''+escAttr(contactId)+'\')" style="color:var(--red)">Delete</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var n=gel('fc-first-name');if(n)n.focus()},100)}
 
 async function saveContact(){
@@ -4917,7 +4927,7 @@ function openAddInvoice(){
   h+='<div class="ed-fld"><span class="ed-lbl">Expected payment</span><input type="date" class="edf" id="inv-expected" value="'+defExp+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="inv-notes" rows="2" placeholder="Optional"></textarea></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveInvoice()">Save Invoice</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var n=gel('inv-client');if(n)n.focus()},100)}
 
 async function saveInvoice(){
@@ -4954,7 +4964,7 @@ function openEditInvoice(id){
   h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="inv-notes" rows="2">'+esc(inv.notes||'')+'</textarea></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditInvoice()">Save</button>';
   h+='<button class="btn" onclick="TF.deleteInvoice(\''+escAttr(id)+'\')" style="color:var(--red)">Delete</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on')}
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
 
 async function saveEditInvoice(){
   var id=(gel('inv-id')||{}).value;if(!id)return;
@@ -4988,7 +4998,7 @@ function openAddEndClientModal(){
   h+='</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fec-notes" rows="3" placeholder="Optional notes"></textarea></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEndClient()">Add End Client</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var n=gel('fec-name');if(n)n.focus()},100)}
 
 async function saveEndClient(){
@@ -5016,7 +5026,7 @@ function openEditEndClientModal(id){
   h+='</select></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditEndClient()">Save</button>';
   h+='<button class="btn" onclick="TF.deleteEndClient(\''+escAttr(id)+'\')" style="color:var(--red)">Delete</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var n=gel('fec-name');if(n)n.focus()},100)}
 
 async function saveEditEndClient(){
@@ -5044,7 +5054,7 @@ function openAddProspectCompanyModal(){
   h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="fpc-source" placeholder="e.g. LinkedIn, Referral, Cold outreach"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fpc-notes" rows="2" placeholder="Optional notes"></textarea></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveProspectCompany()">Add Company</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var n=gel('fpc-name');if(n)n.focus()},100)}
 
 async function saveProspectCompany(){
@@ -5090,7 +5100,7 @@ function openEditProspectCompanyModal(id){
       h+=icon('gem',11)+' '+esc(o.name)+' <span style="color:var(--t4)">['+esc(o.stage)+']</span></div>'})}
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditProspectCompany()">Save</button>';
   h+='<button class="btn" onclick="TF.deleteProspectCompany(\''+escAttr(id)+'\')" style="color:var(--red)">Delete</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var n=gel('fpc-name');if(n)n.focus()},100)}
 
 async function saveEditProspectCompany(){
@@ -5145,7 +5155,7 @@ function openAddProspectModal(prefilledCompanyId){
   h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="fp-source" placeholder="e.g. LinkedIn, Referral, Event"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Notes</span><textarea class="edf" id="fp-notes" rows="2" placeholder="Optional notes"></textarea></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveProspect()">Add Prospect</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var n=gel('fp-first');if(n)n.focus()},100)}
 
 async function saveProspect(){
@@ -5195,7 +5205,7 @@ function openEditProspectModal(id){
   h+='</select></div>';
   h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.saveEditProspect()">Save</button>';
   h+='<button class="btn" onclick="TF.deleteProspect(\''+escAttr(id)+'\')" style="color:var(--red)">Delete</button></div>';
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){var n=gel('fp-first');if(n)n.focus()},100)}
 
 async function saveEditProspect(){
@@ -5254,7 +5264,7 @@ function openInstantlyCampaignConfig(id){
   h+=rInstantlyCampaignTabContent(id);
   h+='</div>';
 
-  gel('m-body').innerHTML=h;gel('modal').classList.add('on');
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll();
   setTimeout(function(){initInstantlyCampaignCharts()},80)}
 
 function rInstantlyCampaignTabContent(id){
