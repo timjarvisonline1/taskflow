@@ -3484,46 +3484,94 @@ function gatherOpContacts(op){
   return{primary:primary,client:clientContacts,endClient:endClientContacts,all:primary.concat(clientContacts).concat(endClientContacts)}}
 
 function rOpportunityDashboard(op,st){
-  var td_=today();
-  var tab=S.opportunityTab||'overview';
   var conf=oppTypeConf(op.type);
   var eid=escAttr(op.id);
   var isClosed=oppIsClosedStage(op.stage);
+  var stages=oppAllStages(op.type);
+  var cliOpts=S.clients.map(function(c){return'<option'+(c===op.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
 
   /* Header */
   var h='<div class="tf-modal-top" style="padding:20px 28px 16px">';
-  h+='<div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap">';
+  h+='<div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">';
   h+='<h2 style="margin:0;font-size:18px;color:var(--t1)">'+esc(op.name)+'</h2>';
   h+='<span class="bg '+opTypeBadgeCls(op.type)+'">'+conf.label+'</span>';
-  h+='<span class="bg '+opStageClass(op.stage,op.type)+'">'+esc(op.stage)+'</span>';
-  h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span>';
-  if(st.totalValue)h+='<span class="bg" style="background:rgba(61,220,132,0.08);color:var(--green)">'+fmtUSD(st.totalValue)+'</span>';
-  if(op.client)h+='<span class="bg bg-cl" style="cursor:pointer" onclick="TF.openClientDetailModal(\''+escAttr(op.client)+'\')">'+esc(op.client)+'</span>';
-  if(op.endClient)h+='<span class="bg bg-ec" style="cursor:pointer" onclick="TF.openEndClientDetailModal(\''+escAttr(op.endClient)+'\')">'+esc(op.endClient)+'</span>';
   h+='</div>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button>';
   h+='</div>';
 
-  /* Tab bar */
-  var oppThreads=S.gmailThreads.filter(function(t){return t.opportunity_id===op.id});
-  var opGroups=gatherOpContacts(op);
-  h+=rEntityTabs([
-    ['overview','Overview','dashboard'],
-    ['tasks','Tasks','tasks',st.openCount||''],
-    ['emails','Emails','mail',oppThreads.length||''],
-    ['contacts','Contacts','contact',opGroups.all.length||''],
-    ['meetings','Meetings','calendar',st.meetingCount||''],
-    ['details','Details','settings']
-  ],tab,'setOpportunityTab');
+  h+='<input type="hidden" id="op-id" value="'+esc(op.id)+'">';
+  h+='<input type="hidden" id="op-type" value="'+esc(op.type)+'">';
 
-  h+='<div class="entity-tab-content">';
-  switch(tab){
-    case'tasks':h+=rOpTabTasks(op,st);break;
-    case'emails':h+=rOpTabEmails(op,st,oppThreads);break;
-    case'contacts':h+=rOpTabContacts(op);break;
-    case'meetings':h+=rOpTabMeetings(op,st);break;
-    case'details':h+=rOpTabDetails(op,st);break;
-    default:h+=rOpTabOverview(op,st)}
+  /* ── Core fields ── */
+  h+='<div style="padding:0 28px">';
+
+  h+='<div class="ed-grid ed-grid-3" style="margin-bottom:12px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+'></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  h+='</div>';
+
+  h+='<div class="ed-grid ed-grid-3" style="margin-bottom:12px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="op-endclient" onchange="TF.ecAddNew(\'op-endclient\')">'+buildEndClientOptions(op.endClientId||op.endClient||'',op.client)+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
+  h+='</div>';
+
+  /* ── Notes ── */
+  h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
+  h+='<textarea class="edf edf-notes" id="op-notes" rows="5" placeholder="Notes about this opportunity..." style="min-height:100px">'+esc(op.notes)+'</textarea></div>';
+
+  /* ── Meetings ── */
+  var allMtgs=st.meetings.slice();
+  (S.meetings||[]).forEach(function(m){
+    if(m.opportunityId===op.id)allMtgs.push({date:m.startTime,title:m.title||'Meeting',
+      recordingLink:m.reportUrl||'',notes:m.summary||'',source:'readai'})});
+  allMtgs.sort(function(a,b){var da=a.date?new Date(a.date):new Date(0);var db=b.date?new Date(b.date):new Date(0);return db-da});
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+  h+='<span class="ed-lbl" style="margin:0">Meetings ('+allMtgs.length+')</span>';
+  h+='<button class="btn" onclick="TF.openAddOpportunityMeeting(\''+eid+'\')" style="font-size:11px;padding:4px 12px">+ Add</button>';
+  h+='</div>';
+  if(allMtgs.length){
+    h+='<div class="tf-panel" style="margin-bottom:16px">';
+    allMtgs.forEach(function(m){
+      h+='<div class="tf-row" style="padding:8px 14px">';
+      h+='<div class="tf-row-left"><span style="font-size:11px;color:var(--t3);min-width:70px">'+(m.date?fmtDShort(new Date(m.date)):'-')+'</span>';
+      h+='<span style="font-size:12px;font-weight:500;color:var(--t1)">'+esc(m.title)+'</span></div>';
+      h+='<div class="tf-row-right">';
+      if(m.recordingLink)h+='<a href="'+esc(m.recordingLink)+'" target="_blank" style="font-size:10px;color:var(--blue)" onclick="event.stopPropagation()">Recording</a>';
+      if(!m.source)h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.4">'+icon('x',10)+'</button>';
+      h+='</div></div>'});
+    h+='</div>'}
+  else{h+='<div style="padding:12px 0 16px;color:var(--t4);font-size:12px">No meetings yet</div>'}
+
+  /* ── Tasks ── */
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+  h+='<span class="ed-lbl" style="margin:0">Tasks ('+st.openCount+')</span>';
+  h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\',client:\''+escAttr(op.client||'')+'\',endClient:\''+escAttr(op.endClient||'')+'\'});" style="font-size:11px;padding:4px 12px">+ Add</button>';
+  h+='</div>';
+  if(st.openTasks.length){
+    h+='<div class="tf-panel" style="margin-bottom:16px">';
+    st.openTasks.forEach(function(t){
+      var eid2=escAttr(t.id);
+      h+='<div class="tf-row" style="padding:8px 14px">';
+      h+='<div class="tf-row-left">';
+      h+='<span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:2px 6px;flex-shrink:0">'+esc(t.importance.charAt(0))+'</span>';
+      h+='<span style="font-size:12px;color:var(--t1);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openDetail(\''+eid2+'\')},100)">'+esc(t.item)+'</span></div>';
+      h+='<div class="tf-row-right">';
+      if(t.due)h+='<span style="font-size:10px;color:var(--t4)">'+fmtDShort(t.due)+'</span>';
+      h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid2+'\')" title="Complete">'+CK_XS+'</button>';
+      h+='</div></div>'});
+    h+='</div>'}
+  else{h+='<div style="padding:12px 0 16px;color:var(--t4);font-size:12px">No open tasks</div>'}
+
+  /* ── Actions ── */
+  h+='<div class="ed-actions" style="margin-top:8px;padding-bottom:20px">';
+  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">Save</button>';
+  if(!isClosed){
+    h+='<button class="btn" style="background:rgba(255,51,88,0.06);color:var(--red);border-color:rgba(255,51,88,0.2)" onclick="TF.closeAsLost(\''+eid+'\')">Close as Lost</button>'}
+  h+='<button class="btn ab-del" style="margin-left:auto" onclick="TF.confirmDeleteOpportunity()">Delete</button>';
+  h+='</div>';
+
   h+='</div>';
   return h}
 

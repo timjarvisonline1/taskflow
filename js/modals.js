@@ -1851,41 +1851,11 @@ async function saveOpportunity(){
   var id=gel('op-id').value;var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
   op.name=(gel('op-name').value||'').trim();if(!op.name){toast('Opportunity name required','warn');return}
   op.stage=gel('op-stage').value;
-  op.client=gel('op-client').value||'';
+  op.client=gel('op-client')?gel('op-client').value||'':'';
   var _opEcRaw=gel('op-endclient')?(gel('op-endclient').value||'').trim():'';op.endClientId=resolveEndClientId(_opEcRaw)||null;op.endClient=op.endClientId?endClientNameById(op.endClientId):_opEcRaw;
   op.contactName=(gel('op-contact').value||'').trim();
   op.contactEmail=(gel('op-email').value||'').trim();
-  op.source=(gel('op-source').value||'').trim();
-  op.strategyFee=parseFloat(gel('op-strategy').value)||0;
-  op.setupFee=gel('op-setup')?parseFloat(gel('op-setup').value)||0:0;
-  op.monthlyFee=gel('op-monthly')?parseFloat(gel('op-monthly').value)||0:0;
-  op.monthlyAdSpend=gel('op-adspend')?parseFloat(gel('op-adspend').value)||0:0;
-  op.probability=parseInt(gel('op-prob').value)||50;
-  op.expectedClose=gel('op-close')&&gel('op-close').value?new Date(gel('op-close').value+'T00:00:00'):null;
-  op.description=gel('op-desc')?(gel('op-desc').value||'').trim():'';
-  op.notes=gel('op-notes').value||'';
-  op.paymentPlan=gel('op-payplan')?gel('op-payplan').value||'':'';
-  op.paymentMethod=gel('op-paymethod')?gel('op-paymethod').value||'bank_transfer':'bank_transfer';
-  op.processingFeePct=gel('op-procfee')?parseFloat(gel('op-procfee').value)||0:0;
-  op.receivingAccount=gel('op-recvacct')?gel('op-recvacct').value||'':'';
-  op.expectedMonthlyDuration=gel('op-monthdur')?parseInt(gel('op-monthdur').value)||12:12;
-  op.contactJobTitle=gel('op-jobtitle')?(gel('op-jobtitle').value||'').trim():'';
-  op.prospectWebsite=gel('op-website')?(gel('op-website').value||'').trim():'';
-  op.previousRelationship=gel('op-prevrel')?(gel('op-prevrel').value||'').trim():'';
-  op.companyDescription=gel('op-compdesc')?(gel('op-compdesc').value||'').trim():'';
-  op.prospectDescription=gel('op-prospdesc')?(gel('op-prospdesc').value||'').trim():'';
-  op.videoStrategyBenefits=gel('op-vidbene')?(gel('op-vidbene').value||'').trim():'';
-  /* Prospect company/prospect FKs (from edit form if present) */
-  var _opPcEl=gel('op-pc');
-  if(_opPcEl){
-    if(_opPcEl.tagName==='INPUT'){op.prospectCompanyId=null}
-    else if(_opPcEl.value&&_opPcEl.value!=='__manual__'){op.prospectCompanyId=_opPcEl.value}
-    else{op.prospectCompanyId=null}}
-  var _opPrEl=gel('op-prospect');
-  if(_opPrEl){
-    if(_opPrEl.tagName==='INPUT'){op.prospectId=null}
-    else if(_opPrEl.value&&_opPrEl.value!=='__manual__'){op.prospectId=_opPrEl.value}
-    else{op.prospectId=null}}
+  op.notes=gel('op-notes')?gel('op-notes').value||'':'';
   await dbEditOpportunity(id,op);
   toast('Saved: '+op.name,'ok');closeModal();render()}
 
@@ -1910,85 +1880,30 @@ function openAddOpportunity(){
 
 /* Populate add form after type selection */
 function selectOpType(type){
-  /* Highlight selected card */
   var cards=document.querySelectorAll('.op-type-card');
   cards.forEach(function(c){c.classList.toggle('selected',c.getAttribute('data-type')===type)});
 
   var conf=oppTypeConf(type);
-  var isRL=type==='retain_live';
   var cliOpts=S.clients.map(function(c){return'<option>'+esc(c)+'</option>'}).join('');
 
   var h='<input type="hidden" id="nop-type" value="'+type+'">';
   h+='<div style="padding:6px 0"><input type="text" class="edf" id="nop-name" placeholder="Opportunity name..." autofocus style="font-size:15px;font-weight:600;padding:11px 14px"></div>';
 
-  h+='<div class="ed-grid ed-grid-3">';
   var allStages=conf.stages.slice();if(conf.awaitingStage)allStages.push(conf.awaitingStage);
+  h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="nop-stage">'+allStages.map(function(s){return'<option>'+s+'</option>'}).join('')+'</select></div>';
-  if(isRL){
-    /* Retain Live: Prospect Company and Prospect dropdowns */
-    h+='<div class="ed-fld"><span class="ed-lbl">Prospect Company</span><select class="edf" id="nop-pc" onchange="TF.nopPcChange()"><option value="">Select company...</option>';
-    (S.prospectCompanies||[]).filter(function(pc){return pc.status==='active'}).forEach(function(pc){
-      h+='<option value="'+escAttr(pc.id)+'">'+esc(pc.name)+'</option>'});
-    h+='<option value="__manual__">Enter manually...</option></select></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Prospect</span><select class="edf" id="nop-prospect" onchange="TF.nopProspectChange()"><option value="">Select prospect...</option>';
-    (S.prospects||[]).filter(function(p){return p.status==='active'}).forEach(function(p){
-      var pName=(p.firstName+' '+p.lastName).trim()||p.email;
-      h+='<option value="'+escAttr(p.id)+'">'+esc(pName)+(p.email?' ('+esc(p.email)+')':'')+'</option>'});
-    h+='<option value="__manual__">Enter manually...</option></select></div>';
-  }else{
-    h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="nop-client" onchange="TF.refreshNopEndClients()"><option value="">Select...</option>'+cliOpts+'</select></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="nop-endclient" onchange="TF.ecAddNew(\'nop-endclient\')">'+buildEndClientOptions('','')+'</select></div>';
-  }
+  h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="nop-client" onchange="TF.refreshNopEndClients()"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="nop-endclient" onchange="TF.ecAddNew(\'nop-endclient\')">'+buildEndClientOptions('','')+'</select></div>';
   h+='</div>';
 
-  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="nop-contact" placeholder="Key contact..."></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="nop-email" placeholder="email@..."></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Source</span><input type="text" class="edf" id="nop-source" placeholder="Referral, Inbound..."></div>';
   h+='</div>';
 
-  /* Fee fields — type-specific */
-  if(isRL){
-    h+='<div class="ed-grid ed-grid-3">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Program Fee</span><input type="number" class="edf" id="nop-strategy" value="5000" min="0" step="0.01"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Payment Plan</span><select class="edf" id="nop-payplan"><option value="one_time">One-time ($5,000)</option><option value="3_monthly">3x Monthly ($2,000)</option><option value="custom">Custom</option></select></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="nop-prob" value="50" min="0" max="100"></div>';
-    h+='</div>';
-  }else{
-    var isFCP=type==='fc_partnership';
-    h+='<div class="ed-grid ed-grid-4">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Strategy Fee</span><input type="number" class="edf" id="nop-strategy" min="0" step="0.01" placeholder="0.00"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Setup Fee</span><input type="number" class="edf" id="nop-setup" value="'+(isFCP?'5000':'')+'" min="0" step="0.01" placeholder="0.00"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Fee</span><input type="number" class="edf" id="nop-monthly" value="'+(isFCP?'2000':'')+'" min="0" step="0.01" placeholder="0.00"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Monthly Ad Spend</span><input type="number" class="edf" id="nop-adspend" min="0" step="0.01" placeholder="0.00"></div>';
-    h+='</div>';
-    h+='<div class="ed-grid ed-grid-3">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Win Probability %</span><input type="number" class="edf" id="nop-prob" value="50" min="0" max="100"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="nop-close"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="nop-desc" placeholder="Brief description..."></div>';
-    h+='</div>';
-    if(isFCP){
-      h+='<div style="margin-top:8px;padding:12px;background:var(--bg2);border-radius:10px;border:1px solid var(--bd)">';
-      h+='<span class="ed-lbl" style="margin-bottom:8px;display:block">Brief Details</span>';
-      h+='<div class="ed-grid ed-grid-2">';
-      h+='<div class="ed-fld"><span class="ed-lbl" style="font-size:9px">Job Title</span><input type="text" class="edf" id="nop-jobtitle" placeholder="Contact job title..."></div>';
-      h+='<div class="ed-fld"><span class="ed-lbl" style="font-size:9px">Website</span><input type="url" class="edf" id="nop-website" placeholder="https://..."></div>';
-      h+='</div>';
-      h+='<div class="ed-fld" style="margin-bottom:6px"><span class="ed-lbl" style="font-size:9px">Previous Relationship</span><textarea class="edf edf-notes" id="nop-prevrel" rows="2" placeholder="Previous working relationship..."></textarea></div>';
-      h+='<div class="ed-fld" style="margin-bottom:6px"><span class="ed-lbl" style="font-size:9px">Company Description</span><textarea class="edf edf-notes" id="nop-compdesc" rows="2" placeholder="Brief company description..."></textarea></div>';
-      h+='<div class="ed-fld" style="margin-bottom:6px"><span class="ed-lbl" style="font-size:9px">Prospect Description</span><textarea class="edf edf-notes" id="nop-prospdesc" rows="2" placeholder="Brief prospect description..."></textarea></div>';
-      h+='<div class="ed-fld"><span class="ed-lbl" style="font-size:9px">Video Strategy Benefits</span><textarea class="edf edf-notes" id="nop-vidbene" rows="2" placeholder="Benefits of a video strategy..."></textarea></div>';
-      h+='</div>'}}
-
-  if(isRL){
-    h+='<div class="ed-grid ed-grid-2">';
-    h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="nop-close"></div>';
-    h+='<div class="ed-fld"><span class="ed-lbl">Description</span><input type="text" class="edf" id="nop-desc" placeholder="Brief description..."></div>';
-    h+='</div>'}
-
   h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
-  h+='<textarea class="edf edf-notes" id="nop-notes" placeholder="Notes about this opportunity..." rows="2"></textarea></div>';
-  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.addOpportunity()">'+icon('gem',12)+' Create Opportunity</button></div>';
+  h+='<textarea class="edf edf-notes" id="nop-notes" placeholder="Notes about this opportunity..." rows="3"></textarea></div>';
+  h+='<div class="ed-actions"><button class="btn btn-p" onclick="TF.addOpportunity()">Create Opportunity</button></div>';
 
   gel('nop-form').innerHTML=h;
   gel('nop-form').style.display='';
@@ -1997,56 +1912,20 @@ function selectOpType(type){
 async function addOpportunity(){
   var name=(gel('nop-name').value||'').trim();if(!name){toast('Enter opportunity name','warn');return}
   var type=gel('nop-type')?gel('nop-type').value||'fc_partnership':'fc_partnership';
-  var isRL=type==='retain_live';
-  /* Resolve prospect/company for RL */
-  var _pcId=null,_prId=null;
-  if(isRL){
-    var pcEl=gel('nop-pc');
-    if(pcEl){
-      if(pcEl.tagName==='INPUT'){var pcN=pcEl.value.trim();if(pcN){var pcR=resolveProspectCompanyId(pcN);_pcId=pcR||null}}
-      else if(pcEl.value&&pcEl.value!=='__manual__'){_pcId=pcEl.value}}
-    var prEl=gel('nop-prospect');
-    if(prEl){
-      if(prEl.tagName==='INPUT'){}/* manual — no prospect_id */
-      else if(prEl.value&&prEl.value!=='__manual__'){_prId=prEl.value}}}
   var data={name:name,type:type,stage:gel('nop-stage').value||oppTypeConf(type).stages[0],
-    client:gel('nop-client')?(gel('nop-client').value||''):(isRL?'':''),
+    client:gel('nop-client')?(gel('nop-client').value||''):'',
     endClient:(function(){var _el=gel('nop-endclient');if(!_el)return '';var _v=(_el.value||'').trim();var _i=resolveEndClientId(_v);return _i?endClientNameById(_i):_v})(),
     endClientId:(function(){var _el=gel('nop-endclient');if(!_el)return null;var _v=(_el.value||'').trim();return resolveEndClientId(_v)||null})(),
-    prospectCompanyId:_pcId,prospectId:_prId,
     contactName:(gel('nop-contact').value||'').trim(),contactEmail:(gel('nop-email').value||'').trim(),
-    source:(gel('nop-source').value||'').trim(),
-    strategyFee:parseFloat(gel('nop-strategy').value)||0,
-    setupFee:gel('nop-setup')?parseFloat(gel('nop-setup').value)||0:0,
-    monthlyFee:gel('nop-monthly')?parseFloat(gel('nop-monthly').value)||0:0,
-    monthlyAdSpend:gel('nop-adspend')?parseFloat(gel('nop-adspend').value)||0:0,
-    probability:parseInt(gel('nop-prob').value)||50,
-    expectedClose:gel('nop-close')&&gel('nop-close').value?gel('nop-close').value:null,
-    description:gel('nop-desc')?(gel('nop-desc').value||'').trim():'',
     notes:gel('nop-notes').value||'',
-    paymentPlan:gel('nop-payplan')?gel('nop-payplan').value||'':'',
-    paymentMethod:'bank_transfer',processingFeePct:0,receivingAccount:'',
-    expectedMonthlyDuration:isRL?1:12,
-    contactJobTitle:gel('nop-jobtitle')?(gel('nop-jobtitle').value||'').trim():'',
-    prospectWebsite:gel('nop-website')?(gel('nop-website').value||'').trim():'',
-    previousRelationship:gel('nop-prevrel')?(gel('nop-prevrel').value||'').trim():'',
-    companyDescription:gel('nop-compdesc')?(gel('nop-compdesc').value||'').trim():'',
-    prospectDescription:gel('nop-prospdesc')?(gel('nop-prospdesc').value||'').trim():'',
-    videoStrategyBenefits:gel('nop-vidbene')?(gel('nop-vidbene').value||'').trim():'',
-    closeReason:''};
+    probability:50,closeReason:''};
   var result=await dbAddOpportunity(data);
   if(!result){toast('Failed to create opportunity','warn');return}
-  S.opportunities.unshift({id:result.id,name:data.name,description:data.description||'',stage:data.stage,type:data.type,
+  S.opportunities.unshift({id:result.id,name:data.name,description:'',stage:data.stage,type:data.type,
     client:data.client,endClient:data.endClient,contactName:data.contactName,contactEmail:data.contactEmail,
-    strategyFee:data.strategyFee,setupFee:data.setupFee,monthlyFee:data.monthlyFee,monthlyAdSpend:data.monthlyAdSpend,
-    probability:data.probability,expectedClose:data.expectedClose?new Date(data.expectedClose+'T00:00:00'):null,
-    source:data.source,notes:data.notes,paymentPlan:data.paymentPlan,closedAt:null,convertedCampaignId:'',created:new Date(),
-    paymentMethod:data.paymentMethod,processingFeePct:data.processingFeePct,
-    receivingAccount:data.receivingAccount,expectedMonthlyDuration:data.expectedMonthlyDuration,
-    contactJobTitle:data.contactJobTitle,prospectWebsite:data.prospectWebsite,
-    previousRelationship:data.previousRelationship,companyDescription:data.companyDescription,
-    prospectDescription:data.prospectDescription,videoStrategyBenefits:data.videoStrategyBenefits,
-    prospectCompanyId:data.prospectCompanyId||null,prospectId:data.prospectId||null,
+    strategyFee:0,setupFee:0,monthlyFee:0,monthlyAdSpend:0,
+    probability:data.probability,expectedClose:null,
+    source:'',notes:data.notes,closedAt:null,convertedCampaignId:'',created:new Date(),
     closeReason:''});
   toast('Created: '+data.name,'ok');closeModal();
   // If created from a meeting AI suggestion, link opportunity to meeting
