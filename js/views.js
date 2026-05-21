@@ -412,7 +412,8 @@ function rDashboard(){
   var pipelineValue=activeOpps.reduce(function(s,o){return s+_oppValue(o)},0);
   var oppsNeedingAttn=activeOpps.filter(function(o){
     var lastTouchMs=(o.updated_at?new Date(o.updated_at):o.created?new Date(o.created):new Date()).getTime();
-    return(Date.now()-lastTouchMs)/86400000>=14||!o.expectedClose||(o.expectedClose&&o.expectedClose.toISOString().slice(0,10)<td_&&!oppIsClosedStage(o.stage))}).length;
+    var ec=_oppEarliestClose(o);
+    return(Date.now()-lastTouchMs)/86400000>=14||(ec&&ec<td_&&!oppIsClosedStage(o.stage))}).length;
 
   /* Stale clients (no contact 14+ days, has active campaign) */
   var staleClients=0;
@@ -814,7 +815,7 @@ function rClientsStale(){
     return h}
 
   h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>';
-  ['Client','Last contact','Last email','Last meeting','Open tasks','Campaigns',''].forEach(function(col){
+  ['Client','Last contact','Last email','Last meeting','Open tasks','F&C Strategies',''].forEach(function(col){
     h+='<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--gborder);color:var(--t3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.04em">'+col+'</th>'});
   h+='</tr></thead><tbody>';
   rows.forEach(function(c){
@@ -1009,7 +1010,7 @@ function rEndClients(){
   h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setEcSort(\'name\')">End Client'+sortArrow('name')+'</th>';
   h+='<th style="text-align:left;'+thStyle+'" onclick="TF.setEcSort(\'client\')">Client'+sortArrow('client')+'</th>';
   h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'contacts\')">Contacts'+sortArrow('contacts')+'</th>';
-  h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'campaigns\')">Campaigns'+sortArrow('campaigns')+'</th>';
+  h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'campaigns\')">F&amp;C Strategies'+sortArrow('campaigns')+'</th>';
   h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'tasks\')">Open Tasks'+sortArrow('tasks')+'</th>';
   h+='<th class="r" style="'+thStyle+'" onclick="TF.setEcSort(\'pipeline\')">Pipeline'+sortArrow('pipeline')+'</th>';
   h+='</tr></thead><tbody>';
@@ -1025,7 +1026,7 @@ function rEndClients(){
     else h+='<span style="color:var(--t4)">-</span>';
     h+='</td>';
     h+='<td class="nm" data-label="Contacts">'+ec.contacts+'</td>';
-    h+='<td class="nm" data-label="Campaigns">';
+    h+='<td class="nm" data-label="F&amp;C Strategies">';
     if(ec.campaigns)h+='<span style="color:var(--amber)">'+ec.activeCampaigns+'</span> <span style="color:var(--t4);font-size:10px">/ '+ec.campaigns+'</span>';
     else h+='<span style="color:var(--t4)">-</span>';
     h+='</td>';
@@ -1482,14 +1483,14 @@ function rEcTabOverview(ec,td_,ecContacts){
   h+=dashMet('Open Tasks',ec.openTasks,'var(--blue)');
   h+=dashMet('Overdue',ec.overdueTasks,ec.overdueTasks?'var(--red)':'var(--green)');
   h+=dashMet('Contacts',ecContacts.length,'var(--t1)');
-  h+=dashMet('Campaigns',ec.activeCampaigns+'/'+ec.campaigns,'var(--amber)');
+  h+=dashMet('F&C Strategies',ec.activeCampaigns+'/'+ec.campaigns,'var(--amber)');
   h+=dashMet('Pipeline',fmtUSD(ec.pipelineValue),'var(--purple50)');
   h+='</div>';
 
   /* Charts (2 column) */
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
   h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
-  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Campaigns by Status</div>';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">F&amp;C Strategies by Status</div>';
   h+='<div style="height:160px"><canvas id="ch-ec-campaigns"></canvas></div></div>';
   h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:14px">';
   h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">Task Completions</div>';
@@ -1515,9 +1516,9 @@ function rEcTabOverview(ec,td_,ecContacts){
       'Review campaign performance for '+ec.name],
     placeholder:'Ask about '+ec.name+'...',collapsed:false});
 
-  /* Campaigns */
+  /* F&C Strategies */
   if(ec.campaignList.length){
-    h+='<div class="dash-section">'+icon('target',13)+' Campaigns ('+ec.campaignList.length+')</div>';
+    h+='<div class="dash-section">'+icon('target',13)+' F&amp;C Strategies ('+ec.campaignList.length+')</div>';
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:16px">';
     ec.campaignList.forEach(function(cp){
       h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')" onmouseenter="this.style.borderColor=\'var(--accent)\'" onmouseleave="this.style.borderColor=\'var(--gborder)\'">';
@@ -1665,7 +1666,7 @@ function rEcTabDetails(ec){
   /* Summary */
   h+='<div class="dash-section">Summary</div>';
   h+='<div class="dash-mets">';
-  h+=dashMet('Campaigns',ec.campaigns,'var(--amber)');
+  h+=dashMet('F&C Strategies',ec.campaigns,'var(--amber)');
   h+=dashMet('Opportunities',ec.opportunities,'var(--purple50)');
   h+=dashMet('Open Tasks',ec.openTasks,'var(--blue)');
   h+=dashMet('Contacts',S.contacts.filter(function(cc){return cc.endClient===ec.name}).length,'var(--t1)');
@@ -1737,7 +1738,7 @@ function rClTabOverview(c,td_,contacts){
   h+=dashMet('Open Tasks',c.openTasks,'var(--blue)');
   h+=dashMet('Overdue',c.overdueTasks,c.overdueTasks?'var(--red)':'var(--green)');
   h+=dashMet('Time Tracked',fmtM(c.timeTracked),'var(--pink)');
-  h+=dashMet('Campaigns',c.activeCampaigns+'/'+c.campaigns,'var(--amber)');
+  h+=dashMet('F&C Strategies',c.activeCampaigns+'/'+c.campaigns,'var(--amber)');
   h+=dashMet('Pipeline',fmtUSD(c.pipelineValue),'var(--purple50)');
   h+='</div>';
 
@@ -1781,9 +1782,9 @@ function rClTabOverview(c,td_,contacts){
       'Review meeting notes for '+c.name,'What is the revenue trend for '+c.name+'?'],
     placeholder:'Ask about '+c.name+'...',collapsed:false});
 
-  /* Campaigns */
+  /* F&C Strategies */
   if(c.campaignList.length){
-    h+='<div class="dash-section">'+icon('target',13)+' Campaigns ('+c.campaignList.length+')</div>';
+    h+='<div class="dash-section">'+icon('target',13)+' F&amp;C Strategies ('+c.campaignList.length+')</div>';
     h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:16px">';
     c.campaignList.forEach(function(cp){
       h+='<div style="background:var(--glass);border:1px solid var(--gborder);border-radius:10px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s" onclick="TF.openCampaignDetail(\''+escAttr(cp.id)+'\')" onmouseenter="this.style.borderColor=\'var(--accent)\'" onmouseleave="this.style.borderColor=\'var(--gborder)\'">';
@@ -3594,37 +3595,49 @@ function rOpportunityDashboard(op,st){
   h+='<div class="ed-fld"><span class="ed-lbl">Overall Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||'')+'" min="0" max="100" placeholder="50"></div>';
   h+='<div></div><div></div></div>';
 
-  /* ── Fee lines ── */
-  h+='<div style="margin-bottom:16px">';
-  h+='<span class="ed-lbl" style="margin-bottom:8px;display:block">Revenue</span>';
-  h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:10px;overflow:hidden">';
+  /* ── Fee type toggles ── */
+  var ft=op.feeTypes||'';
+  var hasSF=ft.indexOf('strategy')!==-1,hasSU=ft.indexOf('setup')!==-1,hasMF=ft.indexOf('monthly')!==-1;
+  h+='<div style="margin-bottom:12px">';
+  h+='<span class="ed-lbl" style="margin-bottom:8px;display:block">Fee Types</span>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  h+='<label class="fee-toggle'+(hasSF?' on':'')+'"><input type="checkbox" id="op-ft-strategy"'+(hasSF?' checked':'')+' onchange="TF.toggleFeeType(\'strategy\')"><span>Strategy Fee</span></label>';
+  h+='<label class="fee-toggle'+(hasSU?' on':'')+'"><input type="checkbox" id="op-ft-setup"'+(hasSU?' checked':'')+' onchange="TF.toggleFeeType(\'setup\')"><span>Setup Fee</span></label>';
+  h+='<label class="fee-toggle'+(hasMF?' on':'')+'"><input type="checkbox" id="op-ft-monthly"'+(hasMF?' checked':'')+' onchange="TF.toggleFeeType(\'monthly\')"><span>Monthly Fee</span></label>';
+  h+='</div></div>';
 
-  h+='<div style="padding:10px 14px;border-bottom:1px solid var(--gborder)">';
+  /* ── Fee detail sections (only visible when toggled on) ── */
+  h+='<div id="op-fee-sections" style="margin-bottom:16px">';
+
+  h+='<div id="op-fee-strategy" style="'+(hasSF?'':'display:none;')+'margin-bottom:8px">';
+  h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px">';
   h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Strategy Fee</div>';
   h+='<div class="ed-grid ed-grid-3" style="margin:0">';
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-sf-close" value="'+(op.strategyFeeClose||'')+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-sf-prob" value="'+(op.strategyFeeProb!=null?op.strategyFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
-  h+='</div></div>';
+  h+='</div></div></div>';
 
-  h+='<div style="padding:10px 14px;border-bottom:1px solid var(--gborder)">';
+  h+='<div id="op-fee-setup" style="'+(hasSU?'':'display:none;')+'margin-bottom:8px">';
+  h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px">';
   h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Setup Fee</div>';
   h+='<div class="ed-grid ed-grid-3" style="margin:0">';
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-su-close" value="'+(op.setupFeeClose||'')+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-su-prob" value="'+(op.setupFeeProb!=null?op.setupFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
-  h+='</div></div>';
+  h+='</div></div></div>';
 
-  h+='<div style="padding:10px 14px">';
+  h+='<div id="op-fee-monthly" style="'+(hasMF?'':'display:none;')+'margin-bottom:8px">';
+  h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px">';
   h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Monthly Fee</div>';
   h+='<div class="ed-grid ed-grid-4" style="margin:0">';
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Months</span><input type="number" class="edf" id="op-mf-months" value="'+(op.monthlyFeeMonths||'')+'" min="1" placeholder="12"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Expected Start</span><input type="date" class="edf" id="op-mf-start" value="'+(op.monthlyFeeStart||'')+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
-  h+='</div></div>';
+  h+='</div></div></div>';
 
-  h+='</div></div>';
+  h+='</div>';
 
   /* ── Notes ── */
   h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
@@ -3656,8 +3669,10 @@ function rOpportunityDashboard(op,st){
   /* ── Tasks ── */
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
   h+='<span class="ed-lbl" style="margin:0">Tasks ('+st.openCount+')</span>';
+  h+='<div style="display:flex;gap:6px">';
+  h+='<button class="btn" onclick="TF.createOppFollowUp(\''+eid+'\')" style="font-size:11px;padding:4px 12px">'+icon('calendar',11)+' Follow-up</button>';
   h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\',client:\''+escAttr(op.client||'')+'\',endClient:\''+escAttr(op.endClient||'')+'\'});" style="font-size:11px;padding:4px 12px">+ Add</button>';
-  h+='</div>';
+  h+='</div></div>';
   if(st.openTasks.length){
     h+='<div class="tf-panel" style="margin-bottom:16px">';
     st.openTasks.forEach(function(t){
@@ -4049,9 +4064,9 @@ function rOpportunities(){
   var needsAttn=ops.filter(function(o){
     var lastTouchMs=(o.updated_at?new Date(o.updated_at):o.created?new Date(o.created):new Date()).getTime();
     var daysSince=Math.round((Date.now()-lastTouchMs)/86400000);
+    var ec=_oppEarliestClose(o);
     return daysSince>=14
-      ||(!o.expectedClose)
-      ||(o.expectedClose&&o.expectedClose.toISOString().slice(0,10)<td&&o.stage&&!oppIsClosedStage(o.stage))});
+      ||(ec&&ec<td&&o.stage&&!oppIsClosedStage(o.stage))});
 
   /* KPIs */
   var pipelineValue=ops.reduce(function(s,o){return s+_oppValue(o)},0);
@@ -4131,13 +4146,18 @@ function rOpportunities(){
   });
   return h}
 
-function _oppValue(o){return(Number(o.strategyFee||0)+Number(o.setupFee||0)+Number(o.monthlyFee||0)*Number(o.monthlyFeeMonths||12))}
+function _oppValue(o){
+  var v=0;
+  if(_oppHasFee(o,'strategy'))v+=Number(o.strategyFee||0);
+  if(_oppHasFee(o,'setup'))v+=Number(o.setupFee||0);
+  if(_oppHasFee(o,'monthly'))v+=Number(o.monthlyFee||0)*Number(o.monthlyFeeMonths||12);
+  return v}
 function setOpProbFilter(v){S.opProbFilter=v;render()}
 function _oppAttentionReason(o,td){
   var lastTouchMs=(o.updated_at?new Date(o.updated_at):o.created?new Date(o.created):new Date()).getTime();
   var daysSince=Math.round((Date.now()-lastTouchMs)/86400000);
-  if(!o.expectedClose)return'No close date set';
-  if(o.expectedClose&&o.expectedClose.toISOString().slice(0,10)<td)return'Past expected close';
+  var ec=_oppEarliestClose(o);
+  if(ec&&ec<td)return'Past expected close';
   if(daysSince>=30)return'No update '+daysSince+'d';
   return daysSince+'d stale'}
 
@@ -4191,7 +4211,7 @@ function opCardCompact(op,td_,idx,compact){
     if(st.totalValue)h+='<span class="op-card-val">'+fmtUSD(st.totalValue)+'</span>';
     h+='<span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span>';
     if(st.openCount)h+='<span class="op-card-stat" style="color:var(--blue)">'+st.openCount+'</span>';
-    if(op.expectedClose)h+='<span class="op-card-stat">'+icon('calendar',11)+' '+fmtDShort(op.expectedClose)+'</span>';
+    var _ec=_oppEarliestClose(op);if(_ec)h+='<span class="op-card-stat">'+icon('calendar',11)+' '+_ec+'</span>';
     h+='</span>';
   }
   h+='</div>';
@@ -4201,8 +4221,9 @@ function opCardCompact(op,td_,idx,compact){
 function sortOpps(arr){
   arr.sort(function(a,b){
     if(b.probability!==a.probability)return b.probability-a.probability;
-    var aClose=a.expectedClose?a.expectedClose.getTime():Infinity;
-    var bClose=b.expectedClose?b.expectedClose.getTime():Infinity;
+    var _aEc=_oppEarliestClose(a),_bEc=_oppEarliestClose(b);
+    var aClose=_aEc?new Date(_aEc).getTime():Infinity;
+    var bClose=_bEc?new Date(_bEc).getTime():Infinity;
     if(aClose!==bClose)return aClose-bClose;
     return(b.created?b.created.getTime():0)-(a.created?a.created.getTime():0)});
   return arr}
@@ -4438,7 +4459,7 @@ function rOppTypeList(typeKey,m){
     h+='<td class="nm" style="color:var(--green)">'+fmtUSD(st.totalValue)+'</td>';
     h+='<td class="tc"><span class="op-prob '+probClass(op.probability)+'">'+op.probability+'%</span></td>';
     h+='<td class="nm" style="color:var(--amber)">'+fmtUSD(st.weightedValue)+'</td>';
-    h+='<td>'+(op.expectedClose?fmtDShort(op.expectedClose):'\u2014')+'</td>';
+    var _elc=_oppEarliestClose(op);h+='<td>'+(_elc||'\u2014')+'</td>';
     h+='<td class="tc">'+st.openCount+'</td>';
     h+='</tr>'});
   h+='</tbody></table></div>';
@@ -4680,11 +4701,11 @@ function rCampaigns(){
   var openTaskCount=0,overdueCount=0;
   visible.forEach(function(cp){var st=getCampaignStats(cp);openTaskCount+=st.openCount;st.openTasks.forEach(function(t){if(t.due&&t.due<td)overdueCount++})});
 
-  var h='<div class="pg-head"><h1>'+icon('target',18)+' Campaigns <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+camps.length+'</span></h1>';
-  h+='<button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:13px;padding:8px 18px">+ Add Campaign</button></div>';
+  var h='<div class="pg-head"><h1>'+icon('target',18)+' F&amp;C Strategies <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+camps.length+'</span></h1>';
+  h+='<button class="btn btn-p" onclick="TF.openAddCampaign()" style="font-size:13px;padding:8px 18px">+ Add Strategy</button></div>';
 
   if(!camps.length){
-    h+='<div class="tf-empty"><strong>No campaigns yet</strong><br>Campaigns are ongoing client engagements with monthly fees. Convert a closed-won F&C opportunity to create one, or click <strong>+ Add Campaign</strong>.</div>';
+    h+='<div class="tf-empty"><strong>No strategies yet</strong><br>F&amp;C Strategies are ongoing client engagements with monthly fees. Convert a closed-won F&amp;C opportunity to create one, or click <strong>+ Add Strategy</strong>.</div>';
     return h}
 
   h+='<div class="tf-kpi-strip">';
@@ -5253,7 +5274,7 @@ function rCampaignPerformance(campaigns,td_){
   var h='<div class="cp-dash">';
   h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--green)">'+fmtUSD(totalRevenue)+'</div><div class="cp-dash-met-l">Total Revenue</div></div>';
   h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--pink)">'+fmtM(totalTime)+'</div><div class="cp-dash-met-l">Total Time</div></div>';
-  h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--t1)">'+active.length+'</div><div class="cp-dash-met-l">Active Campaigns</div></div>';
+  h+='<div class="cp-dash-met"><div class="cp-dash-met-v" style="color:var(--t1)">'+active.length+'</div><div class="cp-dash-met-l">Active Strategies</div></div>';
   h+='</div>';
 
   /* Revenue by campaign */
@@ -5843,15 +5864,15 @@ function rFinanceForecastSimple(){
     (S.opportunities||[]).forEach(function(op){
       if(oppIsClosedStage(op.stage))return;
       var name=op.endClient||op.client||op.name;
-      if(op.strategyFee&&op.strategyFeeClose&&op.strategyFeeClose>=td&&op.strategyFeeClose<=endDt){
+      if(_oppHasFee(op,'strategy')&&op.strategyFee&&op.strategyFeeClose&&op.strategyFeeClose>=td&&op.strategyFeeClose<=endDt){
         var amt=op.strategyFee*(op.strategyFeeProb!=null?op.strategyFeeProb/100:1);
         if(amt&&days[op.strategyFeeClose]){days[op.strategyFeeClose].in+=amt;
           days[op.strategyFeeClose].events.push({label:'Opp Strategy: '+name,amount:amt,direction:'in'})}}
-      if(op.setupFee&&op.setupFeeClose&&op.setupFeeClose>=td&&op.setupFeeClose<=endDt){
+      if(_oppHasFee(op,'setup')&&op.setupFee&&op.setupFeeClose&&op.setupFeeClose>=td&&op.setupFeeClose<=endDt){
         var amt2=op.setupFee*(op.setupFeeProb!=null?op.setupFeeProb/100:1);
         if(amt2&&days[op.setupFeeClose]){days[op.setupFeeClose].in+=amt2;
           days[op.setupFeeClose].events.push({label:'Opp Setup: '+name,amount:amt2,direction:'in'})}}
-      if(op.monthlyFee&&op.monthlyFeeStart){
+      if(_oppHasFee(op,'monthly')&&op.monthlyFee&&op.monthlyFeeStart){
         var mProb=op.monthlyFeeProb!=null?op.monthlyFeeProb/100:1;
         var mAmt=op.monthlyFee*mProb;
         var mMonths=op.monthlyFeeMonths||12;
@@ -6794,7 +6815,7 @@ function rFinanceForecast(){
   h+='<details style="margin-top:8px"><summary style="cursor:pointer;font-size:10px;color:var(--t4);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Sources</summary>';
   h+='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">';
   var toggleDefs=[
-    ['campaigns','Campaigns','var(--blue)'],['scheduled','Scheduled','var(--purple50)'],
+    ['campaigns','F&C Strategies','var(--blue)'],['scheduled','Scheduled','var(--purple50)'],
     ['invoices','Invoices','var(--green)'],['salaries','Salaries','var(--pink)'],
     ['pipeline','Pipeline','var(--amber)'],['oneoff','One-Off','var(--t2)'],
     ['commissions','Commissions','var(--amber)']];
@@ -6880,20 +6901,20 @@ function rFinanceForecast(){
   h+='</details>';
 
   /* Pipeline — with net after fees */
-  var pipeItems=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'&&o.expectedClose});
+  var pipeItems=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'&&_oppEarliestClose(o)});
   h+='<details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 0">'+icon('gem',14)+' Pipeline ('+pipeItems.length+')'+(tg.pipeline===false?' <span style="font-size:10px;color:var(--amber);margin-left:6px">OFF</span>':'')+'</summary>';
   if(pipeItems.length){
     h+='<div class="tb-wrap"><table class="tb fin-tb"><thead><tr><th>Opportunity</th><th>Value</th><th>Fee %</th><th>Net (after fees)</th><th>Expected Close</th><th>Probability</th><th>Weighted</th></tr></thead><tbody>';
     pipeItems.sort(function(a,b){
-      var ad=a.expectedClose instanceof Date?a.expectedClose.toISOString():a.expectedClose||'';
-      var bd=b.expectedClose instanceof Date?b.expectedClose.toISOString():b.expectedClose||'';
+      var ad=_oppEarliestClose(a)||'';
+      var bd=_oppEarliestClose(b)||'';
       return ad.localeCompare(bd)}).forEach(function(o){
-      var val=(o.strategyFee||0)+(o.setupFee||0);
+      var val=_oppValue(o);
       var feePct=o.processingFeePct||0;
       var netVal=val*(1-feePct/100);
       var prob=o.probability||0;
       var weighted=netVal*(prob/100);
-      var closeStr=o.expectedClose instanceof Date?fmtDate(o.expectedClose):(o.expectedClose||'');
+      var closeStr=_oppEarliestClose(o)||'';
       h+='<tr class="fin-row"><td>'+esc(o.name)+'</td><td>'+fmtUSD(val)+'</td>';
       h+='<td>'+(feePct>0?feePct+'%':'—')+'</td>';
       h+='<td>'+fmtUSD(netVal)+'</td>';

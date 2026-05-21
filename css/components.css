@@ -800,3 +800,9 @@ select.edf:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 @media(max-width:1200px){.op-pipeline{overflow-x:auto}.op-dash{grid-template-columns:repeat(3,1fr)}.op-type-selector{grid-template-columns:1fr}.op-type-cards{grid-template-columns:1fr 1fr}}
 @media(max-width:900px){.op-pipeline{overflow-x:auto}.op-type-cards{grid-template-columns:1fr}}
 @media(max-width:600px){.op-pipeline{overflow-x:auto}.op-dash{grid-template-columns:1fr 1fr}.op-chart-grid{grid-template-columns:1fr}.op-type-tabs{gap:3px}.op-type-tab{padding:5px 10px;font-size:10px}.op-type-cards{grid-template-columns:1fr}}
+
+/* Fee type toggles */
+.fee-toggle{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;border:1px solid var(--gborder);cursor:pointer;font-size:12px;font-weight:600;color:var(--t3);transition:all .2s;background:var(--bg);user-select:none}
+.fee-toggle:hover{border-color:var(--t3);color:var(--t1)}
+.fee-toggle input[type="checkbox"]{display:none}
+.fee-toggle.on{background:var(--accent);border-color:var(--accent);color:#fff}

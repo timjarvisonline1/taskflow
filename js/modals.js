@@ -1881,6 +1881,11 @@ async function saveOpportunity(){
   op.contactName=(gel('op-contact').value||'').trim();
   op.contactEmail=(gel('op-email').value||'').trim();
   op.probability=gel('op-prob')?parseInt(gel('op-prob').value)||50:op.probability;
+  var _ftParts=[];
+  if(gel('op-ft-strategy')&&gel('op-ft-strategy').checked)_ftParts.push('strategy');
+  if(gel('op-ft-setup')&&gel('op-ft-setup').checked)_ftParts.push('setup');
+  if(gel('op-ft-monthly')&&gel('op-ft-monthly').checked)_ftParts.push('monthly');
+  op.feeTypes=_ftParts.join(',');
   op.strategyFee=gel('op-strategy')?parseFloat(gel('op-strategy').value)||0:0;
   op.strategyFeeClose=gel('op-sf-close')&&gel('op-sf-close').value?gel('op-sf-close').value:null;
   op.strategyFeeProb=gel('op-sf-prob')&&gel('op-sf-prob').value!==''?parseInt(gel('op-sf-prob').value):null;
@@ -1894,6 +1899,24 @@ async function saveOpportunity(){
   op.notes=gel('op-notes')?gel('op-notes').value||'':'';
   await dbEditOpportunity(id,op);
   toast('Saved: '+op.name,'ok');closeModal();render()}
+
+function toggleFeeType(type){
+  var cb=gel('op-ft-'+type);if(!cb)return;
+  var on=cb.checked;
+  var label=cb.closest('.fee-toggle');
+  if(label){if(on)label.classList.add('on');else label.classList.remove('on')}
+  var sec=gel('op-fee-'+type);
+  if(sec)sec.style.display=on?'':'none'}
+
+function createOppFollowUp(opId){
+  var op=(S.opportunities||[]).find(function(o){return o.id===opId});if(!op)return;
+  var name='Follow up: '+op.name;
+  var notes='Opportunity: '+op.name+'\nClient: '+(op.client||'—')+'\nEnd Client: '+(op.endClient||'—')+'\nStage: '+(op.stage||'—');
+  if(op.notes)notes+='\n\nOpp notes:\n'+op.notes.substring(0,300);
+  var pre={item:name,client:op.client||'',endClient:op.endClient||'',opportunity:op.id,notes:notes,importance:'Important',type:'Business'};
+  if(S._detailPage){S._detailPage=null;_pushHash()}
+  else{closeModal()}
+  openAddModal(pre)}
 
 function openAddOpportunity(){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('gem',12)+' New Opportunity</span>';

@@ -119,6 +119,14 @@ var OPP_TYPES={
 function oppTypeConf(type){return OPP_TYPES[type]||OPP_TYPES.fc_partnership}
 function oppAllStages(type){var c=oppTypeConf(type);var all=c.stages.concat(c.closedStages);if(c.awaitingStage)all.push(c.awaitingStage);return all}
 function oppIsClosedStage(stage){return stage==='Closed Won'||stage==='Closed Lost'}
+function _oppHasFee(op,type){var ft=op.feeTypes||'';return ft.indexOf(type)!==-1}
+function _oppEarliestClose(op){
+  var dates=[];
+  if(_oppHasFee(op,'strategy')&&op.strategyFeeClose)dates.push(op.strategyFeeClose);
+  if(_oppHasFee(op,'setup')&&op.setupFeeClose)dates.push(op.setupFeeClose);
+  if(_oppHasFee(op,'monthly')&&op.monthlyFeeStart)dates.push(op.monthlyFeeStart);
+  if(!dates.length)return null;
+  dates.sort();return dates[0]}
 
 var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'dashboard',subView:'',layout:'grid',groupBy:'importance',clientDetailName:'',campaignDetailId:'',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
@@ -145,7 +153,7 @@ var SECTIONS=[
     {id:'inbox',label:'Quick Add Queue',icon:'inbox'}
   ]},
   {id:'opportunities',icon:'gem',label:'Sales',kbd:'4'},
-  {id:'campaigns',icon:'target',label:'Campaigns',kbd:'5'},
+  {id:'campaigns',icon:'target',label:'F&C Strategies',kbd:'5'},
   {id:'projects',icon:'folder',label:'Initiatives',kbd:'6'},
   {id:'clients',icon:'clients',label:'Clients',kbd:'7',subs:[
     {id:'all',label:'All Clients',icon:'clients'},
@@ -180,7 +188,7 @@ function subNav(subId){
 /* ═══════════ MOBILE & TOUCH ═══════════ */
 function isMobile(){return window.innerWidth<=860}
 function isTouch(){return window.matchMedia('(pointer:coarse)').matches}
-function usePageDetail(){return isMobile()||isTouch()}
+function usePageDetail(){return true}
 var MOB_VIEWS=[
   {id:'dashboard',icon:'dashboard',label:'Home'},
   {id:'tasks',icon:'tasks',label:'Tasks'},
@@ -775,6 +783,7 @@ async function loadOpportunities(){
       strategyFee:parseFloat(r.strategy_fee)||0,setupFee:parseFloat(r.setup_fee)||0,
       monthlyFee:parseFloat(r.monthly_fee)||0,
       probability:r.probability||50,
+      feeTypes:r.fee_types||'',
       strategyFeeClose:r.strategy_fee_close||null,strategyFeeProb:r.strategy_fee_prob!=null?r.strategy_fee_prob:null,
       setupFeeClose:r.setup_fee_close||null,setupFeeProb:r.setup_fee_prob!=null?r.setup_fee_prob:null,
       monthlyFeeStart:r.monthly_fee_start||null,monthlyFeeMonths:r.expected_monthly_duration||null,
@@ -5936,7 +5945,7 @@ async function dbAddOpportunity(data){
     type:data.type||'fc_partnership',
     client:data.client||'',end_client:_ecName,end_client_id:_ecId,contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
-    probability:data.probability||50,
+    probability:data.probability||50,fee_types:data.feeTypes||'',
     strategy_fee_close:data.strategyFeeClose||null,strategy_fee_prob:data.strategyFeeProb!=null?data.strategyFeeProb:null,
     setup_fee_close:data.setupFeeClose||null,setup_fee_prob:data.setupFeeProb!=null?data.setupFeeProb:null,
     monthly_fee_start:data.monthlyFeeStart||null,expected_monthly_duration:data.monthlyFeeMonths||null,
@@ -5955,7 +5964,7 @@ async function dbEditOpportunity(id,data){
     type:data.type||'fc_partnership',
     client:data.client||'',end_client:_ecName,end_client_id:_ecId,contact_name:data.contactName||'',contact_email:data.contactEmail||'',
     strategy_fee:data.strategyFee||0,setup_fee:data.setupFee||0,monthly_fee:data.monthlyFee||0,
-    probability:data.probability||50,
+    probability:data.probability||50,fee_types:data.feeTypes||'',
     strategy_fee_close:data.strategyFeeClose||null,strategy_fee_prob:data.strategyFeeProb!=null?data.strategyFeeProb:null,
     setup_fee_close:data.setupFeeClose||null,setup_fee_prob:data.setupFeeProb!=null?data.setupFeeProb:null,
     monthly_fee_start:data.monthlyFeeStart||null,expected_monthly_duration:data.monthlyFeeMonths||null,

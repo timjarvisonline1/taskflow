@@ -42,7 +42,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   setProjView:function(v){subNav(v)},
   /* Opportunities */
   oppDragStart:oppDragStart,oppDragOver:oppDragOver,oppDragEnter:oppDragEnter,oppDragLeave:oppDragLeave,oppDragEnd:oppDragEnd,oppDragDrop:oppDragDrop,
-  openOpportunityDetail:openOpportunityDetail,saveOpportunity:saveOpportunity,
+  openOpportunityDetail:openOpportunityDetail,saveOpportunity:saveOpportunity,toggleFeeType:toggleFeeType,createOppFollowUp:createOppFollowUp,
   openAddOpportunity:openAddOpportunity,addOpportunity:addOpportunity,selectOpType:selectOpType,
   confirmDeleteOpportunity:confirmDeleteOpportunity,doDeleteOpportunity:doDeleteOpportunity,
   convertOpportunity:convertOpportunity,convertToClient:convertToClient,closeAsLost:closeAsLost,doCloseAsLost:doCloseAsLost,
