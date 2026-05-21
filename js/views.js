@@ -14,14 +14,24 @@ var LIVE_VIEWS=['dashboard','today','tasks','opportunities','campaigns','project
 function render(){
   buildNav();
   var m=gel('main'),html='';
-  /* Mobile: focused 4-view experience */
-  if(isMobile()){
-    var mobIds=['mob-add','tasks','mob-review','opportunities'];
-    if(mobIds.indexOf(S.view)===-1)S.view='mob-add';
-    switch(S.view){case'mob-add':html=rMobAdd();break;case'tasks':html=rMobTasks();break;case'mob-review':html=rMobReview();break;case'opportunities':html=rMobOpportunities();break}
+
+  /* ── Detail-as-page mode (touch devices) ── */
+  if(S._detailPage){
+    html=rDetailPage(S._detailPage.type,S._detailPage.id);
     m.innerHTML='<section class="vw on">'+html+'</section>';
+    m.scrollTop=0;
     renderSidebar();renderActiveWidget();return}
-  /* Desktop */
+
+  /* ── Mobile-specific renderers where they exist ── */
+  if(isMobile()){
+    switch(S.view){
+      case'mob-add':html=rMobAdd();break;
+      case'mob-review':html=rMobReview();break;
+      case'tasks':html=rMobTasks();break;
+      default:break}
+    if(html){m.innerHTML='<section class="vw on">'+html+'</section>';renderSidebar();renderActiveWidget();return}}
+
+  /* ── Standard view dispatch ── */
   if(S.view==='completed'){S.view='tasks';S.subView='done'}
   if(LIVE_VIEWS.indexOf(S.view)===-1)S.view='dashboard';
   if(hasSubs(S.view)&&!S.subView)S.subView=getDefaultSub(S.view);
@@ -49,6 +59,56 @@ function render(){
   if(S.view==='ai'&&typeof initAskPanel==='function')setTimeout(initAskPanel,40);
   renderSidebar();renderActiveWidget()}
 
+/* ═══════════ DETAIL-AS-PAGE (mobile/iPad) ═══════════ */
+function rDetailPage(type,id){
+  var h='<div class="detail-page">';
+  h+='<div class="detail-page-back"><button class="btn" onclick="history.back()" style="display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:10px 16px">'+icon('chevron_left',14)+' Back</button></div>';
+  if(type==='opportunity'){
+    var op=(S.opportunities||[]).find(function(o){return o.id===id});
+    if(!op){h+='<div style="padding:40px 0;text-align:center;color:var(--t4)">Opportunity not found</div>'}
+    else{var st=getOpportunityStats(op);h+=rOpportunityDashboard(op,st)}}
+  else if(type==='task'){
+    var task=(S.tasks||[]).find(function(t){return t.id===id});
+    if(!task){h+='<div style="padding:40px 0;text-align:center;color:var(--t4)">Task not found</div>'}
+    else{h+=rTaskDetailPage(task)}}
+  else if(type==='campaign'){
+    var cp=(S.campaigns||[]).find(function(c){return c.id===id});
+    if(!cp){h+='<div style="padding:40px 0;text-align:center;color:var(--t4)">Campaign not found</div>'}
+    else{var cst=getCampaignStats(cp);h+=rCampaignDashboard(cp,cst)}}
+  else if(type==='client'){
+    var _cmap=buildClientMap();var _cobj=_cmap[id];
+    if(!_cobj){h+='<div style="padding:40px 0;text-align:center;color:var(--t4)">Client not found</div>'}
+    else{S.clientDetailName=id;h+=rClientDashboard(_cobj)}}
+  else if(type==='project'){
+    S._detailPage=null;openProjectDetail(id);return''}
+  h+='</div>';return h}
+
+function rTaskDetailPage(task){
+  var td=today(),ts=tmrGet(task.id),running=!!ts.started,elapsed=tmrElapsed(task.id),eid=escAttr(task.id);
+  var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===(task.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var impOpts=IMPS.map(function(i){return'<option'+(i===task.importance?' selected':'')+'>'+i+'</option>'}).join('');
+  var typeOpts=TYPES.map(function(t){return'<option'+(t===task.type?' selected':'')+'>'+t+'</option>'}).join('');
+
+  var h='<input type="hidden" id="d-id" value="'+esc(task.id)+'">';
+  h+='<div style="margin-bottom:16px"><input type="text" class="edf" id="d-item" value="'+esc(task.item)+'" style="font-size:17px;font-weight:600"></div>';
+  h+='<div class="ed-grid ed-grid-2" style="margin-bottom:12px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-2" style="margin-bottom:12px">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-client">'+cliOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Due</span><input type="date" class="edf" id="d-due" value="'+(task.due?isoD(task.due):'')+'"></div>';
+  h+='</div>';
+  h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
+  h+='<textarea class="edf edf-notes" id="d-notes" rows="5" style="min-height:100px">'+esc(task.notes||'')+'</textarea></div>';
+  if(running){h+='<div style="margin-bottom:12px"><button class="btn" onclick="TF.pause(\''+eid+'\')" style="width:100%">'+icon('pause',12)+' Pause ('+fmtM(elapsed)+')</button></div>'}
+  else{h+='<div style="margin-bottom:12px"><button class="btn btn-go" onclick="TF.start(\''+eid+'\')" style="width:100%">'+icon('play',12)+' Start Timer</button></div>'}
+  h+='<div class="ed-actions op-detail-actions" style="padding-bottom:20px">';
+  h+='<button class="btn btn-p" onclick="TF.saveDetailPage()">Save</button>';
+  h+='<button class="btn btn-go" onclick="TF.saveDetailPage();TF.done(\''+eid+'\')">Complete</button>';
+  h+='<button class="btn ab-del" style="margin-left:auto" onclick="if(confirm(\'Delete this task?\'))TF.del(\''+eid+'\')">Delete</button>';
+  h+='</div>';
+  return h}
 
 /* ═══════════ TASK CARD ═══════════ */
 function taskCard(t,td,idx){
@@ -1621,6 +1681,7 @@ function openClientDetailModal(name){
   S.clientDetailName=name;
   S._lastClientDash=name;
   S.clientTab='overview';
+  if(usePageDetail()){S._detailPage={type:'client',id:name};_pushHash();render();return}
   var h=rClientDashboard(c);
   gel('detail-body').innerHTML=h;
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');

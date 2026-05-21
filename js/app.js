@@ -13,7 +13,7 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   setGroup:function(v){S.groupBy=v;save();render()},
   toggleBulk:toggleBulk,toggleSel:toggleSel,bulkComplete:bulkComplete,bulkSelectAll:bulkSelectAll,
   openTplForm:openTplForm,saveTpl:saveTpl,delTpl:delTpl,useTpl:useTpl,useSet:useSet,fillFromTemplate:fillFromTemplate,
-  addAndStart:addAndStart,setTaskMode:setTaskMode,setDoneSort:setDoneSort,openMenu:openMenu,closeMenu:closeMenu,
+  addAndStart:addAndStart,setTaskMode:setTaskMode,setDoneSort:setDoneSort,openMenu:openMenu,closeMenu:closeMenu,saveDetailPage:saveDetailPage,
   completeMeetingEnd:completeMeetingEnd,dismissMeetingEnd:dismissMeetingEnd,
   openLogMeetingModal:openLogMeetingModal,logMeeting:logMeeting,refreshLogMtgEC:refreshLogMtgEC,refreshLogMtgCp:refreshLogMtgCp,refreshLogMtgOp:refreshLogMtgOp,
   togglePin:togglePin,addLog:addLog,toggleCpStatus:toggleCpStatus,
@@ -187,5 +187,18 @@ function startAutoRefresh(){if(arTimer)clearInterval(arTimer);arTimer=setInterva
 (async function(){
   var sess=await _sb.auth.getSession();
   if(!sess.data.session){window.location.href='/login.html';return}
-  restore();S.view=isMobile()?'mob-add':'dashboard';buildNav();await loadData();startAutoRefresh();startMeetingCheck();
+  restore();
+  /* Route from hash if present, otherwise default */
+  var _initHash=location.hash.replace(/^#\/?/,'');
+  if(_initHash){var _ihParts=_initHash.split('/');var _ihView=_ihParts[0];
+    if(LIVE_VIEWS.indexOf(_ihView)!==-1){S.view=_ihView;if(_ihParts[1]&&hasSubs(_ihView))S.subView=_ihParts[1]}
+    else if(!{opportunity:1,task:1,campaign:1,client:1,project:1}[_ihView])S.view='dashboard'}
+  else{S.view='dashboard'}
+  buildNav();await loadData();
+  /* After data loaded, handle detail routes */
+  if(_initHash){var _ihp2=_initHash.split('/');var _dt={opportunity:1,task:1,campaign:1,client:1,project:1};
+    if(_ihp2.length>=2&&_dt[_ihp2[0]]){var _dtype=_ihp2[0],_did=decodeURIComponent(_ihp2.slice(1).join('/'));
+      if(usePageDetail()){S._detailPage={type:_dtype,id:_did};render()}
+      else _openDetailDirect(_dtype,_did)}}
+  _replaceHash();startAutoRefresh();startMeetingCheck();
 })();

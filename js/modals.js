@@ -4,6 +4,7 @@ function fmtLogTs(ts){if(!ts)return'';var d=new Date(ts);return MO[d.getMonth()]
 
 function openDetail(id){
   var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
+  if(usePageDetail()){S._detailPage={type:'task',id:id};_pushHash();render();return}
   var td=today(),ts=tmrGet(id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
   var elapsed=tmrElapsed(id),eid=escAttr(id);
   var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===(task.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
@@ -313,6 +314,19 @@ async function saveDetail(){
   save();
   await dbEditTask(id,task);
   toast(icon('save',12)+' Saved: '+task.item,'ok');closeModal();render()}
+
+async function saveDetailPage(){
+  var id=gel('d-id');if(!id)return;id=id.value;
+  var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
+  task.item=(gel('d-item').value||'').trim();if(!task.item){toast('Item name required','warn');return}
+  task.due=gel('d-due')&&gel('d-due').value?new Date(gel('d-due').value):null;
+  task.importance=gel('d-imp')?gel('d-imp').value:task.importance;
+  task.type=gel('d-type')?gel('d-type').value:task.type;
+  task.client=gel('d-client')?gel('d-client').value||'':'';
+  task.notes=gel('d-notes')?gel('d-notes').value:'';
+  task.isInbox=false;
+  save();await dbEditTask(id,task);
+  toast(icon('save',12)+' Saved','ok')}
 
 async function markAlreadyCompleted(id){
   var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
@@ -1304,6 +1318,7 @@ function openCampaignDetail(id){
   var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
   S._lastCampaignId=id;
   S.campaignTab='overview';
+  if(usePageDetail()){S._detailPage={type:'campaign',id:id};_pushHash();render();return}
   var st=getCampaignStats(cp);
   gel('detail-body').innerHTML=rCampaignDashboard(cp,st);
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
@@ -1850,6 +1865,7 @@ function openOpportunityDetail(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
   S._lastOpportunityId=id;
   S.opportunityTab='overview';
+  if(usePageDetail()){S._detailPage={type:'opportunity',id:id};_pushHash();render();return}
   var st=getOpportunityStats(op);
   gel('detail-body').innerHTML=rOpportunityDashboard(op,st);
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
@@ -2023,7 +2039,8 @@ function closeAsLost(id){
   h+='<button class="btn" style="background:rgba(255,51,88,0.1);color:var(--red);border-color:rgba(255,51,88,0.3)" onclick="TF.doCloseAsLost()">'+icon('x',12)+' Close as Lost</button>';
   h+='<button class="btn" onclick="TF.openOpportunityDetail(\''+escAttr(id)+'\')">Cancel</button>';
   h+='</div></div>';
-  gel('detail-body').innerHTML=h}
+  var _target=gel('detail-body');if(!_target||!gel('detail-modal').classList.contains('on'))_target=gel('main');
+  _target.innerHTML=h}
 
 async function doCloseAsLost(){
   var id=(gel('cal-opid')||{}).value;if(!id)return;

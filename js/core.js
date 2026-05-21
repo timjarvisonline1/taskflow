@@ -173,20 +173,60 @@ function hasSubs(sectionId){var sec=SECTIONS.find(function(s){return s.id===(sec
 function getDefaultSub(sectionId){var sec=SECTIONS.find(function(s){return s.id===sectionId});return sec&&sec.subs?sec.subs[0].id:''}
 function subNav(subId){
   if(S.gmailThreadId)_flushEmailTimer();
-  if(S.view==='email'){
-    /* Use setGmailFilter for email views — handles caching, fetching, and state sync */
-    setGmailFilter(subId);return}
+  if(S.view==='email'){setGmailFilter(subId);return}
   S.subView=subId;
-  save();render()}
+  _pushHash();save();render()}
 
-/* ═══════════ MOBILE ═══════════ */
+/* ═══════════ MOBILE & TOUCH ═══════════ */
 function isMobile(){return window.innerWidth<=860}
+function isTouch(){return window.matchMedia('(pointer:coarse)').matches}
+function usePageDetail(){return isMobile()||isTouch()}
 var MOB_VIEWS=[
-  {id:'mob-add',icon:'plus',label:'Add'},
+  {id:'dashboard',icon:'dashboard',label:'Home'},
   {id:'tasks',icon:'tasks',label:'Tasks'},
-  {id:'mob-review',icon:'inbox',label:'Review'},
-  {id:'opportunities',icon:'gem',label:'Opps'}
+  {id:'opportunities',icon:'gem',label:'Sales'},
+  {id:'finance',icon:'activity',label:'Finance'},
+  {id:'_more',icon:'menu',label:'More'}
 ];
+
+/* ═══════════ HASH ROUTING ═══════════ */
+var _routeGuard=false;
+function _hashFromState(){
+  if(S._detailPage)return'#'+S._detailPage.type+'/'+encodeURIComponent(S._detailPage.id);
+  var h='#'+S.view;
+  if(S.subView&&hasSubs(S.view))h+='/'+S.subView;
+  return h}
+function _pushHash(){
+  if(_routeGuard)return;
+  var h=_hashFromState();
+  if(location.hash!==h){_routeGuard=true;history.pushState(null,'',h);_routeGuard=false}}
+function _replaceHash(){
+  var h=_hashFromState();
+  if(location.hash!==h){_routeGuard=true;history.replaceState(null,'',h);_routeGuard=false}}
+function _route(){
+  if(_routeGuard)return;
+  var raw=location.hash.replace(/^#\/?/,'');
+  if(!raw){_routeGuard=true;S._detailPage=null;S.view='dashboard';save();render();buildNav();_routeGuard=false;return}
+  var parts=raw.split('/');
+  var detailTypes={opportunity:1,task:1,campaign:1,client:1,project:1};
+  if(parts.length>=2&&detailTypes[parts[0]]){
+    var dtype=parts[0],did=decodeURIComponent(parts.slice(1).join('/'));
+    if(usePageDetail()){S._detailPage={type:dtype,id:did};render();buildNav();return}
+    _openDetailDirect(dtype,did);return}
+  var view=parts[0],sub=parts[1]||'';
+  if(LIVE_VIEWS.indexOf(view)===-1&&view!=='mob-add'&&view!=='mob-review'){
+    _routeGuard=true;S._detailPage=null;S.view='dashboard';save();render();buildNav();_routeGuard=false;return}
+  _routeGuard=true;S._detailPage=null;S.view=view;
+  if(sub&&hasSubs(view))S.subView=sub;
+  else if(hasSubs(view)&&!S.subView)S.subView=getDefaultSub(view);
+  save();render();buildNav();closeMenu();_routeGuard=false}
+function _openDetailDirect(type,id){
+  if(type==='opportunity')openOpportunityDetail(id);
+  else if(type==='task')openDetail(id);
+  else if(type==='campaign')openCampaignDetail(id);
+  else if(type==='client')openClientDetailModal(id);
+  else if(type==='project')openProjectDetail(id)}
+window.addEventListener('popstate',_route);
 
 /* ═══════════ UTILS ═══════════ */
 function gel(id){return document.getElementById(id)}
@@ -6850,11 +6890,12 @@ function finGetPreviousPeriodConfig(cfg){
 
 /* ═══════════ NAV ═══════════ */
 function nav(id,sub){
-  _flushEmailTimer();  /* Log email time when navigating away */
-  if(isMobile()){var mobIds=['mob-add','tasks','mob-review','opportunities'];if(mobIds.indexOf(id)===-1)id='mob-add'}
+  _flushEmailTimer();
+  if(id==='_more'){openMenu();return}
+  S._detailPage=null;
   S.view=id;
   if(hasSubs(id)){S.subView=sub||getDefaultSub(id)}else{S.subView=''}
-  save();
+  save();_pushHash();
   document.querySelectorAll('.s-item').forEach(function(n){
     n.classList.toggle('on',n.dataset.v===id)});
   render();buildNav();closeMenu()}
@@ -6945,8 +6986,8 @@ function _countSmartInbox(subId){
     else if(subId==='e-other'){if(!ctx.hasActiveClient&&!ctx.hasLapsedClient&&!ctx.isProspect&&!ctx.hasCampaign&&!ctx.hasOpportunity)count++}
   });
   return count}
-function openMenu(){if(isMobile())return;gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on');
-  var mt=document.querySelector('.btm-tab[data-v="more"]');if(mt)mt.classList.add('on')}
+function openMenu(){gel('sidebar').classList.add('open');gel('mob-overlay').classList.add('on');
+  var mt=document.querySelector('.btm-tab[data-v="_more"]');if(mt)mt.classList.add('on')}
 function closeMenu(){gel('sidebar').classList.remove('open');gel('mob-overlay').classList.remove('on');
   var btmNav=gel('btm-nav');if(btmNav){btmNav.querySelectorAll('.btm-tab').forEach(function(tab){tab.classList.toggle('on',tab.dataset.v===S.view)})}}
 document.addEventListener('keydown',function(e){

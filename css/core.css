@@ -240,7 +240,8 @@ body{
   .mob{display:flex}
   .btm-nav{display:flex}
   .fab{display:none!important}
-  .mob-overlay{display:none!important;pointer-events:none!important}
+  .mob-overlay{display:none;pointer-events:none}
+  .mob-overlay.on{display:block!important;pointer-events:auto!important}
   .app,.main{overflow-x:hidden;max-width:100vw}
   .main{margin-left:0!important;padding-top:64px!important;padding-bottom:calc(76px + env(safe-area-inset-bottom))!important;padding-left:16px!important;padding-right:16px!important}
   .at-widget{display:none!important}
