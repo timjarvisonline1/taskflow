@@ -225,7 +225,7 @@ function _route(){
   var detailTypes={opportunity:1,task:1,campaign:1,client:1,project:1};
   if(parts.length>=2&&detailTypes[parts[0]]){
     var dtype=parts[0],did=decodeURIComponent(parts.slice(1).join('/'));
-    if(usePageDetail()){S._detailPage={type:dtype,id:did};render();buildNav();return}
+    if(usePageDetail()){gel('modal').classList.remove('on');gel('detail-modal').classList.remove('on','full-detail','email-light');_unlockBodyScroll();S._detailPage={type:dtype,id:did};render();buildNav();return}
     _openDetailDirect(dtype,did);return}
   var view=parts[0],sub=parts[1]||'';
   if(LIVE_VIEWS.indexOf(view)===-1&&view!=='mob-add'&&view!=='mob-review'){

@@ -4,7 +4,7 @@ function fmtLogTs(ts){if(!ts)return'';var d=new Date(ts);return MO[d.getMonth()]
 
 function openDetail(id){
   var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
-  if(usePageDetail()){S._detailPage={type:'task',id:id};_pushHash();render();return}
+  if(usePageDetail()){gel('modal').classList.remove('on');gel('detail-modal').classList.remove('on','full-detail','email-light');_unlockBodyScroll();S._detailPage={type:'task',id:id};_pushHash();render();return}
   var td=today(),ts=tmrGet(id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
   var elapsed=tmrElapsed(id),eid=escAttr(id);
   var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===(task.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
@@ -1320,7 +1320,7 @@ function openCampaignDetail(id){
   var cp=S.campaigns.find(function(c){return c.id===id});if(!cp)return;
   S._lastCampaignId=id;
   S.campaignTab='overview';
-  if(usePageDetail()){S._detailPage={type:'campaign',id:id};_pushHash();render();return}
+  if(usePageDetail()){gel('modal').classList.remove('on');gel('detail-modal').classList.remove('on','full-detail','email-light');_unlockBodyScroll();S._detailPage={type:'campaign',id:id};_pushHash();render();return}
   var st=getCampaignStats(cp);
   gel('detail-body').innerHTML=rCampaignDashboard(cp,st);
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
@@ -1867,7 +1867,7 @@ function openOpportunityDetail(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
   S._lastOpportunityId=id;
   S.opportunityTab='overview';
-  if(usePageDetail()){S._detailPage={type:'opportunity',id:id};_pushHash();render();return}
+  if(usePageDetail()){gel('modal').classList.remove('on');gel('detail-modal').classList.remove('on','full-detail','email-light');_unlockBodyScroll();S._detailPage={type:'opportunity',id:id};_pushHash();render();return}
   var st=getOpportunityStats(op);
   gel('detail-body').innerHTML=rOpportunityDashboard(op,st);
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');

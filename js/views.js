@@ -1687,7 +1687,7 @@ function openClientDetailModal(name){
   S.clientDetailName=name;
   S._lastClientDash=name;
   S.clientTab='overview';
-  if(usePageDetail()){S._detailPage={type:'client',id:name};_pushHash();render();return}
+  if(usePageDetail()){gel('modal').classList.remove('on');gel('detail-modal').classList.remove('on','full-detail','email-light');_unlockBodyScroll();S._detailPage={type:'client',id:name};_pushHash();render();return}
   var h=rClientDashboard(c);
   gel('detail-body').innerHTML=h;
   gel('detail-modal').classList.remove('email-light');gel('detail-modal').classList.add('on','full-detail');
