@@ -3793,6 +3793,7 @@ function rOpportunityDashboard(op,st){
 
   /* ── STICKY ACTION BAR ── */
   h+='<div class="opd-actions">';
+  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">'+icon('save',11)+' Save</button>';
   h+='<span id="opd-save-status" style="font-size:11px;color:var(--green);opacity:0;transition:opacity .3s;padding:0 8px;align-self:center">Saved</span>';
   if(!isClosed){
     h+='<button class="btn opd-btn-lost" onclick="TF.closeAsLost(\''+eid+'\')">Close as Lost</button>'}
