@@ -1921,6 +1921,11 @@ function createOppFollowUp(opId){
   else{closeModal()}
   openAddModal(pre)}
 
+/* ═══════════ OPPORTUNITY FILTERS ═══════════ */
+function toggleOpClosedWon(){S.opShowClosedWon=!S.opShowClosedWon;save();render()}
+function toggleOpClosedLost(){S.opShowClosedLost=!S.opShowClosedLost;save();render()}
+function setOpClientFilter(v){S.opClientFilter=v||'';save();render()}
+
 /* ═══════════ OPPORTUNITY BULK ACTIONS ═══════════ */
 function oppBulkStart(){S.opBulkMode=true;S.opBulkSel={};render()}
 function oppBulkCancel(){S.opBulkMode=false;S.opBulkSel={};render()}

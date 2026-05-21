@@ -3795,9 +3795,9 @@ function rOpportunityDashboard(op,st){
   h+='<div class="opd-actions">';
   h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">'+icon('save',11)+' Save</button>';
   h+='<span id="opd-save-status" style="font-size:11px;color:var(--green);opacity:0;transition:opacity .3s;padding:0 8px;align-self:center">Saved</span>';
+  h+='<div style="flex:1"></div>';
   if(!isClosed){
     h+='<button class="btn opd-btn-lost" onclick="TF.closeAsLost(\''+eid+'\')">Close as Lost</button>'}
-  h+='<div style="flex:1"></div>';
   h+='<button class="btn opd-btn-del" onclick="TF.confirmDeleteOpportunity()">'+icon('trash',10)+' Delete</button>';
   h+='</div>';
 
@@ -4160,9 +4160,10 @@ function rMobOpportunities(){return rOpportunities()}
 function rOpportunities(){
   var validSubs=['overview','fc_partnership','fc_direct','retain_live'];
   var sub=validSubs.indexOf(S.subView)!==-1?S.subView:'overview';
-  var allOps=(S.opportunities||[]).filter(function(o){return !o.closedAt});
+  var allOps=S.opportunities||[];
+  var openCount=allOps.filter(function(o){return !oppIsClosedStage(o.stage)}).length;
 
-  var h='<div class="pg-head"><h1>'+icon('gem',18)+' Opportunities <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+allOps.length+' open</span></h1>';
+  var h='<div class="pg-head"><h1>'+icon('gem',18)+' Opportunities <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+openCount+' open</span></h1>';
   h+='<div style="display:flex;gap:8px;align-items:center">';
   if(S.opBulkMode)h+='<button class="btn" onclick="TF.oppBulkCancel()" style="font-size:12px;padding:7px 14px">Cancel</button>';
   else h+='<button class="btn" onclick="TF.oppBulkStart()" style="font-size:12px;padding:7px 14px">Bulk Edit</button>';
@@ -4267,7 +4268,13 @@ function _rOppOverview(allOps){
 function _rOppTypePage(typeKey,allOps){
   var td=today();
   var conf=oppTypeConf(typeKey);
-  var ops=allOps.filter(function(o){return o.type===typeKey||(typeKey==='fc_partnership'&&!o.type)});
+  var typeOps=allOps.filter(function(o){return o.type===typeKey||(typeKey==='fc_partnership'&&!o.type)});
+  var ops=typeOps.filter(function(o){
+    if(oppIsClosedStage(o.stage)){
+      if(o.stage==='Closed Won'&&!S.opShowClosedWon)return false;
+      if(o.stage==='Closed Lost'&&!S.opShowClosedLost)return false}
+    if(S.opClientFilter&&o.client!==S.opClientFilter)return false;
+    return true});
   var bulkMode=!!S.opBulkMode;
   var sel=S.opBulkSel||{};
   var viewMode=S.opViewMode||'cards';
@@ -4296,12 +4303,25 @@ function _rOppTypePage(typeKey,allOps){
   h+=_finKpi('Weighted','fmtUSD',weightedValue,'var(--green)','probability-adjusted');
   h+='</div>';
 
-  /* Toolbar: group-by toggle + view mode */
+  /* Toolbar: filters + group-by + view mode */
+  var clientsWithOpps={};
+  typeOps.forEach(function(o){if(o.client)clientsWithOpps[o.client]=true});
+  var clientList=Object.keys(clientsWithOpps).sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase())});
+
   h+='<div class="tf-toolbar" style="margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
+  if(clientList.length>1){
+    h+='<select class="edf" onchange="TF.setOpClientFilter(this.value)" style="font-size:11px;padding:5px 8px;max-width:180px">';
+    h+='<option value="">All clients</option>';
+    clientList.forEach(function(c){h+='<option value="'+escAttr(c)+'"'+(S.opClientFilter===c?' selected':'')+'>'+esc(c)+'</option>'});
+    h+='</select>'}
   h+='<div style="display:flex;align-items:center;gap:4px">';
   h+='<span style="font-size:11px;color:var(--t3);margin-right:2px">Group by:</span>';
   h+='<button class="tf-chip'+(groupBy==='stage'?' on':'')+'" onclick="TF.setOpGroupBy(\'stage\')">Stage</button>';
   h+='<button class="tf-chip'+(groupBy==='probability'?' on':'')+'" onclick="TF.setOpGroupBy(\'probability\')">Probability</button>';
+  h+='</div>';
+  h+='<div style="display:flex;align-items:center;gap:8px">';
+  h+='<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t3);cursor:pointer;user-select:none"><input type="checkbox" onchange="TF.toggleOpClosedWon()"'+(S.opShowClosedWon?' checked':'')+' style="accent-color:var(--green)">Won</label>';
+  h+='<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t3);cursor:pointer;user-select:none"><input type="checkbox" onchange="TF.toggleOpClosedLost()"'+(S.opShowClosedLost?' checked':'')+' style="accent-color:var(--red)">Lost</label>';
   h+='</div>';
   h+='<div style="display:flex;align-items:center;gap:4px;margin-left:auto">';
   h+='<span style="font-size:11px;color:var(--t3);margin-right:2px">View:</span>';
@@ -4324,9 +4344,11 @@ function _rOppTypePage(typeKey,allOps){
       groups.push({label:b.label,color:b.color,ops:bOps})})
   }else{
     var stages=conf.stages.concat(conf.awaitingStage?[conf.awaitingStage]:[]);
+    if(S.opShowClosedWon)stages.push('Closed Won');
+    if(S.opShowClosedLost)stages.push('Closed Lost');
     var byStage={};stages.forEach(function(st){byStage[st]=[]});
     ops.forEach(function(o){if(byStage[o.stage])byStage[o.stage].push(o);else{byStage[stages[0]]=byStage[stages[0]]||[];byStage[stages[0]].push(o)}});
-    stages.forEach(function(st){groups.push({label:st,color:conf.color,ops:byStage[st]||[]})})}
+    stages.forEach(function(st){groups.push({label:st,color:st==='Closed Won'?'var(--green)':(st==='Closed Lost'?'var(--red)':conf.color),ops:byStage[st]||[]})})}
 
   if(viewMode==='cards'){
     h+='<div style="display:grid;grid-template-columns:repeat('+groups.length+',1fr);gap:8px;overflow-x:auto;margin-bottom:24px">';
