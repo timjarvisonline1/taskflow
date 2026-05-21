@@ -2055,10 +2055,12 @@ async function addOpportunity(){
 
 function confirmDeleteOpportunity(){
   var id=gel('op-id').value;var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;
-  gel('detail-body').innerHTML='<div style="padding:40px;text-align:center"><h2 style="margin-bottom:16px;color:var(--t1)">Delete Opportunity?</h2>'+
+  var h='<div style="padding:40px;text-align:center"><h2 style="margin-bottom:16px;color:var(--t1)">Delete Opportunity?</h2>'+
     '<p style="color:var(--t3);margin-bottom:24px">This will permanently delete <strong>'+esc(op.name)+'</strong>. Tasks linked to this opportunity will be unlinked.</p>'+
     '<button class="btn ab-del" onclick="TF.doDeleteOpportunity(\''+escAttr(id)+'\')">'+icon('trash',12)+' Delete</button>'+
-    '<button class="btn" onclick="TF.openOpportunityDetail(\''+escAttr(id)+'\')" style="margin-left:8px">Cancel</button></div>'}
+    '<button class="btn" onclick="TF.openOpportunityDetail(\''+escAttr(id)+'\')" style="margin-left:8px">Cancel</button></div>';
+  var _target=gel('detail-body');if(!_target||!gel('detail-modal').classList.contains('on'))_target=gel('main');
+  _target.innerHTML=h}
 
 async function doDeleteOpportunity(id){
   await dbDeleteOpportunity(id);
@@ -2066,7 +2068,9 @@ async function doDeleteOpportunity(id){
   S.done.forEach(function(d){if(d.opportunity===id)d.opportunity=''});
   S.opportunities=S.opportunities.filter(function(o){return o.id!==id});
   S.oppMeetings=S.oppMeetings.filter(function(m){return m.opportunityId!==id});
-  toast('Deleted opportunity','ok');closeModal();render()}
+  toast('Deleted opportunity','ok');
+  if(S._detailPage){S._detailPage=null;_pushHash()}
+  closeModal();render()}
 
 async function convertOpportunity(id){
   var op=S.opportunities.find(function(o){return o.id===id});if(!op)return;

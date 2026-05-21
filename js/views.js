@@ -3554,201 +3554,202 @@ function rOpportunityDashboard(op,st){
   var totalVal=_oppValue(op);
   var weightedVal=totalVal*((op.probability||0)/100);
 
-  /* Prev/next navigation */
+  /* Prev/next */
   var visibleOpps=(S.opportunities||[]).filter(function(o){return !o.closedAt&&!oppIsClosedStage(o.stage)});
   var curIdx=visibleOpps.findIndex(function(o){return o.id===op.id});
   if(curIdx<0){visibleOpps=S.opportunities||[];curIdx=visibleOpps.findIndex(function(o){return o.id===op.id})}
   var prevOp=curIdx>0?visibleOpps[curIdx-1]:null;
   var nextOp=curIdx<visibleOpps.length-1?visibleOpps[curIdx+1]:null;
 
-  /* Days in current stage */
+  /* Days in stage */
   var daysInStage='';
   if(op.updated_at){var _stDays=Math.floor((Date.now()-new Date(op.updated_at).getTime())/(1000*60*60*24));daysInStage=_stDays+'d in stage'}
 
-  /* Earliest close */
+  /* Earliest close countdown */
   var earlyClose=_oppEarliestClose(op);
   var closeDaysLeft='';var closeUrgent=false;
   if(earlyClose){var _cd=Math.ceil((new Date(earlyClose).getTime()-Date.now())/(1000*60*60*24));
     if(_cd<0){closeDaysLeft=Math.abs(_cd)+'d overdue';closeUrgent=true}
-    else if(_cd===0){closeDaysLeft='Closes today';closeUrgent=true}
-    else if(_cd<=14){closeDaysLeft=_cd+'d until close';closeUrgent=true}
-    else{closeDaysLeft=_cd+'d until close'}}
+    else if(_cd===0){closeDaysLeft='Today';closeUrgent=true}
+    else if(_cd<=14){closeDaysLeft=_cd+'d left';closeUrgent=true}
+    else{closeDaysLeft=_cd+'d left'}}
 
-  var h='';
-
-  h+='<div class="opd-header">';
-  h+='<div class="opd-header-nav">';
-  if(prevOp)h+='<button class="op-nav-btn" onclick="TF.openOpportunityDetail(\''+escAttr(prevOp.id)+'\')" title="'+esc(prevOp.name)+'">'+icon('chevron_left',14)+' Prev</button>';
-  h+='<div style="flex:1"></div>';
-  if(visibleOpps.length>1)h+='<span class="opd-counter">'+(curIdx+1)+' of '+visibleOpps.length+'</span>';
-  if(nextOp)h+='<button class="op-nav-btn" onclick="TF.openOpportunityDetail(\''+escAttr(nextOp.id)+'\')" title="'+esc(nextOp.name)+'">Next '+icon('chevron_right',14)+'</button>';
-  h+='<span class="bg '+opTypeBadgeCls(op.type)+'" style="margin-left:8px">'+conf.label+'</span>';
-  h+='<button class="tf-modal-close" onclick="TF.closeModal()" style="margin-left:4px">&times;</button>';
-  h+='</div>';
-
-  h+='<h2 class="opd-title">'+esc(op.name)+'</h2>';
-
-  /* Status strip */
-  h+='<div class="opd-status-strip">';
   var _probPct=op.probability||0;
   var _probColor=_probPct>=70?'var(--green)':_probPct>=40?'var(--amber)':'var(--red)';
-  h+='<span class="opd-stage-badge" style="border-color:'+conf.color+'40;color:'+conf.color+'">'+icon('activity',11)+' '+esc(op.stage)+'</span>';
-  h+='<span class="opd-prob-badge" style="color:'+_probColor+'">'+_probPct+'%</span>';
-  if(daysInStage)h+='<span class="opd-meta-chip">'+icon('clock',10)+' '+daysInStage+'</span>';
-  if(closeDaysLeft)h+='<span class="opd-meta-chip'+(closeUrgent?' opd-urgent':'')+'">'+icon('calendar',10)+' '+closeDaysLeft+'</span>';
-  h+='</div>';
 
-  /* Value KPIs */
-  h+='<div class="opd-value-strip">';
-  h+='<div class="opd-value-item"><span class="opd-value-num" style="color:var(--green)">'+fmtUSD(totalVal)+'</span><span class="opd-value-label">Total Value</span></div>';
-  h+='<div class="opd-value-item"><span class="opd-value-num" style="color:var(--amber)">'+fmtUSD(weightedVal)+'</span><span class="opd-value-label">Weighted</span></div>';
-  h+='<div class="opd-value-item"><span class="opd-value-num" style="color:var(--blue)">'+st.openCount+'</span><span class="opd-value-label">Open Tasks</span></div>';
-  h+='<div class="opd-value-item"><span class="opd-value-num" style="color:var(--purple50)">'+st.meetingCount+'</span><span class="opd-value-label">Meetings</span></div>';
-  h+='</div>';
-  h+='</div>';
-
+  var h='';
   h+='<input type="hidden" id="op-id" value="'+esc(op.id)+'">';
   h+='<input type="hidden" id="op-type" value="'+esc(op.type)+'">';
 
+  /* ── HEADER: single compact bar ── */
+  h+='<div class="opd-top">';
+  h+='<div class="opd-top-row">';
+  if(prevOp)h+='<button class="opd-nav" onclick="TF.openOpportunityDetail(\''+escAttr(prevOp.id)+'\')" title="'+esc(prevOp.name)+'">'+icon('chevron_left',12)+'</button>';
+  h+='<h2 class="opd-title">'+esc(op.name)+'</h2>';
+  if(nextOp)h+='<button class="opd-nav" onclick="TF.openOpportunityDetail(\''+escAttr(nextOp.id)+'\')" title="'+esc(nextOp.name)+'">'+icon('chevron_right',12)+'</button>';
+  if(visibleOpps.length>1)h+='<span class="opd-counter">'+(curIdx+1)+'/'+visibleOpps.length+'</span>';
+  h+='<div style="flex:1"></div>';
+  h+='<span class="bg '+opTypeBadgeCls(op.type)+'">'+conf.label+'</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button>';
+  h+='</div>';
+
+  /* ── Status chips + KPIs: single row ── */
+  h+='<div class="opd-strip">';
+  h+='<span class="opd-chip opd-chip-stage" style="border-color:'+conf.color+'40;color:'+conf.color+'">'+esc(op.stage)+'</span>';
+  h+='<span class="opd-chip" style="color:'+_probColor+';font-weight:700">'+_probPct+'%</span>';
+  if(daysInStage)h+='<span class="opd-chip opd-chip-meta">'+icon('clock',9)+' '+daysInStage+'</span>';
+  if(closeDaysLeft)h+='<span class="opd-chip opd-chip-meta'+(closeUrgent?' opd-urgent':'')+'">'+icon('calendar',9)+' '+closeDaysLeft+'</span>';
+  h+='<span class="opd-sep"></span>';
+  h+='<span class="opd-kpi"><b style="color:var(--green)">'+fmtUSD(totalVal)+'</b> value</span>';
+  h+='<span class="opd-kpi"><b style="color:var(--amber)">'+fmtUSD(weightedVal)+'</b> weighted</span>';
+  h+='<span class="opd-kpi"><b style="color:var(--blue)">'+st.openCount+'</b> tasks</span>';
+  h+='<span class="opd-kpi"><b style="color:var(--purple50)">'+st.meetingCount+'</b> mtgs</span>';
+  h+='</div>';
+  h+='</div>';
+
+  /* ── BODY ── */
   h+='<div class="opd-body">';
 
-  /* Details panel */
-  h+='<div class="opd-panel">';
-  h+='<div class="opd-panel-head">'+icon('gem',13)+' Details</div>';
-  h+='<div class="opd-panel-content">';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+'></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  /* Details */
+  h+='<div class="opd-section">';
+  h+='<div class="opd-sec-head">'+icon('gem',12)+' Details</div>';
+  h+='<div class="opd-sec-body">';
+  h+='<div class="opd-grid opd-g3">';
+  h+='<div class="opd-fld"><label class="opd-lbl">Name</label><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+'></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Stage</label><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Client / Partner</label><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
   h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="op-endclient" onchange="TF.ecAddNew(\'op-endclient\')">'+buildEndClientOptions(op.endClientId||op.endClient||'',op.client)+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
-  h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Overall Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||'')+'" min="0" max="100" placeholder="50"></div>';
-  h+='<div></div><div></div>';
+  h+='<div class="opd-grid opd-g4">';
+  h+='<div class="opd-fld"><label class="opd-lbl">End Client</label><select class="edf" id="op-endclient" onchange="TF.ecAddNew(\'op-endclient\')">'+buildEndClientOptions(op.endClientId||op.endClient||'',op.client)+'</select></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Contact Name</label><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Contact Email</label><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-prob" value="'+(op.probability||'')+'" min="0" max="100" placeholder="50"></div>';
   h+='</div>';
   h+='</div></div>';
 
-  /* Financials panel */
+  /* Financials */
   var ft=op.feeTypes||'';
   var hasSF=ft.indexOf('strategy')!==-1,hasSU=ft.indexOf('setup')!==-1,hasMF=ft.indexOf('monthly')!==-1;
 
-  h+='<div class="opd-panel">';
-  h+='<div class="opd-panel-head">'+icon('activity',13)+' Financials</div>';
-  h+='<div class="opd-panel-content">';
+  h+='<div class="opd-section">';
+  h+='<div class="opd-sec-head">'+icon('activity',12)+' Financials</div>';
+  h+='<div class="opd-sec-body">';
 
   h+='<div class="opd-fee-toggles">';
-  h+='<label class="fee-toggle'+(hasSF?' on':'')+'"><input type="checkbox" id="op-ft-strategy"'+(hasSF?' checked':'')+' onchange="TF.toggleFeeType(\'strategy\')"><span>Strategy Fee</span></label>';
-  h+='<label class="fee-toggle'+(hasSU?' on':'')+'"><input type="checkbox" id="op-ft-setup"'+(hasSU?' checked':'')+' onchange="TF.toggleFeeType(\'setup\')"><span>Setup Fee</span></label>';
-  h+='<label class="fee-toggle'+(hasMF?' on':'')+'"><input type="checkbox" id="op-ft-monthly"'+(hasMF?' checked':'')+' onchange="TF.toggleFeeType(\'monthly\')"><span>Monthly Fee</span></label>';
+  h+='<label class="fee-toggle'+(hasSF?' on':'')+'"><input type="checkbox" id="op-ft-strategy"'+(hasSF?' checked':'')+' onchange="TF.toggleFeeType(\'strategy\')"><span>Strategy</span></label>';
+  h+='<label class="fee-toggle'+(hasSU?' on':'')+'"><input type="checkbox" id="op-ft-setup"'+(hasSU?' checked':'')+' onchange="TF.toggleFeeType(\'setup\')"><span>Setup</span></label>';
+  h+='<label class="fee-toggle'+(hasMF?' on':'')+'"><input type="checkbox" id="op-ft-monthly"'+(hasMF?' checked':'')+' onchange="TF.toggleFeeType(\'monthly\')"><span>Monthly</span></label>';
   h+='</div>';
 
   h+='<div id="op-fee-sections">';
 
-  h+='<div id="op-fee-strategy" class="opd-fee-card" style="'+(hasSF?'':'display:none')+'">';
-  h+='<div class="opd-fee-card-head"><span class="opd-fee-card-title">Strategy Fee</span>';
-  if(hasSF&&op.strategyFee)h+='<span class="opd-fee-card-amt" style="color:var(--green)">'+fmtUSD(op.strategyFee)+'</span>';
+  h+='<div id="op-fee-strategy" class="opd-fee" style="'+(hasSF?'':'display:none')+'">';
+  h+='<div class="opd-fee-hdr"><span>Strategy Fee</span>';
+  if(hasSF&&op.strategyFee)h+='<b style="color:var(--green)">'+fmtUSD(op.strategyFee)+'</b>';
   h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-sf-close" value="'+(op.strategyFeeClose||'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-sf-prob" value="'+(op.strategyFeeProb!=null?op.strategyFeeProb:'')+'" min="0" max="100" placeholder="&#x2014;"></div>';
+  h+='<div class="opd-grid opd-g3">';
+  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Expected Close</label><input type="date" class="edf" id="op-sf-close" value="'+(op.strategyFeeClose||'')+'"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-sf-prob" value="'+(op.strategyFeeProb!=null?op.strategyFeeProb:'')+'" min="0" max="100"></div>';
   h+='</div></div>';
 
-  h+='<div id="op-fee-setup" class="opd-fee-card" style="'+(hasSU?'':'display:none')+'">';
-  h+='<div class="opd-fee-card-head"><span class="opd-fee-card-title">Setup Fee</span>';
-  if(hasSU&&op.setupFee)h+='<span class="opd-fee-card-amt" style="color:var(--blue)">'+fmtUSD(op.setupFee)+'</span>';
+  h+='<div id="op-fee-setup" class="opd-fee" style="'+(hasSU?'':'display:none')+'">';
+  h+='<div class="opd-fee-hdr"><span>Setup Fee</span>';
+  if(hasSU&&op.setupFee)h+='<b style="color:var(--blue)">'+fmtUSD(op.setupFee)+'</b>';
   h+='</div>';
-  h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-su-close" value="'+(op.setupFeeClose||'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-su-prob" value="'+(op.setupFeeProb!=null?op.setupFeeProb:'')+'" min="0" max="100" placeholder="&#x2014;"></div>';
+  h+='<div class="opd-grid opd-g3">';
+  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Expected Close</label><input type="date" class="edf" id="op-su-close" value="'+(op.setupFeeClose||'')+'"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-su-prob" value="'+(op.setupFeeProb!=null?op.setupFeeProb:'')+'" min="0" max="100"></div>';
   h+='</div></div>';
 
-  h+='<div id="op-fee-monthly" class="opd-fee-card" style="'+(hasMF?'':'display:none')+'">';
-  h+='<div class="opd-fee-card-head"><span class="opd-fee-card-title">Monthly Fee</span>';
-  if(hasMF&&op.monthlyFee)h+='<span class="opd-fee-card-amt" style="color:var(--purple50)">'+fmtUSD(op.monthlyFee)+'/mo</span>';
+  h+='<div id="op-fee-monthly" class="opd-fee" style="'+(hasMF?'':'display:none')+'">';
+  h+='<div class="opd-fee-hdr"><span>Monthly Fee</span>';
+  if(hasMF&&op.monthlyFee)h+='<b style="color:var(--purple50)">'+fmtUSD(op.monthlyFee)+'/mo</b>';
   h+='</div>';
-  h+='<div class="ed-grid ed-grid-4">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Months</span><input type="number" class="edf" id="op-mf-months" value="'+(op.monthlyFeeMonths||'')+'" min="1" placeholder="12"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Expected Start</span><input type="date" class="edf" id="op-mf-start" value="'+(op.monthlyFeeStart||'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100" placeholder="&#x2014;"></div>';
+  h+='<div class="opd-grid opd-g4">';
+  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Months</label><input type="number" class="edf" id="op-mf-months" value="'+(op.monthlyFeeMonths||'')+'" min="1" placeholder="12"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Start Date</label><input type="date" class="edf" id="op-mf-start" value="'+(op.monthlyFeeStart||'')+'"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100"></div>';
   h+='</div></div>';
 
   h+='</div>';
   h+='</div></div>';
 
-  /* Notes panel */
-  h+='<div class="opd-panel">';
-  h+='<div class="opd-panel-head">'+icon('file',13)+' Notes</div>';
-  h+='<div class="opd-panel-content">';
-  h+='<textarea class="edf edf-notes" id="op-notes" rows="4" placeholder="Notes about this opportunity..." style="min-height:80px">'+esc(op.notes)+'</textarea>';
+  /* Notes + Activity side by side on wide screens */
+  h+='<div class="opd-two-col">';
+
+  /* Notes */
+  h+='<div class="opd-section opd-section-notes">';
+  h+='<div class="opd-sec-head">'+icon('file',12)+' Notes</div>';
+  h+='<div class="opd-sec-body">';
+  h+='<textarea class="edf edf-notes" id="op-notes" rows="4" placeholder="Notes..." style="min-height:70px">'+esc(op.notes)+'</textarea>';
   h+='</div></div>';
 
-  /* Activity panel */
-  h+='<div class="opd-panel">';
-  h+='<div class="opd-panel-head">'+icon('users',13)+' Activity</div>';
-  h+='<div class="opd-panel-content">';
+  /* Activity */
+  h+='<div class="opd-section opd-section-activity">';
+  h+='<div class="opd-sec-head">'+icon('users',12)+' Activity</div>';
+  h+='<div class="opd-sec-body">';
 
+  /* Meetings */
   var allMtgs=st.meetings.slice();
   (S.meetings||[]).forEach(function(m){
     if(m.opportunityId===op.id)allMtgs.push({date:m.startTime,title:m.title||'Meeting',
       recordingLink:m.reportUrl||'',notes:m.summary||'',source:'readai'})});
   allMtgs.sort(function(a,b){var da=a.date?new Date(a.date):new Date(0);var db=b.date?new Date(b.date):new Date(0);return db-da});
 
-  h+='<div class="opd-activity-head">';
-  h+='<span class="opd-activity-label">'+icon('calendar',12)+' Meetings ('+allMtgs.length+')</span>';
-  h+='<button class="btn" onclick="TF.openAddOpportunityMeeting(\''+eid+'\')" style="font-size:11px;padding:4px 12px">+ Add</button>';
+  h+='<div class="opd-act-row">';
+  h+='<span class="opd-act-label">'+icon('calendar',11)+' Meetings ('+allMtgs.length+')</span>';
+  h+='<button class="btn" onclick="TF.openAddOpportunityMeeting(\''+eid+'\')" style="font-size:10px;padding:3px 10px">+ Add</button>';
   h+='</div>';
   if(allMtgs.length){
-    h+='<div class="tf-panel" style="margin-bottom:16px">';
-    allMtgs.forEach(function(m){
-      h+='<div class="tf-row" style="padding:8px 14px">';
-      h+='<div class="tf-row-left"><span style="font-size:11px;color:var(--t3);min-width:70px">'+(m.date?fmtDShort(new Date(m.date)):'-')+'</span>';
-      h+='<span style="font-size:12px;font-weight:500;color:var(--t1)">'+esc(m.title)+'</span></div>';
+    h+='<div class="tf-panel opd-compact-list">';
+    allMtgs.slice(0,5).forEach(function(m){
+      h+='<div class="tf-row">';
+      h+='<div class="tf-row-left"><span style="font-size:10px;color:var(--t4);min-width:60px">'+(m.date?fmtDShort(new Date(m.date)):'-')+'</span>';
+      h+='<span style="font-size:11px;font-weight:500;color:var(--t1)">'+esc(m.title)+'</span></div>';
       h+='<div class="tf-row-right">';
-      if(m.recordingLink)h+='<a href="'+esc(m.recordingLink)+'" target="_blank" style="font-size:10px;color:var(--blue)" onclick="event.stopPropagation()">Recording</a>';
-      if(!m.source)h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.4">'+icon('x',10)+'</button>';
+      if(m.recordingLink)h+='<a href="'+esc(m.recordingLink)+'" target="_blank" style="font-size:9px;color:var(--blue)" onclick="event.stopPropagation()">Link</a>';
+      if(!m.source)h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.3">'+icon('x',9)+'</button>';
       h+='</div></div>'});
+    if(allMtgs.length>5)h+='<div style="padding:4px 12px;font-size:10px;color:var(--t4)">+'+(allMtgs.length-5)+' more</div>';
     h+='</div>'}
-  else{h+='<div class="opd-empty">No meetings yet</div>'}
+  else{h+='<div class="opd-empty-sm">No meetings</div>'}
 
-  h+='<hr class="opd-divider">';
-
-  h+='<div class="opd-activity-head">';
-  h+='<span class="opd-activity-label">'+icon('tasks',12)+' Tasks ('+st.openCount+')</span>';
-  h+='<div style="display:flex;gap:6px">';
-  h+='<button class="btn" onclick="TF.createOppFollowUp(\''+eid+'\')" style="font-size:11px;padding:4px 12px">'+icon('calendar',11)+' Follow-up</button>';
-  h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\',client:\''+escAttr(op.client||'')+'\',endClient:\''+escAttr(op.endClient||'')+'\'});" style="font-size:11px;padding:4px 12px">+ Add</button>';
+  /* Tasks */
+  h+='<div class="opd-act-row" style="margin-top:10px">';
+  h+='<span class="opd-act-label">'+icon('tasks',11)+' Tasks ('+st.openCount+')</span>';
+  h+='<div style="display:flex;gap:4px">';
+  h+='<button class="btn" onclick="TF.createOppFollowUp(\''+eid+'\')" style="font-size:10px;padding:3px 10px">'+icon('calendar',9)+' Follow-up</button>';
+  h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\',client:\''+escAttr(op.client||'')+'\',endClient:\''+escAttr(op.endClient||'')+'\'});" style="font-size:10px;padding:3px 10px">+ Add</button>';
   h+='</div></div>';
   if(st.openTasks.length){
-    h+='<div class="tf-panel">';
-    st.openTasks.forEach(function(t){
+    h+='<div class="tf-panel opd-compact-list">';
+    st.openTasks.slice(0,5).forEach(function(t){
       var eid2=escAttr(t.id);
-      h+='<div class="tf-row" style="padding:8px 14px">';
+      h+='<div class="tf-row">';
       h+='<div class="tf-row-left">';
-      h+='<span class="bg '+impCls(t.importance)+'" style="font-size:9px;padding:2px 6px;flex-shrink:0">'+esc(t.importance.charAt(0))+'</span>';
-      h+='<span style="font-size:12px;color:var(--t1);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openDetail(\''+eid2+'\')},100)">'+esc(t.item)+'</span></div>';
+      h+='<span class="bg '+impCls(t.importance)+'" style="font-size:8px;padding:1px 5px;flex-shrink:0">'+esc(t.importance.charAt(0))+'</span>';
+      h+='<span style="font-size:11px;color:var(--t1);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openDetail(\''+eid2+'\')},100)">'+esc(t.item)+'</span></div>';
       h+='<div class="tf-row-right">';
-      if(t.due)h+='<span style="font-size:10px;color:var(--t4)">'+fmtDShort(t.due)+'</span>';
+      if(t.due)h+='<span style="font-size:9px;color:var(--t4)">'+fmtDShort(t.due)+'</span>';
       h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid2+'\')" title="Complete">'+CK_XS+'</button>';
       h+='</div></div>'});
+    if(st.openTasks.length>5)h+='<div style="padding:4px 12px;font-size:10px;color:var(--t4)">+'+(st.openTasks.length-5)+' more</div>';
     h+='</div>'}
-  else{h+='<div class="opd-empty">No open tasks</div>'}
+  else{h+='<div class="opd-empty-sm">No open tasks</div>'}
 
   h+='</div></div>';
+  h+='</div>';
 
-  /* Sticky action bar */
-  h+='<div class="opd-action-bar">';
-  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()" style="min-width:100px">'+icon('save',12)+' Save</button>';
+  /* ── STICKY ACTION BAR ── */
+  h+='<div class="opd-actions">';
+  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">'+icon('save',11)+' Save</button>';
   if(!isClosed){
-    h+='<button class="btn" style="background:rgba(255,51,88,0.06);color:var(--red);border-color:rgba(255,51,88,0.2)" onclick="TF.closeAsLost(\''+eid+'\')">Close as Lost</button>'}
+    h+='<button class="btn opd-btn-lost" onclick="TF.closeAsLost(\''+eid+'\')">Close as Lost</button>'}
   h+='<div style="flex:1"></div>';
-  h+='<button class="btn" style="color:var(--red);border-color:rgba(255,51,88,0.15)" onclick="TF.confirmDeleteOpportunity()">'+icon('trash',11)+' Delete</button>';
+  h+='<button class="btn opd-btn-del" onclick="TF.confirmDeleteOpportunity()">'+icon('trash',10)+' Delete</button>';
   h+='</div>';
 
   h+='</div>';
