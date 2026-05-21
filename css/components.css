@@ -475,12 +475,23 @@ select.edf:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 .detail-page .ed-grid{padding:0}
 .detail-page .ed-actions{padding:16px 0;border-top:1px solid var(--gborder);margin-top:8px}
 .detail-page .ed-actions .btn{min-height:48px;padding:12px 20px;font-size:14px}
+.detail-page .detail-full-header{padding:20px 24px 0;background:var(--glass);border:1px solid var(--gborder);border-radius:14px;margin-bottom:16px}
+.detail-page .detail-full-header .tf-modal-badges{border-bottom:none;padding-bottom:16px}
+.detail-page .detail-split{overflow:visible;min-height:auto;background:var(--glass);border:1px solid var(--gborder);border-radius:14px}
+.detail-page .detail-split-left{overflow:visible;padding:24px 28px}
+.detail-page .detail-split-right{overflow:visible;padding:24px}
+.detail-page .detail-notes-large .edf-notes{min-height:160px}
+.detail-page .detail-activity{margin-top:auto}
 @media(max-width:600px){
   .detail-page .ed-grid.ed-grid-3{grid-template-columns:1fr}
   .detail-page .ed-grid.ed-grid-4{grid-template-columns:1fr 1fr}
   .detail-page .ed-grid.ed-grid-2{grid-template-columns:1fr}
   .detail-page .ed-actions{flex-wrap:wrap;gap:8px}
   .detail-page .ed-actions .btn{flex:1;min-width:calc(50% - 4px);text-align:center;justify-content:center}
+  .detail-page .detail-full-header{padding:16px 16px 0;border-radius:12px}
+  .detail-page .detail-split{border-radius:12px}
+  .detail-page .detail-split-left{padding:16px}
+  .detail-page .detail-split-right{padding:16px}
 }
 
 /* ═══════════ MOBILE: PHONE (480px) ═══════════ */
