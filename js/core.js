@@ -6515,9 +6515,10 @@ function _renderOppUpdates(updates){
 function _updateOpNamePrefix(newClient,fieldId){
   var nf=gel(fieldId||'op-name');if(!nf)return;
   var cur=nf.value||'';
-  var dashIdx=cur.indexOf(' - ');
-  if(dashIdx!==-1)cur=cur.substring(dashIdx+3).trim();
-  nf.value=newClient+' - '+cur}
+  var dashIdx=cur.indexOf(' — ');
+  if(dashIdx!==-1){cur=cur.substring(dashIdx+3).trim()}
+  else{var hyIdx=cur.indexOf(' - ');if(hyIdx!==-1)cur=cur.substring(hyIdx+3).trim()}
+  nf.value=newClient+' — '+cur}
 
 function opClientSelect(name){
   var input=gel('op-client');var dd=gel('op-client-ac');
@@ -6542,7 +6543,7 @@ function opContactRefresh(clientName){
   var contacts=[];
   if(clientName){
     var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
-    if(cr)contacts=(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&c.status!=='inactive'})}
+    if(cr)contacts=(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&!c.endClient&&!c.endClientId&&c.status!=='inactive'})}
   var h='<option value="__manual__">Enter manually...</option>';
   if(contacts.length)h+='<option value="" disabled>--- '+esc(clientName)+' contacts ---</option>';
   contacts.forEach(function(c){
@@ -6625,7 +6626,7 @@ function nopContactRefresh(clientName){
   var contacts=[];
   if(clientName){
     var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
-    if(cr)contacts=(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&c.status!=='inactive'})}
+    if(cr)contacts=(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&!c.endClient&&!c.endClientId&&c.status!=='inactive'})}
   var h='<option value="__manual__">Enter manually...</option>';
   if(contacts.length)h+='<option value="" disabled>--- '+esc(clientName)+' contacts ---</option>';
   contacts.forEach(function(c){

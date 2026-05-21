@@ -3583,7 +3583,7 @@ function _opGetClientContacts(clientName){
   if(!clientName)return[];
   var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
   if(!cr)return[];
-  return(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&c.status!=='inactive'})}
+  return(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&!c.endClient&&!c.endClientId&&c.status!=='inactive'})}
 
 function rOpportunityDashboard(op,st){
   var conf=oppTypeConf(op.type);
