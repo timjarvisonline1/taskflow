@@ -121,8 +121,10 @@ function rTaskDetailPage(task){
 
   h+='<div class="opd-body">';
 
-  /* ── Details section ── */
-  h+='<div class="opd-section">';
+  /* ── Top row: Details + Linked To side-by-side ── */
+  h+='<div class="td-top-cols">';
+
+  h+='<div class="opd-section" style="flex:3;min-width:0">';
   h+='<div class="opd-sec-head">'+icon('edit',12)+' Details</div>';
   h+='<div class="opd-sec-body">';
   h+='<div class="opd-grid opd-g3">';
@@ -137,8 +139,7 @@ function rTaskDetailPage(task){
   h+='</div>';
   h+='</div></div>';
 
-  /* ── Linked entities section ── */
-  h+='<div class="opd-section">';
+  h+='<div class="opd-section" style="flex:2;min-width:0">';
   h+='<div class="opd-sec-head">'+icon('link',12)+' Linked To</div>';
   h+='<div class="opd-sec-body">';
   h+='<div class="modal-toggles" style="margin-bottom:8px">';
@@ -152,56 +153,46 @@ function rTaskDetailPage(task){
   h+='<div class="opd-fld"><label class="opd-lbl">Client</label><select class="edf" id="d-cli" onchange="TF.refreshDetailEndClients()">'+cliOpts+'</select></div>';
   h+='<div class="opd-fld"><label class="opd-lbl">End Client</label><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(task.endClient||'',task.client)+'</select></div>';
   h+='</div></div>';
-  h+='<div class="mt-fields" id="dt-campaign-fields" style="'+(hasCp?'':'display:none')+'"><div class="opd-grid" style="grid-template-columns:1fr">';
-  h+='<div class="opd-fld"><label class="opd-lbl">Campaign</label><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
-  h+='</div></div>';
-  h+='<div class="mt-fields" id="dt-opp-fields" style="'+(hasOpp?'':'display:none')+'"><div class="opd-grid" style="grid-template-columns:1fr">';
-  h+='<div class="opd-fld"><label class="opd-lbl">Opportunity</label><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'',task.client)+'</select></div>';
-  h+='</div></div>';
+  h+='<div class="mt-fields" id="dt-campaign-fields" style="'+(hasCp?'':'display:none')+'"><div class="opd-fld"><label class="opd-lbl">Campaign</label><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
+  h+='</div>';
+  h+='<div class="mt-fields" id="dt-opp-fields" style="'+(hasOpp?'':'display:none')+'"><div class="opd-fld"><label class="opd-lbl">Opportunity</label><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'',task.client)+'</select></div>';
+  h+='</div>';
   h+='<div class="mt-fields" id="dt-proj-fields" style="'+(hasProj?'':'display:none')+'"><div class="opd-grid" style="grid-template-columns:1fr 1fr">';
   h+='<div class="opd-fld"><label class="opd-lbl">Project</label><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(task.project||'')+'</select></div>';
   h+='<div class="opd-fld"><label class="opd-lbl">Phase</label><select class="edf" id="d-phase">'+buildPhaseOptions(task.project||'',task.phase||'')+'</select></div>';
   h+='</div></div>';
-  h+='<div class="mt-fields" id="dt-mtg-fields" style="'+(hasMtg?'':'display:none')+'"><div class="opd-grid" style="grid-template-columns:1fr">';
-  h+='<div class="opd-fld"><label class="opd-lbl">Meeting</label><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
+  h+='<div class="mt-fields" id="dt-mtg-fields" style="'+(hasMtg?'':'display:none')+'"><div class="opd-fld"><label class="opd-lbl">Meeting</label><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
+  h+='</div>';
   h+='</div></div>';
-  h+='</div></div>';
+
+  h+='</div>';/* end td-top-cols */
 
   /* ── Notes & Activity side-by-side ── */
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  h+='<div class="td-top-cols">';
 
-  h+='<div class="opd-section">';
+  h+='<div class="opd-section" style="flex:1;min-width:0">';
   h+='<div class="opd-sec-head">'+icon('edit',12)+' Notes</div>';
-  h+='<div class="opd-sec-body"><textarea class="edf edf-notes" id="d-notes" style="min-height:140px" placeholder="Notes...">'+esc(task.notes||'')+'</textarea></div>';
+  h+='<div class="opd-sec-body"><textarea class="edf edf-notes" id="d-notes" style="min-height:120px" placeholder="Notes...">'+esc(task.notes||'')+'</textarea></div>';
   h+='</div>';
 
-  h+='<div class="opd-section">';
+  h+='<div class="opd-section" style="flex:1;min-width:0">';
   h+='<div class="opd-sec-head">'+icon('clock',12)+' Activity Log</div>';
   h+='<div class="opd-sec-body">';
   h+='<div class="opd-update-add"><input type="text" class="edf" id="d-log-input" placeholder="Add a log entry..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.addLog(\''+eid+'\')}"><button class="btn" onclick="TF.addLog(\''+eid+'\')" style="padding:6px 12px;font-size:12px">+</button></div>';
   if(logs.length){
-    h+='<div class="opd-updates-log" style="max-height:140px">';
+    h+='<div class="opd-updates-log" style="max-height:120px">';
     logs.slice().reverse().forEach(function(entry){
       h+='<div class="opd-update-row"><span class="opd-update-time">'+fmtLogTs(entry.ts)+'</span><span class="opd-update-text">'+esc(entry.text)+'</span></div>'});
     h+='</div>';
   }else{
-    h+='<div style="text-align:center;padding:16px;color:var(--t4);font-size:11px">No entries yet</div>';
+    h+='<div style="text-align:center;padding:12px;color:var(--t4);font-size:11px">No entries yet</div>';
   }
   h+='</div></div>';
   h+='</div>';
 
-  /* ── Timer / Add Time ── */
-  h+='<div class="opd-section">';
-  h+='<div class="opd-sec-body" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
-  h+='<span style="font-size:11px;font-weight:600;color:var(--t3)">'+icon('clock',12)+' Add Time</span>';
-  h+='<input type="number" id="d-add-mins" class="edf" style="width:70px;padding:6px 10px;font-size:12px" placeholder="mins" min="1">';
-  h+='<button class="btn" onclick="TF.addTimeToTask(\''+eid+'\',parseInt(gel(\'d-add-mins\').value))" style="font-size:11px;padding:5px 12px">+ Add</button>';
-  if(elapsed>0)h+='<span style="font-size:11px;color:var(--t4)">Current: '+fmtM(Math.round(elapsed/60))+'</span>';
-  h+='</div></div>';
-
   h+='</div>';/* end opd-body */
 
-  /* ── Action bar ── */
+  /* ── Action bar (timer integrated) ── */
   h+='<div class="opd-actions">';
   h+='<button class="btn btn-p" onclick="TF.saveDetail()">'+icon('save',12)+' Save</button>';
   if(running){
@@ -211,6 +202,10 @@ function rTaskDetailPage(task){
   }
   h+='<button class="btn btn-p" onclick="TF.markAlreadyCompleted(\''+eid+'\')">'+CK_S+' Complete</button>';
   h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">'+icon('target',12)+' Focus</button>';
+  h+='<span class="opd-actions-sep"></span>';
+  h+='<input type="number" id="d-add-mins" class="edf" style="width:60px;padding:5px 8px;font-size:11px" placeholder="mins" min="1">';
+  h+='<button class="btn" onclick="TF.addTimeToTask(\''+eid+'\',parseInt(gel(\'d-add-mins\').value))" style="font-size:11px;padding:5px 10px">+ Time</button>';
+  if(elapsed>0)h+='<span style="font-size:11px;color:var(--t4);white-space:nowrap">'+fmtM(Math.round(elapsed/60))+' logged</span>';
   h+='<span style="flex:1"></span>';
   h+='<button class="btn btn-d" onclick="TF.confirmDelete()">'+icon('trash',12)+'</button>';
   h+='</div><div id="del-zone"></div>';
