@@ -3779,7 +3779,7 @@ function rOpportunityDashboard(op,st){
       h+='<div class="tf-row">';
       h+='<div class="tf-row-left">';
       h+='<span class="bg '+impCls(t.importance)+'" style="font-size:8px;padding:1px 5px;flex-shrink:0">'+esc(t.importance.charAt(0))+'</span>';
-      h+='<span style="font-size:11px;color:var(--t1);cursor:pointer" onclick="TF.closeModal();setTimeout(function(){TF.openDetail(\''+eid2+'\')},100)">'+esc(t.item)+'</span></div>';
+      h+='<span style="font-size:11px;color:var(--t1);cursor:pointer" onclick="TF.openDetail(\''+eid2+'\')">'+esc(t.item)+'</span></div>';
       h+='<div class="tf-row-right">';
       if(t.due)h+='<span style="font-size:9px;color:var(--t4)">'+fmtDShort(t.due)+'</span>';
       h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid2+'\')" title="Complete">'+CK_XS+'</button>';
