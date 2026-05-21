@@ -17,13 +17,10 @@ function render(){
 
   /* ── Detail-as-page mode (touch devices) ── */
   if(S._detailPage){
-    try{
     html=rDetailPage(S._detailPage.type,S._detailPage.id);
     m.innerHTML='<section class="vw on">'+html+'</section>';
     m.scrollTop=0;
-    renderSidebar();renderActiveWidget();
-    }catch(e){console.error('Detail render error:',e);m.innerHTML='<div style="padding:40px;color:#ff3358;font-size:16px"><b>Render error:</b> '+e.message+'<br><br>Type: '+S._detailPage.type+', ID: '+S._detailPage.id+'<br><button onclick="S._detailPage=null;render()" style="margin-top:16px;padding:8px 16px;cursor:pointer">Back to safety</button></div>'}
-    return}
+    renderSidebar();renderActiveWidget();return}
 
   /* ── Mobile-specific renderers where they exist ── */
   if(isMobile()){
@@ -105,7 +102,7 @@ function rTaskDetailPage(task){
   h+='</div>';
   h+='<div class="ed-grid ed-grid-2" style="margin-bottom:12px">';
   h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-client">'+cliOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Due</span><input type="date" class="edf" id="d-due" value="'+(task.due?isoD(task.due):'')+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Due</span><input type="date" class="edf" id="d-due" value="'+(task.due?task.due.toISOString().slice(0,10):'')+'"></div>';
   h+='</div>';
   h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
   h+='<textarea class="edf edf-notes" id="d-notes" rows="5" style="min-height:100px">'+esc(task.notes||'')+'</textarea></div>';
