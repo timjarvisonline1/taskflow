@@ -854,6 +854,13 @@ select.edf:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 .opd-compact-list .tf-row{padding:5px 10px;min-height:0}
 .opd-empty-sm{padding:8px 0;color:var(--t4);font-size:11px;text-align:center}
 
+.opd-ac-drop{display:none;position:absolute;top:100%;left:0;right:0;z-index:20;max-height:200px;overflow-y:auto;background:#fff;border:1px solid var(--gborder);border-radius:8px;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+.opd-ac-item{padding:7px 12px;font-size:12px;cursor:pointer;color:var(--t1);border-bottom:1px solid var(--hairline);transition:background .1s}
+.opd-ac-item:last-child{border-bottom:none}
+.opd-ac-item:hover{background:var(--bg1)}
+.opd-ac-add{color:var(--accent);font-weight:600}
+.opd-ac-add:hover{background:rgba(230,0,122,0.04)}
+
 .opd-actions{position:sticky;bottom:0;z-index:10;display:flex;align-items:center;gap:8px;padding:12px 24px;margin:12px 24px 0;background:#fff;border:1px solid var(--hairline);border-radius:12px;box-shadow:0 -2px 8px rgba(0,0,0,0.03)}
 .opd-btn-lost{background:rgba(255,51,88,0.05);color:var(--red);border-color:rgba(255,51,88,0.18)}
 .opd-btn-del{color:var(--red);border-color:rgba(255,51,88,0.12)}

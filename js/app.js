@@ -53,6 +53,10 @@ window.TF={nav:nav,subNav:subNav,load:loadData,start:tmrStart,pause:tmrPause,don
   setOpTypeFilter:function(v){S.opTypeFilter=v;save();render()},
   setOpViewMode:function(v){S.opViewMode=v;save();render()},
   setOpGroupBy:function(v){S.opGroupBy=v;save();render()},
+  opClientAc:opClientAc,opClientKey:opClientKey,opClientSelect:opClientSelect,opAddNewClient:opAddNewClient,
+  opContactRefresh:opContactRefresh,opContactChange:opContactChange,
+  nopClientAc:nopClientAc,nopClientKey:nopClientKey,nopClientSelect:nopClientSelect,nopAddNewClient:nopAddNewClient,
+  nopContactRefresh:nopContactRefresh,nopContactChange:nopContactChange,
   setOpPartnerFilter:function(v){S.opPartnerFilter=v;save();render()},
   toggleOpShowClosed:function(){S.opShowClosed=!S.opShowClosed;save();render()},
   /* Finance */

@@ -6419,6 +6419,172 @@ function _crModeChange(idx,mode){
     if(pcWrap)pcWrap.style.display='none';
     if(cliWrap)cliWrap.style.display=''}}
 
+/* ═══════════ OPPORTUNITY CLIENT/CONTACT AUTOCOMPLETE ═══════════ */
+function opClientAc(){
+  var input=gel('op-client');var dd=gel('op-client-ac');
+  if(!input||!dd)return;
+  var q=(input.value||'').toLowerCase().trim();
+  var matches=(S.clientRecords||[]).filter(function(cr){
+    return cr.status==='active'&&(!q||cr.name.toLowerCase().indexOf(q)!==-1)}).slice(0,8);
+  if(!matches.length&&q){
+    dd.innerHTML='<div class="opd-ac-item opd-ac-add" onmousedown="TF.opAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
+    dd.style.display='';
+    input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)};return}
+  if(!matches.length){dd.style.display='none';return}
+  var h='';
+  matches.forEach(function(cr){
+    h+='<div class="opd-ac-item" onmousedown="TF.opClientSelect(\''+escAttr(cr.name)+'\')">'+esc(cr.name)+'</div>'});
+  if(q)h+='<div class="opd-ac-item opd-ac-add" onmousedown="TF.opAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
+  dd.innerHTML=h;dd.style.display='';
+  input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
+
+function opClientKey(e){
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  var input=gel('op-client');if(!input)return;
+  var q=(input.value||'').toLowerCase().trim();
+  var match=(S.clientRecords||[]).find(function(cr){
+    return cr.status==='active'&&cr.name.toLowerCase()===q});
+  if(match)opClientSelect(match.name);
+  else if(q)opAddNewClient()}
+
+function opClientSelect(name){
+  var input=gel('op-client');var dd=gel('op-client-ac');
+  if(input)input.value=name;
+  if(dd)dd.style.display='none';
+  opContactRefresh(name);
+  var ecSel=gel('op-endclient');
+  if(ecSel&&ecSel.tagName==='SELECT'){var cur=ecSel.value;ecSel.innerHTML=buildEndClientOptions(cur,name)}}
+
+async function opAddNewClient(){
+  var input=gel('op-client');if(!input)return;
+  var name=input.value.trim();if(!name){toast('Enter a client name','warn');return}
+  var dd=gel('op-client-ac');if(dd)dd.style.display='none';
+  var ok=await dbAddClient(name,'active');
+  if(ok){await loadClientRecords();toast('Client "'+name+'" created','ok');opClientSelect(name)}
+  else{toast('Failed to create client','warn')}}
+
+function opContactRefresh(clientName){
+  var sel=gel('op-contact-sel');if(!sel)return;
+  var contacts=[];
+  if(clientName){
+    var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
+    if(cr)contacts=(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&c.status!=='inactive'})}
+  var h='<option value="__manual__">Enter manually...</option>';
+  if(contacts.length)h+='<option value="" disabled>--- '+esc(clientName)+' contacts ---</option>';
+  contacts.forEach(function(c){
+    var fullName=((c.firstName||'')+(c.lastName?' '+c.lastName:'')).trim();
+    var label=fullName+(c.email?' ('+c.email+')':'');
+    h+='<option value="'+escAttr(c.id)+'">'+esc(label)+'</option>'});
+  h+='<option value="__add__">+ Add new contact...</option>';
+  sel.innerHTML=h;
+  var manual=gel('op-contact-manual');if(manual)manual.style.display='';
+  var nameInput=gel('op-contact');if(nameInput)nameInput.value='';
+  var emailInput=gel('op-email');if(emailInput)emailInput.value=''}
+
+function opContactChange(){
+  var sel=gel('op-contact-sel');if(!sel)return;
+  var v=sel.value;
+  if(v==='__add__'){
+    var clientName=gel('op-client')?gel('op-client').value:'';
+    var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
+    openAddContactModal(cr?cr.id:null);
+    sel.value='__manual__';
+    var manual=gel('op-contact-manual');if(manual)manual.style.display='';
+    return}
+  if(v==='__manual__'){
+    var manual2=gel('op-contact-manual');if(manual2)manual2.style.display='';
+    gel('op-contact').value='';gel('op-email').value='';
+    return}
+  var contact=(S.contacts||[]).find(function(c){return c.id===v});
+  if(contact){
+    var nameInput=gel('op-contact');
+    var emailInput=gel('op-email');
+    if(nameInput)nameInput.value=((contact.firstName||'')+(contact.lastName?' '+contact.lastName:'')).trim();
+    if(emailInput)emailInput.value=contact.email||'';
+    var manual3=gel('op-contact-manual');if(manual3)manual3.style.display='none'}}
+
+/* ── New-opportunity (nop-) client/contact autocomplete ── */
+function nopClientAc(){
+  var input=gel('nop-client');var dd=gel('nop-client-ac');
+  if(!input||!dd)return;
+  var q=(input.value||'').toLowerCase().trim();
+  var matches=(S.clientRecords||[]).filter(function(cr){
+    return cr.status==='active'&&(!q||cr.name.toLowerCase().indexOf(q)!==-1)}).slice(0,8);
+  if(!matches.length&&q){
+    dd.innerHTML='<div class="opd-ac-item opd-ac-add" onmousedown="TF.nopAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
+    dd.style.display='';input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)};return}
+  if(!matches.length){dd.style.display='none';return}
+  var h='';
+  matches.forEach(function(cr){
+    h+='<div class="opd-ac-item" onmousedown="TF.nopClientSelect(\''+escAttr(cr.name)+'\')">'+esc(cr.name)+'</div>'});
+  if(q)h+='<div class="opd-ac-item opd-ac-add" onmousedown="TF.nopAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
+  dd.innerHTML=h;dd.style.display='';
+  input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
+
+function nopClientKey(e){
+  if(e.key!=='Enter')return;e.preventDefault();
+  var input=gel('nop-client');if(!input)return;
+  var q=(input.value||'').toLowerCase().trim();
+  var match=(S.clientRecords||[]).find(function(cr){return cr.status==='active'&&cr.name.toLowerCase()===q});
+  if(match)nopClientSelect(match.name);
+  else if(q)nopAddNewClient()}
+
+function nopClientSelect(name){
+  var input=gel('nop-client');var dd=gel('nop-client-ac');
+  if(input)input.value=name;
+  if(dd)dd.style.display='none';
+  nopContactRefresh(name);
+  var ecSel=gel('nop-endclient');
+  if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',name)}
+
+async function nopAddNewClient(){
+  var input=gel('nop-client');if(!input)return;
+  var name=input.value.trim();if(!name)return;
+  var dd=gel('nop-client-ac');if(dd)dd.style.display='none';
+  var ok=await dbAddClient(name,'active');
+  if(ok){await loadClientRecords();toast('Client "'+name+'" created','ok');nopClientSelect(name)}}
+
+function nopContactRefresh(clientName){
+  var sel=gel('nop-contact-sel');if(!sel)return;
+  var contacts=[];
+  if(clientName){
+    var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
+    if(cr)contacts=(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&c.status!=='inactive'})}
+  var h='<option value="__manual__">Enter manually...</option>';
+  if(contacts.length)h+='<option value="" disabled>--- '+esc(clientName)+' contacts ---</option>';
+  contacts.forEach(function(c){
+    var fullName=((c.firstName||'')+(c.lastName?' '+c.lastName:'')).trim();
+    var label=fullName+(c.email?' ('+c.email+')':'');
+    h+='<option value="'+escAttr(c.id)+'">'+esc(label)+'</option>'});
+  h+='<option value="__add__">+ Add new contact...</option>';
+  sel.innerHTML=h;
+  var manual=gel('nop-contact-manual');if(manual)manual.style.display='';
+  var emailWrap=gel('nop-email-wrap');if(emailWrap)emailWrap.style.display='';
+  var nameInput=gel('nop-contact');if(nameInput)nameInput.value='';
+  var emailInput=gel('nop-email');if(emailInput)emailInput.value=''}
+
+function nopContactChange(){
+  var sel=gel('nop-contact-sel');if(!sel)return;
+  var v=sel.value;
+  if(v==='__add__'){
+    var clientName=gel('nop-client')?gel('nop-client').value:'';
+    var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
+    openAddContactModal(cr?cr.id:null);
+    sel.value='__manual__';return}
+  if(v==='__manual__'){
+    var manual=gel('nop-contact-manual');if(manual)manual.style.display='';
+    var emailWrap=gel('nop-email-wrap');if(emailWrap)emailWrap.style.display='';
+    return}
+  var contact=(S.contacts||[]).find(function(c){return c.id===v});
+  if(contact){
+    var nameInput=gel('nop-contact');
+    var emailInput=gel('nop-email');
+    if(nameInput)nameInput.value=((contact.firstName||'')+(contact.lastName?' '+contact.lastName:'')).trim();
+    if(emailInput)emailInput.value=contact.email||'';
+    var manual2=gel('nop-contact-manual');if(manual2)manual2.style.display='none';
+    var emailWrap2=gel('nop-email-wrap');if(emailWrap2)emailWrap2.style.display='none'}}
+
 function _crClientAc(idx){
   var input=gel('cr-client-'+idx);
   var dd=gel('cr-client-ac-'+idx);

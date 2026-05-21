@@ -3545,6 +3545,41 @@ function gatherOpContacts(op){
       endClientContacts.push({id:c.id,firstName:c.firstName,lastName:c.lastName,email:c.email,role:c.role,phone:c.phone,endClient:c.endClient,_group:'endClient'})})}
   return{primary:primary,client:clientContacts,endClient:endClientContacts,all:primary.concat(clientContacts).concat(endClientContacts)}}
 
+/* ── Shared opportunity field helpers ── */
+function _opClientField(currentClient){
+  var h='<div class="opd-fld" style="position:relative">';
+  h+='<label class="opd-lbl">Client / Partner</label>';
+  h+='<input type="text" class="edf" id="op-client" value="'+esc(currentClient||'')+'" placeholder="Type to search..." autocomplete="off" oninput="TF.opClientAc()" onfocus="TF.opClientAc()" onkeydown="TF.opClientKey(event)">';
+  h+='<div id="op-client-ac" class="opd-ac-drop"></div>';
+  h+='</div>';
+  return h}
+
+function _opContactField(clientName,contactName,contactEmail){
+  var contacts=_opGetClientContacts(clientName);
+  var h='<div class="opd-fld"><label class="opd-lbl">Contact</label>';
+  h+='<select class="edf" id="op-contact-sel" onchange="TF.opContactChange()">';
+  h+='<option value="__manual__"'+(contacts.length===0?' selected':'')+'>Enter manually...</option>';
+  if(contacts.length)h+='<option value="" disabled>--- '+esc(clientName)+' contacts ---</option>';
+  var matched=false;
+  contacts.forEach(function(c){
+    var fullName=((c.firstName||'')+(c.lastName?' '+c.lastName:'')).trim();
+    var label=fullName+(c.email?' ('+c.email+')':'');
+    var isMatch=(contactName&&fullName.toLowerCase()===contactName.toLowerCase())||(contactEmail&&c.email&&c.email.toLowerCase()===contactEmail.toLowerCase());
+    if(isMatch)matched=true;
+    h+='<option value="'+escAttr(c.id)+'"'+(isMatch?' selected':'')+'>'+esc(label)+'</option>'});
+  h+='<option value="__add__">+ Add new contact...</option>';
+  h+='</select></div>';
+  h+='<div class="opd-fld" id="op-contact-manual" style="'+(matched?'display:none':'')+'"><label class="opd-lbl">Contact Name</label>';
+  h+='<input type="text" class="edf" id="op-contact" value="'+esc(contactName||'')+'"></div>';
+  h+='<input type="hidden" id="op-email" value="'+esc(contactEmail||'')+'">';
+  return h}
+
+function _opGetClientContacts(clientName){
+  if(!clientName)return[];
+  var cr=(S.clientRecords||[]).find(function(r){return r.name===clientName});
+  if(!cr)return[];
+  return(S.contacts||[]).filter(function(c){return c.clientId===cr.id&&c.status!=='inactive'})}
+
 function rOpportunityDashboard(op,st){
   var conf=oppTypeConf(op.type);
   var eid=escAttr(op.id);
@@ -3615,14 +3650,13 @@ function rOpportunityDashboard(op,st){
   h+='<div class="opd-sec-head">'+icon('gem',12)+' Details</div>';
   h+='<div class="opd-sec-body">';
   h+='<div class="opd-grid opd-g3">';
-  h+='<div class="opd-fld"><label class="opd-lbl">Name</label><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+'></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Stage</label><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Client / Partner</label><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Name</label><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Stage</label><select class="edf" id="op-stage">'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
+  h+=_opClientField(op.client);
   h+='</div>';
   h+='<div class="opd-grid opd-g4">';
   h+='<div class="opd-fld"><label class="opd-lbl">End Client</label><select class="edf" id="op-endclient" onchange="TF.ecAddNew(\'op-endclient\')">'+buildEndClientOptions(op.endClientId||op.endClient||'',op.client)+'</select></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Contact Name</label><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Contact Email</label><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
+  h+=_opContactField(op.client,op.contactName,op.contactEmail);
   h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-prob" value="'+(op.probability||'')+'" min="0" max="100" placeholder="50"></div>';
   h+='</div>';
   h+='</div></div>';
@@ -3960,8 +3994,8 @@ function rOpTabDetails(op,st){
   /* Core fields */
   h+='<div class="dash-section">'+icon('gem',13)+' Opportunity Details</div>';
   h+='<div class="ed-grid ed-grid-3">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+'></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage">'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
   if(isRL){
     h+='<div class="ed-fld"><span class="ed-lbl">Prospect Company</span><select class="edf" id="op-pc" onchange="TF.nopPcChange()"><option value="">Select company...</option>';
     (S.prospectCompanies||[]).filter(function(pc){return pc.status==='active'||pc.id===op.prospectCompanyId}).forEach(function(pc){

@@ -2008,13 +2008,16 @@ function selectOpType(type){
   var allStages=conf.stages.slice();if(conf.awaitingStage)allStages.push(conf.awaitingStage);
   h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="nop-stage">'+allStages.map(function(s){return'<option>'+s+'</option>'}).join('')+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="nop-client" onchange="TF.refreshNopEndClients()"><option value="">Select...</option>'+cliOpts+'</select></div>';
+  h+='<div class="ed-fld" style="position:relative"><span class="ed-lbl">Client / Partner</span>';
+  h+='<input type="text" class="edf" id="nop-client" value="" placeholder="Type to search..." autocomplete="off" oninput="TF.nopClientAc()" onfocus="TF.nopClientAc()" onkeydown="TF.nopClientKey(event)">';
+  h+='<div id="nop-client-ac" class="opd-ac-drop"></div></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="nop-endclient" onchange="TF.ecAddNew(\'nop-endclient\')">'+buildEndClientOptions('','')+'</select></div>';
   h+='</div>';
 
-  h+='<div class="ed-grid ed-grid-2">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="nop-contact" placeholder="Key contact..."></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="nop-email" placeholder="email@..."></div>';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Contact</span><select class="edf" id="nop-contact-sel" onchange="TF.nopContactChange()"><option value="__manual__">Enter manually...</option><option value="__add__">+ Add new contact...</option></select></div>';
+  h+='<div class="ed-fld" id="nop-contact-manual"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="nop-contact" placeholder="Key contact..."></div>';
+  h+='<div class="ed-fld" id="nop-email-wrap"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="nop-email" placeholder="email@..."></div>';
   h+='</div>';
 
   h+='<div class="ed-notes-wrap"><span class="ed-lbl">Notes</span>';
