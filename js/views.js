@@ -4165,22 +4165,18 @@ function _rOppTypePage(typeKey,allOps){
   var ops=allOps.filter(function(o){return o.type===typeKey||(typeKey==='fc_partnership'&&!o.type)});
   var bulkMode=!!S.opBulkMode;
   var sel=S.opBulkSel||{};
+  var viewMode=S.opViewMode||'cards';
+  var groupBy=S.opGroupBy||'stage';
 
   var pipelineValue=ops.reduce(function(s,o){return s+_oppValue(o)},0);
   var weightedValue=ops.reduce(function(s,o){return s+_oppValue(o)*((o.probability||50)/100)},0);
-
-  var probFilter=S.opProbFilter||'all';
-  if(probFilter!=='all'){
-    var minP=probFilter==='high'?75:(probFilter==='mid'?50:0);
-    var maxP=probFilter==='high'?100:(probFilter==='mid'?74:49);
-    ops=ops.filter(function(o){var p=o.probability||50;return p>=minP&&p<=maxP})}
 
   var h='';
 
   /* Bulk action bar */
   if(bulkMode){
     var selCount=Object.keys(sel).filter(function(k){return sel[k]}).length;
-    h+='<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;margin-bottom:12px;background:var(--bg1);border:1px solid var(--gborder);border-radius:10px">';
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;margin-bottom:12px;background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;flex-wrap:wrap">';
     h+='<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);cursor:pointer"><input type="checkbox" onchange="TF.oppBulkSelectAll(\''+typeKey+'\',this.checked)" style="accent-color:var(--accent)"> Select all</label>';
     h+='<span style="font-size:12px;color:var(--t3);margin-left:8px">'+selCount+' selected</span>';
     h+='<div style="margin-left:auto;display:flex;gap:6px">';
@@ -4195,71 +4191,104 @@ function _rOppTypePage(typeKey,allOps){
   h+=_finKpi('Weighted','fmtUSD',weightedValue,'var(--green)','probability-adjusted');
   h+='</div>';
 
-  /* Probability filter */
-  h+='<div class="tf-toolbar" style="margin-bottom:12px">';
-  h+='<span style="font-size:11px;color:var(--t3);margin-right:4px">Probability:</span>';
-  [['all','All'],['high','75%+'],['mid','50–74%'],['low','Under 50%']].forEach(function(f){
-    h+='<button class="tf-chip'+(probFilter===f[0]?' on':'')+'" onclick="TF.setOpProbFilter(\''+f[0]+'\')">'+f[1]+'</button>'});
+  /* Toolbar: group-by toggle + view mode */
+  h+='<div class="tf-toolbar" style="margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
+  h+='<div style="display:flex;align-items:center;gap:4px">';
+  h+='<span style="font-size:11px;color:var(--t3);margin-right:2px">Group by:</span>';
+  h+='<button class="tf-chip'+(groupBy==='stage'?' on':'')+'" onclick="TF.setOpGroupBy(\'stage\')">Stage</button>';
+  h+='<button class="tf-chip'+(groupBy==='probability'?' on':'')+'" onclick="TF.setOpGroupBy(\'probability\')">Probability</button>';
   h+='</div>';
+  h+='<div style="display:flex;align-items:center;gap:4px;margin-left:auto">';
+  h+='<span style="font-size:11px;color:var(--t3);margin-right:2px">View:</span>';
+  h+='<button class="tf-chip'+(viewMode==='cards'?' on':'')+'" onclick="TF.setOpViewMode(\'cards\')" title="Cards">'+icon('layers',12)+'</button>';
+  h+='<button class="tf-chip'+(viewMode==='list'?' on':'')+'" onclick="TF.setOpViewMode(\'list\')" title="List">'+icon('align_left',12)+'</button>';
+  h+='</div></div>';
 
   if(!ops.length){
     h+='<div class="tf-empty"><strong>No '+conf.label+' opportunities</strong><br>Click <strong>+ Add Opportunity</strong> to create one.</div>';
     return h}
 
-  /* Pipeline columns */
-  var stages=conf.stages.concat(conf.awaitingStage?[conf.awaitingStage]:[]);
-  var byStage={};stages.forEach(function(st){byStage[st]=[]});
-  ops.forEach(function(o){if(byStage[o.stage])byStage[o.stage].push(o);else{byStage[stages[0]]=byStage[stages[0]]||[];byStage[stages[0]].push(o)}});
+  /* Build groups based on groupBy */
+  var groups=[];
+  if(groupBy==='probability'){
+    var buckets=[{key:'high',label:'High (75%+)',color:'var(--green)',min:75,max:100},
+      {key:'mid',label:'Medium (50–74%)',color:'var(--amber)',min:50,max:74},
+      {key:'low',label:'Low (under 50%)',color:'var(--red)',min:0,max:49}];
+    buckets.forEach(function(b){
+      var bOps=ops.filter(function(o){var p=o.probability||50;return p>=b.min&&p<=b.max});
+      groups.push({label:b.label,color:b.color,ops:bOps})})
+  }else{
+    var stages=conf.stages.concat(conf.awaitingStage?[conf.awaitingStage]:[]);
+    var byStage={};stages.forEach(function(st){byStage[st]=[]});
+    ops.forEach(function(o){if(byStage[o.stage])byStage[o.stage].push(o);else{byStage[stages[0]]=byStage[stages[0]]||[];byStage[stages[0]].push(o)}});
+    stages.forEach(function(st){groups.push({label:st,color:conf.color,ops:byStage[st]||[]})})}
 
-  h+='<div style="display:grid;grid-template-columns:repeat('+stages.length+',1fr);gap:8px;overflow-x:auto;margin-bottom:24px">';
-  stages.forEach(function(st){
-    var stOps=byStage[st]||[];
-    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:10px;min-width:180px">';
-    h+='<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">'+esc(st)+' <span style="color:var(--t4);font-weight:400">· '+stOps.length+'</span></div>';
-    stOps.forEach(function(o){
-      var v=_oppValue(o);var eid=escAttr(o.id);
-      h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:12px;display:flex;align-items:flex-start;gap:6px"';
-      if(!bulkMode)h+=' onclick="TF.openOpportunityDetail(\''+eid+'\')"';
-      h+='>';
-      if(bulkMode)h+='<input type="checkbox" style="accent-color:var(--accent);margin-top:2px;flex-shrink:0"'+(sel[o.id]?' checked':'')+' onchange="TF.oppBulkToggle(\''+eid+'\',this.checked)" onclick="event.stopPropagation()">';
-      h+='<div style="flex:1;min-width:0"'+(bulkMode?' onclick="TF.openOpportunityDetail(\''+eid+'\')"':'')+' >';
-      h+='<div style="font-weight:600;color:var(--t1);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
-      if(o.client||o.endClient)h+='<div style="font-size:10px;color:var(--t3);margin-bottom:3px">'+esc(o.client||o.endClient)+'</div>';
-      var _p=o.probability||50;var _pc=_p>=75?'var(--green)':_p>=50?'var(--amber)':'var(--red)';
-      h+='<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t4)">';
-      if(v)h+='<span>'+fmtUSD(v)+'</span>';else h+='<span></span>';
-      h+='<span style="font-weight:600;color:'+_pc+'">'+_p+'%</span></div>';
-      h+='</div></div>'});
-    if(!stOps.length)h+='<div style="font-size:11px;color:var(--t4);padding:8px 0">—</div>';
-    h+='</div>'});
-  h+='</div>';
+  if(viewMode==='cards'){
+    h+='<div style="display:grid;grid-template-columns:repeat('+groups.length+',1fr);gap:8px;overflow-x:auto;margin-bottom:24px">';
+    groups.forEach(function(g){
+      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:10px;min-width:180px">';
+      h+='<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">'+esc(g.label)+' <span style="color:var(--t4);font-weight:400">· '+g.ops.length+'</span></div>';
+      g.ops.forEach(function(o){h+=_rOppCard(o,bulkMode,sel)});
+      if(!g.ops.length)h+='<div style="font-size:11px;color:var(--t4);padding:8px 0">—</div>';
+      h+='</div>'});
+    h+='</div>'}
+  else{
+    h+=_rOppListTable(ops,groups,groupBy,bulkMode,sel,typeKey)}
 
-  /* Table view */
-  h+='<h2 class="tf-h2">All '+conf.label+' opportunities</h2>';
-  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;overflow:auto;margin-bottom:24px">';
+  return h}
+
+/* Shared card renderer */
+function _rOppCard(o,bulkMode,sel){
+  var v=_oppValue(o);var eid=escAttr(o.id);
+  var h='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:12px;display:flex;align-items:flex-start;gap:6px"';
+  if(!bulkMode)h+=' onclick="TF.openOpportunityDetail(\''+eid+'\')"';
+  h+='>';
+  if(bulkMode)h+='<input type="checkbox" style="accent-color:var(--accent);margin-top:2px;flex-shrink:0"'+(sel[o.id]?' checked':'')+' onchange="TF.oppBulkToggle(\''+eid+'\',this.checked)" onclick="event.stopPropagation()">';
+  h+='<div style="flex:1;min-width:0"'+(bulkMode?' onclick="TF.openOpportunityDetail(\''+eid+'\')"':'')+' >';
+  h+='<div style="font-weight:600;color:var(--t1);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
+  if(o.client||o.endClient)h+='<div style="font-size:10px;color:var(--t3);margin-bottom:3px">'+esc(o.client||o.endClient)+'</div>';
+  var _p=o.probability||50;var _pc=_p>=75?'var(--green)':_p>=50?'var(--amber)':'var(--red)';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t4)">';
+  if(v)h+='<span>'+fmtUSD(v)+'</span>';else h+='<span></span>';
+  h+='<span style="font-weight:600;color:'+_pc+'">'+_p+'%</span></div>';
+  h+='</div></div>';
+  return h}
+
+/* Shared list table renderer — groups shown as section headers when groupBy !== flat */
+function _rOppListTable(ops,groups,groupBy,bulkMode,sel,typeKey){
+  var thStyle='padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3);font-size:11px;font-weight:600';
+  var h='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;overflow:auto;margin-bottom:24px">';
   h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
-  if(bulkMode)h+='<th style="width:30px;padding:7px 8px;border-bottom:1px solid var(--gborder)"><input type="checkbox" onchange="TF.oppBulkSelectAll(\''+typeKey+'\',this.checked)" style="accent-color:var(--accent)"></th>';
-  h+='<th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Name</th>';
-  h+='<th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Client</th>';
-  h+='<th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Stage</th>';
-  h+='<th style="text-align:right;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Value</th>';
-  h+='<th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Prob</th>';
-  h+='<th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Close</th>';
+  if(bulkMode)h+='<th style="width:30px;'+thStyle+'"><input type="checkbox" onchange="TF.oppBulkSelectAll(\''+typeKey+'\',this.checked)" style="accent-color:var(--accent)"></th>';
+  h+='<th style="text-align:left;'+thStyle+'">Name</th>';
+  h+='<th style="text-align:left;'+thStyle+'">Client</th>';
+  h+='<th style="text-align:left;'+thStyle+'">Stage</th>';
+  h+='<th style="text-align:right;'+thStyle+'">Value</th>';
+  h+='<th style="text-align:center;'+thStyle+'">Prob</th>';
+  h+='<th style="text-align:left;'+thStyle+'">Close</th>';
   h+='</tr></thead><tbody>';
-  ops.sort(function(a,b){return(b.probability||50)-(a.probability||50)}).forEach(function(o){
-    var v=_oppValue(o);var ec=_oppEarliestClose(o);var eid=escAttr(o.id);
-    h+='<tr style="cursor:pointer" onclick="TF.openOpportunityDetail(\''+eid+'\')">';
-    if(bulkMode)h+='<td style="padding:6px 8px;border-bottom:1px solid var(--gborder)" onclick="event.stopPropagation()"><input type="checkbox" style="accent-color:var(--accent)"'+(sel[o.id]?' checked':'')+' onchange="TF.oppBulkToggle(\''+eid+'\',this.checked)"></td>';
-    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);font-weight:600;color:var(--t1)">'+esc(o.name||'Untitled')+'</td>';
-    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);color:var(--t2)">'+esc(o.client||o.endClient||'—')+'</td>';
-    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder)"><span class="bg '+opStageClass(o.stage,o.type)+'">'+esc(o.stage)+'</span></td>';
-    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);text-align:right;color:var(--green);font-family:var(--fd)">'+fmtUSD(v)+'</td>';
-    var _p=o.probability||50;var _pc=_p>=75?'var(--green)':_p>=50?'var(--amber)':'var(--red)';
-    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);text-align:center;font-weight:600;color:'+_pc+'">'+_p+'%</td>';
-    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">'+(ec||'—')+'</td>';
-    h+='</tr>'});
+  var colSpan=bulkMode?7:6;
+  groups.forEach(function(g){
+    h+='<tr><td colspan="'+colSpan+'" style="padding:10px 10px 4px;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em;border-bottom:1px solid var(--gborder);background:var(--bg)">'+esc(g.label)+' <span style="font-weight:400;color:var(--t4)">· '+g.ops.length+'</span></td></tr>';
+    g.ops.sort(function(a,b){return(b.probability||50)-(a.probability||50)}).forEach(function(o){
+      h+=_rOppListRow(o,bulkMode,sel)});
+    if(!g.ops.length)h+='<tr><td colspan="'+colSpan+'" style="padding:8px 10px;color:var(--t4);font-size:11px;border-bottom:1px solid var(--gborder)">—</td></tr>'});
   h+='</tbody></table></div>';
+  return h}
 
+function _rOppListRow(o,bulkMode,sel){
+  var v=_oppValue(o);var ec=_oppEarliestClose(o);var eid=escAttr(o.id);
+  var tdStyle='padding:6px 10px;border-bottom:1px solid var(--gborder)';
+  var h='<tr style="cursor:pointer" onclick="TF.openOpportunityDetail(\''+eid+'\')">';
+  if(bulkMode)h+='<td style="'+tdStyle+'" onclick="event.stopPropagation()"><input type="checkbox" style="accent-color:var(--accent)"'+(sel[o.id]?' checked':'')+' onchange="TF.oppBulkToggle(\''+eid+'\',this.checked)"></td>';
+  h+='<td style="'+tdStyle+';font-weight:600;color:var(--t1)">'+esc(o.name||'Untitled')+'</td>';
+  h+='<td style="'+tdStyle+';color:var(--t2)">'+esc(o.client||o.endClient||'—')+'</td>';
+  h+='<td style="'+tdStyle+'"><span class="bg '+opStageClass(o.stage,o.type)+'">'+esc(o.stage)+'</span></td>';
+  h+='<td style="'+tdStyle+';text-align:right;color:var(--green);font-family:var(--fd)">'+fmtUSD(v)+'</td>';
+  var _p=o.probability||50;var _pc=_p>=75?'var(--green)':_p>=50?'var(--amber)':'var(--red)';
+  h+='<td style="'+tdStyle+';text-align:center;font-weight:600;color:'+_pc+'">'+_p+'%</td>';
+  h+='<td style="'+tdStyle+';color:var(--t3)">'+(ec||'—')+'</td>';
+  h+='</tr>';
   return h}
 
 function _oppValue(o){

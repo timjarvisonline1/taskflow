@@ -131,7 +131,7 @@ function _oppEarliestClose(op){
 var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'dashboard',subView:'',layout:'grid',groupBy:'importance',clientDetailName:'',campaignDetailId:'',
   templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
-  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'pipeline',opPartnerFilter:'',
+  filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opTypeFilter:'',opViewMode:'cards',opGroupBy:'stage',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
   accountBalances:[],scheduledItems:[],teamMembers:[],forecastHorizon:90,forecastScenario:'expected',weeklyRange:'all',clientSort:'name',campaignTab:'overview',campaignNotes:{},clientNotes:{},
   /* Email — sync only, read-only search */
@@ -636,7 +636,7 @@ function taskScore(t){var td_=today(),u=10;
   return score}
 
 /* Persistence (localStorage for UI state only) */
-function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_pto',JSON.stringify(S.projTaskOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_optf',S.opTypeFilter||'');localStorage.setItem('tf_sv',S.view);localStorage.setItem('tf_sv2',S.subView);localStorage.setItem('tf_ftg',JSON.stringify(S.forecastToggles||{}));localStorage.setItem('tf_fac',S.forecastAccount||'')}catch(e){}}
+function save(){try{localStorage.setItem('tf_t',JSON.stringify(S.timers));localStorage.setItem('tf_c',JSON.stringify(S.collapsed));localStorage.setItem('tf_ly',S.layout);localStorage.setItem('tf_gb',S.groupBy);localStorage.setItem('tf_tpl',JSON.stringify(S.templates));localStorage.setItem('tf_pins',JSON.stringify(S.pins));localStorage.setItem('tf_ord',JSON.stringify(S.customOrder));localStorage.setItem('tf_so',JSON.stringify(S.schedOrder));localStorage.setItem('tf_pto',JSON.stringify(S.projTaskOrder));localStorage.setItem('tf_rl',JSON.stringify(S.recurrLast));localStorage.setItem('tf_ds',S.doneSort);localStorage.setItem('tf_cpsp',S.cpShowPaused?'1':'');localStorage.setItem('tf_cpsc',S.cpShowCompleted?'1':'');localStorage.setItem('tf_opsc',S.opShowClosed?'1':'');localStorage.setItem('tf_optf',S.opTypeFilter||'');localStorage.setItem('tf_ovm',S.opViewMode||'cards');localStorage.setItem('tf_ogb',S.opGroupBy||'stage');localStorage.setItem('tf_sv',S.view);localStorage.setItem('tf_sv2',S.subView);localStorage.setItem('tf_ftg',JSON.stringify(S.forecastToggles||{}));localStorage.setItem('tf_fac',S.forecastAccount||'')}catch(e){}}
 function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.parse(t);
   var c=localStorage.getItem('tf_c');if(c)S.collapsed=JSON.parse(c);
   var ly=localStorage.getItem('tf_ly');if(ly)S.layout=ly;
@@ -652,6 +652,8 @@ function restore(){try{var t=localStorage.getItem('tf_t');if(t)S.timers=JSON.par
   var cpsc=localStorage.getItem('tf_cpsc');if(cpsc)S.cpShowCompleted=true;
   var opsc=localStorage.getItem('tf_opsc');if(opsc)S.opShowClosed=true;
   var optf=localStorage.getItem('tf_optf');if(optf)S.opTypeFilter=optf;
+  var ovm=localStorage.getItem('tf_ovm');if(ovm)S.opViewMode=ovm;
+  var ogb=localStorage.getItem('tf_ogb');if(ogb)S.opGroupBy=ogb;
   var sv=localStorage.getItem('tf_sv');if(sv)S.view=sv;
   var sv2=localStorage.getItem('tf_sv2');if(sv2)S.subView=sv2;
   var fr=localStorage.getItem('tf_fr');if(fr)S.finRange=fr;
