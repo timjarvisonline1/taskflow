@@ -1916,7 +1916,7 @@ function createOppFollowUp(opId){
   var name='Follow up: '+op.name;
   var notes='Opportunity: '+op.name+'\nClient: '+(op.client||'—')+'\nEnd Client: '+(op.endClient||'—')+'\nStage: '+(op.stage||'—');
   if(op.notes)notes+='\n\nOpp notes:\n'+op.notes.substring(0,300);
-  var pre={item:name,client:op.client||'',endClient:op.endClient||'',opportunity:op.id,notes:notes,importance:'Important',type:'Sales / Outreach',est:10};
+  var pre={item:name,client:op.client||'',endClient:op.endClient||'',opportunity:op.id,notes:notes,importance:'Important',type:'Business',category:'Sales / Outreach',est:10};
   if(S._detailPage){S._detailPage=null;_pushHash()}
   else{closeModal()}
   openAddModal(pre)}
