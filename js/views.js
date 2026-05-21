@@ -3711,7 +3711,11 @@ function rOpportunityDashboard(op,st){
   h+='<div class="opd-fld"><label class="opd-lbl">Months</label><input type="number" class="edf" id="op-mf-months" value="'+(op.monthlyFeeMonths||'')+'" min="1" placeholder="12" onchange="TF.oppAutoSave()"></div>';
   h+='<div class="opd-fld"><label class="opd-lbl">Start Date</label><input type="date" class="edf" id="op-mf-start" value="'+(op.monthlyFeeStart||'')+'" onchange="TF.oppAutoSave()"></div>';
   h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100" onchange="TF.oppAutoSave()"></div>';
-  h+='</div></div>';
+  h+='</div>';
+  h+='<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);cursor:pointer;user-select:none;margin-top:6px;padding:0 2px">';
+  h+='<input type="checkbox" id="op-mf-quarterly"'+(op.quarterlyBilling!==false?' checked':'')+' onchange="TF.oppAutoSave()" style="accent-color:var(--accent)">';
+  h+='Paid quarterly in advance</label>';
+  h+='</div>';
 
   h+='</div>';
   h+='</div></div>';
@@ -6121,11 +6125,20 @@ function rFinanceForecastSimple(){
         var mProb=op.monthlyFeeProb!=null?op.monthlyFeeProb/100:1;
         var mAmt=op.monthlyFee*mProb;
         var mMonths=op.monthlyFeeMonths||12;
-        for(var mi=0;mi<mMonths;mi++){
-          var mDate=new Date(op.monthlyFeeStart+'T00:00:00');mDate.setMonth(mDate.getMonth()+mi);
-          var mDs=mDate.toISOString().slice(0,10);
-          if(mDs>=td&&mDs<=endDt&&days[mDs]){days[mDs].in+=mAmt;
-            days[mDs].events.push({label:'Opp Monthly: '+name,amount:mAmt,direction:'in'})}}}})}
+        if(op.quarterlyBilling!==false){
+          for(var qi=0;qi<mMonths;qi+=3){
+            var qDate=new Date(op.monthlyFeeStart+'T00:00:00');qDate.setMonth(qDate.getMonth()+qi);
+            var qDs=qDate.toISOString().slice(0,10);
+            var qCount=Math.min(3,mMonths-qi);
+            var qAmt=mAmt*qCount;
+            if(qDs>=td&&qDs<=endDt&&days[qDs]){days[qDs].in+=qAmt;
+              days[qDs].events.push({label:'Opp Quarterly: '+name+' ('+qCount+'mo)',amount:qAmt,direction:'in'})}}}
+        else{
+          for(var mi=0;mi<mMonths;mi++){
+            var mDate=new Date(op.monthlyFeeStart+'T00:00:00');mDate.setMonth(mDate.getMonth()+mi);
+            var mDs=mDate.toISOString().slice(0,10);
+            if(mDs>=td&&mDs<=endDt&&days[mDs]){days[mDs].in+=mAmt;
+              days[mDs].events.push({label:'Opp Monthly: '+name,amount:mAmt,direction:'in'})}}}}})}
 
   /* Recurring outgoings: project forward by frequency */
   (S.scheduledItems||[]).forEach(function(r){

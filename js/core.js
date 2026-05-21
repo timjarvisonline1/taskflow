@@ -800,6 +800,7 @@ async function loadOpportunities(){
       closedAt:r.closed_at?new Date(r.closed_at):null,
       convertedCampaignId:r.converted_campaign_id||'',
       closeReason:r.close_reason||'',
+      quarterlyBilling:r.quarterly_billing!==false,
       updates:Array.isArray(r.updates)?r.updates:[],
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
@@ -5979,6 +5980,7 @@ async function dbEditOpportunity(id,data){
     monthly_fee_start:data.monthlyFeeStart||null,expected_monthly_duration:data.monthlyFeeMonths||null,
     monthly_fee_prob:data.monthlyFeeProb!=null?data.monthlyFeeProb:null,
     source:data.source||'',notes:data.notes||'',
+    quarterly_billing:data.quarterlyBilling!==false,
     updates:data.updates||[],
     closed_at:data.closedAt||null,converted_campaign_id:data.convertedCampaignId||null,
     close_reason:data.closeReason||''};
@@ -6482,6 +6484,7 @@ async function _doOppAutoSave(){
   op.monthlyFeeMonths=gel('op-mf-months')&&gel('op-mf-months').value?parseInt(gel('op-mf-months').value):null;
   op.monthlyFeeStart=gel('op-mf-start')&&gel('op-mf-start').value?gel('op-mf-start').value:null;
   op.monthlyFeeProb=gel('op-mf-prob')&&gel('op-mf-prob').value!==''?parseInt(gel('op-mf-prob').value):null;
+  op.quarterlyBilling=gel('op-mf-quarterly')?gel('op-mf-quarterly').checked:op.quarterlyBilling;
   op.notes=gel('op-notes')?gel('op-notes').value||'':'';
   var ok=await dbEditOpportunity(id,op);
   if(ok){var sb=gel('opd-save-status');if(sb){sb.textContent='Saved';sb.style.opacity='1';setTimeout(function(){sb.style.opacity='0'},1500)}}}

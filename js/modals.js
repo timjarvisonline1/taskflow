@@ -1898,6 +1898,7 @@ async function saveOpportunity(){
   op.monthlyFeeMonths=gel('op-mf-months')&&gel('op-mf-months').value?parseInt(gel('op-mf-months').value):null;
   op.monthlyFeeStart=gel('op-mf-start')&&gel('op-mf-start').value?gel('op-mf-start').value:null;
   op.monthlyFeeProb=gel('op-mf-prob')&&gel('op-mf-prob').value!==''?parseInt(gel('op-mf-prob').value):null;
+  op.quarterlyBilling=gel('op-mf-quarterly')?gel('op-mf-quarterly').checked:op.quarterlyBilling;
   op.notes=gel('op-notes')?gel('op-notes').value||'':'';
   await dbEditOpportunity(id,op);
   toast('Saved: '+op.name,'ok');closeModal();render()}
