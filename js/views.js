@@ -3551,6 +3551,8 @@ function rOpportunityDashboard(op,st){
   var isClosed=oppIsClosedStage(op.stage);
   var stages=oppAllStages(op.type);
   var cliOpts=S.clients.map(function(c){return'<option'+(c===op.client?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var totalVal=_oppValue(op);
+  var weightedVal=totalVal*((op.probability||0)/100);
 
   /* Prev/next navigation */
   var visibleOpps=(S.opportunities||[]).filter(function(o){return !o.closedAt&&!oppIsClosedStage(o.stage)});
@@ -3559,98 +3561,147 @@ function rOpportunityDashboard(op,st){
   var prevOp=curIdx>0?visibleOpps[curIdx-1]:null;
   var nextOp=curIdx<visibleOpps.length-1?visibleOpps[curIdx+1]:null;
 
-  /* Header */
-  var h='<div class="tf-modal-top" style="padding:16px 28px 12px">';
-  h+='<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">';
+  /* Days in current stage */
+  var daysInStage='';
+  if(op.updated_at){var _stDays=Math.floor((Date.now()-new Date(op.updated_at).getTime())/(1000*60*60*24));daysInStage=_stDays+'d in stage'}
+
+  /* Earliest close */
+  var earlyClose=_oppEarliestClose(op);
+  var closeDaysLeft='';var closeUrgent=false;
+  if(earlyClose){var _cd=Math.ceil((new Date(earlyClose).getTime()-Date.now())/(1000*60*60*24));
+    if(_cd<0){closeDaysLeft=Math.abs(_cd)+'d overdue';closeUrgent=true}
+    else if(_cd===0){closeDaysLeft='Closes today';closeUrgent=true}
+    else if(_cd<=14){closeDaysLeft=_cd+'d until close';closeUrgent=true}
+    else{closeDaysLeft=_cd+'d until close'}}
+
+  var h='';
+
+  h+='<div class="opd-header">';
+  h+='<div class="opd-header-nav">';
   if(prevOp)h+='<button class="op-nav-btn" onclick="TF.openOpportunityDetail(\''+escAttr(prevOp.id)+'\')" title="'+esc(prevOp.name)+'">'+icon('chevron_left',14)+' Prev</button>';
-  h+='<div style="flex:1;min-width:0"><h2 style="margin:0;font-size:17px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(op.name)+'</h2>';
-  if(visibleOpps.length>1)h+='<div style="font-size:10px;color:var(--t4);margin-top:2px">'+(curIdx+1)+' of '+visibleOpps.length+'</div>';
-  h+='</div>';
+  h+='<div style="flex:1"></div>';
+  if(visibleOpps.length>1)h+='<span class="opd-counter">'+(curIdx+1)+' of '+visibleOpps.length+'</span>';
   if(nextOp)h+='<button class="op-nav-btn" onclick="TF.openOpportunityDetail(\''+escAttr(nextOp.id)+'\')" title="'+esc(nextOp.name)+'">Next '+icon('chevron_right',14)+'</button>';
+  h+='<span class="bg '+opTypeBadgeCls(op.type)+'" style="margin-left:8px">'+conf.label+'</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()" style="margin-left:4px">&times;</button>';
   h+='</div>';
-  h+='<span class="bg '+opTypeBadgeCls(op.type)+'" style="flex-shrink:0">'+conf.label+'</span>';
-  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button>';
+
+  h+='<h2 class="opd-title">'+esc(op.name)+'</h2>';
+
+  /* Status strip */
+  h+='<div class="opd-status-strip">';
+  var _probPct=op.probability||0;
+  var _probColor=_probPct>=70?'var(--green)':_probPct>=40?'var(--amber)':'var(--red)';
+  h+='<span class="opd-stage-badge" style="border-color:'+conf.color+'40;color:'+conf.color+'">'+icon('activity',11)+' '+esc(op.stage)+'</span>';
+  h+='<span class="opd-prob-badge" style="color:'+_probColor+'">'+_probPct+'%</span>';
+  if(daysInStage)h+='<span class="opd-meta-chip">'+icon('clock',10)+' '+daysInStage+'</span>';
+  if(closeDaysLeft)h+='<span class="opd-meta-chip'+(closeUrgent?' opd-urgent':'')+'">'+icon('calendar',10)+' '+closeDaysLeft+'</span>';
+  h+='</div>';
+
+  /* Value KPIs */
+  h+='<div class="opd-value-strip">';
+  h+='<div class="opd-value-item"><span class="opd-value-num" style="color:var(--green)">'+fmtUSD(totalVal)+'</span><span class="opd-value-label">Total Value</span></div>';
+  h+='<div class="opd-value-item"><span class="opd-value-num" style="color:var(--amber)">'+fmtUSD(weightedVal)+'</span><span class="opd-value-label">Weighted</span></div>';
+  h+='<div class="opd-value-item"><span class="opd-value-num" style="color:var(--blue)">'+st.openCount+'</span><span class="opd-value-label">Open Tasks</span></div>';
+  h+='<div class="opd-value-item"><span class="opd-value-num" style="color:var(--purple50)">'+st.meetingCount+'</span><span class="opd-value-label">Meetings</span></div>';
+  h+='</div>';
   h+='</div>';
 
   h+='<input type="hidden" id="op-id" value="'+esc(op.id)+'">';
   h+='<input type="hidden" id="op-type" value="'+esc(op.type)+'">';
 
-  /* ── Core fields ── */
-  h+='<div style="padding:0 28px">';
+  h+='<div class="opd-body">';
 
-  h+='<div class="ed-grid ed-grid-3" style="margin-bottom:12px">';
+  /* Details panel */
+  h+='<div class="opd-panel">';
+  h+='<div class="opd-panel-head">'+icon('gem',13)+' Details</div>';
+  h+='<div class="opd-panel-content">';
+  h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Name</span><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"'+(isClosed?' readonly':'')+'></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Stage</span><select class="edf" id="op-stage"'+(isClosed?' disabled':'')+'>'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Client / Partner</span><select class="edf" id="op-client"><option value="">Select...</option>'+cliOpts+'</select></div>';
   h+='</div>';
-
-  h+='<div class="ed-grid ed-grid-3" style="margin-bottom:12px">';
+  h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="op-endclient" onchange="TF.ecAddNew(\'op-endclient\')">'+buildEndClientOptions(op.endClientId||op.endClient||'',op.client)+'</select></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Name</span><input type="text" class="edf" id="op-contact" value="'+esc(op.contactName)+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Contact Email</span><input type="email" class="edf" id="op-email" value="'+esc(op.contactEmail)+'"></div>';
   h+='</div>';
-
-  /* ── Probability ── */
-  h+='<div class="ed-grid ed-grid-3" style="margin-bottom:12px">';
+  h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Overall Probability %</span><input type="number" class="edf" id="op-prob" value="'+(op.probability||'')+'" min="0" max="100" placeholder="50"></div>';
-  h+='<div></div><div></div></div>';
+  h+='<div></div><div></div>';
+  h+='</div>';
+  h+='</div></div>';
 
-  /* ── Fee type toggles ── */
+  /* Financials panel */
   var ft=op.feeTypes||'';
   var hasSF=ft.indexOf('strategy')!==-1,hasSU=ft.indexOf('setup')!==-1,hasMF=ft.indexOf('monthly')!==-1;
-  h+='<div style="margin-bottom:12px">';
-  h+='<span class="ed-lbl" style="margin-bottom:8px;display:block">Fee Types</span>';
-  h+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+
+  h+='<div class="opd-panel">';
+  h+='<div class="opd-panel-head">'+icon('activity',13)+' Financials</div>';
+  h+='<div class="opd-panel-content">';
+
+  h+='<div class="opd-fee-toggles">';
   h+='<label class="fee-toggle'+(hasSF?' on':'')+'"><input type="checkbox" id="op-ft-strategy"'+(hasSF?' checked':'')+' onchange="TF.toggleFeeType(\'strategy\')"><span>Strategy Fee</span></label>';
   h+='<label class="fee-toggle'+(hasSU?' on':'')+'"><input type="checkbox" id="op-ft-setup"'+(hasSU?' checked':'')+' onchange="TF.toggleFeeType(\'setup\')"><span>Setup Fee</span></label>';
   h+='<label class="fee-toggle'+(hasMF?' on':'')+'"><input type="checkbox" id="op-ft-monthly"'+(hasMF?' checked':'')+' onchange="TF.toggleFeeType(\'monthly\')"><span>Monthly Fee</span></label>';
-  h+='</div></div>';
+  h+='</div>';
 
-  /* ── Fee detail sections (only visible when toggled on) ── */
-  h+='<div id="op-fee-sections" style="margin-bottom:16px">';
+  h+='<div id="op-fee-sections">';
 
-  h+='<div id="op-fee-strategy" style="'+(hasSF?'':'display:none;')+'margin-bottom:8px">';
-  h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px">';
-  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Strategy Fee</div>';
-  h+='<div class="ed-grid ed-grid-3" style="margin:0">';
+  h+='<div id="op-fee-strategy" class="opd-fee-card" style="'+(hasSF?'':'display:none')+'">';
+  h+='<div class="opd-fee-card-head"><span class="opd-fee-card-title">Strategy Fee</span>';
+  if(hasSF&&op.strategyFee)h+='<span class="opd-fee-card-amt" style="color:var(--green)">'+fmtUSD(op.strategyFee)+'</span>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-sf-close" value="'+(op.strategyFeeClose||'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-sf-prob" value="'+(op.strategyFeeProb!=null?op.strategyFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
-  h+='</div></div></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-sf-prob" value="'+(op.strategyFeeProb!=null?op.strategyFeeProb:'')+'" min="0" max="100" placeholder="&#x2014;"></div>';
+  h+='</div></div>';
 
-  h+='<div id="op-fee-setup" style="'+(hasSU?'':'display:none;')+'margin-bottom:8px">';
-  h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px">';
-  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Setup Fee</div>';
-  h+='<div class="ed-grid ed-grid-3" style="margin:0">';
+  h+='<div id="op-fee-setup" class="opd-fee-card" style="'+(hasSU?'':'display:none')+'">';
+  h+='<div class="opd-fee-card-head"><span class="opd-fee-card-title">Setup Fee</span>';
+  if(hasSU&&op.setupFee)h+='<span class="opd-fee-card-amt" style="color:var(--blue)">'+fmtUSD(op.setupFee)+'</span>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-3">';
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Expected Close</span><input type="date" class="edf" id="op-su-close" value="'+(op.setupFeeClose||'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-su-prob" value="'+(op.setupFeeProb!=null?op.setupFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
-  h+='</div></div></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-su-prob" value="'+(op.setupFeeProb!=null?op.setupFeeProb:'')+'" min="0" max="100" placeholder="&#x2014;"></div>';
+  h+='</div></div>';
 
-  h+='<div id="op-fee-monthly" style="'+(hasMF?'':'display:none;')+'margin-bottom:8px">';
-  h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:10px;padding:10px 14px">';
-  h+='<div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px">Monthly Fee</div>';
-  h+='<div class="ed-grid ed-grid-4" style="margin:0">';
+  h+='<div id="op-fee-monthly" class="opd-fee-card" style="'+(hasMF?'':'display:none')+'">';
+  h+='<div class="opd-fee-card-head"><span class="opd-fee-card-title">Monthly Fee</span>';
+  if(hasMF&&op.monthlyFee)h+='<span class="opd-fee-card-amt" style="color:var(--purple50)">'+fmtUSD(op.monthlyFee)+'/mo</span>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-4">';
   h+='<div class="ed-fld"><span class="ed-lbl">Amount</span><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Months</span><input type="number" class="edf" id="op-mf-months" value="'+(op.monthlyFeeMonths||'')+'" min="1" placeholder="12"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Expected Start</span><input type="date" class="edf" id="op-mf-start" value="'+(op.monthlyFeeStart||'')+'"></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100" placeholder="—"></div>';
-  h+='</div></div></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Probability %</span><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100" placeholder="&#x2014;"></div>';
+  h+='</div></div>';
 
   h+='</div>';
+  h+='</div></div>';
 
-  /* ── Notes ── */
-  h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
-  h+='<textarea class="edf edf-notes" id="op-notes" rows="5" placeholder="Notes about this opportunity..." style="min-height:100px">'+esc(op.notes)+'</textarea></div>';
+  /* Notes panel */
+  h+='<div class="opd-panel">';
+  h+='<div class="opd-panel-head">'+icon('file',13)+' Notes</div>';
+  h+='<div class="opd-panel-content">';
+  h+='<textarea class="edf edf-notes" id="op-notes" rows="4" placeholder="Notes about this opportunity..." style="min-height:80px">'+esc(op.notes)+'</textarea>';
+  h+='</div></div>';
 
-  /* ── Meetings ── */
+  /* Activity panel */
+  h+='<div class="opd-panel">';
+  h+='<div class="opd-panel-head">'+icon('users',13)+' Activity</div>';
+  h+='<div class="opd-panel-content">';
+
   var allMtgs=st.meetings.slice();
   (S.meetings||[]).forEach(function(m){
     if(m.opportunityId===op.id)allMtgs.push({date:m.startTime,title:m.title||'Meeting',
       recordingLink:m.reportUrl||'',notes:m.summary||'',source:'readai'})});
   allMtgs.sort(function(a,b){var da=a.date?new Date(a.date):new Date(0);var db=b.date?new Date(b.date):new Date(0);return db-da});
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
-  h+='<span class="ed-lbl" style="margin:0">Meetings ('+allMtgs.length+')</span>';
+
+  h+='<div class="opd-activity-head">';
+  h+='<span class="opd-activity-label">'+icon('calendar',12)+' Meetings ('+allMtgs.length+')</span>';
   h+='<button class="btn" onclick="TF.openAddOpportunityMeeting(\''+eid+'\')" style="font-size:11px;padding:4px 12px">+ Add</button>';
   h+='</div>';
   if(allMtgs.length){
@@ -3664,17 +3715,18 @@ function rOpportunityDashboard(op,st){
       if(!m.source)h+='<button class="ab ab-del ab-mini" onclick="event.stopPropagation();TF.deleteOpportunityMeeting(\''+escAttr(m.id)+'\',\''+eid+'\')" title="Delete" style="opacity:.4">'+icon('x',10)+'</button>';
       h+='</div></div>'});
     h+='</div>'}
-  else{h+='<div style="padding:12px 0 16px;color:var(--t4);font-size:12px">No meetings yet</div>'}
+  else{h+='<div class="opd-empty">No meetings yet</div>'}
 
-  /* ── Tasks ── */
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
-  h+='<span class="ed-lbl" style="margin:0">Tasks ('+st.openCount+')</span>';
+  h+='<hr class="opd-divider">';
+
+  h+='<div class="opd-activity-head">';
+  h+='<span class="opd-activity-label">'+icon('tasks',12)+' Tasks ('+st.openCount+')</span>';
   h+='<div style="display:flex;gap:6px">';
   h+='<button class="btn" onclick="TF.createOppFollowUp(\''+eid+'\')" style="font-size:11px;padding:4px 12px">'+icon('calendar',11)+' Follow-up</button>';
   h+='<button class="btn" onclick="TF.closeModal();TF.openAddModal({opportunity:\''+eid+'\',client:\''+escAttr(op.client||'')+'\',endClient:\''+escAttr(op.endClient||'')+'\'});" style="font-size:11px;padding:4px 12px">+ Add</button>';
   h+='</div></div>';
   if(st.openTasks.length){
-    h+='<div class="tf-panel" style="margin-bottom:16px">';
+    h+='<div class="tf-panel">';
     st.openTasks.forEach(function(t){
       var eid2=escAttr(t.id);
       h+='<div class="tf-row" style="padding:8px 14px">';
@@ -3686,14 +3738,17 @@ function rOpportunityDashboard(op,st){
       h+='<button class="ab ab-dn ab-mini" onclick="event.stopPropagation();TF.done(\''+eid2+'\')" title="Complete">'+CK_XS+'</button>';
       h+='</div></div>'});
     h+='</div>'}
-  else{h+='<div style="padding:12px 0 16px;color:var(--t4);font-size:12px">No open tasks</div>'}
+  else{h+='<div class="opd-empty">No open tasks</div>'}
 
-  /* ── Actions ── */
-  h+='<div class="ed-actions op-detail-actions" style="margin-top:8px;padding-bottom:20px">';
-  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">Save</button>';
+  h+='</div></div>';
+
+  /* Sticky action bar */
+  h+='<div class="opd-action-bar">';
+  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()" style="min-width:100px">'+icon('save',12)+' Save</button>';
   if(!isClosed){
     h+='<button class="btn" style="background:rgba(255,51,88,0.06);color:var(--red);border-color:rgba(255,51,88,0.2)" onclick="TF.closeAsLost(\''+eid+'\')">Close as Lost</button>'}
-  h+='<button class="btn ab-del" style="margin-left:auto" onclick="TF.confirmDeleteOpportunity()">Delete</button>';
+  h+='<div style="flex:1"></div>';
+  h+='<button class="btn" style="color:var(--red);border-color:rgba(255,51,88,0.15)" onclick="TF.confirmDeleteOpportunity()">'+icon('trash',11)+' Delete</button>';
   h+='</div>';
 
   h+='</div>';
