@@ -17,10 +17,13 @@ function render(){
 
   /* ── Detail-as-page mode (touch devices) ── */
   if(S._detailPage){
+    try{
     html=rDetailPage(S._detailPage.type,S._detailPage.id);
     m.innerHTML='<section class="vw on">'+html+'</section>';
     m.scrollTop=0;
-    renderSidebar();renderActiveWidget();return}
+    renderSidebar();renderActiveWidget();
+    }catch(e){console.error('Detail render error:',e);m.innerHTML='<div style="padding:40px;color:#ff3358;font-size:16px"><b>Render error:</b> '+e.message+'<br><br>Type: '+S._detailPage.type+', ID: '+S._detailPage.id+'<br><button onclick="S._detailPage=null;render()" style="margin-top:16px;padding:8px 16px;cursor:pointer">Back to safety</button></div>'}
+    return}
 
   /* ── Mobile-specific renderers where they exist ── */
   if(isMobile()){

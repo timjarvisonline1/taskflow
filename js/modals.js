@@ -3,8 +3,10 @@
 function fmtLogTs(ts){if(!ts)return'';var d=new Date(ts);return MO[d.getMonth()]+' '+d.getDate()+', '+(d.getHours()%12||12)+':'+String(d.getMinutes()).padStart(2,'0')+' '+(d.getHours()<12?'AM':'PM')}
 
 function openDetail(id){
-  var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
-  if(usePageDetail()){gel('modal').classList.remove('on');gel('detail-modal').classList.remove('on','full-detail','email-light');_unlockBodyScroll();S._detailPage={type:'task',id:id};_pushHash();render();return}
+  var task=S.tasks.find(function(t){return t.id===id});
+  console.log('openDetail called, id=',id,'found=',!!task,'body.modal-open=',document.body.classList.contains('modal-open'),'modal.on=',gel('modal').classList.contains('on'),'detail-modal.on=',gel('detail-modal').classList.contains('on'));
+  if(!task)return;
+  if(usePageDetail()){gel('modal').classList.remove('on');gel('detail-modal').classList.remove('on','full-detail','email-light');_unlockBodyScroll();S._detailPage={type:'task',id:id};_pushHash();console.log('openDetail: about to render, _detailPage=',JSON.stringify(S._detailPage));render();console.log('openDetail: render complete');return}
   var td=today(),ts=tmrGet(id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
   var elapsed=tmrElapsed(id),eid=escAttr(id);
   var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===(task.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
