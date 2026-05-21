@@ -3690,10 +3690,11 @@ function rOpportunityDashboard(op,st){
   var totalVal=_oppValue(op);
   var weightedVal=totalVal*((op.probability||0)/100);
 
-  /* Prev/next */
-  var visibleOpps=(S.opportunities||[]).filter(function(o){return !o.closedAt&&!oppIsClosedStage(o.stage)});
+  /* Prev/next — scoped to same opportunity type */
+  var _navType=op.type;
+  var visibleOpps=(S.opportunities||[]).filter(function(o){return o.type===_navType&&!o.closedAt&&!oppIsClosedStage(o.stage)});
   var curIdx=visibleOpps.findIndex(function(o){return o.id===op.id});
-  if(curIdx<0){visibleOpps=S.opportunities||[];curIdx=visibleOpps.findIndex(function(o){return o.id===op.id})}
+  if(curIdx<0){visibleOpps=(S.opportunities||[]).filter(function(o){return o.type===_navType});curIdx=visibleOpps.findIndex(function(o){return o.id===op.id})}
   var prevOp=curIdx>0?visibleOpps[curIdx-1]:null;
   var nextOp=curIdx<visibleOpps.length-1?visibleOpps[curIdx+1]:null;
 
@@ -4444,7 +4445,7 @@ function _rOppTypePage(typeKey,allOps){
     if(S.opShowClosedLost)stages.push('Closed Lost');
     var byStage={};stages.forEach(function(st){byStage[st]=[]});
     ops.forEach(function(o){if(byStage[o.stage])byStage[o.stage].push(o);else{byStage[stages[0]]=byStage[stages[0]]||[];byStage[stages[0]].push(o)}});
-    stages.forEach(function(st){groups.push({label:st,color:st==='Closed Won'?'var(--green)':(st==='Closed Lost'?'var(--red)':conf.color),ops:byStage[st]||[]})})}
+    stages.forEach(function(st){var stOps=byStage[st]||[];if(S.opClientFilter&&!stOps.length)return;groups.push({label:st,color:st==='Closed Won'?'var(--green)':(st==='Closed Lost'?'var(--red)':conf.color),ops:stOps})})}
 
   if(viewMode==='cards'){
     h+='<div style="display:grid;grid-template-columns:repeat('+groups.length+',1fr);gap:8px;overflow-x:auto;margin-bottom:24px">';
