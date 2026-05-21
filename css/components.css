@@ -827,7 +827,7 @@ select.edf:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 .opd-kpi b{font-family:var(--fd);font-weight:700;letter-spacing:-0.02em}
 
 .opd-body{padding:12px 24px 0}
-.opd-section{background:#fff;border:1px solid var(--hairline);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.opd-section{background:#fff;border:1px solid var(--hairline);border-radius:10px;margin-bottom:10px}
 .opd-sec-head{padding:10px 14px;font-size:12px;font-weight:700;color:var(--t1);display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--hairline);background:var(--bg1)}
 .opd-sec-body{padding:12px 14px}
 
