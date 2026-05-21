@@ -399,6 +399,7 @@ function tmrDone(id){var task=S.tasks.find(function(t){return t.id===id});if(!ta
           _op.updates.unshift({ts:new Date().toISOString(),text:'Task completed: '+task.item+(mins?' ('+fmtM(mins)+')':'')});
           dbEditOpportunity(_op.id,_op)}}
       toast('Done: '+task.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
+    if(S._detailPage){S._detailPage=null;_pushHash()}
     closeModal();render();renderSidebar();renderActiveWidget()},500)}
 
 async function addTimeToTask(id,mins){

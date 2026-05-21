@@ -360,6 +360,7 @@ async function markAlreadyCompleted(id){
       duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||''});
     save();
     toast('Completed: '+task.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
+  if(S._detailPage){S._detailPage=null;_pushHash()}
   closeModal();render();renderSidebar();renderActiveWidget()}
 
 function confirmDelete(){
@@ -369,7 +370,9 @@ function confirmDelete(){
 async function doDelete(id){var task=S.tasks.find(function(t){return t.id===id});if(!task)return;
   await dbDeleteTask(id);
   S.tasks=S.tasks.filter(function(t){return t.id!==id});delete S.timers[id];save();
-  toast(icon('trash',12)+' Deleted: '+task.item,'warn');closeModal();render();renderSidebar();renderActiveWidget()}
+  toast(icon('trash',12)+' Deleted: '+task.item,'warn');
+  if(S._detailPage){S._detailPage=null;_pushHash()}
+  closeModal();render();renderSidebar();renderActiveWidget()}
 
 /* ═══════════ ADD TASK ═══════════ */
 function openAddMeetingPrepTask(meetingKey){
