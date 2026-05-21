@@ -6430,14 +6430,14 @@ function opClientAc(){
   var matches=q?all.filter(function(cr){return cr.name.toLowerCase().indexOf(q)!==-1}).slice(0,8):all.filter(function(cr){return cr.status!=='inactive'}).slice(0,8);
   if(!matches.length&&q){
     dd.innerHTML='<div class="opd-ac-item opd-ac-add" onmousedown="TF.opAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
-    dd.style.display='';
+    dd.style.display='block';
     input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)};return}
   if(!matches.length){dd.style.display='none';return}
   var h='';
   matches.forEach(function(cr){
     h+='<div class="opd-ac-item" onmousedown="TF.opClientSelect(\''+escAttr(cr.name)+'\')">'+esc(cr.name)+'</div>'});
   if(q)h+='<div class="opd-ac-item opd-ac-add" onmousedown="TF.opAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
-  dd.innerHTML=h;dd.style.display='';
+  dd.innerHTML=h;dd.style.display='block';
   input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
 
 function opClientKey(e){
@@ -6587,13 +6587,13 @@ function nopClientAc(){
   var matches=q?all.filter(function(cr){return cr.name.toLowerCase().indexOf(q)!==-1}).slice(0,8):all.filter(function(cr){return cr.status!=='inactive'}).slice(0,8);
   if(!matches.length&&q){
     dd.innerHTML='<div class="opd-ac-item opd-ac-add" onmousedown="TF.nopAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
-    dd.style.display='';input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)};return}
+    dd.style.display='block';input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)};return}
   if(!matches.length){dd.style.display='none';return}
   var h='';
   matches.forEach(function(cr){
     h+='<div class="opd-ac-item" onmousedown="TF.nopClientSelect(\''+escAttr(cr.name)+'\')">'+esc(cr.name)+'</div>'});
   if(q)h+='<div class="opd-ac-item opd-ac-add" onmousedown="TF.nopAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
-  dd.innerHTML=h;dd.style.display='';
+  dd.innerHTML=h;dd.style.display='block';
   input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
 
 function nopClientKey(e){
@@ -6676,7 +6676,7 @@ function _crClientAc(idx){
   var h='';
   matches.forEach(function(cr){
     h+='<div onmousedown="TF._crClientSelect('+idx+',\''+escAttr(cr.id)+'\',\''+escAttr(cr.name)+'\')" style="padding:6px 10px;font-size:12px;cursor:pointer;color:var(--t1);border-bottom:1px solid var(--gborder)" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'none\'">'+esc(cr.name)+'</div>'});
-  dd.innerHTML=h;dd.style.display='';
+  dd.innerHTML=h;dd.style.display='block';
   /* Close on blur after short delay (let mousedown fire first) */
   input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
 
@@ -6717,13 +6717,13 @@ function _crPcAc(idx){
   if(!matches.length&&q){
     /* Show "+ Create" option for new company */
     dd.innerHTML='<div onmousedown="TF._crPcCreate('+idx+')" style="padding:6px 10px;font-size:12px;cursor:pointer;color:var(--accent);border-bottom:1px solid var(--gborder)" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'none\'">'+icon('plus',11)+' Create &ldquo;'+esc(q)+'&rdquo;</div>';
-    dd.style.display='';
+    dd.style.display='block';
     input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)};return}
   if(!matches.length){dd.style.display='none';return}
   var h='';
   matches.forEach(function(pc){
     h+='<div onmousedown="TF._crPcSelect('+idx+',\''+escAttr(pc.id)+'\',\''+escAttr(pc.name)+'\')" style="padding:6px 10px;font-size:12px;cursor:pointer;color:var(--t1);border-bottom:1px solid var(--gborder)" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'none\'">'+esc(pc.name)+'</div>'});
-  dd.innerHTML=h;dd.style.display='';
+  dd.innerHTML=h;dd.style.display='block';
   input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)}}
 
 function _crPcKey(idx,e){
