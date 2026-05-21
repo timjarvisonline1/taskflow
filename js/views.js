@@ -89,29 +89,114 @@ function rDetailPage(type,id){
   h+='</div>';return h}
 
 function rTaskDetailPage(task){
-  var td=today(),ts=tmrGet(task.id),running=!!ts.started,elapsed=tmrElapsed(task.id),eid=escAttr(task.id);
+  var td=today(),ts=tmrGet(task.id),running=!!ts.started,hasT=running||(ts.elapsed||0)>0;
+  var elapsed=tmrElapsed(task.id),eid=escAttr(task.id);
   var cliOpts='<option value="">Select...</option>'+S.clients.map(function(c){return'<option'+(c===(task.client||'')?' selected':'')+'>'+esc(c)+'</option>'}).join('');
+  var catOpts='<option value="">Select...</option>'+CATS.map(function(c){return'<option'+(c===task.category?' selected':'')+'>'+esc(c)+'</option>'}).join('');
   var impOpts=IMPS.map(function(i){return'<option'+(i===task.importance?' selected':'')+'>'+i+'</option>'}).join('');
   var typeOpts=TYPES.map(function(t){return'<option'+(t===task.type?' selected':'')+'>'+t+'</option>'}).join('');
+  var isPinned=!!S.pins[task.id];
+  var logs=S.actLogs[task.id]||[];
 
-  var h='<input type="hidden" id="d-id" value="'+esc(task.id)+'">';
-  h+='<div style="margin-bottom:16px"><input type="text" class="edf" id="d-item" value="'+esc(task.item)+'" style="font-size:17px;font-weight:600"></div>';
-  h+='<div class="ed-grid ed-grid-2" style="margin-bottom:12px">';
+  var h='<div class="detail-full-header">';
+  h+='<div class="tf-modal-top">';
+  h+='<input type="text" class="edf edf-name" id="d-item" value="'+esc(task.item)+'">';
+  h+='<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">';
+  h+='<button class="btn" onclick="TF.togglePin(\''+eid+'\')" style="font-size:11px;padding:5px 12px;background:'+(isPinned?'rgba(255,176,48,0.15)':'var(--bg4)')+';color:'+(isPinned?'var(--amber)':'var(--t4)')+';border-color:'+(isPinned?'rgba(255,176,48,0.3)':'var(--gborder)')+'">'+icon('pin',12)+' '+(isPinned?'Unpin':'Pin')+'</button>';
+  h+='</div></div>';
+  h+='<input type="hidden" id="d-id" value="'+esc(task.id)+'">';
+
+  h+='<div class="tf-modal-badges">';
+  h+='<span class="bg '+impCls(task.importance)+'">'+esc(task.importance)+'</span>';
+  if(task.due){var diff=dayDiff(td,task.due);h+='<span class="bg-du'+(diff<0?' od':(diff===0?' td':''))+'">'+dueLabel(task.due,td)+'</span>'}
+  if(task.flag)h+='<span class="bg bg-fl">'+icon('flag',12)+' Needs Client Input</span>';
+  if(task.client)h+='<span class="bg bg-cl">'+esc(task.client)+'</span>';
+  if(task.endClient)h+='<span class="bg bg-ec">'+esc(task.endClient)+'</span>';
+  if(task.campaign){var _cpdet=S.campaigns.find(function(c){return c.id===task.campaign});if(_cpdet)h+='<span class="bg" style="background:rgba(255,153,0,0.08);color:var(--amber)">'+icon('target',12)+' '+esc(_cpdet.name)+'</span>'}
+  if(task.category)h+='<span class="bg bg-ca">'+esc(task.category)+'</span>';
+  if(task.meetingKey){var _mtgEvt=S.calEvents.find(function(ev){return mtgKey(ev.title,ev.start)===task.meetingKey});if(_mtgEvt)h+='<span class="bg" style="background:rgba(255,0,153,0.08);color:var(--purple50)">'+icon('calendar',12)+' '+esc(_mtgEvt.title)+' '+fmtTime(_mtgEvt.start)+'</span>'}
+  if(task.emailThreadId){var _eThr=S.gmailThreads.find(function(t){return(t.thread_id||t.threadId)===task.emailThreadId});
+    h+='<span class="bg" style="background:rgba(59,130,246,0.08);color:var(--blue);cursor:pointer" onclick="TF.openEmailThread(\''+escAttr(task.emailThreadId)+'\')">'+icon('mail',12)+' '+((_eThr&&_eThr.subject)?esc(_eThr.subject.substring(0,40)):'Linked Email')+'</span>'}
+  if(isPinned)h+='<span class="bg" style="background:rgba(255,176,48,0.1);color:var(--amber)">'+icon('pin',12)+' Pinned</span>';
+  if(hasT){h+='<span class="ed-timer-badge"><span class="dot '+(running?'pulse':'pau')+'"></span><span class="'+(running?'go':'')+'" data-tmr="'+esc(task.id)+'">'+fmtT(elapsed)+'</span></span>'}
+  h+='</div></div>';
+
+  h+='<div class="detail-split">';
+  h+='<div class="detail-split-left">';
+  h+='<div class="ed-grid ed-grid-3">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Due Date</span><input type="datetime-local" class="edf" id="d-due" value="'+(task.due?fmtISO(task.due):'')+'"></div>';
   h+='<div class="ed-fld"><span class="ed-lbl">Importance</span><select class="edf" id="d-imp">'+impOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Category</span><select class="edf" id="d-cat">'+catOpts+'</select></div>';
+  h+='</div>';
+  h+='<div class="ed-grid ed-grid-2">';
   h+='<div class="ed-fld"><span class="ed-lbl">Type</span><select class="edf" id="d-type">'+typeOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Estimate (mins)</span><input type="number" class="edf" id="d-est" value="'+(task.est||'')+'" min="0" placeholder="30"></div>';
   h+='</div>';
-  h+='<div class="ed-grid ed-grid-2" style="margin-bottom:12px">';
-  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-client">'+cliOpts+'</select></div>';
-  h+='<div class="ed-fld"><span class="ed-lbl">Due</span><input type="date" class="edf" id="d-due" value="'+(task.due?task.due.toISOString().slice(0,10):'')+'"></div>';
+  var hasCli=!!task.client,hasCp=!!task.campaign,hasOpp=!!task.opportunity,hasProj=!!task.project,hasMtg=!!task.meetingKey;
+  h+='<div class="modal-toggles">';
+  h+='<label class="modal-toggle"><input type="checkbox" id="dt-cli"'+(hasCli?' checked':'')+' onchange="TF.modalToggle(\'dt-cli-fields\',this.checked)"><span>Client</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="dt-campaign"'+(hasCp?' checked':'')+' onchange="TF.modalToggle(\'dt-campaign-fields\',this.checked)"><span>Campaign</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="dt-opp"'+(hasOpp?' checked':'')+' onchange="TF.modalToggle(\'dt-opp-fields\',this.checked)"><span>Opportunity</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="dt-proj"'+(hasProj?' checked':'')+' onchange="TF.modalToggle(\'dt-proj-fields\',this.checked)"><span>Project</span></label>';
+  h+='<label class="modal-toggle"><input type="checkbox" id="dt-mtg"'+(hasMtg?' checked':'')+' onchange="TF.modalToggle(\'dt-mtg-fields\',this.checked)"><span>Meeting</span></label>';
   h+='</div>';
-  h+='<div style="margin-bottom:16px"><span class="ed-lbl">Notes</span>';
-  h+='<textarea class="edf edf-notes" id="d-notes" rows="5" style="min-height:100px">'+esc(task.notes||'')+'</textarea></div>';
-  if(running){h+='<div style="margin-bottom:12px"><button class="btn" onclick="TF.pause(\''+eid+'\')" style="width:100%">'+icon('pause',12)+' Pause ('+fmtM(elapsed)+')</button></div>'}
-  else{h+='<div style="margin-bottom:12px"><button class="btn btn-go" onclick="TF.start(\''+eid+'\')" style="width:100%">'+icon('play',12)+' Start Timer</button></div>'}
-  h+='<div class="ed-actions op-detail-actions" style="padding-bottom:20px">';
-  h+='<button class="btn btn-p" onclick="TF.saveDetailPage()">Save</button>';
-  h+='<button class="btn btn-go" onclick="TF.saveDetailPage();TF.done(\''+eid+'\')">Complete</button>';
-  h+='<button class="btn ab-del" style="margin-left:auto" onclick="if(confirm(\'Delete this task?\'))TF.del(\''+eid+'\')">Delete</button>';
+  h+='<div class="mt-fields" id="dt-cli-fields" style="'+(hasCli?'':'display:none')+'"><div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Client</span><select class="edf" id="d-cli" onchange="TF.refreshDetailEndClients()">'+cliOpts+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">End Client</span><select class="edf" id="d-ec" onchange="TF.refreshDetailCampaigns();TF.ecAddNew(\'d-ec\')">'+buildEndClientOptions(task.endClient||'',task.client)+'</select></div>';
+  h+='</div></div>';
+  h+='<div class="mt-fields" id="dt-campaign-fields" style="'+(hasCp?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Campaign</span><select class="edf" id="d-campaign" onchange="TF.fillFromCampaign();TF.onProjectChange(\'d\',\'campaign\')">'+buildCampaignOptions(task.campaign||'',task.client,task.endClient)+'</select></div>';
+  h+='</div></div>';
+  h+='<div class="mt-fields" id="dt-opp-fields" style="'+(hasOpp?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Opportunity</span><select class="edf" id="d-opportunity" onchange="TF.onProjectChange(\'d\',\'opportunity\')">'+buildOpportunityOptions(task.opportunity||'',task.client)+'</select></div>';
+  h+='</div></div>';
+  h+='<div class="mt-fields" id="dt-proj-fields" style="'+(hasProj?'':'display:none')+'"><div class="ed-grid ed-grid-2">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Project</span><select class="edf" id="d-project" onchange="TF.onProjectChange(\'d\',\'project\');TF.refreshDetailPhases()">'+buildProjectOptions(task.project||'')+'</select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Phase</span><select class="edf" id="d-phase">'+buildPhaseOptions(task.project||'',task.phase||'')+'</select></div>';
+  h+='</div></div>';
+  h+='<div class="mt-fields" id="dt-mtg-fields" style="'+(hasMtg?'':'display:none')+'"><div class="ed-grid ed-grid-1">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Meeting</span><select class="edf" id="d-mtg">'+buildMeetingOptions(task.meetingKey||'')+'</select></div>';
+  h+='</div></div>';
+  h+='<div class="flag-row ed-flags-inline">';
+  h+='<label class="flag-toggle"><input type="checkbox" id="d-flag"'+(task.flag?' checked':'')+'><span class="flag-box">'+icon('flag',12)+'</span><span class="flag-text">Needs Client Input</span></label>';
+  h+='</div>';
+  h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg1);border-radius:var(--r);margin:0 0 8px;border:1px solid var(--gborder)">';
+  h+='<span style="font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap">'+icon('clock',12)+' Add Time</span>';
+  h+='<input type="number" id="d-add-mins" class="edf" style="width:80px;padding:6px 10px;font-size:13px" placeholder="mins" min="1">';
+  h+='<button class="btn" onclick="TF.addTimeToTask(\''+eid+'\',parseInt(gel(\'d-add-mins\').value))" style="font-size:12px;padding:6px 14px">+ Add</button>';
+  if(elapsed>0)h+='<span style="font-size:11px;color:var(--t4);margin-left:auto">Current: '+fmtM(Math.round(elapsed/60))+'</span>';
+  h+='</div>';
+  h+='<div class="ed-actions">';
+  h+='<button class="btn btn-p" onclick="TF.saveDetail()">'+icon('save',12)+' Save</button>';
+  if(running){
+    h+='<button class="btn" onclick="TF.pause(\''+eid+'\')">'+icon('pause',12)+' Pause</button>';
+  }else{
+    h+='<button class="btn btn-go" onclick="TF.start(\''+eid+'\')">'+icon('play',12)+' Start</button>';
+  }
+  h+='<button class="btn btn-p" onclick="TF.markAlreadyCompleted(\''+eid+'\')">'+CK_S+' Complete</button>';
+  h+='<button class="btn" onclick="TF.openFocus(\''+eid+'\')" style="background:rgba(255,0,153,0.1);color:var(--pink);border-color:rgba(255,0,153,0.2)">'+icon('target',12)+' Focus</button>';
+  h+='<span class="spacer"></span>';
+  h+='<button class="btn btn-d" onclick="TF.confirmDelete()">'+icon('trash',12)+'</button>';
+  h+='</div><div id="del-zone"></div>';
+  h+='</div>';
+
+  h+='<div class="detail-split-right">';
+  h+='<div class="detail-notes-large"><span class="ed-lbl" style="padding-left:0;margin-bottom:6px;display:block">'+icon('edit',12)+' Notes</span>';
+  h+='<textarea class="edf edf-notes" id="d-notes" placeholder="Add notes about your progress, where you left off, what to do next...">'+esc(task.notes||'')+'</textarea></div>';
+  h+='<div class="detail-activity">';
+  h+='<span class="ed-lbl" style="padding-left:0;margin-bottom:8px;display:block">Activity Log</span>';
+  h+='<div class="act-log-input"><input type="text" class="edf" id="d-log-input" placeholder="Add a log entry..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();TF.addLog(\''+eid+'\')}">';
+  h+='<button class="act-log-add" onclick="TF.addLog(\''+eid+'\')">+</button></div>';
+  if(logs.length){
+    h+='<div class="act-log-list">';
+    logs.slice().reverse().forEach(function(entry){
+      h+='<div class="act-log-entry"><span class="act-log-time">'+fmtLogTs(entry.ts)+'</span><span class="act-log-text">'+esc(entry.text)+'</span></div>'});
+    h+='</div>';
+  }else{
+    h+='<div style="text-align:center;padding:20px;color:var(--t4);font-size:12px">No activity log entries yet</div>';
+  }
+  h+='</div>';
+  h+='</div>';
   h+='</div>';
   return h}
 
