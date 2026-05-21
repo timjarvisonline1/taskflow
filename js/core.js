@@ -800,6 +800,7 @@ async function loadOpportunities(){
       closedAt:r.closed_at?new Date(r.closed_at):null,
       convertedCampaignId:r.converted_campaign_id||'',
       closeReason:r.close_reason||'',
+      updates:Array.isArray(r.updates)?r.updates:[],
       created:r.created_at?new Date(r.created_at):new Date()}})}
 
 async function loadOpportunityMeetings(){
@@ -5978,6 +5979,7 @@ async function dbEditOpportunity(id,data){
     monthly_fee_start:data.monthlyFeeStart||null,expected_monthly_duration:data.monthlyFeeMonths||null,
     monthly_fee_prob:data.monthlyFeeProb!=null?data.monthlyFeeProb:null,
     source:data.source||'',notes:data.notes||'',
+    updates:data.updates||[],
     closed_at:data.closedAt||null,converted_campaign_id:data.convertedCampaignId||null,
     close_reason:data.closeReason||''};
   var res=await _sb.from('opportunities').update(row).eq('id',id);
@@ -6424,8 +6426,8 @@ function opClientAc(){
   var input=gel('op-client');var dd=gel('op-client-ac');
   if(!input||!dd)return;
   var q=(input.value||'').toLowerCase().trim();
-  var matches=(S.clientRecords||[]).filter(function(cr){
-    return cr.status==='active'&&(!q||cr.name.toLowerCase().indexOf(q)!==-1)}).slice(0,8);
+  var all=(S.clientRecords||[]);
+  var matches=q?all.filter(function(cr){return cr.name.toLowerCase().indexOf(q)!==-1}).slice(0,8):all.filter(function(cr){return cr.status!=='inactive'}).slice(0,8);
   if(!matches.length&&q){
     dd.innerHTML='<div class="opd-ac-item opd-ac-add" onmousedown="TF.opAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
     dd.style.display='';
@@ -6443,18 +6445,89 @@ function opClientKey(e){
   e.preventDefault();
   var input=gel('op-client');if(!input)return;
   var q=(input.value||'').toLowerCase().trim();
-  var match=(S.clientRecords||[]).find(function(cr){
-    return cr.status==='active'&&cr.name.toLowerCase()===q});
+  var match=(S.clientRecords||[]).find(function(cr){return cr.name.toLowerCase()===q});
   if(match)opClientSelect(match.name);
   else if(q)opAddNewClient()}
+
+var _oppAutoTimer=null;
+function oppAutoSave(){
+  if(_oppAutoTimer)clearTimeout(_oppAutoTimer);
+  _oppAutoTimer=setTimeout(function(){_oppAutoTimer=null;_doOppAutoSave()},1200)}
+
+async function _doOppAutoSave(){
+  var idEl=gel('op-id');if(!idEl)return;
+  var id=idEl.value;var op=(S.opportunities||[]).find(function(o){return o.id===id});if(!op)return;
+  var name=(gel('op-name')?gel('op-name').value:'').trim();if(!name)return;
+  op.name=name;
+  op.stage=gel('op-stage')?gel('op-stage').value:op.stage;
+  op.client=gel('op-client')?gel('op-client').value||'':'';
+  var _ecRaw=gel('op-endclient')?(gel('op-endclient').value||'').trim():'';
+  op.endClientId=resolveEndClientId(_ecRaw)||null;
+  op.endClient=op.endClientId?endClientNameById(op.endClientId):_ecRaw;
+  op.contactName=(gel('op-contact')?gel('op-contact').value:'').trim();
+  op.contactEmail=(gel('op-email')?gel('op-email').value:'').trim();
+  op.probability=gel('op-prob')?parseInt(gel('op-prob').value)||50:op.probability;
+  var _ft=[];
+  if(gel('op-ft-strategy')&&gel('op-ft-strategy').checked)_ft.push('strategy');
+  if(gel('op-ft-setup')&&gel('op-ft-setup').checked)_ft.push('setup');
+  if(gel('op-ft-monthly')&&gel('op-ft-monthly').checked)_ft.push('monthly');
+  op.feeTypes=_ft.join(',');
+  op.strategyFee=gel('op-strategy')?parseFloat(gel('op-strategy').value)||0:0;
+  op.strategyFeeClose=gel('op-sf-close')&&gel('op-sf-close').value?gel('op-sf-close').value:null;
+  op.strategyFeeProb=gel('op-sf-prob')&&gel('op-sf-prob').value!==''?parseInt(gel('op-sf-prob').value):null;
+  op.setupFee=gel('op-setup')?parseFloat(gel('op-setup').value)||0:0;
+  op.setupFeeClose=gel('op-su-close')&&gel('op-su-close').value?gel('op-su-close').value:null;
+  op.setupFeeProb=gel('op-su-prob')&&gel('op-su-prob').value!==''?parseInt(gel('op-su-prob').value):null;
+  op.monthlyFee=gel('op-monthly')?parseFloat(gel('op-monthly').value)||0:0;
+  op.monthlyFeeMonths=gel('op-mf-months')&&gel('op-mf-months').value?parseInt(gel('op-mf-months').value):null;
+  op.monthlyFeeStart=gel('op-mf-start')&&gel('op-mf-start').value?gel('op-mf-start').value:null;
+  op.monthlyFeeProb=gel('op-mf-prob')&&gel('op-mf-prob').value!==''?parseInt(gel('op-mf-prob').value):null;
+  op.notes=gel('op-notes')?gel('op-notes').value||'':'';
+  var ok=await dbEditOpportunity(id,op);
+  if(ok){var sb=gel('opd-save-status');if(sb){sb.textContent='Saved';sb.style.opacity='1';setTimeout(function(){sb.style.opacity='0'},1500)}}}
+
+async function addOppUpdate(){
+  var idEl=gel('op-id');if(!idEl)return;
+  var id=idEl.value;var op=(S.opportunities||[]).find(function(o){return o.id===id});if(!op)return;
+  var input=gel('op-update-input');if(!input)return;
+  var text=input.value.trim();if(!text){toast('Enter an update','warn');return}
+  if(!op.updates)op.updates=[];
+  op.updates.unshift({ts:new Date().toISOString(),text:text});
+  input.value='';
+  await dbEditOpportunity(id,op);
+  var list=gel('op-updates-list');
+  if(list)list.innerHTML=_renderOppUpdates(op.updates);
+  toast('Update added','ok')}
+
+function _renderOppUpdates(updates){
+  if(!updates||!updates.length)return'<div class="opd-empty-sm">No updates yet</div>';
+  var h='';
+  updates.forEach(function(u){
+    var d=u.ts?new Date(u.ts):new Date();
+    var ds=fmtDShort(d);
+    var ts=d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    h+='<div class="opd-update-row">';
+    h+='<span class="opd-update-time">'+ds+' '+ts+'</span>';
+    h+='<span class="opd-update-text">'+esc(u.text)+'</span>';
+    h+='</div>'});
+  return h}
+
+function _updateOpNamePrefix(newClient,fieldId){
+  var nf=gel(fieldId||'op-name');if(!nf)return;
+  var cur=nf.value||'';
+  var dashIdx=cur.indexOf(' - ');
+  if(dashIdx!==-1)cur=cur.substring(dashIdx+3).trim();
+  nf.value=newClient+' - '+cur}
 
 function opClientSelect(name){
   var input=gel('op-client');var dd=gel('op-client-ac');
   if(input)input.value=name;
   if(dd)dd.style.display='none';
+  _updateOpNamePrefix(name,'op-name');
   opContactRefresh(name);
   var ecSel=gel('op-endclient');
-  if(ecSel&&ecSel.tagName==='SELECT'){var cur=ecSel.value;ecSel.innerHTML=buildEndClientOptions(cur,name)}}
+  if(ecSel&&ecSel.tagName==='SELECT'){var cur=ecSel.value;ecSel.innerHTML=buildEndClientOptions(cur,name)}
+  oppAutoSave()}
 
 async function opAddNewClient(){
   var input=gel('op-client');if(!input)return;
@@ -6502,15 +6575,16 @@ function opContactChange(){
     var emailInput=gel('op-email');
     if(nameInput)nameInput.value=((contact.firstName||'')+(contact.lastName?' '+contact.lastName:'')).trim();
     if(emailInput)emailInput.value=contact.email||'';
-    var manual3=gel('op-contact-manual');if(manual3)manual3.style.display='none'}}
+    var manual3=gel('op-contact-manual');if(manual3)manual3.style.display='none';
+    oppAutoSave()}}
 
 /* ── New-opportunity (nop-) client/contact autocomplete ── */
 function nopClientAc(){
   var input=gel('nop-client');var dd=gel('nop-client-ac');
   if(!input||!dd)return;
   var q=(input.value||'').toLowerCase().trim();
-  var matches=(S.clientRecords||[]).filter(function(cr){
-    return cr.status==='active'&&(!q||cr.name.toLowerCase().indexOf(q)!==-1)}).slice(0,8);
+  var all=(S.clientRecords||[]);
+  var matches=q?all.filter(function(cr){return cr.name.toLowerCase().indexOf(q)!==-1}).slice(0,8):all.filter(function(cr){return cr.status!=='inactive'}).slice(0,8);
   if(!matches.length&&q){
     dd.innerHTML='<div class="opd-ac-item opd-ac-add" onmousedown="TF.nopAddNewClient()">+ Create "'+esc(input.value.trim())+'"</div>';
     dd.style.display='';input.onblur=function(){setTimeout(function(){dd.style.display='none'},150)};return}
@@ -6526,7 +6600,7 @@ function nopClientKey(e){
   if(e.key!=='Enter')return;e.preventDefault();
   var input=gel('nop-client');if(!input)return;
   var q=(input.value||'').toLowerCase().trim();
-  var match=(S.clientRecords||[]).find(function(cr){return cr.status==='active'&&cr.name.toLowerCase()===q});
+  var match=(S.clientRecords||[]).find(function(cr){return cr.name.toLowerCase()===q});
   if(match)nopClientSelect(match.name);
   else if(q)nopAddNewClient()}
 
@@ -6534,6 +6608,7 @@ function nopClientSelect(name){
   var input=gel('nop-client');var dd=gel('nop-client-ac');
   if(input)input.value=name;
   if(dd)dd.style.display='none';
+  _updateOpNamePrefix(name,'nop-name');
   nopContactRefresh(name);
   var ecSel=gel('nop-endclient');
   if(ecSel&&ecSel.tagName==='SELECT')ecSel.innerHTML=buildEndClientOptions('',name)}

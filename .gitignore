@@ -17,3 +17,5 @@ scripts/run-migration.py
 
 # Node
 node_modules/
+.vercel
+.env*.local

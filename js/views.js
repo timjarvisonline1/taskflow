@@ -62,7 +62,12 @@ function render(){
 /* ═══════════ DETAIL-AS-PAGE (mobile/iPad) ═══════════ */
 function rDetailPage(type,id){
   var h='<div class="detail-page">';
-  h+='<div class="detail-page-back"><button class="btn" onclick="history.back()" style="display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:10px 16px">'+icon('chevron_left',14)+' Back</button></div>';
+  var _backAction='history.back()';
+  if(type==='opportunity'){
+    var _bop=(S.opportunities||[]).find(function(o){return o.id===id});
+    var _bsub=_bop&&_bop.type?_bop.type:'overview';
+    _backAction='S._detailPage=null;TF.nav(\'opportunities\');TF.subNav(\''+_bsub+'\')'}
+  h+='<div class="detail-page-back"><button class="btn" onclick="'+_backAction+'" style="display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:10px 16px">'+icon('chevron_left',14)+' Back</button></div>';
   if(type==='opportunity'){
     var op=(S.opportunities||[]).find(function(o){return o.id===id});
     if(!op){h+='<div style="padding:40px 0;text-align:center;color:var(--t4)">Opportunity not found</div>'}
@@ -3650,14 +3655,14 @@ function rOpportunityDashboard(op,st){
   h+='<div class="opd-sec-head">'+icon('gem',12)+' Details</div>';
   h+='<div class="opd-sec-body">';
   h+='<div class="opd-grid opd-g3">';
-  h+='<div class="opd-fld"><label class="opd-lbl">Name</label><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Stage</label><select class="edf" id="op-stage">'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Name</label><input type="text" class="edf" id="op-name" value="'+esc(op.name)+'" oninput="TF.oppAutoSave()"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Stage</label><select class="edf" id="op-stage" onchange="TF.oppAutoSave()">'+stages.map(function(s){return'<option'+(s===op.stage?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div>';
   h+=_opClientField(op.client);
   h+='</div>';
   h+='<div class="opd-grid opd-g4">';
-  h+='<div class="opd-fld"><label class="opd-lbl">End Client</label><select class="edf" id="op-endclient" onchange="TF.ecAddNew(\'op-endclient\')">'+buildEndClientOptions(op.endClientId||op.endClient||'',op.client)+'</select></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">End Client</label><select class="edf" id="op-endclient" onchange="TF.ecAddNew(\'op-endclient\');TF.oppAutoSave()">'+buildEndClientOptions(op.endClientId||op.endClient||'',op.client)+'</select></div>';
   h+=_opContactField(op.client,op.contactName,op.contactEmail);
-  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-prob" value="'+(op.probability||'')+'" min="0" max="100" placeholder="50"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-prob" value="'+(op.probability||'')+'" min="0" max="100" placeholder="50" onchange="TF.oppAutoSave()"></div>';
   h+='</div>';
   h+='</div></div>';
 
@@ -3670,9 +3675,9 @@ function rOpportunityDashboard(op,st){
   h+='<div class="opd-sec-body">';
 
   h+='<div class="opd-fee-toggles">';
-  h+='<label class="fee-toggle'+(hasSF?' on':'')+'"><input type="checkbox" id="op-ft-strategy"'+(hasSF?' checked':'')+' onchange="TF.toggleFeeType(\'strategy\')"><span>Strategy</span></label>';
-  h+='<label class="fee-toggle'+(hasSU?' on':'')+'"><input type="checkbox" id="op-ft-setup"'+(hasSU?' checked':'')+' onchange="TF.toggleFeeType(\'setup\')"><span>Setup</span></label>';
-  h+='<label class="fee-toggle'+(hasMF?' on':'')+'"><input type="checkbox" id="op-ft-monthly"'+(hasMF?' checked':'')+' onchange="TF.toggleFeeType(\'monthly\')"><span>Monthly</span></label>';
+  h+='<label class="fee-toggle'+(hasSF?' on':'')+'"><input type="checkbox" id="op-ft-strategy"'+(hasSF?' checked':'')+' onchange="TF.toggleFeeType(\'strategy\');TF.oppAutoSave()"><span>Strategy</span></label>';
+  h+='<label class="fee-toggle'+(hasSU?' on':'')+'"><input type="checkbox" id="op-ft-setup"'+(hasSU?' checked':'')+' onchange="TF.toggleFeeType(\'setup\');TF.oppAutoSave()"><span>Setup</span></label>';
+  h+='<label class="fee-toggle'+(hasMF?' on':'')+'"><input type="checkbox" id="op-ft-monthly"'+(hasMF?' checked':'')+' onchange="TF.toggleFeeType(\'monthly\');TF.oppAutoSave()"><span>Monthly</span></label>';
   h+='</div>';
 
   h+='<div id="op-fee-sections">';
@@ -3682,9 +3687,9 @@ function rOpportunityDashboard(op,st){
   if(hasSF&&op.strategyFee)h+='<b style="color:var(--green)">'+fmtUSD(op.strategyFee)+'</b>';
   h+='</div>';
   h+='<div class="opd-grid opd-g3">';
-  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Expected Close</label><input type="date" class="edf" id="op-sf-close" value="'+(op.strategyFeeClose||'')+'"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-sf-prob" value="'+(op.strategyFeeProb!=null?op.strategyFeeProb:'')+'" min="0" max="100"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-strategy" value="'+(op.strategyFee||'')+'" min="0" step="0.01" placeholder="0.00" onchange="TF.oppAutoSave()"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Expected Close</label><input type="date" class="edf" id="op-sf-close" value="'+(op.strategyFeeClose||'')+'" onchange="TF.oppAutoSave()"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-sf-prob" value="'+(op.strategyFeeProb!=null?op.strategyFeeProb:'')+'" min="0" max="100" onchange="TF.oppAutoSave()"></div>';
   h+='</div></div>';
 
   h+='<div id="op-fee-setup" class="opd-fee" style="'+(hasSU?'':'display:none')+'">';
@@ -3692,9 +3697,9 @@ function rOpportunityDashboard(op,st){
   if(hasSU&&op.setupFee)h+='<b style="color:var(--blue)">'+fmtUSD(op.setupFee)+'</b>';
   h+='</div>';
   h+='<div class="opd-grid opd-g3">';
-  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Expected Close</label><input type="date" class="edf" id="op-su-close" value="'+(op.setupFeeClose||'')+'"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-su-prob" value="'+(op.setupFeeProb!=null?op.setupFeeProb:'')+'" min="0" max="100"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-setup" value="'+(op.setupFee||'')+'" min="0" step="0.01" placeholder="0.00" onchange="TF.oppAutoSave()"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Expected Close</label><input type="date" class="edf" id="op-su-close" value="'+(op.setupFeeClose||'')+'" onchange="TF.oppAutoSave()"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-su-prob" value="'+(op.setupFeeProb!=null?op.setupFeeProb:'')+'" min="0" max="100" onchange="TF.oppAutoSave()"></div>';
   h+='</div></div>';
 
   h+='<div id="op-fee-monthly" class="opd-fee" style="'+(hasMF?'':'display:none')+'">';
@@ -3702,10 +3707,10 @@ function rOpportunityDashboard(op,st){
   if(hasMF&&op.monthlyFee)h+='<b style="color:var(--purple50)">'+fmtUSD(op.monthlyFee)+'/mo</b>';
   h+='</div>';
   h+='<div class="opd-grid opd-g4">';
-  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01" placeholder="0.00"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Months</label><input type="number" class="edf" id="op-mf-months" value="'+(op.monthlyFeeMonths||'')+'" min="1" placeholder="12"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Start Date</label><input type="date" class="edf" id="op-mf-start" value="'+(op.monthlyFeeStart||'')+'"></div>';
-  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Amount</label><input type="number" class="edf" id="op-monthly" value="'+(op.monthlyFee||'')+'" min="0" step="0.01" placeholder="0.00" onchange="TF.oppAutoSave()"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Months</label><input type="number" class="edf" id="op-mf-months" value="'+(op.monthlyFeeMonths||'')+'" min="1" placeholder="12" onchange="TF.oppAutoSave()"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Start Date</label><input type="date" class="edf" id="op-mf-start" value="'+(op.monthlyFeeStart||'')+'" onchange="TF.oppAutoSave()"></div>';
+  h+='<div class="opd-fld"><label class="opd-lbl">Probability %</label><input type="number" class="edf" id="op-mf-prob" value="'+(op.monthlyFeeProb!=null?op.monthlyFeeProb:'')+'" min="0" max="100" onchange="TF.oppAutoSave()"></div>';
   h+='</div></div>';
 
   h+='</div>';
@@ -3714,11 +3719,16 @@ function rOpportunityDashboard(op,st){
   /* Notes + Activity side by side on wide screens */
   h+='<div class="opd-two-col">';
 
-  /* Notes */
+  /* Notes + Updates */
   h+='<div class="opd-section opd-section-notes">';
-  h+='<div class="opd-sec-head">'+icon('file',12)+' Notes</div>';
+  h+='<div class="opd-sec-head">'+icon('file',12)+' Notes & Updates</div>';
   h+='<div class="opd-sec-body">';
-  h+='<textarea class="edf edf-notes" id="op-notes" rows="4" placeholder="Notes..." style="min-height:70px">'+esc(op.notes)+'</textarea>';
+  h+='<div class="opd-update-add">';
+  h+='<input type="text" class="edf" id="op-update-input" placeholder="Add an update..." onkeydown="if(event.key===\'Enter\')TF.addOppUpdate()">';
+  h+='<button class="btn btn-p" onclick="TF.addOppUpdate()" style="font-size:11px;padding:5px 12px;flex-shrink:0">Add</button>';
+  h+='</div>';
+  h+='<div id="op-updates-list" class="opd-updates-log">'+_renderOppUpdates(op.updates)+'</div>';
+  h+='<textarea class="edf edf-notes" id="op-notes" rows="3" placeholder="General notes..." style="min-height:50px;margin-top:8px" oninput="TF.oppAutoSave()">'+esc(op.notes)+'</textarea>';
   h+='</div></div>';
 
   /* Activity */
@@ -3779,7 +3789,7 @@ function rOpportunityDashboard(op,st){
 
   /* ── STICKY ACTION BAR ── */
   h+='<div class="opd-actions">';
-  h+='<button class="btn btn-p" onclick="TF.saveOpportunity()">'+icon('save',11)+' Save</button>';
+  h+='<span id="opd-save-status" style="font-size:11px;color:var(--green);opacity:0;transition:opacity .3s;padding:0 8px;align-self:center">Saved</span>';
   if(!isClosed){
     h+='<button class="btn opd-btn-lost" onclick="TF.closeAsLost(\''+eid+'\')">Close as Lost</button>'}
   h+='<div style="flex:1"></div>';

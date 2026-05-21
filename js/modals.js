@@ -459,6 +459,8 @@ function openAddModal(prefill){prefill=prefill||{};var now=new Date();now.setHou
   if(prefill.importance){var is=gel('f-imp');if(is)is.value=prefill.importance}
   if(prefill.item){var fi2=gel('f-item');if(fi2)fi2.value=prefill.item}
   if(prefill.notes){var fn=gel('f-notes');if(fn)fn.value=prefill.notes}
+  if(prefill.type){var ft2=gel('f-type');if(ft2)ft2.value=prefill.type}
+  if(prefill.est){var fe=gel('f-est');if(fe)fe.value=prefill.est}
   if(prefill.emailThreadId){
     var hid=document.createElement('input');hid.type='hidden';hid.id='f-email-tid';hid.value=prefill.emailThreadId;
     gel('m-body').appendChild(hid)}
@@ -1913,7 +1915,7 @@ function createOppFollowUp(opId){
   var name='Follow up: '+op.name;
   var notes='Opportunity: '+op.name+'\nClient: '+(op.client||'—')+'\nEnd Client: '+(op.endClient||'—')+'\nStage: '+(op.stage||'—');
   if(op.notes)notes+='\n\nOpp notes:\n'+op.notes.substring(0,300);
-  var pre={item:name,client:op.client||'',endClient:op.endClient||'',opportunity:op.id,notes:notes,importance:'Important',type:'Business'};
+  var pre={item:name,client:op.client||'',endClient:op.endClient||'',opportunity:op.id,notes:notes,importance:'Important',type:'Sales / Outreach',est:10};
   if(S._detailPage){S._detailPage=null;_pushHash()}
   else{closeModal()}
   openAddModal(pre)}

@@ -854,6 +854,14 @@ select.edf:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 .opd-compact-list .tf-row{padding:5px 10px;min-height:0}
 .opd-empty-sm{padding:8px 0;color:var(--t4);font-size:11px;text-align:center}
 
+.opd-update-add{display:flex;gap:6px;margin-bottom:8px}
+.opd-update-add input{flex:1}
+.opd-updates-log{max-height:200px;overflow-y:auto;border:1px solid var(--hairline);border-radius:8px;padding:4px 0}
+.opd-update-row{display:flex;gap:8px;padding:6px 12px;border-bottom:1px solid var(--hairline);align-items:baseline}
+.opd-update-row:last-child{border-bottom:none}
+.opd-update-time{font-size:10px;color:var(--t4);white-space:nowrap;flex-shrink:0;min-width:90px}
+.opd-update-text{font-size:12px;color:var(--t1);line-height:1.4}
+
 .opd-ac-drop{display:none;position:absolute;top:100%;left:0;right:0;z-index:20;max-height:200px;overflow-y:auto;background:#fff;border:1px solid var(--gborder);border-radius:8px;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
 .opd-ac-item{padding:7px 12px;font-size:12px;cursor:pointer;color:var(--t1);border-bottom:1px solid var(--hairline);transition:background .1s}
 .opd-ac-item:last-child{border-bottom:none}
