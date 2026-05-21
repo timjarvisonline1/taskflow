@@ -393,6 +393,11 @@ function tmrDone(id){var task=S.tasks.find(function(t){return t.id===id});if(!ta
         category:task.category,client:task.client,endClient:task.endClient||'',type:task.type,
         duration:mins,est:task.est,notes:task.notes,campaign:task.campaign||'',project:task.project||'',phase:task.phase||'',opportunity:task.opportunity||''});
       S.tasks=S.tasks.filter(function(tk){return tk.id!==id});delete S.timers[id];save();
+      if(task.opportunity){
+        var _op=(S.opportunities||[]).find(function(o){return o.id===task.opportunity});
+        if(_op){if(!_op.updates)_op.updates=[];
+          _op.updates.unshift({ts:new Date().toISOString(),text:'Task completed: '+task.item+(mins?' ('+fmtM(mins)+')':'')});
+          dbEditOpportunity(_op.id,_op)}}
       toast('Done: '+task.item+(mins?' ('+fmtM(mins)+')':''),'ok')}
     closeModal();render();renderSidebar();renderActiveWidget()},500)}
 
