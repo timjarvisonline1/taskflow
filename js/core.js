@@ -152,7 +152,12 @@ var SECTIONS=[
     {id:'review',label:'Review Queue',icon:'mail'},
     {id:'inbox',label:'Quick Add Queue',icon:'inbox'}
   ]},
-  {id:'opportunities',icon:'gem',label:'Sales',kbd:'4'},
+  {id:'opportunities',icon:'gem',label:'Opportunities',kbd:'4',subs:[
+    {id:'overview',label:'Overview',icon:'dashboard'},
+    {id:'fc_partnership',label:'F&C Partnerships',icon:'users'},
+    {id:'fc_direct',label:'F&C Direct',icon:'briefcase'},
+    {id:'retain_live',label:'Retain Live',icon:'zap'}
+  ]},
   {id:'campaigns',icon:'target',label:'F&C Strategies',kbd:'5'},
   {id:'projects',icon:'folder',label:'Initiatives',kbd:'6'},
   {id:'clients',icon:'clients',label:'Clients',kbd:'7',subs:[
@@ -192,7 +197,7 @@ function usePageDetail(){return true}
 var MOB_VIEWS=[
   {id:'dashboard',icon:'dashboard',label:'Home'},
   {id:'tasks',icon:'tasks',label:'Tasks'},
-  {id:'opportunities',icon:'gem',label:'Sales'},
+  {id:'opportunities',icon:'gem',label:'Opps'},
   {id:'finance',icon:'activity',label:'Finance'},
   {id:'_more',icon:'menu',label:'More'}
 ];

@@ -1918,6 +1918,63 @@ function createOppFollowUp(opId){
   else{closeModal()}
   openAddModal(pre)}
 
+/* ═══════════ OPPORTUNITY BULK ACTIONS ═══════════ */
+function oppBulkStart(){S.opBulkMode=true;S.opBulkSel={};render()}
+function oppBulkCancel(){S.opBulkMode=false;S.opBulkSel={};render()}
+function oppBulkToggle(id,on){if(!S.opBulkSel)S.opBulkSel={};if(on)S.opBulkSel[id]=true;else delete S.opBulkSel[id];render()}
+function oppBulkSelectAll(typeKey,on){
+  var ops=(S.opportunities||[]).filter(function(o){return !o.closedAt&&(o.type===typeKey||(typeKey==='fc_partnership'&&!o.type))});
+  if(!S.opBulkSel)S.opBulkSel={};
+  ops.forEach(function(o){if(on)S.opBulkSel[o.id]=true;else delete S.opBulkSel[o.id]});
+  render()}
+
+function oppBulkSetClose(){
+  var ids=Object.keys(S.opBulkSel||{}).filter(function(k){return S.opBulkSel[k]});
+  if(!ids.length){toast('Select opportunities first','warn');return}
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">Set Close Date for '+ids.length+' Opportunities</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:16px 0">';
+  h+='<div class="ed-fld"><span class="ed-lbl">Apply to fee type</span><select class="edf" id="bulk-fee-type">';
+  h+='<option value="strategy">Strategy Fee Close</option>';
+  h+='<option value="setup">Setup Fee Close</option>';
+  h+='<option value="monthly">Monthly Fee Start</option></select></div>';
+  h+='<div class="ed-fld"><span class="ed-lbl">Date</span><input type="date" class="edf" id="bulk-close-date"></div>';
+  h+='<div class="ed-actions" style="margin-top:12px"><button class="btn btn-p" onclick="TF.oppBulkApplyClose()">Apply</button></div>';
+  h+='</div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
+
+async function oppBulkApplyClose(){
+  var ids=Object.keys(S.opBulkSel||{}).filter(function(k){return S.opBulkSel[k]});
+  var feeType=gel('bulk-fee-type').value;
+  var dateVal=gel('bulk-close-date').value;
+  if(!dateVal){toast('Pick a date','warn');return}
+  for(var i=0;i<ids.length;i++){
+    var op=(S.opportunities||[]).find(function(o){return o.id===ids[i]});
+    if(!op)continue;
+    if(feeType==='strategy')op.strategyFeeClose=dateVal;
+    else if(feeType==='setup')op.setupFeeClose=dateVal;
+    else if(feeType==='monthly')op.monthlyFeeStart=dateVal;
+    await dbEditOpportunity(op.id,op)}
+  toast('Updated '+ids.length+' opportunities','ok');
+  S.opBulkMode=false;S.opBulkSel={};closeModal();render()}
+
+async function oppBulkDelete(){
+  var ids=Object.keys(S.opBulkSel||{}).filter(function(k){return S.opBulkSel[k]});
+  if(!ids.length){toast('Select opportunities first','warn');return}
+  var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('trash',14)+' Delete '+ids.length+' Opportunities?</span>';
+  h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';
+  h+='<div style="padding:16px 0;color:var(--t2);font-size:13px">This will permanently delete <strong>'+ids.length+'</strong> opportunities. This cannot be undone.</div>';
+  h+='<div class="ed-actions"><button class="btn ab-del" onclick="TF.oppBulkConfirmDelete()" style="background:rgba(255,51,88,0.08);color:var(--red);border-color:rgba(255,51,88,0.2);font-weight:600">Yes, Delete All</button>';
+  h+='<button class="btn" onclick="TF.closeModal()">Cancel</button></div>';
+  gel('m-body').innerHTML=h;gel('modal').classList.add('on');_lockBodyScroll()}
+
+async function oppBulkConfirmDelete(){
+  var ids=Object.keys(S.opBulkSel||{}).filter(function(k){return S.opBulkSel[k]});
+  for(var i=0;i<ids.length;i++){await dbDeleteOpportunity(ids[i])}
+  S.opportunities=S.opportunities.filter(function(o){return !S.opBulkSel[o.id]});
+  toast('Deleted '+ids.length+' opportunities','ok');
+  S.opBulkMode=false;S.opBulkSel={};closeModal();render()}
+
 function openAddOpportunity(){
   var h='<div class="tf-modal-top"><span class="edf-name" style="flex:1;cursor:default;border-color:transparent;background:transparent">'+icon('gem',12)+' New Opportunity</span>';
   h+='<button class="tf-modal-close" onclick="TF.closeModal()">&times;</button></div>';

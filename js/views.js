@@ -495,8 +495,8 @@ function rDashboard(){
   h+=_finKpi('Tracked this week','count',fmtM(weekMins),'var(--pink)');
   h+='</div>';
 
-  /* ── SALES ── */
-  h+='<h2 class="tf-h2">Sales</h2>';
+  /* ── OPPORTUNITIES ── */
+  h+='<h2 class="tf-h2">Opportunities</h2>';
   h+='<div class="tf-kpi-strip">';
   h+=_finKpi('Pipeline value','fmtUSD',pipelineValue,'var(--blue)');
   h+=_finKpi('Active deals','count',activeOpps.length,'var(--purple50)');
@@ -4053,22 +4053,119 @@ function opTypeBadgeCls(type){
 function rMobOpportunities(){return rOpportunities()}
 
 function rOpportunities(){
-  /* Unified Sales view: one pipeline + "needs attention" surface */
-  var ops=(S.opportunities||[]).filter(function(o){return !o.closedAt});
-  var td=today();
-  /* Group by type */
-  var byType={retain_live:[],fc_partnership:[],fc_direct:[]};
-  ops.forEach(function(o){if(byType[o.type])byType[o.type].push(o);else byType.fc_partnership.push(o)});
+  var validSubs=['overview','fc_partnership','fc_direct','retain_live'];
+  var sub=validSubs.indexOf(S.subView)!==-1?S.subView:'overview';
+  var allOps=(S.opportunities||[]).filter(function(o){return !o.closedAt});
 
-  /* Needs attention: no update in 14+ days, no expected close, stuck stage, no last contact */
-  var needsAttn=ops.filter(function(o){
+  var h='<div class="pg-head"><h1>'+icon('gem',18)+' Opportunities <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+allOps.length+' open</span></h1>';
+  h+='<div style="display:flex;gap:8px;align-items:center">';
+  if(S.opBulkMode)h+='<button class="btn" onclick="TF.oppBulkCancel()" style="font-size:12px;padding:7px 14px">Cancel</button>';
+  else h+='<button class="btn" onclick="TF.oppBulkStart()" style="font-size:12px;padding:7px 14px">Bulk Edit</button>';
+  h+='<button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:13px;padding:8px 18px">+ Add Opportunity</button>';
+  h+='</div></div>';
+
+  if(isMobile()){
+    h+='<div class="task-mode-toggle" style="margin-bottom:12px">';
+    [['overview','Overview'],['fc_partnership','F&C Partners'],['fc_direct','F&C Direct'],['retain_live','Retain Live']].forEach(function(s){
+      h+='<button class="tm-btn'+(sub===s[0]?' on':'')+'" onclick="TF.subNav(\''+s[0]+'\')">'+s[1]+'</button>'});
+    h+='</div>'}
+
+  if(sub==='overview')h+=_rOppOverview(allOps);
+  else h+=_rOppTypePage(sub,allOps);
+  return h}
+
+/* ── Opportunities: Overview ── */
+function _rOppOverview(allOps){
+  var td=today();
+  var byType={retain_live:[],fc_partnership:[],fc_direct:[]};
+  allOps.forEach(function(o){if(byType[o.type])byType[o.type].push(o);else byType.fc_partnership.push(o)});
+
+  var pipelineValue=allOps.reduce(function(s,o){return s+_oppValue(o)},0);
+  var weightedValue=allOps.reduce(function(s,o){return s+_oppValue(o)*((o.probability||50)/100)},0);
+
+  var needsAttn=allOps.filter(function(o){
     var lastTouchMs=(o.updated_at?new Date(o.updated_at):o.created?new Date(o.created):new Date()).getTime();
     var daysSince=Math.round((Date.now()-lastTouchMs)/86400000);
     var ec=_oppEarliestClose(o);
-    return daysSince>=14
-      ||(ec&&ec<td&&o.stage&&!oppIsClosedStage(o.stage))});
+    return daysSince>=14||(ec&&ec<td&&o.stage&&!oppIsClosedStage(o.stage))});
 
-  /* KPIs */
+  var h='<div class="tf-kpi-strip">';
+  h+=_finKpi('Pipeline value','fmtUSD',pipelineValue,'var(--blue)');
+  h+=_finKpi('Weighted','fmtUSD',weightedValue,'var(--green)','probability-adjusted');
+  h+=_finKpi('Retain Live','count',byType.retain_live.length,'var(--green)');
+  h+=_finKpi('F&C Partnerships','count',byType.fc_partnership.length,'var(--blue)');
+  h+=_finKpi('F&C Direct','count',byType.fc_direct.length,'var(--purple50)');
+  h+=_finKpi('Needs attention','count',needsAttn.length,needsAttn.length?'var(--amber)':'var(--green)');
+  h+='</div>';
+
+  /* Stage breakdown by type */
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:20px">';
+  ['retain_live','fc_partnership','fc_direct'].forEach(function(typeKey){
+    var typeOps=byType[typeKey];
+    var conf=oppTypeConf(typeKey);
+    var tv=typeOps.reduce(function(s,o){return s+_oppValue(o)},0);
+    var wv=typeOps.reduce(function(s,o){return s+_oppValue(o)*((o.probability||50)/100)},0);
+    h+='<div class="tf-card" style="cursor:pointer" onclick="TF.subNav(\''+typeKey+'\')">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+    h+='<span style="width:10px;height:10px;border-radius:50%;background:'+conf.color+'"></span>';
+    h+='<span style="font-size:14px;font-weight:700;color:var(--t1)">'+conf.label+'</span>';
+    h+='<span style="font-size:12px;color:var(--t3);margin-left:auto">'+typeOps.length+' open</span></div>';
+    h+='<div style="display:flex;gap:16px;font-size:12px;margin-bottom:8px">';
+    h+='<span style="color:var(--t3)">Value: <strong style="color:var(--t1)">'+fmtUSD(tv)+'</strong></span>';
+    h+='<span style="color:var(--t3)">Weighted: <strong style="color:var(--green)">'+fmtUSD(wv)+'</strong></span></div>';
+    var stages=conf.stages.concat(conf.awaitingStage?[conf.awaitingStage]:[]);
+    var byStage={};stages.forEach(function(st){byStage[st]=0});
+    typeOps.forEach(function(o){if(byStage[o.stage]!=null)byStage[o.stage]++;else byStage[stages[0]]++});
+    h+='<div style="display:flex;gap:4px;flex-wrap:wrap">';
+    stages.forEach(function(st){
+      h+='<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--bg);border:1px solid var(--gborder);color:'+(byStage[st]?'var(--t1)':'var(--t4)')+'">'+esc(st)+' <strong>'+byStage[st]+'</strong></span>'});
+    h+='</div>';
+    h+='<div style="margin-top:8px;font-size:11px;color:'+conf.color+';font-weight:600">View pipeline '+icon('chevron_right',11)+'</div>';
+    h+='</div>'});
+  h+='</div>';
+
+  /* Needs attention */
+  if(needsAttn.length){
+    h+='<h2 class="tf-h2">Needs your attention <span style="font-weight:400;color:var(--t3);margin-left:4px">— '+needsAttn.length+' to update</span></h2>';
+    h+='<div class="tf-panel" style="margin-bottom:24px">';
+    needsAttn.slice(0,15).forEach(function(o){
+      var why=_oppAttentionReason(o,td);
+      var v=_oppValue(o);
+      h+='<div class="tf-row" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
+      h+='<div class="tf-row-left"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0"></span>';
+      h+='<div style="min-width:0"><div class="tf-row-title">'+esc(o.name||'Untitled')+'</div>';
+      h+='<div class="tf-row-sub">'+esc((oppTypeConf(o.type)||{}).label||'')+' · '+esc(o.stage||'')+(o.client?' · '+esc(o.client):'')+' · '+fmtUSD(v)+'</div></div></div>';
+      h+='<div class="tf-row-right"><span style="font-size:12px;color:var(--amber);font-weight:500">'+esc(why)+'</span>'+icon('chevron_right',14)+'</div>';
+      h+='</div>'});
+    h+='</div>'}
+
+  /* Recent wins/losses */
+  var closed=(S.opportunities||[]).filter(function(o){return oppIsClosedStage(o.stage)});
+  closed.sort(function(a,b){return(b.updated_at||'').localeCompare(a.updated_at||'')});
+  var recentClosed=closed.slice(0,5);
+  if(recentClosed.length){
+    h+='<h2 class="tf-h2">Recent closed</h2>';
+    h+='<div class="tf-panel" style="margin-bottom:24px">';
+    recentClosed.forEach(function(o){
+      var isWon=o.stage==='Closed Won';
+      h+='<div class="tf-row" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
+      h+='<div class="tf-row-left"><span style="width:8px;height:8px;border-radius:50%;background:'+(isWon?'var(--green)':'var(--red)')+';flex-shrink:0"></span>';
+      h+='<div style="min-width:0"><div class="tf-row-title">'+esc(o.name||'Untitled')+'</div>';
+      h+='<div class="tf-row-sub">'+esc((oppTypeConf(o.type)||{}).label||'')+(o.client?' · '+esc(o.client):'')+' · '+fmtUSD(_oppValue(o))+'</div></div></div>';
+      h+='<div class="tf-row-right"><span style="font-size:12px;font-weight:500;color:'+(isWon?'var(--green)':'var(--red)')+'">'+o.stage+'</span>'+icon('chevron_right',14)+'</div>';
+      h+='</div>'});
+    h+='</div>'}
+
+  return h}
+
+/* ── Opportunities: Per-type page ── */
+function _rOppTypePage(typeKey,allOps){
+  var td=today();
+  var conf=oppTypeConf(typeKey);
+  var ops=allOps.filter(function(o){return o.type===typeKey||(typeKey==='fc_partnership'&&!o.type)});
+  var bulkMode=!!S.opBulkMode;
+  var sel=S.opBulkSel||{};
+
   var pipelineValue=ops.reduce(function(s,o){return s+_oppValue(o)},0);
   var weightedValue=ops.reduce(function(s,o){return s+_oppValue(o)*((o.probability||50)/100)},0);
 
@@ -4078,9 +4175,27 @@ function rOpportunities(){
     var maxP=probFilter==='high'?100:(probFilter==='mid'?74:49);
     ops=ops.filter(function(o){var p=o.probability||50;return p>=minP&&p<=maxP})}
 
-  var h='<div class="pg-head"><h1>'+icon('gem',18)+' Sales <span style="font-size:13px;color:var(--t3);font-weight:400;margin-left:8px">'+ops.length+' open</span></h1>';
-  h+='<button class="btn btn-p" onclick="TF.openAddOpportunity()" style="font-size:13px;padding:8px 18px">+ Add Opportunity</button></div>';
+  var h='';
 
+  /* Bulk action bar */
+  if(bulkMode){
+    var selCount=Object.keys(sel).filter(function(k){return sel[k]}).length;
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;margin-bottom:12px;background:var(--bg1);border:1px solid var(--gborder);border-radius:10px">';
+    h+='<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);cursor:pointer"><input type="checkbox" onchange="TF.oppBulkSelectAll(\''+typeKey+'\',this.checked)" style="accent-color:var(--accent)"> Select all</label>';
+    h+='<span style="font-size:12px;color:var(--t3);margin-left:8px">'+selCount+' selected</span>';
+    h+='<div style="margin-left:auto;display:flex;gap:6px">';
+    h+='<button class="btn" onclick="TF.oppBulkSetClose()" style="font-size:11px;padding:5px 12px"'+(selCount?'':' disabled')+'>'+icon('calendar',11)+' Set Close Date</button>';
+    h+='<button class="btn" onclick="TF.oppBulkDelete()" style="font-size:11px;padding:5px 12px;background:rgba(255,51,88,0.06);color:var(--red);border-color:rgba(255,51,88,0.2)"'+(selCount?'':' disabled')+'>'+icon('trash',11)+' Delete</button>';
+    h+='</div></div>'}
+
+  /* KPIs */
+  h+='<div class="tf-kpi-strip">';
+  h+=_finKpi('Open','count',ops.length,conf.color);
+  h+=_finKpi('Pipeline value','fmtUSD',pipelineValue,'var(--blue)');
+  h+=_finKpi('Weighted','fmtUSD',weightedValue,'var(--green)','probability-adjusted');
+  h+='</div>';
+
+  /* Probability filter */
   h+='<div class="tf-toolbar" style="margin-bottom:12px">';
   h+='<span style="font-size:11px;color:var(--t3);margin-right:4px">Probability:</span>';
   [['all','All'],['high','75%+'],['mid','50–74%'],['low','Under 50%']].forEach(function(f){
@@ -4088,62 +4203,63 @@ function rOpportunities(){
   h+='</div>';
 
   if(!ops.length){
-    h+='<div class="tf-empty"><strong>No open opportunities</strong><br>Click <strong>+ Add Opportunity</strong> to track a new deal. Retain Live deals convert into clients, F&C deals into campaigns.</div>';
+    h+='<div class="tf-empty"><strong>No '+conf.label+' opportunities</strong><br>Click <strong>+ Add Opportunity</strong> to create one.</div>';
     return h}
 
-  h+='<div class="tf-kpi-strip">';
-  h+=_finKpi('Pipeline value','fmtUSD',pipelineValue,'var(--blue)');
-  h+=_finKpi('Weighted','fmtUSD',weightedValue,'var(--green)','probability-adjusted');
-  h+=_finKpi('Retain Live','count',byType.retain_live.length,'var(--green)');
-  h+=_finKpi('F&C Partnerships','count',byType.fc_partnership.length,'var(--blue)');
-  h+=_finKpi('F&C Direct','count',byType.fc_direct.length,'var(--purple50)');
+  /* Pipeline columns */
+  var stages=conf.stages.concat(conf.awaitingStage?[conf.awaitingStage]:[]);
+  var byStage={};stages.forEach(function(st){byStage[st]=[]});
+  ops.forEach(function(o){if(byStage[o.stage])byStage[o.stage].push(o);else{byStage[stages[0]]=byStage[stages[0]]||[];byStage[stages[0]].push(o)}});
+
+  h+='<div style="display:grid;grid-template-columns:repeat('+stages.length+',1fr);gap:8px;overflow-x:auto;margin-bottom:24px">';
+  stages.forEach(function(st){
+    var stOps=byStage[st]||[];
+    h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:10px;min-width:180px">';
+    h+='<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">'+esc(st)+' <span style="color:var(--t4);font-weight:400">· '+stOps.length+'</span></div>';
+    stOps.forEach(function(o){
+      var v=_oppValue(o);var eid=escAttr(o.id);
+      h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:12px;display:flex;align-items:flex-start;gap:6px"';
+      if(!bulkMode)h+=' onclick="TF.openOpportunityDetail(\''+eid+'\')"';
+      h+='>';
+      if(bulkMode)h+='<input type="checkbox" style="accent-color:var(--accent);margin-top:2px;flex-shrink:0"'+(sel[o.id]?' checked':'')+' onchange="TF.oppBulkToggle(\''+eid+'\',this.checked)" onclick="event.stopPropagation()">';
+      h+='<div style="flex:1;min-width:0"'+(bulkMode?' onclick="TF.openOpportunityDetail(\''+eid+'\')"':'')+' >';
+      h+='<div style="font-weight:600;color:var(--t1);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
+      if(o.client||o.endClient)h+='<div style="font-size:10px;color:var(--t3);margin-bottom:3px">'+esc(o.client||o.endClient)+'</div>';
+      var _p=o.probability||50;var _pc=_p>=75?'var(--green)':_p>=50?'var(--amber)':'var(--red)';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t4)">';
+      if(v)h+='<span>'+fmtUSD(v)+'</span>';else h+='<span></span>';
+      h+='<span style="font-weight:600;color:'+_pc+'">'+_p+'%</span></div>';
+      h+='</div></div>'});
+    if(!stOps.length)h+='<div style="font-size:11px;color:var(--t4);padding:8px 0">—</div>';
+    h+='</div>'});
   h+='</div>';
 
-  if(needsAttn.length){
-    h+='<h2 class="tf-h2">Needs your attention <span style="font-weight:400;color:var(--t3);margin-left:4px">— '+needsAttn.length+' to update</span></h2>';
-    h+='<div class="tf-panel" style="margin-bottom:24px">';
-    needsAttn.slice(0,10).forEach(function(o){
-      var why=_oppAttentionReason(o,td);
-      var v=_oppValue(o);
-      h+='<div class="tf-row" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
-      h+='<div class="tf-row-left"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0"></span>';
-      h+='<div style="min-width:0"><div class="tf-row-title">'+esc(o.name||'Untitled')+'</div>';
-      h+='<div class="tf-row-sub">'+esc((oppTypeConf(o.type)||{}).label||'')+' · '+esc(o.stage||'')+(o.client?' · '+esc(o.client):'')+' · '+fmtUSD(v)+'</div></div></div>';
-      h+='<div class="tf-row-right"><span style="font-size:12px;color:var(--amber);font-weight:500">'+esc(why)+'</span>'+icon('chevron_right',14)+'</div>';
-      h+='</div>'});
-    h+='</div>';
-    if(needsAttn.length>10)h+='<div class="tf-helper">+'+(needsAttn.length-10)+' more — click into each to update</div>';
-  }
+  /* Table view */
+  h+='<h2 class="tf-h2">All '+conf.label+' opportunities</h2>';
+  h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:12px;overflow:auto;margin-bottom:24px">';
+  h+='<table class="tbl" style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
+  if(bulkMode)h+='<th style="width:30px;padding:7px 8px;border-bottom:1px solid var(--gborder)"><input type="checkbox" onchange="TF.oppBulkSelectAll(\''+typeKey+'\',this.checked)" style="accent-color:var(--accent)"></th>';
+  h+='<th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Name</th>';
+  h+='<th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Client</th>';
+  h+='<th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Stage</th>';
+  h+='<th style="text-align:right;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Value</th>';
+  h+='<th style="text-align:center;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Prob</th>';
+  h+='<th style="text-align:left;padding:7px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">Close</th>';
+  h+='</tr></thead><tbody>';
+  ops.sort(function(a,b){return(b.probability||50)-(a.probability||50)}).forEach(function(o){
+    var v=_oppValue(o);var ec=_oppEarliestClose(o);var eid=escAttr(o.id);
+    h+='<tr style="cursor:pointer" onclick="TF.openOpportunityDetail(\''+eid+'\')">';
+    if(bulkMode)h+='<td style="padding:6px 8px;border-bottom:1px solid var(--gborder)" onclick="event.stopPropagation()"><input type="checkbox" style="accent-color:var(--accent)"'+(sel[o.id]?' checked':'')+' onchange="TF.oppBulkToggle(\''+eid+'\',this.checked)"></td>';
+    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);font-weight:600;color:var(--t1)">'+esc(o.name||'Untitled')+'</td>';
+    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);color:var(--t2)">'+esc(o.client||o.endClient||'—')+'</td>';
+    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder)"><span class="bg '+opStageClass(o.stage,o.type)+'">'+esc(o.stage)+'</span></td>';
+    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);text-align:right;color:var(--green);font-family:var(--fd)">'+fmtUSD(v)+'</td>';
+    var _p=o.probability||50;var _pc=_p>=75?'var(--green)':_p>=50?'var(--amber)':'var(--red)';
+    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);text-align:center;font-weight:600;color:'+_pc+'">'+_p+'%</td>';
+    h+='<td style="padding:6px 10px;border-bottom:1px solid var(--gborder);color:var(--t3)">'+(ec||'—')+'</td>';
+    h+='</tr>'});
+  h+='</tbody></table></div>';
 
-  /* Per-type pipeline */
-  ['retain_live','fc_partnership','fc_direct'].forEach(function(typeKey){
-    var typeOps=byType[typeKey];
-    if(!typeOps.length)return;
-    var conf=oppTypeConf(typeKey);
-    h+='<h2 class="tf-h2"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+conf.color+';margin-right:8px;vertical-align:middle"></span>'+esc(conf.label)+' <span style="font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">· '+typeOps.length+' open · '+fmtUSD(typeOps.reduce(function(s,o){return s+_oppValue(o)},0))+'</span></h2>';
-    /* Group by stage */
-    var stages=conf.stages.concat(conf.awaitingStage?[conf.awaitingStage]:[]);
-    var byStage={};stages.forEach(function(st){byStage[st]=[]});
-    typeOps.forEach(function(o){if(byStage[o.stage])byStage[o.stage].push(o);else{byStage[stages[0]]=byStage[stages[0]]||[];byStage[stages[0]].push(o)}});
-    h+='<div style="display:grid;grid-template-columns:repeat('+stages.length+',1fr);gap:8px;overflow-x:auto">';
-    stages.forEach(function(st){
-      var stOps=byStage[st]||[];
-      h+='<div style="background:var(--bg1);border:1px solid var(--gborder);border-radius:10px;padding:10px;min-width:200px">';
-      h+='<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">'+esc(st)+' <span style="color:var(--t4);font-weight:400">·  '+stOps.length+'</span></div>';
-      stOps.forEach(function(o){
-        var v=_oppValue(o);
-        h+='<div style="background:var(--bg);border:1px solid var(--gborder);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:12px" onclick="TF.openOpportunityDetail(\''+escAttr(o.id)+'\')">';
-        h+='<div style="font-weight:600;color:var(--t1);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.name||'Untitled')+'</div>';
-        if(o.client||o.endClient)h+='<div style="font-size:10px;color:var(--t3);margin-bottom:3px">'+esc(o.client||o.endClient)+'</div>';
-        var _p=o.probability||50;var _pc=_p>=75?'var(--green)':_p>=50?'var(--amber)':'var(--red)';
-        h+='<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t4)">';
-        if(v)h+='<span>'+fmtUSD(v)+'</span>';else h+='<span></span>';
-        h+='<span style="font-weight:600;color:'+_pc+'">'+_p+'%</span></div>';
-        h+='</div>'});
-      if(!stOps.length)h+='<div style="font-size:11px;color:var(--t4);padding:8px 0">—</div>';
-      h+='</div>'});
-    h+='</div>';
-  });
   return h}
 
 function _oppValue(o){
