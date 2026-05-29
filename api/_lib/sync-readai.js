@@ -67,8 +67,8 @@ async function syncReadai(userId) {
     var allMeetings = [];
     var hasMore = true;
     var offset = 0;
-    var PAGE_SIZE = 100;
-    var MAX_PAGES = 20; // Safety: 2000 meetings max
+    var PAGE_SIZE = 10;
+    var MAX_PAGES = 200; // Safety: 2000 meetings max
 
     for (var page = 0; page < MAX_PAGES && hasMore; page++) {
       var url = READAI_API + '/meetings?limit=' + PAGE_SIZE +
