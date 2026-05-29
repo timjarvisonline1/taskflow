@@ -5,6 +5,22 @@ const { getOpenAIKey, embedTexts, chunkMeeting, storeChunks, upsertSource } = re
 
 const READAI_API = 'https://api.read.ai/v1';
 const BACKFILL_START_MS = 1775520000000; // April 7, 2026 00:00 UTC
+const THROTTLE_MS = 700; // ~85 req/min, under the 100/min limit
+
+function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+async function fetchWithRetry(url, opts, log) {
+  for (var attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) {
+      var backoff = attempt * 10000; // 10s, 20s, 30s
+      log('Rate limited (429), waiting ' + (backoff / 1000) + 's before retry ' + attempt + '/3...');
+      await sleep(backoff);
+    }
+    var resp = await fetch(url, opts);
+    if (resp.status !== 429) return resp;
+  }
+  return resp; // return the 429 if all retries exhausted
+}
 
 /**
  * Sync Read.ai meetings to Supabase via the API.
@@ -76,9 +92,10 @@ async function syncReadai(userId) {
 
       log('Page ' + (page + 1) + ': GET ' + url);
 
-      var listResp = await fetch(url, {
+      var listResp = await fetchWithRetry(url, {
         headers: { 'Authorization': 'Bearer ' + accessToken }
-      });
+      }, log);
+      await sleep(THROTTLE_MS);
 
       var respText = await listResp.text();
       log('Response HTTP ' + listResp.status + ' (' + respText.length + ' bytes): ' + respText.substring(0, 300));
@@ -125,9 +142,10 @@ async function syncReadai(userId) {
         if (!sessionId) { log('Skipping meeting with no session_id'); stats.skipped++; continue; }
 
         // Fetch full meeting detail (includes transcript, summary, etc.)
-        var detailResp = await fetch(READAI_API + '/meetings/' + sessionId, {
+        var detailResp = await fetchWithRetry(READAI_API + '/meetings/' + sessionId, {
           headers: { 'Authorization': 'Bearer ' + accessToken }
-        });
+        }, log);
+        await sleep(THROTTLE_MS);
         if (!detailResp.ok) {
           log('Failed to fetch detail for ' + sessionId + ': HTTP ' + detailResp.status);
           stats.skipped++;
