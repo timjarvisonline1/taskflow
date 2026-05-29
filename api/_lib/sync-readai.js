@@ -322,8 +322,13 @@ function normaliseChapters(val) {
 function normaliseTranscript(val) {
   if (!val) return '';
   if (typeof val === 'string') return val;
-  if (val && typeof val === 'object' && !Array.isArray(val) && Array.isArray(val.speaker_blocks)) {
-    return formatTranscriptBlocks(val.speaker_blocks);
+  if (val && typeof val === 'object' && !Array.isArray(val)) {
+    // API format: {speakers, turns, text}
+    if (Array.isArray(val.turns)) return formatTranscriptBlocks(val.turns);
+    // Webhook format: {speaker_blocks}
+    if (Array.isArray(val.speaker_blocks)) return formatTranscriptBlocks(val.speaker_blocks);
+    // Fallback: plain text property
+    if (val.text && typeof val.text === 'string') return val.text;
   }
   if (Array.isArray(val)) return formatTranscriptBlocks(val);
   return '';
@@ -333,8 +338,9 @@ function formatTranscriptBlocks(blocks) {
   return blocks.map(function(seg) {
     var name = (seg.speaker && seg.speaker.name) || seg.speaker_name || '';
     var ts = '';
-    if (seg.start_time) {
-      var ms = seg.start_time > 1e12 ? seg.start_time : seg.start_time * 1000;
+    var rawTime = seg.start_time_ms || seg.start_time || 0;
+    if (rawTime) {
+      var ms = rawTime > 1e12 ? rawTime : rawTime * 1000;
       var d = new Date(ms);
       if (!isNaN(d.getTime())) {
         ts = String(d.getHours()).padStart(2, '0') + ':' +
