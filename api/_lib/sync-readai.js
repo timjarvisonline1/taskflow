@@ -1,7 +1,5 @@
 const { getServiceClient, getCredentials, updateSyncStatus } = require('./supabase');
 const { refreshReadaiToken } = require('./readai-auth');
-const { analyzeMeetingForTasks } = require('./analyze-meeting');
-const { getOpenAIKey, embedTexts, chunkMeeting, storeChunks, upsertSource } = require('./embeddings');
 
 const READAI_API = 'https://api.read.ai/v1';
 const BACKFILL_START_MS = 1775520000000; // April 7, 2026 00:00 UTC
@@ -130,10 +128,6 @@ async function syncReadai(userId) {
 
     log('Total meetings fetched from API: ' + allMeetings.length);
 
-    // Get OpenAI key for embeddings
-    var openaiKey = null;
-    try { openaiKey = await getOpenAIKey(userId); } catch (e) { /* no embeddings */ }
-
     // Process each meeting
     for (var i = 0; i < allMeetings.length; i++) {
       var meeting = allMeetings[i];
@@ -236,73 +230,10 @@ async function syncReadai(userId) {
           log('[' + (i + 1) + '/' + allMeetings.length + '] Updated: "' + (detail.title || '').substring(0, 60) + '"');
         }
 
-        // Post-processing only for new meetings (same as webhook lines 320-386)
-        if (isNew) {
-          // AI task generation
-          try {
-            var meetingRes = await client
-              .from('meetings')
-              .select('id, ai_tasks_generated')
-              .eq('user_id', userId)
-              .eq('session_id', sessionId)
-              .single();
-
-            if (meetingRes.data && !meetingRes.data.ai_tasks_generated) {
-              var tasksGenerated = await analyzeMeetingForTasks(userId, {
-                id: meetingRes.data.id,
-                owner_name: ownerName,
-                owner_email: ownerEmail,
-                title: detail.title || '',
-                start_time: startTime,
-                summary: summary,
-                transcript: transcript,
-                action_items: actionItems,
-                participants: participants,
-                client_id: clientId,
-                end_client: '',
-                campaign_id: null,
-                opportunity_id: null
-              }, client);
-              stats.tasks_generated += tasksGenerated;
-            }
-          } catch (aiErr) {
-            log('  AI task error: ' + aiErr.message);
-          }
-
-          // Knowledge base embedding
-          try {
-            if (openaiKey && (transcript || summary)) {
-              var meetingForEmbed = {
-                title: detail.title || '',
-                start_time: startTime,
-                summary: summary,
-                transcript: transcript,
-                action_items: actionItems,
-                chapter_summaries: chapterSummaries,
-                participants: participants,
-                client_id: clientId,
-                end_client: '',
-                campaign_id: null
-              };
-              var chunks = chunkMeeting(meetingForEmbed);
-              if (chunks.length > 0) {
-                var texts = chunks.map(function(c) { return c.content; });
-                var embeddings = await embedTexts(openaiKey, texts);
-                for (var ei = 0; ei < chunks.length; ei++) {
-                  chunks[ei].embedding = embeddings[ei].embedding;
-                  chunks[ei].tokens = embeddings[ei].tokens;
-                }
-                var embMeetingId = meetingRes && meetingRes.data ? meetingRes.data.id : sessionId;
-                await storeChunks(client, userId, 'meeting', embMeetingId, chunks);
-                var embTokens = chunks.reduce(function(s, c) { return s + (c.tokens || 0); }, 0);
-                await upsertSource(client, userId, 'meeting', embMeetingId, detail.title || '', 'complete', chunks.length, embTokens, '');
-                stats.chunks_embedded += chunks.length;
-              }
-            }
-          } catch (embedErr) {
-            log('  Embedding error: ' + embedErr.message);
-          }
-        }
+        // AI task generation + KB embedding skipped during bulk sync (too slow).
+        // The webhook handles these for real-time meetings. For backfilled meetings,
+        // use /api/knowledge/ingest-meetings to embed and the background knowledge
+        // sync will pick them up over time.
       } catch (meetingErr) {
         log('Error processing meeting ' + (i + 1) + ': ' + meetingErr.message);
         stats.skipped++;
