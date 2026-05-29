@@ -147,20 +147,22 @@ async function syncReadai(userId, emit) {
     // Process each meeting — fetch full detail for transcript/summary/action items
     var processed = 0;
     for (var i = 0; i < allMeetings.length; i++) {
-      // Refresh token every 50 meetings (tokens expire every 10 min)
-      if (i > 0 && i % 50 === 0) {
-        var freshCred = await getCredentials(userId, 'readai');
-        if (freshCred) accessToken = await refreshReadaiToken(freshCred);
-      }
       var m = allMeetings[i];
       try {
+        // Refresh token every 50 meetings (tokens expire every 10 min)
+        if (i > 0 && i % 50 === 0) {
+          var freshCred = await getCredentials(userId, 'readai');
+          if (freshCred) accessToken = await refreshReadaiToken(freshCred);
+        }
         var sessionId = m.id || m.session_id || '';
         if (!sessionId) { stats.skipped++; continue; }
 
         // Fetch full meeting detail with expand[] for transcript, summary, etc.
-        var detailUrl = READAI_API + '/meetings/' + sessionId +
-          '?expand[]=summary&expand[]=transcript&expand[]=action_items' +
-          '&expand[]=key_questions&expand[]=topics&expand[]=chapter_summaries';
+        var expandParams = new URLSearchParams();
+        ['summary', 'transcript', 'action_items', 'key_questions', 'topics', 'chapter_summaries'].forEach(function(e) {
+          expandParams.append('expand[]', e);
+        });
+        var detailUrl = READAI_API + '/meetings/' + sessionId + '?' + expandParams.toString();
         var detailResp = await fetchWithRetry(detailUrl, {
           headers: { 'Authorization': 'Bearer ' + accessToken }
         }, log);
