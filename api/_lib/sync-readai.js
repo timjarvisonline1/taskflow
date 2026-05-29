@@ -142,35 +142,53 @@ async function syncReadai(userId, emit) {
       }
     }
 
-    log('Fetched ' + allMeetings.length + ' unique meetings. Processing...');
+    log('Fetched ' + allMeetings.length + ' unique meetings. Fetching details and saving...');
 
-    // Process each meeting — use list data directly (no separate detail fetch needed)
+    // Process each meeting — fetch full detail for transcript/summary/action items
     var processed = 0;
     for (var i = 0; i < allMeetings.length; i++) {
+      // Refresh token every 50 meetings (tokens expire every 10 min)
+      if (i > 0 && i % 50 === 0) {
+        var freshCred = await getCredentials(userId, 'readai');
+        if (freshCred) accessToken = await refreshReadaiToken(freshCred);
+      }
       var m = allMeetings[i];
       try {
         var sessionId = m.id || m.session_id || '';
         if (!sessionId) { stats.skipped++; continue; }
 
-        var participants = normaliseParticipants(m.participants);
-        var actionItems = normaliseItems(m.action_items);
-        var keyQuestions = normaliseItems(m.key_questions);
-        var topics = normaliseItems(m.topics);
-        var chapterSummaries = normaliseChapters(m.chapter_summaries);
-        var transcript = normaliseTranscript(m.transcript);
-        var summary = m.summary || m.meeting_summary || '';
+        // Fetch full meeting detail (transcript, summary, action items, etc.)
+        var detailResp = await fetchWithRetry(READAI_API + '/meetings/' + sessionId, {
+          headers: { 'Authorization': 'Bearer ' + accessToken }
+        }, log);
+        await sleep(THROTTLE_MS);
+
+        var detail = m; // fallback to list data if detail fetch fails
+        if (detailResp.ok) {
+          try { detail = await detailResp.json(); } catch (e) { /* use list data */ }
+        } else {
+          log('Detail fetch failed for ' + sessionId + ' (HTTP ' + detailResp.status + '), using list data');
+        }
+
+        var participants = normaliseParticipants(detail.participants);
+        var actionItems = normaliseItems(detail.action_items);
+        var keyQuestions = normaliseItems(detail.key_questions);
+        var topics = normaliseItems(detail.topics);
+        var chapterSummaries = normaliseChapters(detail.chapter_summaries);
+        var transcript = normaliseTranscript(detail.transcript);
+        var summary = detail.summary || detail.meeting_summary || '';
 
         var ownerName = '', ownerEmail = '';
-        if (m.owner && typeof m.owner === 'object') {
-          ownerName = m.owner.name || '';
-          ownerEmail = m.owner.email || '';
+        if (detail.owner && typeof detail.owner === 'object') {
+          ownerName = detail.owner.name || '';
+          ownerEmail = detail.owner.email || '';
         } else {
-          ownerEmail = m.owner_email || '';
+          ownerEmail = detail.owner_email || '';
         }
 
         // Timestamps: API returns start_time_ms/end_time_ms as numbers
-        var startTime = m.start_time || null;
-        var endTime = m.end_time || null;
+        var startTime = detail.start_time || m.start_time || null;
+        var endTime = detail.end_time || m.end_time || null;
         if (!startTime && m.start_time_ms) startTime = new Date(m.start_time_ms).toISOString();
         if (!endTime && m.end_time_ms) endTime = new Date(m.end_time_ms).toISOString();
 
@@ -197,7 +215,7 @@ async function syncReadai(userId, emit) {
         var row = {
           user_id: userId,
           session_id: sessionId,
-          title: m.title || '',
+          title: detail.title || m.title || '',
           start_time: startTime,
           end_time: endTime,
           duration_minutes: durationMinutes,
@@ -210,10 +228,10 @@ async function syncReadai(userId, emit) {
           key_questions: keyQuestions,
           topics: topics,
           chapter_summaries: chapterSummaries,
-          report_url: m.report_url || '',
+          report_url: detail.report_url || m.report_url || '',
           client_id: clientId,
           source: 'readai',
-          raw_payload: m,
+          raw_payload: detail,
           updated_at: new Date().toISOString()
         };
 
@@ -231,11 +249,11 @@ async function syncReadai(userId, emit) {
         if (isNew) {
           stats.inserted++;
           existingIds[sessionId] = true;
-          log('[' + processed + '/' + allMeetings.length + '] NEW: "' + (m.title || '').substring(0, 60) + '"');
+          log('[' + processed + '/' + allMeetings.length + '] NEW: "' + (detail.title || m.title || '').substring(0, 60) + '"');
         } else {
           stats.updated++;
           if (processed <= 5 || processed % 10 === 0) {
-            log('[' + processed + '/' + allMeetings.length + '] Updated: "' + (m.title || '').substring(0, 60) + '"');
+            log('[' + processed + '/' + allMeetings.length + '] Updated: "' + (detail.title || m.title || '').substring(0, 60) + '"');
           }
         }
       } catch (meetingErr) {
