@@ -3441,7 +3441,7 @@ var INTG_PLATFORMS=[
   {id:'openai',label:'OpenAI (Embeddings)',color:'#10A37F',desc:'Knowledge base vector embeddings',
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[]},
-  {id:'readai',label:'Read.ai',color:'#6366F1',desc:'Meeting transcripts via webhook',
+  {id:'readai',label:'Read.ai',color:'#6366F1',desc:'Meeting transcripts via webhook + API sync',oauth:true,oauthName:'Read.ai',canSync:true,
     fields:[],
     configFields:[{key:'webhook_secret',label:'Webhook Secret',type:'text'}]},
 ];
@@ -3747,10 +3747,12 @@ function openIntegrationsModal(){
     h+='<div class="intg-actions">';
     h+='<button class="btn" onclick="TF.testIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px">Test Connection</button>';
     h+='<button class="btn btn-p" onclick="TF.saveIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px">Save</button>';
-    if(plat.oauth&&!isConnected){
-      h+='<button class="btn btn-go" onclick="TF.connectGmail()" style="font-size:12px;padding:6px 14px">'+icon('mail',11)+' Connect Gmail</button>'}
+    var hasOAuthToken=storedKeys.indexOf('access_token')!==-1;
+    if(plat.oauth&&!hasOAuthToken){
+      if(plat.id==='gmail'&&!isConnected){h+='<button class="btn btn-go" onclick="TF.connectGmail()" style="font-size:12px;padding:6px 14px">'+icon('mail',11)+' Connect Gmail</button>'}
+      else if(plat.id==='readai'){h+='<button class="btn btn-go" onclick="TF.connectReadai()" style="font-size:12px;padding:6px 14px">'+icon('mic',11)+' Connect Read.ai</button>'}}
     if(isConnected){
-      if(plat.canSync){h+='<button class="btn btn-go" onclick="TF.triggerSync(\''+plat.id.replace(/_/g,'-')+'\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Now</button>'}
+      if(plat.canSync&&hasOAuthToken){h+='<button class="btn btn-go" onclick="TF.triggerSync(\''+plat.id.replace(/_/g,'-')+'\')" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Sync Now</button>'}
       h+='<button class="btn" onclick="TF.deleteIntegrationBtn(\''+plat.id+'\')" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:rgba(255,0,0,0.2)">Disconnect</button>';
     }
     h+='</div>';
@@ -3875,6 +3877,37 @@ async function connectGmail(){
     }
     window.addEventListener('message',onGmailConnected);
   }catch(e){toast('Gmail connect error: '+e.message,'warn')}
+}
+
+/* ═══════════ READ.AI OAUTH CONNECT ═══════════ */
+async function connectReadai(){
+  // Save webhook secret if entered (optional, doesn't block OAuth)
+  var vals=intgGetFields('readai');
+  if(Object.keys(vals.config).length){
+    await saveIntegrationBtn('readai');
+  }
+
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session){toast('Not signed in','warn');return}
+    var token=sess.data.session.access_token;
+    toast('Registering with Read.ai...','info');
+    var resp=await fetch('/api/auth/readai-connect',{headers:{'Authorization':'Bearer '+token}});
+    var data=await resp.json();
+    if(!resp.ok||data.error){toast(data.error||'Failed to get OAuth URL','warn');return}
+
+    var popup=window.open(data.url,'readai-oauth','width=600,height=700,left=200,top=100');
+    if(!popup){toast('Popup blocked — please allow popups for this site','warn');return}
+
+    function onReadaiConnected(e){
+      if(e.data==='readai-connected'){
+        window.removeEventListener('message',onReadaiConnected);
+        toast('Read.ai connected! You can now hit Sync Now to backfill meetings.','ok');
+        loadIntegrations().then(function(){loadMeetings();openIntegrationsModal()});
+      }
+    }
+    window.addEventListener('message',onReadaiConnected);
+  }catch(e){toast('Read.ai connect error: '+e.message,'warn')}
 }
 
 /* ═══════════ COMPOSE EMAIL MODAL ═══════════ */

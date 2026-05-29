@@ -5573,6 +5573,7 @@ async function triggerSync(platform){
         result.debug.forEach(function(d){console.log(d)});
         console.groupEnd()}
       await loadFinancePayments();await loadAccountBalances();await loadIntegrations();
+      if(platform==='readai')await loadMeetings();
       if(platform==='instantly')await loadInstantlyData();
       render();
     }else{
@@ -5594,7 +5595,7 @@ function checkStaleBalances(){
 async function syncAllIntegrations(silent){
   /* Only platforms with live sync endpoints. Dead integrations (zoho, instantly, ga4)
      stay in the credentials table but no longer try to sync. */
-  var platformMap={brex:'brex',mercury:'mercury',gmail:'gmail'};
+  var platformMap={brex:'brex',mercury:'mercury',gmail:'gmail',readai:'readai'};
   var active=S.integrations.filter(function(i){return i.is_active&&platformMap[i.platform]});
   if(!active.length){console.warn('[sync] No active integrations found. S.integrations:',S.integrations.map(function(i){return{platform:i.platform,is_active:i.is_active}}));return}
   try{
