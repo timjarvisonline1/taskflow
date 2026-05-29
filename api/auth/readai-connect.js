@@ -1,12 +1,11 @@
-const { verifyUserToken, cors, getCredentials, getServiceClient } = require('../_lib/supabase');
-const { registerReadaiClient } = require('../_lib/readai-auth');
+const { verifyUserToken, cors, getCredentials } = require('../_lib/supabase');
 
 const SCOPES = 'openid email meeting:read offline_access profile';
 
 /**
  * GET /api/auth/readai-connect
- * Returns the Read.ai OAuth URL. Auto-registers via dynamic client registration
- * if no client_id exists yet — no manual credentials needed.
+ * Returns the Read.ai OAuth URL for the user to authorize meeting access.
+ * Requires client_id and client_secret already saved in integration_credentials.
  */
 module.exports = async function handler(req, res) {
   cors(res);
@@ -17,37 +16,16 @@ module.exports = async function handler(req, res) {
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
+    const credRow = await getCredentials(userId, 'readai');
+    const creds = credRow ? credRow.credentials || {} : {};
+
+    if (!creds.client_id) {
+      return res.status(400).json({ error: 'Save your OAuth Client ID first in the integrations modal, then click Connect Read.ai.' });
+    }
+
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const host = req.headers['x-forwarded-host'] || req.headers.host;
     const redirectUri = protocol + '://' + host + '/api/auth/readai-callback';
-
-    const client = getServiceClient();
-    let credRow = await getCredentials(userId, 'readai');
-    let creds = credRow ? credRow.credentials || {} : {};
-
-    // Create credential row if none exists (user may only have webhook config, or nothing)
-    if (!credRow) {
-      const { data, error } = await client
-        .from('integration_credentials')
-        .insert({ user_id: userId, platform: 'readai', credentials: {}, config: {}, is_active: false })
-        .select('*')
-        .single();
-      if (error) throw new Error('Failed to create readai credential row: ' + error.message);
-      credRow = data;
-      creds = {};
-    }
-
-    // Dynamic client registration if no client_id yet
-    if (!creds.client_id) {
-      const registration = await registerReadaiClient(redirectUri);
-      creds.client_id = registration.client_id;
-      creds.client_secret = registration.client_secret;
-
-      await client
-        .from('integration_credentials')
-        .update({ credentials: creds, updated_at: new Date().toISOString() })
-        .eq('id', credRow.id);
-    }
 
     const authUrl = 'https://authn.read.ai/oauth2/authorize?' + new URLSearchParams({
       client_id: creds.client_id,
