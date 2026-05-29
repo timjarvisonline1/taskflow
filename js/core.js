@@ -5552,10 +5552,14 @@ async function triggerSync(platform){
     var sess=await _sb.auth.getSession();
     if(!sess.data.session)return;
     var token=sess.data.session.access_token;
-    toast('Syncing '+platform+'...','info');
     var platId=platform.replace(/-/g,'_');
+    toast('Syncing '+platform+'...','info');
+    console.log('%c['+platform+'] Sync started — request sent, waiting for server...','color:#3ddc84;font-weight:bold');
+    console.log('%c['+platform+'] This may take 1-3 minutes for bulk syncs. Do not click again.','color:#9ca3af');
+    var syncStart=Date.now();
     var resp=await fetch('/api/sync/'+platform,{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
+    console.log('%c['+platform+'] Response received after '+Math.round((Date.now()-syncStart)/1000)+'s (HTTP '+resp.status+')','color:#3ddc84;font-weight:bold');
     if(!resp.ok){
       var errText='';try{errText=await resp.text()}catch(x){}
       console.error(platform+' sync HTTP '+resp.status+':',errText);
