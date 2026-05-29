@@ -28,7 +28,7 @@ async function syncReadai(userId) {
 
     // Determine start time: backfill from April 7 if never synced, otherwise from last sync
     var startMs = BACKFILL_START_MS;
-    if (credRow.last_sync_at) {
+    if (credRow.last_sync_at && credRow.last_sync_status === 'ok') {
       startMs = new Date(credRow.last_sync_at).getTime() - 3600000; // 1h overlap for safety
       if (startMs < BACKFILL_START_MS) startMs = BACKFILL_START_MS;
     }
