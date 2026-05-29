@@ -4,7 +4,7 @@ const { analyzeMeetingForTasks } = require('./analyze-meeting');
 const { getOpenAIKey, embedTexts, chunkMeeting, storeChunks, upsertSource } = require('./embeddings');
 
 const READAI_API = 'https://api.read.ai/v1';
-const BACKFILL_START_MS = 1743984000000; // April 7, 2026 00:00 UTC
+const BACKFILL_START_MS = 1775520000000; // April 7, 2026 00:00 UTC
 
 /**
  * Sync Read.ai meetings to Supabase via the API.
