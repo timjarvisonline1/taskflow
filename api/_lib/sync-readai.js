@@ -168,6 +168,17 @@ async function syncReadai(userId, emit) {
         }, log);
         await sleep(THROTTLE_MS);
 
+        // On 401, refresh token and retry once
+        if (detailResp.status === 401) {
+          log('Token expired at meeting ' + (i + 1) + ', refreshing...');
+          var freshCred = await getCredentials(userId, 'readai');
+          if (freshCred) accessToken = await refreshReadaiToken(freshCred);
+          detailResp = await fetchWithRetry(detailUrl, {
+            headers: { 'Authorization': 'Bearer ' + accessToken }
+          }, log);
+          await sleep(THROTTLE_MS);
+        }
+
         var detail = m; // fallback to list data if detail fetch fails
         if (detailResp.ok) {
           try { detail = await detailResp.json(); } catch (e) { /* use list data */ }
