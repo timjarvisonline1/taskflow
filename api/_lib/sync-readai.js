@@ -80,19 +80,20 @@ async function syncReadai(userId, emit) {
       }
     } catch (e) { /* ignore */ }
 
-    // Fetch meetings from Read.ai API.
-    // Read.ai's pagination is broken (offset/starting_after ignored, has_more always true).
-    // Deduplicate by ID and stop when a page returns only meetings we've already seen.
+    // Fetch meetings from Read.ai API using time-window pagination.
+    // Read.ai's offset/cursor pagination is broken — always returns the same page.
+    // Instead we shift the upper time bound backwards after each batch.
     var allMeetings = [];
     var seenIds = {};
-    var PAGE_SIZE = 10;
-    var MAX_PAGES = 100;
+    var MAX_ROUNDS = 50;
+    var upperMs = Date.now() + 86400000; // tomorrow, to catch everything
 
-    for (var page = 0; page < MAX_PAGES; page++) {
-      var url = READAI_API + '/meetings?limit=' + PAGE_SIZE +
-        '&start_time_ms.gte=' + startMs;
+    for (var round = 0; round < MAX_ROUNDS; round++) {
+      var url = READAI_API + '/meetings?limit=10' +
+        '&start_time_ms.gte=' + startMs +
+        '&start_time_ms.lte=' + upperMs;
 
-      log('Page ' + (page + 1) + ': fetching...');
+      log('Round ' + (round + 1) + ': window ' + new Date(startMs).toISOString().substring(0, 10) + ' to ' + new Date(upperMs).toISOString().substring(0, 10));
 
       var listResp = await fetchWithRetry(url, {
         headers: { 'Authorization': 'Bearer ' + accessToken }
@@ -106,27 +107,39 @@ async function syncReadai(userId, emit) {
 
       var listData = await listResp.json();
       var meetings = listData.data || [];
-      if (!Array.isArray(meetings) || meetings.length === 0) break;
-
-      var newOnThisPage = 0;
-      for (var mi = 0; mi < meetings.length; mi++) {
-        var mid = meetings[mi].id;
-        if (mid && !seenIds[mid]) {
-          seenIds[mid] = true;
-          allMeetings.push(meetings[mi]);
-          newOnThisPage++;
-        }
-      }
-      stats.fetched += meetings.length;
-      log('Page ' + (page + 1) + ': ' + newOnThisPage + ' new, ' + (meetings.length - newOnThisPage) + ' dupes (unique total: ' + allMeetings.length + ')');
-
-      // Stop if this page had no new meetings (pagination is looping)
-      if (newOnThisPage === 0) {
-        log('No new meetings on this page — pagination complete');
+      if (!Array.isArray(meetings) || meetings.length === 0) {
+        log('Round ' + (round + 1) + ': 0 meetings returned — done');
         break;
       }
 
-      if (!listData.has_more) break;
+      // Find the oldest meeting timestamp in this batch to shift the window
+      var oldestMs = Infinity;
+      var newCount = 0;
+      for (var mi = 0; mi < meetings.length; mi++) {
+        var m = meetings[mi];
+        var mid = m.id;
+        var mTime = m.start_time_ms || 0;
+        if (mTime < oldestMs) oldestMs = mTime;
+        if (mid && !seenIds[mid]) {
+          seenIds[mid] = true;
+          allMeetings.push(m);
+          newCount++;
+        }
+      }
+
+      log('Round ' + (round + 1) + ': ' + newCount + ' new meetings (total: ' + allMeetings.length + ')');
+
+      if (newCount === 0) {
+        log('All duplicates — done');
+        break;
+      }
+
+      // Shift upper bound to just before the oldest meeting in this batch
+      upperMs = oldestMs - 1;
+      if (upperMs <= startMs) {
+        log('Reached start of backfill window — done');
+        break;
+      }
     }
 
     log('Fetched ' + allMeetings.length + ' unique meetings. Processing...');
