@@ -5554,12 +5554,51 @@ async function triggerSync(platform){
     var token=sess.data.session.access_token;
     var platId=platform.replace(/-/g,'_');
     toast('Syncing '+platform+'...','info');
-    console.log('%c['+platform+'] Sync started — request sent, waiting for server...','color:#3ddc84;font-weight:bold');
-    console.log('%c['+platform+'] This may take 1-3 minutes for bulk syncs. Do not click again.','color:#9ca3af');
-    var syncStart=Date.now();
+
+    /* Read.ai uses streaming NDJSON so we can show live progress */
+    if(platform==='readai'){
+      console.log('%c[readai] Sync started','color:#3ddc84;font-weight:bold');
+      var syncStart=Date.now();
+      var resp=await fetch('/api/sync/readai',{method:'POST',
+        headers:{'Authorization':'Bearer '+token}});
+      if(!resp.ok){
+        var errText='';try{errText=await resp.text()}catch(x){}
+        console.error('readai sync HTTP '+resp.status+':',errText);
+        toast('readai sync failed (HTTP '+resp.status+'). Check console.','warn');
+        return}
+      var reader=resp.body.getReader();
+      var decoder=new TextDecoder();
+      var buf='';
+      var result=null;
+      while(true){
+        var chunk=await reader.read();
+        if(chunk.done)break;
+        buf+=decoder.decode(chunk.value,{stream:true});
+        var lines=buf.split('\n');
+        buf=lines.pop();
+        for(var li=0;li<lines.length;li++){
+          if(!lines[li].trim())continue;
+          try{
+            var evt=JSON.parse(lines[li]);
+            if(evt.type==='log'){
+              console.log('%c[readai] '+evt.message,'color:#a3e635')}
+            else if(evt.type==='done'){result=evt}
+          }catch(pe){console.warn('NDJSON parse:',lines[li])}}}
+      console.log('%c[readai] Finished in '+Math.round((Date.now()-syncStart)/1000)+'s','color:#3ddc84;font-weight:bold');
+      if(result&&result.success){
+        var toastMsg='readai synced: '+result.inserted+' new, '+result.updated+' updated'+(result.skipped?' ('+result.skipped+' skipped)':'');
+        toast(toastMsg,'ok');
+        await loadIntegrations();await loadMeetings();render();
+      }else if(result){
+        console.error('readai sync error:',result.error);
+        toast('readai sync failed: '+(result.error||'Unknown'),'warn');
+      }
+      return}
+
+    /* Standard (non-streaming) sync for other platforms */
+    console.log('%c['+platform+'] Sync started','color:#3ddc84;font-weight:bold');
     var resp=await fetch('/api/sync/'+platform,{method:'POST',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}});
-    console.log('%c['+platform+'] Response received after '+Math.round((Date.now()-syncStart)/1000)+'s (HTTP '+resp.status+')','color:#3ddc84;font-weight:bold');
     if(!resp.ok){
       var errText='';try{errText=await resp.text()}catch(x){}
       console.error(platform+' sync HTTP '+resp.status+':',errText);
@@ -5573,14 +5612,12 @@ async function triggerSync(platform){
       if(result.tasks_generated)toastMsg+=', '+result.tasks_generated+' tasks';
       if(result.chunks_embedded)toastMsg+=', '+result.chunks_embedded+' embedded';
       toast(toastMsg,'ok');
-      /* Log sync debug info to console */
       if(result.debug&&result.debug.length){
         console.group('%c'+platform+' sync log','font-weight:bold;color:#3ddc84');
         console.log('Summary:',{fetched:result.fetched,inserted:result.inserted,updated:result.updated,skipped:result.skipped});
         result.debug.forEach(function(d){console.log(d)});
         console.groupEnd()}
       await loadFinancePayments();await loadAccountBalances();await loadIntegrations();
-      if(platform==='readai')await loadMeetings();
       if(platform==='instantly')await loadInstantlyData();
       render();
     }else{

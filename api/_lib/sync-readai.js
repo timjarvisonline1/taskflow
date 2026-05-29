@@ -25,7 +25,7 @@ async function fetchWithRetry(url, opts, log) {
  * On first run (no last_sync_at), pulls all meetings since April 7 2026 (backfill).
  * On subsequent runs, pulls meetings since last sync.
  */
-async function syncReadai(userId) {
+async function syncReadai(userId, emit) {
   const credRow = await getCredentials(userId, 'readai');
   if (!credRow) throw new Error('Read.ai not connected');
 
@@ -35,7 +35,11 @@ async function syncReadai(userId) {
   }
 
   const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, tasks_generated: 0, chunks_embedded: 0, error: null, debug: [] };
-  function log(msg) { stats.debug.push(msg); console.log('[readai-sync] ' + msg); }
+  function log(msg) {
+    stats.debug.push(msg);
+    console.log('[readai-sync] ' + msg);
+    if (emit) emit({ type: 'log', message: msg });
+  }
 
   try {
     const accessToken = await refreshReadaiToken(credRow);

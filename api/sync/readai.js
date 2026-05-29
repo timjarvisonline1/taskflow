@@ -9,10 +9,22 @@ module.exports = async function handler(req, res) {
   const userId = await verifyUserToken(req);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
+  // Stream newline-delimited JSON so the browser sees progress in real time
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  function emit(obj) {
+    res.write(JSON.stringify(obj) + '\n');
+  }
+
   try {
-    const stats = await syncReadai(userId);
-    return res.status(200).json({ success: true, ...stats });
+    const stats = await syncReadai(userId, emit);
+    emit({ type: 'done', success: true, ...stats });
+    res.end();
   } catch (e) {
-    return res.status(200).json({ success: false, error: e.message });
+    emit({ type: 'done', success: false, error: e.message });
+    res.end();
   }
 };
