@@ -157,8 +157,11 @@ async function syncReadai(userId, emit) {
         var sessionId = m.id || m.session_id || '';
         if (!sessionId) { stats.skipped++; continue; }
 
-        // Fetch full meeting detail (transcript, summary, action items, etc.)
-        var detailResp = await fetchWithRetry(READAI_API + '/meetings/' + sessionId, {
+        // Fetch full meeting detail with expand[] for transcript, summary, etc.
+        var detailUrl = READAI_API + '/meetings/' + sessionId +
+          '?expand[]=summary&expand[]=transcript&expand[]=action_items' +
+          '&expand[]=key_questions&expand[]=topics&expand[]=chapter_summaries';
+        var detailResp = await fetchWithRetry(detailUrl, {
           headers: { 'Authorization': 'Bearer ' + accessToken }
         }, log);
         await sleep(THROTTLE_MS);
