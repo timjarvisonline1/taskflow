@@ -27,24 +27,9 @@ async function syncReadai(userId) {
     const accessToken = await refreshReadaiToken(credRow);
     const client = getServiceClient();
 
-    // Count meetings already in DB from the backfill window to decide start time.
-    // Only use incremental sync if we've already pulled a reasonable number.
-    var meetingCountRes = await client
-      .from('meetings')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('source', 'readai')
-      .gte('start_time', new Date(BACKFILL_START_MS).toISOString());
-    var existingCount = meetingCountRes.count || 0;
-
     var startMs = BACKFILL_START_MS;
-    if (existingCount > 0 && credRow.last_sync_at) {
-      startMs = new Date(credRow.last_sync_at).getTime() - 3600000;
-      if (startMs < BACKFILL_START_MS) startMs = BACKFILL_START_MS;
-    }
     log('Token refreshed OK');
-    log('Meetings in DB since Apr 7 2026: ' + existingCount);
-    log('Sync mode: ' + (startMs === BACKFILL_START_MS ? 'BACKFILL from Apr 7 2026' : 'incremental from ' + new Date(startMs).toISOString()));
+    log('Sync mode: BACKFILL from Apr 7 2026 (always starts here, upsert handles dedup)');
     log('Start timestamp (ms): ' + startMs + ' = ' + new Date(startMs).toISOString());
 
     // Load existing session_ids for dedup
