@@ -20,7 +20,8 @@ async function syncReadai(userId) {
     throw new Error('Read.ai not authorized. Click Connect Read.ai first.');
   }
 
-  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, tasks_generated: 0, chunks_embedded: 0, error: null };
+  const stats = { fetched: 0, inserted: 0, updated: 0, skipped: 0, tasks_generated: 0, chunks_embedded: 0, error: null, debug: [] };
+  function log(msg) { stats.debug.push(msg); console.log('[readai-sync] ' + msg); }
 
   try {
     const accessToken = await refreshReadaiToken(credRow);
@@ -41,7 +42,10 @@ async function syncReadai(userId) {
       startMs = new Date(credRow.last_sync_at).getTime() - 3600000;
       if (startMs < BACKFILL_START_MS) startMs = BACKFILL_START_MS;
     }
-    console.log('[readai-sync] existing_meetings_in_window=' + existingCount + ' start_ms=' + startMs + ' (backfill=' + (startMs === BACKFILL_START_MS) + ')');
+    log('Token refreshed OK');
+    log('Meetings in DB since Apr 7 2026: ' + existingCount);
+    log('Sync mode: ' + (startMs === BACKFILL_START_MS ? 'BACKFILL from Apr 7 2026' : 'incremental from ' + new Date(startMs).toISOString()));
+    log('Start timestamp (ms): ' + startMs + ' = ' + new Date(startMs).toISOString());
 
     // Load existing session_ids for dedup
     var existingRes = await client
@@ -85,14 +89,14 @@ async function syncReadai(userId) {
         '&start_time_ms.gte=' + startMs +
         '&offset=' + offset;
 
-      console.log('[readai-sync] API request: ' + url);
+      log('Page ' + (page + 1) + ': GET ' + url);
 
       var listResp = await fetch(url, {
         headers: { 'Authorization': 'Bearer ' + accessToken }
       });
 
       var respText = await listResp.text();
-      console.log('[readai-sync] API response HTTP ' + listResp.status + ': ' + respText.substring(0, 500));
+      log('Response HTTP ' + listResp.status + ' (' + respText.length + ' bytes): ' + respText.substring(0, 300));
 
       if (!listResp.ok) {
         throw new Error('Read.ai API returned ' + listResp.status + ': ' + respText.substring(0, 200));
@@ -122,7 +126,7 @@ async function syncReadai(userId) {
       }
     }
 
-    console.log('[readai-sync] Fetched ' + allMeetings.length + ' meetings from API (start_ms=' + startMs + ')');
+    log('Total meetings fetched from API: ' + allMeetings.length);
 
     // Get OpenAI key for embeddings
     var openaiKey = null;
@@ -133,14 +137,14 @@ async function syncReadai(userId) {
       var meeting = allMeetings[i];
       try {
         var sessionId = meeting.id || meeting.session_id || '';
-        if (!sessionId) { stats.skipped++; continue; }
+        if (!sessionId) { log('Skipping meeting with no session_id'); stats.skipped++; continue; }
 
         // Fetch full meeting detail (includes transcript, summary, etc.)
         var detailResp = await fetch(READAI_API + '/meetings/' + sessionId, {
           headers: { 'Authorization': 'Bearer ' + accessToken }
         });
         if (!detailResp.ok) {
-          console.warn('[readai-sync] Failed to fetch detail for ' + sessionId + ': HTTP ' + detailResp.status);
+          log('Failed to fetch detail for ' + sessionId + ': HTTP ' + detailResp.status);
           stats.skipped++;
           continue;
         }
@@ -215,7 +219,7 @@ async function syncReadai(userId) {
           .upsert(row, { onConflict: 'user_id,session_id' });
 
         if (result.error) {
-          console.warn('[readai-sync] Upsert error for ' + sessionId + ':', result.error.message);
+          log('Upsert error for ' + sessionId + ': ' + result.error.message);
           stats.skipped++;
           continue;
         }
@@ -223,8 +227,10 @@ async function syncReadai(userId) {
         if (isNew) {
           stats.inserted++;
           existingIds[sessionId] = true;
+          log('[' + (i + 1) + '/' + allMeetings.length + '] NEW: "' + (detail.title || '').substring(0, 60) + '" (' + sessionId.substring(0, 8) + ')');
         } else {
           stats.updated++;
+          log('[' + (i + 1) + '/' + allMeetings.length + '] Updated: "' + (detail.title || '').substring(0, 60) + '"');
         }
 
         // Post-processing only for new meetings (same as webhook lines 320-386)
@@ -257,7 +263,7 @@ async function syncReadai(userId) {
               stats.tasks_generated += tasksGenerated;
             }
           } catch (aiErr) {
-            console.warn('[readai-sync] AI analysis error for ' + sessionId + ':', aiErr.message);
+            log('  AI task error: ' + aiErr.message);
           }
 
           // Knowledge base embedding
@@ -291,11 +297,11 @@ async function syncReadai(userId) {
               }
             }
           } catch (embedErr) {
-            console.warn('[readai-sync] Embedding error for ' + sessionId + ':', embedErr.message);
+            log('  Embedding error: ' + embedErr.message);
           }
         }
       } catch (meetingErr) {
-        console.warn('[readai-sync] Error processing meeting:', meetingErr.message);
+        log('Error processing meeting ' + (i + 1) + ': ' + meetingErr.message);
         stats.skipped++;
       }
     }
@@ -306,7 +312,7 @@ async function syncReadai(userId) {
       (stats.tasks_generated ? ', ' + stats.tasks_generated + ' tasks' : '') +
       (stats.chunks_embedded ? ', ' + stats.chunks_embedded + ' embedded' : ''));
 
-    console.log('[readai-sync] Done: ' + JSON.stringify(stats));
+    log('Done! ' + stats.inserted + ' new, ' + stats.updated + ' updated, ' + stats.skipped + ' skipped, ' + stats.tasks_generated + ' tasks, ' + stats.chunks_embedded + ' chunks embedded');
     return stats;
   } catch (e) {
     stats.error = e.message;

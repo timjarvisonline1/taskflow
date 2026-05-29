@@ -5565,7 +5565,10 @@ async function triggerSync(platform){
       return}
     var result=await resp.json();
     if(result.success){
-      toast(platform+' synced: '+result.inserted+' new, '+result.updated+' updated'+(result.skipped?' ('+result.skipped+' skipped)':''),'ok');
+      var toastMsg=platform+' synced: '+result.inserted+' new, '+result.updated+' updated'+(result.skipped?' ('+result.skipped+' skipped)':'');
+      if(result.tasks_generated)toastMsg+=', '+result.tasks_generated+' tasks';
+      if(result.chunks_embedded)toastMsg+=', '+result.chunks_embedded+' embedded';
+      toast(toastMsg,'ok');
       /* Log sync debug info to console */
       if(result.debug&&result.debug.length){
         console.group('%c'+platform+' sync log','font-weight:bold;color:#3ddc84');
@@ -5579,6 +5582,10 @@ async function triggerSync(platform){
     }else{
       var errMsg=result.error||'Unknown error';
       console.error(platform+' sync error:',errMsg);
+      if(result.debug&&result.debug.length){
+        console.group('%c'+platform+' sync log (failed)','font-weight:bold;color:#ef4444');
+        result.debug.forEach(function(d){console.log(d)});
+        console.groupEnd()}
       toast(platform+' sync failed. Check Integrations modal for details.','warn');
       var el=gel('intg-result-'+platId);
       if(el)el.innerHTML='<span style="color:var(--red);white-space:pre-wrap;word-break:break-all">Sync failed: '+esc(errMsg)+'</span>';
