@@ -26,12 +26,22 @@ async function syncReadai(userId) {
     const accessToken = await refreshReadaiToken(credRow);
     const client = getServiceClient();
 
-    // Determine start time: backfill from April 7 if never synced, otherwise from last sync
+    // Count meetings already in DB from the backfill window to decide start time.
+    // Only use incremental sync if we've already pulled a reasonable number.
+    var meetingCountRes = await client
+      .from('meetings')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('source', 'readai')
+      .gte('start_time', new Date(BACKFILL_START_MS).toISOString());
+    var existingCount = meetingCountRes.count || 0;
+
     var startMs = BACKFILL_START_MS;
-    if (credRow.last_sync_at && credRow.last_sync_status === 'ok') {
-      startMs = new Date(credRow.last_sync_at).getTime() - 3600000; // 1h overlap for safety
+    if (existingCount > 0 && credRow.last_sync_at) {
+      startMs = new Date(credRow.last_sync_at).getTime() - 3600000;
       if (startMs < BACKFILL_START_MS) startMs = BACKFILL_START_MS;
     }
+    console.log('[readai-sync] existing_meetings_in_window=' + existingCount + ' start_ms=' + startMs + ' (backfill=' + (startMs === BACKFILL_START_MS) + ')');
 
     // Load existing session_ids for dedup
     var existingRes = await client
@@ -75,17 +85,23 @@ async function syncReadai(userId) {
         '&start_time_ms.gte=' + startMs +
         '&offset=' + offset;
 
+      console.log('[readai-sync] API request: ' + url);
+
       var listResp = await fetch(url, {
         headers: { 'Authorization': 'Bearer ' + accessToken }
       });
 
+      var respText = await listResp.text();
+      console.log('[readai-sync] API response HTTP ' + listResp.status + ': ' + respText.substring(0, 500));
+
       if (!listResp.ok) {
-        var errText = '';
-        try { errText = await listResp.text(); } catch (x) {}
-        throw new Error('Read.ai API returned ' + listResp.status + ': ' + errText.substring(0, 200));
+        throw new Error('Read.ai API returned ' + listResp.status + ': ' + respText.substring(0, 200));
       }
 
-      var listData = await listResp.json();
+      var listData;
+      try { listData = JSON.parse(respText); } catch (e) {
+        throw new Error('Read.ai API returned non-JSON: ' + respText.substring(0, 200));
+      }
       var meetings = listData.data || listData.meetings || listData || [];
       if (!Array.isArray(meetings)) meetings = [];
 
