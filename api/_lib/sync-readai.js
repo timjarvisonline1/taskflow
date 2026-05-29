@@ -1,5 +1,6 @@
 const { getServiceClient, getCredentials, updateSyncStatus } = require('./supabase');
 const { refreshReadaiToken } = require('./readai-auth');
+const { analyzeMeetingForTasks } = require('./analyze-meeting');
 
 const READAI_API = 'https://api.read.ai/v1';
 const BACKFILL_START_MS = 1775520000000; // April 7, 2026 00:00 UTC
@@ -258,6 +259,28 @@ async function syncReadai(userId, emit) {
           stats.inserted++;
           existingIds[sessionId] = true;
           log('[' + processed + '/' + allMeetings.length + '] ' + (detail.title || m.title || '').substring(0, 60));
+
+          // AI task generation for new meetings during incremental sync
+          // (safe: incremental syncs typically have 1-2 new meetings)
+          if (!isBackfill && (transcript || summary)) {
+            try {
+              var meetingIdRes = await client.from('meetings').select('id').eq('user_id', userId).eq('session_id', sessionId).single();
+              if (meetingIdRes.data) {
+                var tasksGen = await analyzeMeetingForTasks(userId, {
+                  id: meetingIdRes.data.id,
+                  owner_name: ownerName, owner_email: ownerEmail,
+                  title: detail.title || m.title || '', start_time: startTime,
+                  summary: summary, transcript: transcript,
+                  action_items: actionItems, participants: participants,
+                  client_id: clientId, end_client: '', campaign_id: null, opportunity_id: null
+                }, client);
+                stats.tasks_generated += tasksGen;
+                if (tasksGen) log('  → ' + tasksGen + ' AI task(s)');
+              }
+            } catch (aiErr) {
+              log('  AI task error: ' + aiErr.message);
+            }
+          }
         } else {
           stats.updated++;
         }

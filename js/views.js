@@ -3231,18 +3231,34 @@ function rTasks(){
 
   /* ═══ REVIEW MODE ═══ */
   else if(mode==='review'){
+    /* Bulk actions bar */
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">';
+    h+='<button class="btn btn-go" onclick="TF.backfillTasks()" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Generate AI Tasks (14 days)</button>';
+    if(S.review.length){
+      var selCount=Object.keys(S.rvSelected||{}).length;
+      h+='<label style="font-size:12px;color:var(--t3);cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:auto"><input type="checkbox" onchange="TF.rvToggleAll(this.checked)"> Select All</label>';
+      if(selCount>1){
+        h+='<button class="btn" onclick="TF.mergeReviewSelected()" style="font-size:12px;padding:6px 14px;color:var(--blue)">'+icon('link',11)+' Merge '+selCount+'</button>';
+      }
+      if(selCount>0){
+        h+='<button class="btn" onclick="TF.dismissReviewSelected()" style="font-size:12px;padding:6px 14px;color:var(--red)">'+icon('x',11)+' Dismiss '+selCount+'</button>';
+      }
+    }
+    h+='</div>';
     if(!S.review.length){
-      h+='<div class="no-data" style="padding:64px 20px"><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">No tasks to review</div><div style="font-size:13px;color:var(--t4)">Items from email and Read.ai will appear here automatically.</div></div>';
+      h+='<div class="no-data" style="padding:64px 20px"><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">No tasks to review</div><div style="font-size:13px;color:var(--t4)">Click "Generate AI Tasks" to extract tasks from recent meetings and emails.</div></div>';
     } else {
       var items=reviewSorted();
       h+='<div class="rv-list">';
       items.forEach(function(r,i){
-        h+='<div class="rv-card" onclick="TF.openReviewAt('+i+')">';
+        var isSel=(S.rvSelected||{})[r.id];
+        h+='<div class="rv-card'+(isSel?' rv-card-sel':'')+'">';
         h+='<div class="rv-card-left">';
+        h+='<input type="checkbox" class="rv-chk" '+(isSel?'checked ':'')+' onclick="event.stopPropagation();TF.rvToggle(\''+r.id+'\',this.checked)" style="margin-right:8px;cursor:pointer">';
         if(r.source==='Email'){h+='<span class="bg" style="background:rgba(59,130,246,0.1);color:#3b82f6;font-size:10px">'+icon('mail',12)+'</span>'}
         else if(r.source==='Read.ai'){h+='<span class="bg" style="background:rgba(16,185,129,0.1);color:#10b981;font-size:10px">'+icon('mic',12)+'</span>'}
         h+='<span class="bg '+impCls(r.importance)+'">'+esc(r.importance)+'</span>';
-        h+='<span class="rv-name">'+esc(r.item)+'</span>';
+        h+='<span class="rv-name" onclick="TF.openReviewAt('+i+')" style="cursor:pointer">'+esc(r.item)+'</span>';
         h+='</div>';
         h+='<div class="rv-card-right">';
         if(r.client)h+='<span class="bg bg-cl">'+esc(r.client)+'</span>';

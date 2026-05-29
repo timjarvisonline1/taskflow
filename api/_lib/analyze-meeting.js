@@ -266,7 +266,8 @@ async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
       est: t.est || 30,
       due: null,
       source: 'Read.ai',
-      campaign: campaignId
+      campaign: campaignId,
+      meeting_id: meetingRow.id || null
     };
 
     var res = await supabase.from('review').insert(reviewRow);

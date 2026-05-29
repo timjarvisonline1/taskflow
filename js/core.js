@@ -138,7 +138,7 @@ var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMe
   /* Email — sync only, read-only search */
   gmailThreads:[],gmailSearch:'',gmailUnread:0,_gmailFetching:false,
   contacts:[],
-  meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,meetingFilter:'',
+  meetings:[],meetingDetail:null,meetingSearch:'',meetingsPage:1,meetingFilter:'',rvSelected:{},
   endClients:[],ecSort:'name',
   clientTab:'overview',endClientTab:'overview',opportunityTab:'overview',
   /* Invoices (manual) */
@@ -722,7 +722,9 @@ async function loadReview(){
     return{id:r.id,item:r.item,notes:r.notes||'',importance:r.importance||'Important',
       category:r.category||'',client:r.client||'',endClient:r.end_client||'',endClientId:r.end_client_id||null,
       type:r.type||'Business',est:r.est||0,due:r.due?new Date(r.due+'T00:00:00'):null,
-      source:r.source||'',created:r.created?new Date(r.created):new Date(),campaign:r.campaign||''}})}
+      source:r.source||'',created:r.created?new Date(r.created):new Date(),campaign:r.campaign||'',
+      meetingId:r.meeting_id||null,threadId:r.thread_id||null}});
+  S.rvSelected={}}
 
 async function loadCampaigns(){
   var res=await _sb.from('campaigns').select('*').order('created_at',{ascending:false});
@@ -5857,6 +5859,117 @@ async function dbDeleteReview(id){
   var res=await _sb.from('review').delete().eq('id',id);
   if(res.error){toast('Delete review failed: '+res.error.message,'warn');return false}
   return true}
+
+/* ═══════════ REVIEW QUEUE: SELECTION + MERGE + BULK ═══════════ */
+
+function rvToggle(id,checked){
+  if(!S.rvSelected)S.rvSelected={};
+  if(checked)S.rvSelected[id]=true;else delete S.rvSelected[id];
+  render()}
+
+function rvToggleAll(checked){
+  S.rvSelected={};
+  if(checked)S.review.forEach(function(r){S.rvSelected[r.id]=true});
+  render()}
+
+async function mergeReviewSelected(){
+  var ids=Object.keys(S.rvSelected||{});
+  if(ids.length<2){toast('Select at least 2 items to merge','warn');return}
+  var items=S.review.filter(function(r){return S.rvSelected[r.id]});
+  if(!items.length)return;
+
+  // Build merged item
+  var names=items.map(function(r){return r.item});
+  var mergedName=names[0];
+  if(names.length===2)mergedName=names[0]+' + '+names[1];
+  else if(names.length>2)mergedName=names[0]+' + '+(names.length-1)+' more';
+
+  var notesParts=items.map(function(r){
+    var src=r.source||'Review';
+    return'['+src+'] '+r.item+(r.notes?'\n'+r.notes:'')});
+  var mergedNotes=notesParts.join('\n\n');
+
+  // Highest importance wins
+  var impRank={Critical:3,Important:2,'When Time Allows':1};
+  var bestImp='When Time Allows';
+  items.forEach(function(r){if((impRank[r.importance]||0)>(impRank[bestImp]||0))bestImp=r.importance});
+
+  // Keep client/campaign if consistent
+  var clients=[...new Set(items.map(function(r){return r.client}).filter(Boolean))];
+  var campaigns=[...new Set(items.map(function(r){return r.campaign}).filter(Boolean))];
+  var totalEst=items.reduce(function(s,r){return s+(r.est||0)},0);
+
+  var uid=await getUserId();if(!uid)return;
+  var mergedRow={
+    user_id:uid,
+    item:mergedName,
+    notes:mergedNotes,
+    importance:bestImp,
+    category:items[0].category||'',
+    client:clients.length===1?clients[0]:'',
+    end_client:'',
+    type:'Business',
+    est:totalEst||30,
+    due:null,
+    source:items[0].source||'',
+    campaign:campaigns.length===1?campaigns[0]:''
+  };
+
+  var res=await _sb.from('review').insert(mergedRow).select('id').single();
+  if(res.error){toast('Merge failed: '+res.error.message,'warn');return}
+
+  // Delete originals
+  for(var i=0;i<ids.length;i++){await _sb.from('review').delete().eq('id',ids[i])}
+  S.rvSelected={};
+  await loadReview();
+  toast('Merged '+ids.length+' items','ok');render()}
+
+async function dismissReviewSelected(){
+  var ids=Object.keys(S.rvSelected||{});
+  if(!ids.length)return;
+  if(!confirm('Dismiss '+ids.length+' review item'+(ids.length>1?'s':'')+'?'))return;
+  for(var i=0;i<ids.length;i++){await _sb.from('review').delete().eq('id',ids[i])}
+  S.review=S.review.filter(function(r){return!S.rvSelected[r.id]});
+  S.rvSelected={};
+  toast('Dismissed '+ids.length+' item'+(ids.length>1?'s':''),'ok');render()}
+
+async function backfillTasks(){
+  try{
+    var sess=await _sb.auth.getSession();
+    if(!sess.data.session){toast('Not signed in','warn');return}
+    var token=sess.data.session.access_token;
+    toast('Generating AI tasks from recent meetings & emails...','info');
+    console.log('%c[backfill] Started','color:#3ddc84;font-weight:bold');
+    var resp=await fetch('/api/sync/backfill-tasks',{method:'POST',
+      headers:{'Authorization':'Bearer '+token}});
+    if(!resp.ok){
+      var errText='';try{errText=await resp.text()}catch(x){}
+      console.error('backfill HTTP '+resp.status+':',errText);
+      toast('Backfill failed (HTTP '+resp.status+')','warn');return}
+    var reader=resp.body.getReader();
+    var decoder=new TextDecoder();
+    var buf='';
+    var result=null;
+    while(true){
+      var chunk=await reader.read();
+      if(chunk.done)break;
+      buf+=decoder.decode(chunk.value,{stream:true});
+      var lines=buf.split('\n');
+      buf=lines.pop();
+      for(var li=0;li<lines.length;li++){
+        if(!lines[li].trim())continue;
+        try{
+          var evt=JSON.parse(lines[li]);
+          if(evt.type==='log')console.log('%c[backfill] '+evt.message,'color:#a3e635');
+          else if(evt.type==='done')result=evt;
+        }catch(pe){/* skip */}}}
+    if(result&&result.success){
+      toast('AI tasks: '+result.meeting_tasks+' from meetings, '+result.email_tasks+' from emails','ok');
+      await loadReview();render();
+    }else if(result){
+      toast('Backfill error: '+(result.error||'Unknown'),'warn');
+    }
+  }catch(e){console.error('Backfill error:',e);toast('Backfill error: '+e.message,'warn')}}
 
 async function dbAddCampaign(data){
   var uid=await getUserId();if(!uid)return null;

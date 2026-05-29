@@ -370,6 +370,8 @@ select.edf:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://w
 .rv-card-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
 .rv-card-right{display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:nowrap}
 .rv-name{font-weight:500;font-size:14px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.005em}
+.rv-card-sel{background:rgba(59,130,246,0.04)!important}
+.rv-chk{accent-color:var(--blue);width:16px;height:16px}
 
 /* ── KEYBOARD BADGE ── */
 .kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;background:var(--bg4);border:1px solid var(--gborder);border-radius:4px;font-size:10px;font-family:var(--fd);color:var(--t4);letter-spacing:0.03em}
