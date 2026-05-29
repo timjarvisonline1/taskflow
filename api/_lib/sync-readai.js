@@ -80,48 +80,39 @@ async function syncReadai(userId, emit) {
       }
     } catch (e) { /* ignore */ }
 
-    // Paginate through Read.ai meetings API
+    // Paginate through Read.ai meetings API (cursor-based, not offset)
     var allMeetings = [];
-    var hasMore = true;
-    var offset = 0;
+    var cursor = null;
     var PAGE_SIZE = 10;
-    var MAX_PAGES = 200; // Safety: 2000 meetings max
+    var MAX_PAGES = 100;
 
-    for (var page = 0; page < MAX_PAGES && hasMore; page++) {
+    for (var page = 0; page < MAX_PAGES; page++) {
       var url = READAI_API + '/meetings?limit=' + PAGE_SIZE +
-        '&start_time_ms.gte=' + startMs +
-        '&offset=' + offset;
+        '&start_time_ms.gte=' + startMs;
+      if (cursor) url += '&starting_after=' + cursor;
 
-      log('Page ' + (page + 1) + ': GET ' + url);
+      log('Page ' + (page + 1) + ': fetching...');
 
       var listResp = await fetchWithRetry(url, {
         headers: { 'Authorization': 'Bearer ' + accessToken }
       }, log);
       await sleep(THROTTLE_MS);
 
-      var respText = await listResp.text();
-      log('Response HTTP ' + listResp.status + ' (' + respText.length + ' bytes): ' + respText.substring(0, 300));
-
       if (!listResp.ok) {
-        throw new Error('Read.ai API returned ' + listResp.status + ': ' + respText.substring(0, 200));
+        var errText = await listResp.text();
+        throw new Error('Read.ai API returned ' + listResp.status + ': ' + errText.substring(0, 200));
       }
 
-      var listData;
-      try { listData = JSON.parse(respText); } catch (e) {
-        throw new Error('Read.ai API returned non-JSON: ' + respText.substring(0, 200));
-      }
-      var meetings = listData.data || listData.meetings || listData || [];
-      if (!Array.isArray(meetings)) meetings = [];
+      var listData = await listResp.json();
+      var meetings = listData.data || [];
+      if (!Array.isArray(meetings) || meetings.length === 0) break;
 
       allMeetings = allMeetings.concat(meetings);
       stats.fetched += meetings.length;
+      log('Page ' + (page + 1) + ': got ' + meetings.length + ' meetings (total: ' + allMeetings.length + ')');
 
-      // Check for more pages
-      if (meetings.length < PAGE_SIZE) {
-        hasMore = false;
-      } else {
-        offset += PAGE_SIZE;
-      }
+      if (!listData.has_more) break;
+      cursor = meetings[meetings.length - 1].id;
 
       // Refresh token mid-pagination if needed (tokens expire every 10 min)
       if (page > 0 && page % 5 === 0) {
@@ -130,46 +121,37 @@ async function syncReadai(userId, emit) {
       }
     }
 
-    log('Total meetings fetched from API: ' + allMeetings.length);
+    log('Fetched ' + allMeetings.length + ' meetings total. Processing...');
 
-    // Process each meeting
+    // Process each meeting — use list data directly (no separate detail fetch needed)
+    var processed = 0;
     for (var i = 0; i < allMeetings.length; i++) {
-      var meeting = allMeetings[i];
+      var m = allMeetings[i];
       try {
-        var sessionId = meeting.id || meeting.session_id || '';
-        if (!sessionId) { log('Skipping meeting with no session_id'); stats.skipped++; continue; }
+        var sessionId = m.id || m.session_id || '';
+        if (!sessionId) { stats.skipped++; continue; }
 
-        // Fetch full meeting detail (includes transcript, summary, etc.)
-        var detailResp = await fetchWithRetry(READAI_API + '/meetings/' + sessionId, {
-          headers: { 'Authorization': 'Bearer ' + accessToken }
-        }, log);
-        await sleep(THROTTLE_MS);
-        if (!detailResp.ok) {
-          log('Failed to fetch detail for ' + sessionId + ': HTTP ' + detailResp.status);
-          stats.skipped++;
-          continue;
-        }
-        var detail = await detailResp.json();
-
-        // Normalise fields
-        var participants = normaliseParticipants(detail.participants);
-        var actionItems = normaliseItems(detail.action_items);
-        var keyQuestions = normaliseItems(detail.key_questions);
-        var topics = normaliseItems(detail.topics);
-        var chapterSummaries = normaliseChapters(detail.chapter_summaries);
-        var transcript = normaliseTranscript(detail.transcript);
-        var summary = detail.summary || detail.meeting_summary || '';
+        var participants = normaliseParticipants(m.participants);
+        var actionItems = normaliseItems(m.action_items);
+        var keyQuestions = normaliseItems(m.key_questions);
+        var topics = normaliseItems(m.topics);
+        var chapterSummaries = normaliseChapters(m.chapter_summaries);
+        var transcript = normaliseTranscript(m.transcript);
+        var summary = m.summary || m.meeting_summary || '';
 
         var ownerName = '', ownerEmail = '';
-        if (detail.owner && typeof detail.owner === 'object') {
-          ownerName = detail.owner.name || '';
-          ownerEmail = detail.owner.email || '';
+        if (m.owner && typeof m.owner === 'object') {
+          ownerName = m.owner.name || '';
+          ownerEmail = m.owner.email || '';
         } else {
-          ownerEmail = detail.owner_email || '';
+          ownerEmail = m.owner_email || '';
         }
 
-        var startTime = detail.start_time || detail.meeting_start_time || null;
-        var endTime = detail.end_time || detail.meeting_end_time || null;
+        // Timestamps: API returns start_time_ms/end_time_ms as numbers
+        var startTime = m.start_time || null;
+        var endTime = m.end_time || null;
+        if (!startTime && m.start_time_ms) startTime = new Date(m.start_time_ms).toISOString();
+        if (!endTime && m.end_time_ms) endTime = new Date(m.end_time_ms).toISOString();
 
         var durationMinutes = 0;
         if (startTime && endTime) {
@@ -177,7 +159,7 @@ async function syncReadai(userId, emit) {
           if (!isNaN(diff) && diff > 0) durationMinutes = Math.round(diff / 60000);
         }
 
-        // Auto-match client from participant emails
+        // Auto-match client
         var clientId = null;
         var participantEmails = participants.map(function(p) { return (p.email || '').toLowerCase(); }).filter(Boolean);
         var ownerLower = (ownerEmail || '').toLowerCase() || ownerEmailLower;
@@ -191,11 +173,10 @@ async function syncReadai(userId, emit) {
 
         var isNew = !existingIds[sessionId];
 
-        // Upsert meeting row
         var row = {
           user_id: userId,
           session_id: sessionId,
-          title: detail.title || meeting.title || '',
+          title: m.title || '',
           start_time: startTime,
           end_time: endTime,
           duration_minutes: durationMinutes,
@@ -208,10 +189,10 @@ async function syncReadai(userId, emit) {
           key_questions: keyQuestions,
           topics: topics,
           chapter_summaries: chapterSummaries,
-          report_url: detail.report_url || '',
+          report_url: m.report_url || '',
           client_id: clientId,
           source: 'readai',
-          raw_payload: detail,
+          raw_payload: m,
           updated_at: new Date().toISOString()
         };
 
@@ -225,19 +206,17 @@ async function syncReadai(userId, emit) {
           continue;
         }
 
+        processed++;
         if (isNew) {
           stats.inserted++;
           existingIds[sessionId] = true;
-          log('[' + (i + 1) + '/' + allMeetings.length + '] NEW: "' + (detail.title || '').substring(0, 60) + '" (' + sessionId.substring(0, 8) + ')');
+          log('[' + processed + '/' + allMeetings.length + '] NEW: "' + (m.title || '').substring(0, 60) + '"');
         } else {
           stats.updated++;
-          log('[' + (i + 1) + '/' + allMeetings.length + '] Updated: "' + (detail.title || '').substring(0, 60) + '"');
+          if (processed <= 5 || processed % 10 === 0) {
+            log('[' + processed + '/' + allMeetings.length + '] Updated: "' + (m.title || '').substring(0, 60) + '"');
+          }
         }
-
-        // AI task generation + KB embedding skipped during bulk sync (too slow).
-        // The webhook handles these for real-time meetings. For backfilled meetings,
-        // use /api/knowledge/ingest-meetings to embed and the background knowledge
-        // sync will pick them up over time.
       } catch (meetingErr) {
         log('Error processing meeting ' + (i + 1) + ': ' + meetingErr.message);
         stats.skipped++;
