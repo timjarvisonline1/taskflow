@@ -1,6 +1,11 @@
 const { getServiceClient } = require('./supabase');
 
 const TOKEN_ENDPOINT = 'https://authn.read.ai/oauth2/token';
+const REGISTER_ENDPOINT = 'https://api.read.ai/oauth/register';
+
+function basicAuthHeader(clientId, clientSecret) {
+  return 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64');
+}
 
 /**
  * Refresh a Read.ai OAuth access token if expired (or within 60s of expiry).
@@ -21,14 +26,15 @@ async function refreshReadaiToken(credentialRow) {
 
   const params = new URLSearchParams({
     refresh_token: creds.refresh_token,
-    client_id: creds.client_id,
-    client_secret: creds.client_secret,
     grant_type: 'refresh_token'
   });
 
   const resp = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': basicAuthHeader(creds.client_id, creds.client_secret)
+    },
     body: params
   });
 
@@ -42,7 +48,6 @@ async function refreshReadaiToken(credentialRow) {
     access_token: data.access_token,
     token_expires_at: new Date(Date.now() + ((data.expires_in || 600) * 1000)).toISOString()
   };
-  // Refresh tokens rotate on each use
   if (data.refresh_token) {
     newCreds.refresh_token = data.refresh_token;
   }
@@ -62,15 +67,16 @@ async function refreshReadaiToken(credentialRow) {
 async function exchangeReadaiCode(clientId, clientSecret, code, redirectUri) {
   const params = new URLSearchParams({
     code: code,
-    client_id: clientId,
-    client_secret: clientSecret,
     redirect_uri: redirectUri,
     grant_type: 'authorization_code'
   });
 
   const resp = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': basicAuthHeader(clientId, clientSecret)
+    },
     body: params
   });
 
@@ -93,4 +99,40 @@ async function exchangeReadaiCode(clientId, clientSecret, code, redirectUri) {
   };
 }
 
-module.exports = { refreshReadaiToken, exchangeReadaiCode };
+/**
+ * Dynamic client registration (RFC 7591).
+ * Registers TaskFlow as an OAuth client with Read.ai.
+ */
+async function registerReadaiClient(redirectUri) {
+  const resp = await fetch(REGISTER_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_name: 'TaskFlow',
+      redirect_uris: [redirectUri],
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      scope: 'openid email offline_access profile meeting:read',
+      token_endpoint_auth_method: 'client_secret_basic'
+    })
+  });
+
+  const text = await resp.text();
+  let data;
+  try { data = JSON.parse(text); } catch (e) {
+    throw new Error('Read.ai registration returned non-JSON (HTTP ' + resp.status + '): ' + text.substring(0, 200));
+  }
+  if (!resp.ok || data.error) {
+    throw new Error('Read.ai client registration failed: ' + (data.error_description || data.error || 'HTTP ' + resp.status));
+  }
+  if (!data.client_id) {
+    throw new Error('Read.ai registration returned no client_id: ' + text.substring(0, 200));
+  }
+
+  return {
+    client_id: data.client_id,
+    client_secret: data.client_secret || ''
+  };
+}
+
+module.exports = { refreshReadaiToken, exchangeReadaiCode, registerReadaiClient };

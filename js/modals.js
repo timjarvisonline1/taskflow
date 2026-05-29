@@ -3442,7 +3442,7 @@ var INTG_PLATFORMS=[
     fields:[{key:'api_key',label:'API Key',type:'password'}],
     configFields:[]},
   {id:'readai',label:'Read.ai',color:'#6366F1',desc:'Meeting transcripts via webhook + API sync',oauth:true,oauthName:'Read.ai',canSync:true,
-    fields:[{key:'client_id',label:'OAuth Client ID',type:'text'},{key:'client_secret',label:'OAuth Client Secret',type:'password'}],
+    fields:[],
     configFields:[{key:'webhook_secret',label:'Webhook Secret',type:'text'}]},
 ];
 
@@ -3881,16 +3881,15 @@ async function connectGmail(){
 
 /* ═══════════ READ.AI OAUTH CONNECT ═══════════ */
 async function connectReadai(){
+  // Save webhook secret if entered
   var vals=intgGetFields('readai');
-  if(!vals.credentials.client_id||!vals.credentials.client_secret){
-    toast('Enter your OAuth Client ID and Client Secret first','warn');return;
-  }
-  await saveIntegrationBtn('readai');
+  if(Object.keys(vals.config).length) await saveIntegrationBtn('readai');
 
   try{
     var sess=await _sb.auth.getSession();
     if(!sess.data.session){toast('Not signed in','warn');return}
     var token=sess.data.session.access_token;
+    toast('Connecting to Read.ai...','info');
     var resp=await fetch('/api/auth/readai-connect',{headers:{'Authorization':'Bearer '+token}});
     var data=await resp.json();
     if(!resp.ok||data.error){toast(data.error||'Failed to get OAuth URL','warn');return}
