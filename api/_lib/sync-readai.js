@@ -179,11 +179,16 @@ async function syncReadai(userId, emit) {
         if (i === 0) {
           var detailKeys = Object.keys(detail);
           log('Detail keys for first meeting: ' + detailKeys.join(', '));
-          log('Has transcript: ' + (!!detail.transcript) + ' (type: ' + typeof detail.transcript + ', length: ' + (detail.transcript ? String(detail.transcript).length : 0) + ')');
-          log('Has summary: ' + (!!detail.summary) + ' (type: ' + typeof detail.summary + ', length: ' + (detail.summary ? String(detail.summary).length : 0) + ')');
-          log('Has action_items: ' + (!!detail.action_items) + ' (type: ' + typeof detail.action_items + ')');
-          log('Has meeting_summary: ' + (!!detail.meeting_summary));
-          log('Has report: ' + (!!detail.report) + ', has report_url: ' + (!!detail.report_url));
+          log('transcript type: ' + typeof detail.transcript + ', isArray: ' + Array.isArray(detail.transcript));
+          if (detail.transcript && typeof detail.transcript === 'object') {
+            log('transcript keys: ' + Object.keys(detail.transcript).join(', '));
+            log('transcript sample: ' + JSON.stringify(detail.transcript).substring(0, 400));
+          }
+          log('summary type: ' + typeof detail.summary + ', length: ' + (detail.summary ? detail.summary.length : 0));
+          log('action_items type: ' + typeof detail.action_items + ', isArray: ' + Array.isArray(detail.action_items));
+          if (detail.action_items) {
+            log('action_items sample: ' + JSON.stringify(detail.action_items).substring(0, 300));
+          }
         }
 
         var participants = normaliseParticipants(detail.participants);
