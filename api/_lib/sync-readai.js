@@ -80,16 +80,17 @@ async function syncReadai(userId, emit) {
       }
     } catch (e) { /* ignore */ }
 
-    // Paginate through Read.ai meetings API (cursor-based, not offset)
+    // Fetch meetings from Read.ai API.
+    // Read.ai's pagination is broken (offset/starting_after ignored, has_more always true).
+    // Deduplicate by ID and stop when a page returns only meetings we've already seen.
     var allMeetings = [];
-    var cursor = null;
+    var seenIds = {};
     var PAGE_SIZE = 10;
     var MAX_PAGES = 100;
 
     for (var page = 0; page < MAX_PAGES; page++) {
       var url = READAI_API + '/meetings?limit=' + PAGE_SIZE +
         '&start_time_ms.gte=' + startMs;
-      if (cursor) url += '&starting_after=' + cursor;
 
       log('Page ' + (page + 1) + ': fetching...');
 
@@ -107,21 +108,28 @@ async function syncReadai(userId, emit) {
       var meetings = listData.data || [];
       if (!Array.isArray(meetings) || meetings.length === 0) break;
 
-      allMeetings = allMeetings.concat(meetings);
+      var newOnThisPage = 0;
+      for (var mi = 0; mi < meetings.length; mi++) {
+        var mid = meetings[mi].id;
+        if (mid && !seenIds[mid]) {
+          seenIds[mid] = true;
+          allMeetings.push(meetings[mi]);
+          newOnThisPage++;
+        }
+      }
       stats.fetched += meetings.length;
-      log('Page ' + (page + 1) + ': got ' + meetings.length + ' meetings (total: ' + allMeetings.length + ')');
+      log('Page ' + (page + 1) + ': ' + newOnThisPage + ' new, ' + (meetings.length - newOnThisPage) + ' dupes (unique total: ' + allMeetings.length + ')');
+
+      // Stop if this page had no new meetings (pagination is looping)
+      if (newOnThisPage === 0) {
+        log('No new meetings on this page — pagination complete');
+        break;
+      }
 
       if (!listData.has_more) break;
-      cursor = meetings[meetings.length - 1].id;
-
-      // Refresh token mid-pagination if needed (tokens expire every 10 min)
-      if (page > 0 && page % 5 === 0) {
-        var freshCred = await getCredentials(userId, 'readai');
-        if (freshCred) await refreshReadaiToken(freshCred);
-      }
     }
 
-    log('Fetched ' + allMeetings.length + ' meetings total. Processing...');
+    log('Fetched ' + allMeetings.length + ' unique meetings. Processing...');
 
     // Process each meeting — use list data directly (no separate detail fetch needed)
     var processed = 0;
