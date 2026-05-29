@@ -45,10 +45,14 @@ async function syncReadai(userId, emit) {
     var accessToken = await refreshReadaiToken(credRow);
     const client = getServiceClient();
 
+    // Incremental: use last successful sync time. Backfill from Apr 7 if never synced.
     var startMs = BACKFILL_START_MS;
-    log('Token refreshed OK');
-    log('Sync mode: BACKFILL from Apr 7 2026 (always starts here, upsert handles dedup)');
-    log('Start timestamp (ms): ' + startMs + ' = ' + new Date(startMs).toISOString());
+    if (credRow.last_sync_at && credRow.last_sync_status === 'ok') {
+      var lastMs = new Date(credRow.last_sync_at).getTime() - 86400000; // 24h overlap
+      if (lastMs > BACKFILL_START_MS) startMs = lastMs;
+    }
+    var isBackfill = startMs === BACKFILL_START_MS;
+    log(isBackfill ? 'Backfill from ' + new Date(startMs).toISOString().substring(0, 10) : 'Incremental from ' + new Date(startMs).toISOString().substring(0, 10));
 
     // Load existing session_ids for dedup
     var existingRes = await client
@@ -93,7 +97,7 @@ async function syncReadai(userId, emit) {
         '&start_time_ms.gte=' + startMs +
         '&start_time_ms.lte=' + upperMs;
 
-      log('Round ' + (round + 1) + ': window ' + new Date(startMs).toISOString().substring(0, 10) + ' to ' + new Date(upperMs).toISOString().substring(0, 10));
+      if (round === 0) log('Fetching meeting list...');
 
       var listResp = await fetchWithRetry(url, {
         headers: { 'Authorization': 'Bearer ' + accessToken }
@@ -107,10 +111,7 @@ async function syncReadai(userId, emit) {
 
       var listData = await listResp.json();
       var meetings = listData.data || [];
-      if (!Array.isArray(meetings) || meetings.length === 0) {
-        log('Round ' + (round + 1) + ': 0 meetings returned — done');
-        break;
-      }
+      if (!Array.isArray(meetings) || meetings.length === 0) break;
 
       // Find the oldest meeting timestamp in this batch to shift the window
       var oldestMs = Infinity;
@@ -127,22 +128,13 @@ async function syncReadai(userId, emit) {
         }
       }
 
-      log('Round ' + (round + 1) + ': ' + newCount + ' new meetings (total: ' + allMeetings.length + ')');
+      if (newCount === 0) break;
 
-      if (newCount === 0) {
-        log('All duplicates — done');
-        break;
-      }
-
-      // Shift upper bound to just before the oldest meeting in this batch
       upperMs = oldestMs - 1;
-      if (upperMs <= startMs) {
-        log('Reached start of backfill window — done');
-        break;
-      }
+      if (upperMs <= startMs) break;
     }
 
-    log('Fetched ' + allMeetings.length + ' unique meetings. Fetching details and saving...');
+    log('Found ' + allMeetings.length + ' meetings, fetching details...');
 
     // Process each meeting — fetch full detail for transcript/summary/action items
     var processed = 0;
@@ -184,22 +176,6 @@ async function syncReadai(userId, emit) {
           try { detail = await detailResp.json(); } catch (e) { /* use list data */ }
         } else {
           log('Detail fetch failed for ' + sessionId + ' (HTTP ' + detailResp.status + '), using list data');
-        }
-
-        // Log first meeting's detail structure so we can see what fields are available
-        if (i === 0) {
-          var detailKeys = Object.keys(detail);
-          log('Detail keys for first meeting: ' + detailKeys.join(', '));
-          log('transcript type: ' + typeof detail.transcript + ', isArray: ' + Array.isArray(detail.transcript));
-          if (detail.transcript && typeof detail.transcript === 'object') {
-            log('transcript keys: ' + Object.keys(detail.transcript).join(', '));
-            log('transcript sample: ' + JSON.stringify(detail.transcript).substring(0, 400));
-          }
-          log('summary type: ' + typeof detail.summary + ', length: ' + (detail.summary ? detail.summary.length : 0));
-          log('action_items type: ' + typeof detail.action_items + ', isArray: ' + Array.isArray(detail.action_items));
-          if (detail.action_items) {
-            log('action_items sample: ' + JSON.stringify(detail.action_items).substring(0, 300));
-          }
         }
 
         var participants = normaliseParticipants(detail.participants);
@@ -281,12 +257,9 @@ async function syncReadai(userId, emit) {
         if (isNew) {
           stats.inserted++;
           existingIds[sessionId] = true;
-          log('[' + processed + '/' + allMeetings.length + '] NEW: "' + (detail.title || m.title || '').substring(0, 60) + '"');
+          log('[' + processed + '/' + allMeetings.length + '] ' + (detail.title || m.title || '').substring(0, 60));
         } else {
           stats.updated++;
-          if (processed <= 5 || processed % 10 === 0) {
-            log('[' + processed + '/' + allMeetings.length + '] Updated: "' + (detail.title || m.title || '').substring(0, 60) + '"');
-          }
         }
       } catch (meetingErr) {
         log('Error processing meeting ' + (i + 1) + ': ' + meetingErr.message);
