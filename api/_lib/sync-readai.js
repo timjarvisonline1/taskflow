@@ -42,7 +42,7 @@ async function syncReadai(userId, emit) {
   }
 
   try {
-    const accessToken = await refreshReadaiToken(credRow);
+    var accessToken = await refreshReadaiToken(credRow);
     const client = getServiceClient();
 
     var startMs = BACKFILL_START_MS;
