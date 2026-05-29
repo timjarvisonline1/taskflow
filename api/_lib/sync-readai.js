@@ -170,6 +170,17 @@ async function syncReadai(userId, emit) {
           log('Detail fetch failed for ' + sessionId + ' (HTTP ' + detailResp.status + '), using list data');
         }
 
+        // Log first meeting's detail structure so we can see what fields are available
+        if (i === 0) {
+          var detailKeys = Object.keys(detail);
+          log('Detail keys for first meeting: ' + detailKeys.join(', '));
+          log('Has transcript: ' + (!!detail.transcript) + ' (type: ' + typeof detail.transcript + ', length: ' + (detail.transcript ? String(detail.transcript).length : 0) + ')');
+          log('Has summary: ' + (!!detail.summary) + ' (type: ' + typeof detail.summary + ', length: ' + (detail.summary ? String(detail.summary).length : 0) + ')');
+          log('Has action_items: ' + (!!detail.action_items) + ' (type: ' + typeof detail.action_items + ')');
+          log('Has meeting_summary: ' + (!!detail.meeting_summary));
+          log('Has report: ' + (!!detail.report) + ', has report_url: ' + (!!detail.report_url));
+        }
+
         var participants = normaliseParticipants(detail.participants);
         var actionItems = normaliseItems(detail.action_items);
         var keyQuestions = normaliseItems(detail.key_questions);
