@@ -171,10 +171,20 @@ If `S.view` is not in `LIVE_VIEWS` (e.g. stale `outreach` from localStorage), it
 - Tasks link to one initiative via `task.project` column
 - No more phases, board, list, timeline
 
+### Tasks (detail page — rebuilt May 2026)
+- `rTaskDetailPage()` in `views.js` (line ~91) — full page-detail view using `opd-*` section-card pattern
+- Layout: **Details + Linked To** side-by-side (flex 3:2 ratio via `.td-top-cols`), **Notes + Activity Log** side-by-side below
+- Timer/Add Time is integrated into the sticky `opd-actions` bar (no separate section)
+- Importance chip uses `impCls()` (returns `bg-cr`/`bg-im`/`bg-mt`/`bg-wt`) — NOT `impBg()`/`impCol()` which don't exist
+- Completing or deleting a task from the detail page clears `S._detailPage` and calls `_pushHash()` to navigate back (fixes in `modals.js` lines ~362/372 and `core.js` line ~402)
+- CSS: `.td-top-cols` in `components.css` (flexbox, stacks below 768px), `.opd-actions-sep` divider
+
 ### Sales (simplified)
 - `rOpportunities()` shows: KPIs → "Needs your attention" surface → per-type pipeline columns
 - "Needs attention" criteria: no update in 14+ days, missing expected close, or past expected close while open
 - One screen per type (Retain Live, F&C Partnerships, F&C Direct) — no separate sub-nav
+- **Stage columns**: Empty stages are hidden when `S.opClientFilter` is set (line ~4447 in `views.js`)
+- **Detail nav**: Left/right arrows scope to same `op.type` — counter reflects type-scoped count (line ~3694)
 
 ### Clients (stale-first)
 - `rClientsStale()` — table sorted by days-since-last-contact, descending
@@ -196,6 +206,8 @@ If `S.view` is not in `LIVE_VIEWS` (e.g. stale `outreach` from localStorage), it
   - Returns 500 on processing errors (Read.ai will retry)
   - Returns diagnostic JSON on GET
   - Logs each step to Vercel function logs
+  - **Webhook re-enabled May 29, 2026** — had been stopped since ~April 7. URL: `https://taskflow.timjarvis.online/api/webhook/readai?secret=readai-taskflow-2026`. Secret confirmed matching DB.
+  - **~7 weeks of meetings missed** (April 7 – May 29) — need backfill via Read.ai API sync
 
 ### Ask TaskFlow (global AI panel)
 - `rAskTaskFlow()` — single text input, persisted conversation history, suggested prompts
@@ -220,6 +232,23 @@ If `S.view` is not in `LIVE_VIEWS` (e.g. stale `outreach` from localStorage), it
 | User UUID | 78bd1255-f05a-436b-abbd-f8c281d30210 |
 
 Environment variables (Vercel dashboard): `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Per-user API keys (Anthropic, OpenAI, Brex, Mercury, Read.ai secret) live in the `integration_credentials` table.
+
+### Read.ai API (for planned sync integration)
+- **Base URL**: `https://api.read.ai/v1/`
+- **Auth**: OAuth 2.1 with dynamic client registration
+- **Token endpoint**: `https://authn.read.ai/oauth2/token`
+- **Scopes**: `openid email meeting:read offline_access profile`
+- **Token lifetime**: Access tokens expire after 10 minutes; refresh tokens rotate on each use
+- **Key endpoint**: `GET /v1/meetings?limit=N&start_time_ms.gte=TIMESTAMP` — lists meetings filtered by date, reverse chronological, paginated
+- **Rate limit**: 100 requests/minute/user
+- **MCP server**: Also available at `https://api.read.ai/mcp/` (configured in `~/.claude.json` as `readai` but not yet authenticated)
+
+### Email sync (current state)
+- **Polling only** — no Gmail push notifications/webhooks
+- Sync runs when user opens Email section or clicks "Sync Now"
+- `api/sync/gmail` → `api/_lib/sync-gmail.js` fetches up to 500 threads per sync
+- Auto-embeds new threads into knowledge base (best-effort within 300s timeout)
+- **Planned**: Scheduled 30-minute polling via Vercel cron or Claude Code routine
 
 ## Coding conventions
 
@@ -260,6 +289,36 @@ Tim needs to:
 2. **Verify Read.ai webhook** by visiting `https://taskflow.timjarvis.online/api/webhook/readai` in a browser. Should return JSON showing `readai_integrations: 1, has_webhook_secret: 1`. If zero, set up the readai integration in `integration_credentials` with a `webhook_secret` in `config`.
 3. **Check the Read.ai dashboard** webhook URL is `https://taskflow.timjarvis.online/api/webhook/readai?secret=YOUR_SECRET`. If it stopped working, the secret in the URL probably no longer matches the one in the DB.
 4. **Hit "Sync Now"** in the integrations modal for Brex and Mercury to populate live balances.
+
+## Planned: Read.ai API sync + meeting backfill
+
+Build a Read.ai OAuth integration modelled on the existing Gmail OAuth pattern:
+
+1. **OAuth flow**: `api/auth/readai-connect.js` (returns auth URL) + `api/auth/readai-callback.js` (exchanges code for tokens, stores in `integration_credentials`)
+2. **Sync endpoint**: `api/sync/readai.js` + `api/_lib/sync-readai.js` — pulls meetings via `GET /v1/meetings`, upserts into `meetings` table, triggers AI task generation + KB embedding (same post-processing as the webhook handler)
+3. **Backfill**: On first sync, pull all meetings since April 7, 2026 (`start_time_ms.gte=1743984000000`)
+4. **UI**: Add "Connect Read.ai" button in integrations modal + "Sync Now" button (same pattern as Gmail/Brex/Mercury)
+5. **Ongoing**: Acts as safety net alongside the webhook — catches any meetings the webhook misses
+
+The Gmail OAuth pattern to follow:
+- `api/auth/gmail-connect.js` — builds auth URL with scopes, returns it to frontend
+- `api/auth/gmail-callback.js` — receives OAuth callback, exchanges code for tokens, stores credentials
+- `api/_lib/gmail-auth.js` — helper to get/refresh access tokens from stored credentials
+- `api/_lib/sync-gmail.js` — actual sync logic using the refreshed token
+
+Read.ai differences from Gmail:
+- OAuth 2.1 with **dynamic client registration** (must register client first, receives client_id + client_secret)
+- Tokens expire every **10 minutes** (vs Gmail's 1 hour) — must refresh aggressively
+- Refresh tokens **rotate** on each use (must store new refresh_token after each refresh)
+
+## Planned: Daily task extraction routine
+
+Long-term goal: auto-extract tasks from emails and meetings.
+
+- **Meetings**: Extend the Read.ai webhook handler (or sync post-processing) to generate AI-suggested tasks. The `analyzeMeetingForTasks()` function in `api/_lib/analyze-meeting.js` already does this.
+- **Emails**: After each Gmail sync, process new/unread threads through AI to extract action items. Needs a new `analyzeEmailForTasks()` function.
+- **Review UI**: A "Suggested Tasks" queue in the Tasks section where AI-extracted tasks can be reviewed, merged, edited, accepted, or dismissed before becoming real tasks.
+- **Notification**: Email Tim when new suggested tasks are ready for review.
 
 ## Known issues / follow-ups
 
