@@ -130,7 +130,7 @@ function _oppEarliestClose(op){
   dates.sort();return dates[0]}
 
 var S={tasks:[],done:[],review:[],clients:[],campaigns:[],payments:[],campaignMeetings:[],projects:[],phases:[],opportunities:[],oppMeetings:[],timers:{},view:'dashboard',subView:'',layout:'grid',groupBy:'importance',clientDetailName:'',campaignDetailId:'',
-  templates:[],bulkMode:false,bulkSelected:{},calEvents:[],
+  templates:[],bulkMode:false,bulkSelected:{},calEvents:[],rvFilter:'',rvSort:'newest',
   pins:{},actLogs:{},customOrder:[],schedOrder:{},projTaskOrder:{},focusTask:null,focusDuration:25,recurrLast:{},
   filters:{client:'',endClient:'',campaign:'',project:'',opportunity:'',cat:'',imp:'',type:'',search:'',dateFrom:'',dateTo:''},dashPeriod:30,collapsed:{},doneSort:'date',cpShowPaused:false,cpShowCompleted:false,opShowClosed:false,opShowClosedWon:false,opShowClosedLost:false,opClientFilter:'',opTypeFilter:'',opViewMode:'cards',opGroupBy:'stage',opPartnerFilter:'',
   financePayments:[],financePaymentSplits:[],clientRecords:[],payerMap:[],finFilter:'unmatched',finSearch:'',finBulkMode:false,finBulkSelected:{},finRange:'12m',finCatFilter:'',finClientFilter:'',finCustomStart:'',finCustomEnd:'',finDirection:'',integrations:[],
@@ -5862,6 +5862,9 @@ async function dbDeleteReview(id){
 
 /* ═══════════ REVIEW QUEUE: SELECTION + MERGE + BULK ═══════════ */
 
+function setRvFilter(v){S.rvFilter=v||'';S.rvSelected={};save();render()}
+function setRvSort(v){S.rvSort=v||'newest';save();render()}
+
 function rvToggle(id,checked){
   if(!S.rvSelected)S.rvSelected={};
   if(checked)S.rvSelected[id]=true;else delete S.rvSelected[id];
@@ -5869,7 +5872,7 @@ function rvToggle(id,checked){
 
 function rvToggleAll(checked){
   S.rvSelected={};
-  if(checked)S.review.forEach(function(r){S.rvSelected[r.id]=true});
+  if(checked){var filt=S.rvFilter||'';S.review.forEach(function(r){if(!filt||r.source===filt)S.rvSelected[r.id]=true})}
   render()}
 
 async function mergeReviewSelected(){

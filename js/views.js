@@ -3231,32 +3231,52 @@ function rTasks(){
 
   /* ═══ REVIEW MODE ═══ */
   else if(mode==='review'){
+    var emailCount=S.review.filter(function(r){return r.source==='Email'}).length;
+    var meetCount=S.review.filter(function(r){return r.source==='Read.ai'}).length;
+    var otherCount=S.review.length-emailCount-meetCount;
+
+    /* Filter + sort bar */
+    h+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap">';
+    h+='<button class="btn btn-go" onclick="TF.backfillTasks()" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Generate AI Tasks</button>';
+    h+='<span style="width:1px;height:20px;background:var(--gborder);margin:0 4px;flex-shrink:0"></span>';
+    var _rf=S.rvFilter||'';
+    h+='<button class="btn'+(!_rf?' btn-p':'')+'" onclick="TF.setRvFilter(\'\')" style="font-size:11px;padding:5px 12px">All <span style="color:var(--t4);font-weight:400">'+S.review.length+'</span></button>';
+    if(meetCount)h+='<button class="btn'+(_rf==='Read.ai'?' btn-p':'')+'" onclick="TF.setRvFilter(\'Read.ai\')" style="font-size:11px;padding:5px 12px">'+icon('mic',10)+' Meetings <span style="color:var(--t4);font-weight:400">'+meetCount+'</span></button>';
+    if(emailCount)h+='<button class="btn'+(_rf==='Email'?' btn-p':'')+'" onclick="TF.setRvFilter(\'Email\')" style="font-size:11px;padding:5px 12px">'+icon('mail',10)+' Emails <span style="color:var(--t4);font-weight:400">'+emailCount+'</span></button>';
+    if(otherCount)h+='<button class="btn'+(_rf==='Manual'?' btn-p':'')+'" onclick="TF.setRvFilter(\'Manual\')" style="font-size:11px;padding:5px 12px">Other <span style="color:var(--t4);font-weight:400">'+otherCount+'</span></button>';
+    h+='<span style="flex:1"></span>';
+    h+='<button class="btn" onclick="TF.setRvSort(S.rvSort===\'newest\'?\'oldest\':\'newest\')" style="font-size:11px;padding:5px 12px;color:var(--t3)" title="Toggle sort order">'+icon('clock',10)+' '+(S.rvSort==='oldest'?'Oldest first':'Newest first')+'</button>';
+    h+='</div>';
+
     /* Bulk actions bar */
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">';
-    h+='<button class="btn btn-go" onclick="TF.backfillTasks()" style="font-size:12px;padding:6px 14px">'+icon('refresh',11)+' Generate AI Tasks (14 days)</button>';
     if(S.review.length){
       var selCount=Object.keys(S.rvSelected||{}).length;
-      h+='<label style="font-size:12px;color:var(--t3);cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:auto"><input type="checkbox" onchange="TF.rvToggleAll(this.checked)"> Select All</label>';
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
+      h+='<label style="font-size:12px;color:var(--t3);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" onchange="TF.rvToggleAll(this.checked)"> Select All</label>';
       if(selCount>1){
         h+='<button class="btn" onclick="TF.mergeReviewSelected()" style="font-size:12px;padding:6px 14px;color:var(--blue)">'+icon('link',11)+' Merge '+selCount+'</button>';
       }
       if(selCount>0){
         h+='<button class="btn" onclick="TF.dismissReviewSelected()" style="font-size:12px;padding:6px 14px;color:var(--red)">'+icon('x',11)+' Dismiss '+selCount+'</button>';
       }
+      h+='</div>';
     }
-    h+='</div>';
-    if(!S.review.length){
-      h+='<div class="no-data" style="padding:64px 20px"><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">No tasks to review</div><div style="font-size:13px;color:var(--t4)">Click "Generate AI Tasks" to extract tasks from recent meetings and emails.</div></div>';
+
+    var items=reviewSorted();
+    if(!items.length){
+      h+='<div class="no-data" style="padding:64px 20px"><div style="font-size:16px;color:var(--t2);margin-bottom:10px;font-weight:500">'+(S.rvFilter?'No '+S.rvFilter+' tasks to review':'No tasks to review')+'</div><div style="font-size:13px;color:var(--t4)">'+(S.rvFilter?'Try clearing the filter or click "Generate AI Tasks."':'Click "Generate AI Tasks" to extract tasks from recent meetings and emails.')+'</div></div>';
     } else {
-      var items=reviewSorted();
       h+='<div class="rv-list">';
       items.forEach(function(r,i){
         var isSel=(S.rvSelected||{})[r.id];
+        var srcIcon='',srcLabel='',srcBg='',srcClr='';
+        if(r.source==='Email'){srcIcon=icon('mail',10);srcLabel='Email';srcBg='rgba(59,130,246,0.1)';srcClr='#3b82f6'}
+        else if(r.source==='Read.ai'){srcIcon=icon('mic',10);srcLabel='Meeting';srcBg='rgba(16,185,129,0.1)';srcClr='#10b981'}
+        else{srcIcon=icon('inbox',10);srcLabel='Manual';srcBg='rgba(255,0,153,0.08)';srcClr='var(--pink)'}
         h+='<div class="rv-card'+(isSel?' rv-card-sel':'')+'">';
         h+='<div class="rv-card-left">';
         h+='<input type="checkbox" class="rv-chk" '+(isSel?'checked ':'')+' onclick="event.stopPropagation();TF.rvToggle(\''+r.id+'\',this.checked)" style="margin-right:8px;cursor:pointer">';
-        if(r.source==='Email'){h+='<span class="bg" style="background:rgba(59,130,246,0.1);color:#3b82f6;font-size:10px">'+icon('mail',12)+'</span>'}
-        else if(r.source==='Read.ai'){h+='<span class="bg" style="background:rgba(16,185,129,0.1);color:#10b981;font-size:10px">'+icon('mic',12)+'</span>'}
+        h+='<span class="bg" style="background:'+srcBg+';color:'+srcClr+';font-size:10px;white-space:nowrap">'+srcIcon+' '+srcLabel+'</span>';
         h+='<span class="bg '+impCls(r.importance)+'">'+esc(r.importance)+'</span>';
         h+='<span class="rv-name" onclick="TF.openReviewAt('+i+')" style="cursor:pointer">'+esc(r.item)+'</span>';
         h+='</div>';
@@ -3265,7 +3285,7 @@ function rTasks(){
         if(r.endClient)h+='<span class="bg bg-ec">'+esc(r.endClient)+'</span>';
         if(r.category)h+='<span class="bg bg-ca">'+esc(r.category)+'</span>';
         if(r.est)h+='<span class="bg-es">'+fmtM(r.est)+'</span>';
-        if(r.due)h+='<span class="bg-du">'+fmtDShort(r.due)+'</span>';
+        if(r.created)h+='<span style="font-size:10px;color:var(--t4);white-space:nowrap">'+fmtDShort(r.created)+'</span>';
         h+='</div></div>'});
       h+='</div>';
     }
@@ -3394,7 +3414,12 @@ function applyDropdownFilters(items){var f=S.filters;return items.filter(functio
 /* Analytics view removed — key metrics in Dashboard */
 /* ═══════════ REVIEW ═══════════ */
 var reviewIdx=0;
-function reviewSorted(){return S.review.slice().sort(function(a,b){return(b.created?b.created.getTime():0)-(a.created?a.created.getTime():0)})}
+function reviewSorted(){
+  var list=S.review.slice();
+  if(S.rvFilter){list=list.filter(function(r){return r.source===S.rvFilter})}
+  var dir=S.rvSort==='oldest'?1:-1;
+  list.sort(function(a,b){return dir*((b.created?b.created.getTime():0)-(a.created?a.created.getTime():0))});
+  return list}
 
 /* ═══════════ CALENDAR: VIEW FUNCTIONS ═══════════ */
 function fmtTime(d){return(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes()}
