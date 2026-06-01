@@ -7108,10 +7108,10 @@ function filterBar(items,showDate){
   h+='<div class="tf-toolbar-divider"></div>';
   var pjs=S.projects.filter(function(p){return p.status!=='Archived'}).map(function(p){return p.name});
   var ops=S.opportunities.filter(function(o){return o.stage!=='Closed Won'&&o.stage!=='Closed Lost'}).map(function(o){return o.name});
-  h+=fSel('client',cls,'All clients');if(ecs.length)h+=fSel('endClient',ecs,'All end clients');if(cps.length)h+=fSel('campaign',cps,'All campaigns');if(pjs.length)h+=fSel('project',pjs,'All projects');if(ops.length)h+=fSel('opportunity',ops,'All opportunities');h+=fSel('cat',cas,'All categories');h+=fSel('imp',ims,'All importance');h+=fSel('type',TYPES,'All types');
+  h+=fSel('followUp',['Follow-ups only','Hide follow-ups'],'All tasks');h+=fSel('client',cls,'All clients');if(ecs.length)h+=fSel('endClient',ecs,'All end clients');if(cps.length)h+=fSel('campaign',cps,'All campaigns');if(pjs.length)h+=fSel('project',pjs,'All projects');if(ops.length)h+=fSel('opportunity',ops,'All opportunities');h+=fSel('cat',cas,'All categories');h+=fSel('imp',ims,'All importance');h+=fSel('type',TYPES,'All types');
   if(showDate){h+='<input type="date" class="fl" value="'+(S.filters.dateFrom||'')+'" onchange="TF.filt(\'dateFrom\',this.value)" title="From">';
     h+='<input type="date" class="fl" value="'+(S.filters.dateTo||'')+'" onchange="TF.filt(\'dateTo\',this.value)" title="To">'}
-  if(S.filters.client||S.filters.endClient||S.filters.campaign||S.filters.project||S.filters.opportunity||S.filters.cat||S.filters.imp||S.filters.type||S.filters.search||S.filters.dateFrom||S.filters.dateTo){h+='<div class="tf-toolbar-spacer"></div><button class="fl-clr" onclick="TF.clearF()">'+icon('x',12)+' Clear</button>'}
+  if(S.filters.followUp||S.filters.client||S.filters.endClient||S.filters.campaign||S.filters.project||S.filters.opportunity||S.filters.cat||S.filters.imp||S.filters.type||S.filters.search||S.filters.dateFrom||S.filters.dateTo){h+='<div class="tf-toolbar-spacer"></div><button class="fl-clr" onclick="TF.clearF()">'+icon('x',12)+' Clear</button>'}
   return h+'</div>'}
 function fSel(key,opts,all){var cur=S.filters[key]||'';
   var h='<select class="fl'+(cur?' fl-active':'')+'" onchange="TF.filt(\''+key+'\',this.value)"><option value="">'+all+'</option>';
@@ -7119,6 +7119,8 @@ function fSel(key,opts,all){var cur=S.filters[key]||'';
 function applyFilters(items,useDate){var f=S.filters;return items.filter(function(t){
   if(f.client&&t.client!==f.client)return false;if(f.endClient&&t.endClient!==f.endClient)return false;if(f.cat&&t.category!==f.cat)return false;
   if(f.imp&&t.importance!==f.imp)return false;if(f.type&&t.type!==f.type)return false;
+  if(f.followUp==='Follow-ups only'&&!/^follow.?up/i.test(t.item))return false;
+  if(f.followUp==='Hide follow-ups'&&/^follow.?up/i.test(t.item))return false;
   if(f.campaign){var matchCp=S.campaigns.find(function(c){return c.name===f.campaign});if(matchCp&&t.campaign!==matchCp.id)return false}
   if(f.project){var matchPj=S.projects.find(function(p){return p.name===f.project});if(matchPj&&t.project!==matchPj.id)return false}
   if(f.opportunity){var matchOp=S.opportunities.find(function(o){return o.name===f.opportunity});if(matchOp&&t.opportunity!==matchOp.id)return false}
