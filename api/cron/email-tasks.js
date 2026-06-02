@@ -1,5 +1,4 @@
 const { getServiceClient, getCredentials } = require('../_lib/supabase');
-const { syncGmail } = require('../_lib/sync-gmail');
 const { analyzeEmailsForTasks } = require('../_lib/analyze-emails');
 const { refreshGmailToken } = require('../_lib/gmail-auth');
 
@@ -8,11 +7,11 @@ const USER_ID = '78bd1255-f05a-436b-abbd-f8c281d30210';
 
 /**
  * GET /api/cron/email-tasks
- * Vercel cron job: syncs Gmail, then runs AI task extraction on new threads.
+ * Vercel cron job: lightweight Gmail sync (last 50 threads only) + AI task extraction.
+ * The full syncGmail() blows the memory limit; this does a targeted check instead.
  * Protected by CRON_SECRET header (Vercel injects this for cron jobs).
  */
 module.exports = async function handler(req, res) {
-  // Vercel cron protection
   if (req.headers.authorization !== 'Bearer ' + process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -23,10 +22,69 @@ module.exports = async function handler(req, res) {
   try {
     var client = getServiceClient();
 
-    // Phase 1: Sync Gmail (fetch new threads)
-    l('Syncing Gmail...');
-    var syncStats = await syncGmail(USER_ID);
-    l('Gmail sync: ' + syncStats.inserted + ' new, ' + syncStats.updated + ' updated');
+    // Phase 1: Lightweight Gmail sync — fetch only the 50 most recent threads
+    l('Syncing recent Gmail threads...');
+    var gmailCred = await getCredentials(USER_ID, 'gmail');
+    if (!gmailCred) {
+      l('Gmail not connected');
+      return res.status(200).json({ success: true, log: log, tasks: 0 });
+    }
+    var accessToken = await refreshGmailToken(gmailCred);
+
+    var listResp = await fetch(GMAIL_API + '/threads?maxResults=50', {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+    if (!listResp.ok) { l('Gmail list failed: HTTP ' + listResp.status); return res.status(200).json({ success: false, log: log }); }
+    var listData = await listResp.json();
+    var threadIds = (listData.threads || []).map(function(t) { return t.id; });
+
+    // Check which are new (not in gmail_threads table yet)
+    var existingRes = await client.from('gmail_threads').select('thread_id').eq('user_id', USER_ID).in('thread_id', threadIds);
+    var existingSet = {};
+    (existingRes.data || []).forEach(function(r) { existingSet[r.thread_id] = true; });
+    var newThreadIds = threadIds.filter(function(id) { return !existingSet[id]; });
+
+    var syncInserted = 0;
+    for (var ni = 0; ni < newThreadIds.length; ni++) {
+      try {
+        var tResp = await fetch(GMAIL_API + '/threads/' + newThreadIds[ni] + '?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Cc', {
+          headers: { 'Authorization': 'Bearer ' + accessToken }
+        });
+        if (!tResp.ok) continue;
+        var tData = await tResp.json();
+        var msgs = tData.messages || [];
+        if (!msgs.length) continue;
+
+        var firstMsg = msgs[0], lastMsg = msgs[msgs.length - 1];
+        var getH = function(msg, name) {
+          var h = (msg.payload && msg.payload.headers || []).find(function(hdr) { return hdr.name.toLowerCase() === name.toLowerCase(); });
+          return h ? h.value : '';
+        };
+        var fromRaw = getH(firstMsg, 'From');
+        var fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
+        var fromName = fromMatch ? fromMatch[1].replace(/"/g, '').trim() : '';
+        var fromEmail = fromMatch ? fromMatch[2].trim() : fromRaw.trim();
+        var subject = getH(firstMsg, 'Subject');
+        var lastFromRaw = getH(lastMsg, 'From');
+        var lastFromMatch = lastFromRaw.match(/<(.+?)>/);
+        var lastFromEmail = lastFromMatch ? lastFromMatch[1].trim() : lastFromRaw.trim();
+
+        var row = {
+          user_id: USER_ID, thread_id: newThreadIds[ni],
+          subject: subject || '(no subject)', from_email: fromEmail, from_name: fromName,
+          to_emails: getH(firstMsg, 'To'), cc_emails: getH(firstMsg, 'Cc') || '',
+          snippet: lastMsg.snippet || '',
+          last_message_at: new Date(parseInt(lastMsg.internalDate)).toISOString(),
+          message_count: msgs.length, is_unread: (lastMsg.labelIds || []).indexOf('UNREAD') !== -1,
+          labels: msgs.flatMap(function(m) { return m.labelIds || []; }).filter(function(v, i, a) { return a.indexOf(v) === i; }).join(','),
+          last_message_from: lastFromEmail,
+          synced_at: new Date().toISOString()
+        };
+        await client.from('gmail_threads').insert(row);
+        syncInserted++;
+      } catch (e) { /* skip individual thread errors */ }
+    }
+    l('Gmail: ' + syncInserted + ' new threads synced (checked ' + threadIds.length + ')');
 
     // Phase 2: Find unanalyzed threads from last 3 days (covers weekend gaps)
     var threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString();
