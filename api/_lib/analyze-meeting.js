@@ -9,6 +9,13 @@ const CATS = [
 ];
 
 async function analyzeMeetingForTasks(userId, meetingRow, supabase) {
+  // Skip if this meeting already has review items
+  if (meetingRow.id) {
+    var existingReview = await supabase.from('review').select('id', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('meeting_id', meetingRow.id);
+    if (existingReview.count > 0) return 0;
+  }
+
   // Load Anthropic credentials — skip silently if not configured
   var credRow = await getCredentials(userId, 'anthropic');
   if (!credRow || !credRow.credentials || !credRow.credentials.api_key) return 0;
